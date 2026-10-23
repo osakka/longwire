@@ -1,154 +1,169 @@
-# CLI and UX
+# Commands
 
-**Principle: you dial, it works.** There are no config files and no flags you need to know on day one.
+**Principle: you dial, it works.** There are no config files, and the only flags you need are the ones that say where
+your switchboard is and how this machine attaches to its LAN.
 
-`longwire` is the node script (component 2) and `longwire-switchboard` is the switchboard script (component 1).
-Both are hibr scripts built on the module's `lw` builtin (component 3), which your own scripts can use too
-([below](#scripting-it-yourself-the-lw-builtin)). Everything a node knows is available as JSON with `--json`, or as
-a map in `$RET` from `lw`.
+`longwire` is the node script (component 2) and `longwire-switchboard` is the switchboard script (component 1). Both
+are hibr scripts built on the module's `lw` builtin (component 3), which your own scripts can use too
+([below](#scripting-it-yourself-the-lw-builtin)). Anything designed but not built carries `*(planned: M3)*`.
 
-## First run
+## A first run
 
 ```
-$ longwire
-  new identity created            ~/.longwire/seed   (back it up: `longwire key export`)
-  ☎  your number   447-120-933
-     switchboard   203.0.113.7:1877   dial tone
-     attach        splice ready on eth0 (cap_net_raw ok)
+$ longwire up --switchboard 203.0.113.7:1877/lw1q7m…k2a --splice eth0
+☎  your number 447-120-933 — dial tone
 ```
 
-`longwire` with no arguments starts the daemon if it isn't running, registers, and prints status. Running it again
-just prints status.
+`longwire up` runs the node in the foreground, which is what a service unit or `hold` runs. It creates your identity
+(`~/.longwire/seed`, 32 bytes, mode 0600: back it up, it *is* your number), starts the engine worker, registers with the
+switchboard, and prints what happens as sentences. In another terminal:
 
-## What exists today (M1)
+```
+$ longwire dial 312-884-071
+{"call":"dialing","number":"312-884-071"}
+```
 
-The table below is the design. This is what the scripts implement now:
+and on the other machine's `up` terminal:
 
-| Command | Status |
-|---|---|
-| `longwire up [--switchboard HOST:PORT/KEY] [--answer ask\|known\|auto\|never] [--token T] [--jack TAP \| --sock-port L:P] [--listen [ADDR:]PORT] [--peer BUNDLE[@HOST:PORT]]...` | built: runs the node in the foreground, prints events as sentences, applies the answer policy |
-| `longwire dial NUMBER`, `pickup`, `reject`, `hangup`, `status`, `down` | built |
-| `longwire unpin NUMBER` | built: forget a number's key; the next call from it is a first call again. A pin is written only once a call is up, so a wrong safety phrase is always recoverable |
-| `longwire id`, `address`, `bundle` | built: key id, full address (`lw1…`), public bundle (hex) |
-| `longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR] [--per-ip-hour N] [--rings-per-minute N]` | built ([SWITCHBOARD](SWITCHBOARD.md)) |
-| `peers`, `who`, `watch`, `answer`, `evict`, `shell`, `setup`, `key export/import`, the default switchboard | not yet |
-
-`--switchboard` is required for now: the default public switchboard needs its host and key from you ([DECISIONS
-D14](DECISIONS.md#d14)). Answer policies as built: **ask** (the default) prints the ring and waits for `longwire
-pickup` (the worker refuses after 60 s), **known** picks up numbers you have been connected to before and asks about
-the rest, **auto** picks up anyone (headless boxes, tests), **never** refuses. The `line` policy arrives with party
-lines (M3).
-
-**Events.** Everything the worker does is an event, one JSON object per line on `/dev/longwire/events` (or `lw`'s
-control socket, `watch`): `registered`, `register-refused`, `ring` (with `from`, `phrase`, `known`), `connected`
-(with `number`, `path`, `ep`, `phrase`), `call-failed` (with a plain-language `reason`), `call-lost` (a call that was up lost its other end; the script decides whether to dial again), `hangup` (`by`: `us` or
-`them`), and `key-changed`. The node script turns them into sentences; the desktop will turn them into dialogs.
+```
+☎  447-120-933 is calling
+   safety phrase: gopher daisy castle cactus island flint
+   first call from this number
+   run: longwire pickup | longwire reject (60 s)
+```
 
 ## Commands
 
 | Command | Does |
 |---|---|
-| `longwire` | start if needed, then show status |
-| `longwire dial <number\|lw1…> [--splice IF \| --jack [TAP] \| --leaf]` | call. Joins the callee's line, or starts a new one |
-| `longwire hangup [<number> \| all]` | leave the line, or drop one peer |
-| `longwire status [--json]` | your number, the line, the peers, each one's path (`direct` / `relay via …` / `lan`), RTT, rates |
-| `longwire peers` | one line per peer: number, role, path, RTT, last handshake |
+| `longwire up [options]` | run the node in the foreground ([options](#options-of-up)) |
+| `longwire dial NUMBER` | call a number (`447-120-933`, dashes optional; a wrong check digit is refused before anything is sent) |
 | `longwire pickup` / `longwire reject` | answer the ringing call |
-| `longwire answer <ask \| line \| known \| never>` | set the [answer policy](#answer-policy) |
-| `longwire evict <number>` | remove a member from the line, permanently, and rotate the line key |
-| `longwire who <number>` | look up a number: its full address, pin state and safety phrase |
-| `longwire watch` | stream events: `ring`, `connected`, `path`, `key-changed`, `hangup` |
-| `longwire shell <number>` | rootless: dial, then open `$SHELL` in a namespace whose only network is the line |
-| `longwire up [--splice IF \| --jack [TAP]]` | run the node in the foreground: what a service unit or `hold` runs |
-| `longwire setup splice <IF>` | print the one-time service unit with `AmbientCapabilities=CAP_NET_RAW` (and write it, with `sudo`) |
-| `longwire setup jack` | print (or run) the one-time `ip tuntap add dev lw0 mode tap user $USER` |
-| `longwire key export` / `key import` | the seed as 24 words |
-| `longwire down` | hang up everything, deregister, stop |
-| `longwire --switchboard host:port/lw1… …` | use a switchboard other than the default public one; it's remembered |
-| `longwire-switchboard [--listen ADDR] [--tokens FILE]` | run a switchboard (component 1) |
+| `longwire hangup` | end the call, or decline a ringing one |
+| `longwire unpin NUMBER` | forget a number's key: the next call from it is a first call again |
+| `longwire status` | what the node is doing, as JSON ([fields](#status)) |
+| `longwire down` | stop the node |
+| `longwire id`, `longwire address`, `longwire bundle` | your key id (hex), your full address (`lw1…`), your public bundle (hex, for `--peer`) |
+| `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode |
+| `longwire-switchboard [options]` | run a switchboard ([SWITCHBOARD](SWITCHBOARD.md)) |
+| `longwire` with no arguments starts the node if it isn't running, then shows status | *(planned: M4)* |
+| `longwire peers`, `longwire who NUMBER` | the peers on the line and a number's details *(planned: M3)* |
+| `longwire answer POLICY` | change the answer policy while running *(planned: M3)* |
+| `longwire evict NUMBER` | remove a member from the line and rotate its key *(planned: M3)* |
+| `longwire watch` | stream events as sentences *(planned: M4)* |
+| `longwire shell NUMBER` | dial, then a shell whose only network is the line *(planned: M5)* |
+| `longwire key export`, `longwire key import` | the seed as 24 words *(planned: M3)* |
 
-**Choosing how to attach.** `dial` with no mode flag picks the first that works and says which it picked:
+### Options of `up`
 
-1. **splice**, if the running node was started with `CAP_NET_RAW` and there's exactly one wired NIC with a default
-   route
-2. **jack**, if a tap owned by this user exists
-3. otherwise it explains the choices: `longwire setup splice eth0`, `longwire setup jack`, or `longwire shell`
+`up` handles `--answer` itself and passes the rest to the engine (`lw start`):
+
+| Option | Does |
+|---|---|
+| `--switchboard HOST:PORT/KEY` | the switchboard to register with; `KEY` is its full address (`lw1…`) or 64 hex digits. Required until a default public switchboard is in the script ([ADR 0014](adr/0014-a-default-public-switchboard.md)) |
+| `--token T` | the registration token, for a switchboard that requires one |
+| `--answer ask\|known\|auto\|never` | the [answer policy](#answer-policy); default `ask` |
+| `--splice NIC` | attach to a LAN: frames go straight on that NIC. Needs `CAP_NET_RAW` once (`longwire setup splice NIC`) |
+| `--site-key FILE` | the secret shared by every splice box on this LAN segment, 64 hex digits. Required if there are two boxes on one segment ([ARCHITECTURE §4](ARCHITECTURE.md#4-two-boxes-on-one-segment-site-groups)) |
+| `--jack TAP` | attach a tap device you own (`longwire setup jack`) |
+| `--sock-port LOCAL:PEER` | frames as datagrams on a Unix socket: for tests |
+| `--listen [ADDR:]PORT` | the UDP address to listen on (default: any port) |
+| `--peer BUNDLE[@HOST:PORT]` | a peer known by its bundle file; with an address the node dials it, without it waits. Used without a switchboard |
+| `--keepalive S`, `--rekey S` | keepalive interval (25) and rekey interval (120), in seconds |
+| `--cand-loopback` | offer 127.x as a call candidate: tests, and two nodes on one host |
+| `--seed FILE`, `--sock PATH`, `--state DIR` | where the identity, control socket and pins live (default `~/.longwire/`) |
+| `--maxpeers N` | how many peers to hold (default 16) |
+
+**Attaching.** Today the attach mode is always explicit (`--splice` or `--jack`). Choosing one automatically, from what
+the machine can do, *(planned: M4)*.
 
 ## Answer policy
 
 | Policy | A ring from… |
 |---|---|
-| `ask` (default) | anyone: ask the user. In a terminal, a prompt. Under hibr's desktop, a dialog. Headless, it waits for `longwire pickup` for 60 s |
-| `known` | a pinned number: pick up. Anyone else: ask |
-| `line` | a caller presenting a valid admit from this line: pick up (this is how a party line builds itself). Anyone else: ask |
-| `never` | reject everything. Existing calls are unaffected |
+| `ask` (default) | anyone: print it and wait for `longwire pickup` or `reject`; the worker refuses after 60 s |
+| `known` | a number you have been connected to before: pick up. Anyone else: ask |
+| `auto` | anyone: pick up (headless boxes, tests) |
+| `never` | reject everything. A call already up is unaffected |
+| `line` | a caller presenting a valid admit from this line: pick up *(planned: M3)* |
 
-`ask` and `known` both include `line` behaviour, so mesh introductions never prompt.
+The **safety phrase** is six words from the hash of the two key ids, and appears on the ring and again when the call
+connects, the same on both screens. Reading it to each other over another channel defeats a lying switchboard on the
+first call. A number is pinned to its key once the call is up, so a wrong phrase never leaves a pin to undo
+([ADR 0009](adr/0009-the-first-ring-asks-and-a-key-is-pinned-once-the-call-is-up.md)).
 
-```
-  ☎  447-120-933 is calling
-     first call — safety phrase:  copper  orbit  lantern  fifteen  harbor  velvet
-     pick up? [y]es / [n]o / [a]lways for this number
-```
+## Status
 
-The **safety phrase** is 6 words from `H(key_id_caller ‖ key_id_callee)`. Both screens show the same words. Reading
-them to each other over the phone defeats a lying switchboard on the first call.
+`longwire status` prints one JSON object. On a node:
 
-## Status, the full view
+| Field | Meaning |
+|---|---|
+| `key_id`, `number`, `switchboard`, `reflexive` | your key id and number; the switchboard's state (`none`, `no switchboard`, `registering`, `dial tone`); the public address it sees you at |
+| `call` | `idle`, `dialing`, `ringing`, `punching`, `connecting` or `up` |
+| `uptime`, `port` | seconds since start; the attach mode and its argument |
+| `macs`, `local_rx`, `local_tx`, `flood` | the switch: addresses known, frames read from and written to the LAN, frames flooded |
+| `drop_garbage`, `drop_noroute`, `drop_flood`, `drop_standby`, `drop_oversize` | frames dropped: unparseable; split horizon; over the flood budget; while standby; oversize and not TCP |
+| `frames_split`, `frames_joined`, `resegmented`, `arp_answered` | frames sent as two datagrams and rejoined; coalesced TCP frames cut down; ARP requests answered locally |
+| `site`, `site_members`, `site_synced` | `alone`, `standby` or `active`; other live boxes heard; remote hosts shared by the active box |
+| `hs_shed`, `hs_nocookie`, `hs_badmac2`, `cookies_sent`, `cookies_got` | handshake load: shed by the per-source limit; refused for a missing or wrong cookie; cookies handed out and received |
+| `registrations`, `sb_rekeys` | `NUMBER` replies received; rekeys of the switchboard session |
+| `peers` | per peer: `key_id`, `number`, `state`, `path`, `ep`, `age`, `rx_frames`, `tx_frames`, `rekeys`, `drop_auth`, `drop_replay` |
 
-```
-$ longwire status
-  ☎  447-120-933            line 7f3a9c   trunk   splice eth0
-     switchboard  dial tone (203.0.113.7:1877, 18 ms)
+On a switchboard: `key_id`, `address`, `uptime`, `numbers`, `online`, `calls_ringing`, `policy`, `drop_garbage`. A
+tabular view *(planned: M4)*.
 
-  PEER          ROLE   PATH                      RTT    RX/TX            KEYS
-  312-884-071   trunk  direct 198.51.100.4:41641  31 ms  48.2 / 12.9 Mb/s  pq 41 s ago
-  580-016-224   trunk  relay via 312-884-071     88 ms   1.1 /  0.4 Mb/s  pq 77 s ago
-  901-447-358   leaf   direct [2001:db8::7]       64 ms   0.2 /  0.1 Mb/s  pq 12 s ago
+## Events
 
-  MACs 214 (local 131, remote 83)   ARP answered locally 98%   frames split 0.4%
-```
+**Events.** Everything the worker does is an event, one JSON object per line on `/dev/longwire/events`: `registered`,
+`register-refused` (with `reason`), `ring` (with `from`, `phrase`, `known`), `connected` (with `number`, `path`, `ep`,
+`phrase`), `call-failed` (with a plain-language `reason`), `call-lost` (a call that was up lost its other end; the
+script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `key-changed` (a number answered with a
+different key than before) and `site` (a splice box became `active` or `standby`). The node script turns them into the
+sentences above; the desktop will turn them into dialogs *(planned: M4)*.
 
 ## Scripting it yourself: the `lw` builtin
 
-The module adds one builtin, `lw`. The node and switchboard scripts are written entirely with it, and so can
-yours. Every verb works from any hibr process. In the process that ran `lw start` it talks to the worker directly;
-anywhere else it goes through the control socket.
+The module adds one builtin, `lw`. The node and switchboard scripts are written entirely with it, and so can yours. Every
+verb works from any hibr process, through the worker's control socket (`~/.longwire/ctl`, or `$LW_SOCK`).
 
 | Verb | Does |
 |---|---|
-| `lw start [--splice IF \| --jack TAP \| --shell] [--seed PATH]` | open the port, fork the engine worker, clear every capability set in both processes (see the note below) |
-| `lw stop` | hang up, deregister, end the worker |
-| `lw dial NUM` · `lw hangup [NUM]` · `lw pickup` · `lw reject` · `lw evict NUM` | calls |
-| `lw status` · `lw peers` · `lw who NUM` | results as a map in `$RET` |
-| `lw key new\|export\|import` | the seed |
-| `lw sb start --listen ADDR` · `lw sb reply …` | the switchboard worker, and the script's routing decisions |
-| `/dev/longwire/events` | the event stream, one JSON object per line |
+| `lw start [options]` | open the port, fork the engine worker, clear every capability set in both processes (see the note below) |
+| `lw stop` | end the worker |
+| `lw dial NUM`, `lw pickup`, `lw reject`, `lw hangup`, `lw unpin NUM` | calls and pins |
+| `lw status` | the JSON above, also in `$RET` |
+| `lw key new\|id\|address\|bundle SEEDFILE` | create or read an identity |
+| `lw sb start [options]`, `lw sb reply ID accept\|refuse [ARG...]` | the switchboard worker, and the script's decisions |
+| `lw evict NUM`, `lw peers`, `lw who NUM` | lines *(planned: M3)* |
 
 **`lw start` is one-way for the calling process.** Clearing capabilities also sets `no_new_privs` on the hibr process that
 ran it. In a long-lived interactive shell that means `sudo` and other setuid programs stop working afterwards. A node
-script run as a service never notices; in a shell you use for other things, run `longwire up` from a subshell
-or under `hold`.
+script run as a service never notices; in a shell you use for other things, run `longwire up` from a subshell or under
+`hold`. A failed `lw` verb puts its reason in `$ERRMSG`.
 
 ```sh
 mod load "$LONGWIRE_MOD"
-lw dial 312-884-071
-lw status                                 # JSON text, also in $RET
-json parse st "$RET"                      # now a map
+lw status                                  # JSON text, also in $RET
+json parse st "$RET"                       # now a map
 n := json len st .peers
-echo "${st[line]} has $n peers"
+echo "${st[call]}: $n peers"
 for p in "${!st[peers][@]}"; do
-	echo "$p ${st[peers][$p][path]} ${st[peers][$p][rtt]}"
+	echo "${st[peers][$p][number]:-static} ${st[peers][$p][state]} ${st[peers][$p][ep]}"
 done
 
-while read ev; do                          # rings, paths and hang-ups as JSON lines
+exec 5</dev/longwire/events                # rings, connections and hang-ups as JSON lines
+while read -r -u 5 ev; do
 	json parse e "$ev"
 	[ "${e[event]}" = ring ] && echo "☎ ${e[from]} is calling"
-done </dev/longwire/events
+done
 ```
 
-- **`/dev/longwire/events`** is a scheme: opening it subscribes to the worker's event stream. It isn't marked
-  `HIBR_SCH_LOCAL`, so `source` won't run it.
-- **The desktop** (part of component 2: `control-panel/lines.hibr`, which comes with the catalogue app) gets a **Lines** section in the Network pane: your number, a dial field, the line and its peers
-  with path and RTT, and pick up / hang up / evict buttons. The ring is a desktop dialog showing the safety phrase,
-  and the menu bar shows a ☎ that lights up while a line is up.
+`/dev/longwire/events` is a scheme: opening it subscribes to the worker's event stream. It is not marked
+`HIBR_SCH_LOCAL`, so `source` won't run it.
+
+## The desktop *(planned: M4)*
+
+The Network pane of hibr's desktop gains a **Lines** section: your number, a dial field, the call and its peers with
+path and round-trip time, and pick up, hang up and unpin buttons; the ring becomes a dialog showing the safety phrase,
+and the menu bar shows a ☎ that lights while a call is up. It ships as a part of the node app in hibr's catalogue
+(`control-panel/lines.hibr` *(planned: M4)*).

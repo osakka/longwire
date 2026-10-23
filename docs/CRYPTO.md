@@ -4,7 +4,7 @@
 no certificate chains, no ASN.1, no cipher negotiation, a 12-byte header. It is *not* efficient because of exotic
 primitives. Every primitive here is standardised, audited, constant-time C that compiles under TCC unchanged. The
 one new thing is how they're combined, and that combination must be formally analysed before 1.0
-([ROADMAP](ROADMAP.md) M8).
+([ROADMAP](ROADMAP.md) M8). That analysis has not been done yet *(planned: M8)*.
 
 ## 1. Primitives
 
@@ -15,7 +15,7 @@ one new thing is how they're combined, and that combination must be formally ana
 | data AEAD | **ChaCha20-Poly1305** (RFC 8439) | Monocypher (`crypto_aead_init_ietf`) | fast in plain C without AES-NI or SIMD, which matters under TCC |
 | cookie AEAD | XChaCha20-Poly1305 | Monocypher | random 24-byte nonces, safe for stateless cookies |
 | hash / KDF / MAC | **BLAKE2b** (256-bit and 128-bit outputs, keyed) | Monocypher | fast, and keyed mode is a PRF, so no HMAC is needed |
-| signatures (admit/evict records) | **Ed25519** (RFC 8032) | Monocypher `optional/` | standard, so other implementations can verify |
+| signatures (admit and evict records) | **Ed25519** (RFC 8032) | Monocypher `optional/` | standard, so other implementations can verify. Every identity already carries an Ed25519 key; nothing signs with it until lines exist *(planned: M3)* |
 | hash inside ML-KEM | SHA-3 / SHAKE | PQClean `fips202.c` | required by FIPS 203 |
 | randomness | `getrandom(2)` / `getentropy(3)` | OS | never a userspace PRNG |
 
@@ -56,8 +56,9 @@ Encaps(pk)    → (ct, ss);   Decaps(sk, ct) → ss         (ML-KEM-768)
 
 ## 4. The handshake: hybrid Noise-IK with KEMs
 
-The initiator I already knows the responder R's bundle (from the switchboard, or pinned from an earlier call). R
-learns I's bundle when it is rung, or from its pin store. The pattern follows Noise IK and adds three KEM
+Each side already knows the other's bundle before the handshake starts: from the switchboard (the callee gets the
+caller's in `RING`, the caller the callee's in `GO`) or from a bundle file given with `--peer`. (The pin store keeps
+key ids only, to check a bundle against, never the bundle.) The pattern follows Noise IK and adds three KEM
 encapsulations: one to R's static KEM key (post-quantum authentication of R), one to I's ephemeral KEM key
 (post-quantum forward secrecy) and one to I's static KEM key (post-quantum authentication of I). This is the same
 family of designs as PQ-WireGuard, Rosenpass and PQNoise.
@@ -77,10 +78,10 @@ ck = H(name);   h = H(ck ‖ R.key_id)
   c_id  = AEAD(k, 0, I.key_id, h);    h = H(h ‖ c_id)     ; I's identity hidden, even from a quantum eavesdropper
   ck, k = KDF2(ck, DH(I.x, R.x))                          ; ss
   c_pay = AEAD(k, 0, tai64n(12) ‖ I.index(3) ‖ flags(1), h);   h = H(h ‖ c_pay)
-  mac1  = BLAKE2b-128(key = H("mac1" ‖ R.key_id), msg)
-  mac2  = BLAKE2b-128(key = cookie, msg)  or zeros
+  mac1  = BLAKE2b-128(key = H("mac1" ‖ R.key_id), every byte before it)
+  mac2  = BLAKE2b-128(key = cookie, every byte before it)  or zeros
 
-  wire:  E(32) ‖ ct_R(1088) ‖ EK(1184) ‖ c_id(48) ‖ c_pay(32) ‖ mac1(16) ‖ mac2(16)  ≈ 2416 B
+  wire:  E(32) ‖ ct_R(1088) ‖ EK(1184) ‖ c_id(48) ‖ c_pay(32) ‖ mac1(16) ‖ mac2(16)  = 2416 B
 
 ── HS_RESP (R → I) ─────────────────────────────────────────────────────────────────
   e', E'    ← X25519 keypair
@@ -93,7 +94,7 @@ ck = H(name);   h = H(ck ‖ R.key_id)
   c_pay = AEAD(k, 0, R.index(3) ‖ flags(1), h)
   mac1/mac2 as above, keyed with I.key_id
 
-  wire:  E'(32) ‖ ct_E(1088) ‖ ct_I(1088) ‖ c_pay(20) ‖ mac1(16) ‖ mac2(16)  ≈ 2260 B
+  wire:  E'(32) ‖ ct_E(1088) ‖ ct_I(1088) ‖ c_pay(20) ‖ mac1(16) ‖ mac2(16)  = 2260 B
 
 ── transport ───────────────────────────────────────────────────────────────────────
   (k_I→R, k_R→I) = KDF2(ck, ε);  erase e, e', ek, ck, h, s1..s3
@@ -122,11 +123,11 @@ refuse at the first fragment, before it buffers anything. Details, sizes and lim
 
 | Key | Lifetime |
 |---|---|
-| seed | forever. Your identity; `longwire key export` writes it as 24 words |
-| transport keys | 120 s / 2⁴⁸ packets until rekey, 180 s hard limit |
-| line key | until a member is evicted (then rotated) |
-| call token | one call setup, about 30 s |
-| cookie secret | rotated every 2 min |
+| seed | forever. Your identity; writing it out as 24 words *(planned: M3)* |
+| transport keys | `--rekey` (default 120 s) until the next handshake; hard limit 1.5 × that, or 2⁶⁰ packets |
+| line key | until a member is evicted, then rotated *(planned: M3)* |
+| call token | one call setup, under 10 s |
+| cookie secret | rotated every 120 s |
 
 ## 6. Measured
 
@@ -139,10 +140,12 @@ On this design machine (x86_64, one core, Linux 7.0), with vendored Monocypher (
 | X25519 public key + DH | 0.53 ms | 0.18 ms |
 | ChaCha20-Poly1305 on 1400 B packets | **36 MB/s ≈ 290 Mbit/s** (26 kpps) | 256 MB/s ≈ 2 Gbit/s (183 kpps) |
 
-A full handshake costs about 5 ms of CPU under TCC, once every two minutes per peer. Bulk throughput under TCC is
-about **290 Mbit/s per core**, which is the agreed v1 target. The same source builds with gcc or clang
-(`make CC=gcc OPT=-O2`) when more is needed. Hand-written x86-64 assembly for ChaCha20 (TCC's assembler handles
-x86; arm64 is still to be verified) is on the roadmap, as is an optional AEGIS-256 suite for machines with AES-NI.
+A full handshake costs about 5 ms of CPU under TCC, once every two minutes per peer. The cipher alone runs at about
+**290 Mbit/s per core** under TCC, which is the agreed v1 target. End to end, the only throughput measured so far is
+the test suite's 3 MB TCP transfer across two splice nodes, which ran at about 50 Mbit/s over veth pairs with a TCC
+build; a proper benchmark *(planned: M7)*. The same source builds with gcc or clang (`make CC=gcc OPT=-O2`) when more
+is needed. Hand-written x86-64 assembly for ChaCha20 (TCC's assembler handles
+x86; arm64 is still to be verified) *(planned: M7)*, as is an optional AEGIS-256 suite for machines with AES-NI *(planned: M7)*.
 
 Monocypher, Ed25519 included, compiles under TCC with no changes. PQClean needs one 5-line `compat.h` shim, because
 its compiler check doesn't recognise TCC. The shim defines `PQCLEAN_VLA` and `PQCLEAN_PREVENT_BRANCH_HACK` (TCC
@@ -151,10 +154,12 @@ supports the same `__asm__` barrier). The ML-KEM round trip was checked to agree
 ## 7. Honest caveats
 
 - **The composition is ours.** Every primitive is standard, but the handshake above is a new composition and needs a
-  Tamarin or ProVerif model, then an external review, before anyone relies on it.
-- **Signatures are classical.** Admit and evict records use Ed25519. They're only ever accepted *inside* a
-  PQ-authenticated session from a line member, which limits what forging one buys. ML-DSA is on the roadmap.
-- **Constant-time code depends on the compiler.** TCC barely optimises, which tends to *help* here. Both the TCC
-  and gcc builds still get dudect-style timing tests in CI.
+  Tamarin or ProVerif model, then an external review, before anyone relies on it *(planned: M8)*. The vendored
+  libraries have not been checked against known-answer vectors either *(planned: M8)*; their correctness rests on
+  upstream's own tests.
+- **Signatures are classical.** Admit and evict records will use Ed25519. They are only ever accepted *inside* a
+  PQ-authenticated session from a line member, which limits what forging one buys. ML-DSA is a later option *(planned)*.
+- **Constant-time code depends on the compiler.** TCC barely optimises, which tends to *help* here. Timing tests
+  (dudect-style) on both the TCC and gcc builds *(planned: M8)*.
 - **Your LAN is now their LAN.** Cryptography authenticates the *peers*. It doesn't make a line member trustworthy;
   see [THREAT-MODEL](THREAT-MODEL.md).

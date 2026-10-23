@@ -1,13 +1,19 @@
 # Architecture
 
+Anything in these documents that is designed but not built is marked `*(planned: M3)*` (the milestone that builds it,
+see [ROADMAP](ROADMAP.md)). Everything else describes what the code does; `make check` compares the two.
+
 ## 1. The model: one switch, many ports
 
 longwire is a **software Ethernet switch whose ports are encrypted UDP sessions**. All the nodes on one *line*
 together make a single distributed learning switch:
 
-- **Learn.** When a frame arrives from a peer, remember that its source MAC lives behind that peer.
-- **Forward.** A frame for a known MAC goes to exactly one place: the local port or one peer.
-- **Flood.** Broadcast, multicast and unknown-unicast frames go to every peer on the line and to the local port.
+- **Learn.** When a frame arrives, remember that its source MAC lives behind the port (the local port, or a peer) it
+  came from. An entry moves at once when the MAC shows up somewhere else, and ages out after 300 s.
+- **Forward.** A frame for a known MAC goes to exactly one place: the local port or one peer. A frame between two
+  local MACs never leaves the site.
+- **Flood.** Broadcast, multicast and unknown-unicast frames go to every peer on the line (and, from a peer, to the
+  local port). If the peer a MAC was learned behind has gone, its frames are flooded again instead of dropped.
 - **Split horizon.** A frame that arrived *from a peer* is never sent on to another peer. Sites form a full mesh,
   so every peer already received it directly. This rule is what removes the need for spanning tree.
 
@@ -29,6 +35,9 @@ clients or servers here, only ports.
                                          [switchboard]
 ```
 
+A node is on at most one call at a time, and a call is between two nodes. Lines of three or more nodes (the picture)
+*(planned: M3)* use the same switch; M1 and M2 connect two sites.
+
 ## 2. Attaching a node: ports
 
 Every node has exactly one **local port**, the place where frames enter and leave the line on this machine. The
@@ -36,163 +45,182 @@ modes differ only in what that port is:
 
 | Port | Mechanism | Privilege | Notes |
 |---|---|---|---|
-| **splice** | `AF_PACKET` raw socket on a physical NIC (Linux). BPF device on BSD/macOS. | `CAP_NET_RAW`, granted once to the node's service as an **ambient capability**, and dropped as soon as the socket is open | **No interface is created.** Wired Ethernet only: most Wi-Fi client links drop frames with foreign source MACs (4-address/WDS mode excepted). The splice host's *own* stack doesn't see injected frames, so if that box itself needs the far side, add a jack too. |
-| **jack** | A tap device (`IFF_TAP \| IFF_NO_PI`) | Created once, owned by the user: `ip tuntap add mode tap user $USER`. On FreeBSD, `net.link.tap.user_open=1`. | Ordinary host membership. MTU 1400. |
-| **shell** | A tap inside an unprivileged user + network namespace | **None** | The UDP socket is opened in the host namespace *first*, then `unshare(CLONE_NEWUSER\|CLONE_NEWNET)` and the tap is made inside. `longwire shell` hands you a shell whose only network is the line. Some distros (Ubuntu 24.04+) restrict unprivileged user namespaces with AppArmor; that is detected and reported. |
-| **member** | An L3 TUN from the OS: Android `VpnService`, macOS utun / NetworkExtension, Windows wintun | The OS VPN consent prompt | See §5. The device appears on the far LAN as a real Ethernet host. |
+| **splice** | `AF_PACKET` raw socket on a NIC (Linux) | `CAP_NET_RAW`, granted once to the node's service as an **ambient capability**, and dropped as soon as the socket is open | **No interface is created.** Wired Ethernet only: most Wi-Fi client links drop frames with foreign source MACs (4-address/WDS mode excepted). The splice box's *own* stack doesn't see injected frames, so if that box itself needs the far side, add a jack too. |
+| **jack** | A tap device (`IFF_TAP \| IFF_NO_PI`) | Created once, owned by the user: `ip tuntap add mode tap user $USER` | Ordinary host membership. The tap's MTU should be 1400. *Written but untested: the machine this was built on has no `/dev/net/tun`.* |
+| **sock** | frames as datagrams on a Unix socket | none | for tests and experiments only |
+| **none** | no local port | none | what the switchboard uses: it never sees a frame |
+| **shell** | A tap inside an unprivileged user + network namespace | **None** | *(planned: M5)* `longwire shell` hands you a shell whose only network is the line. |
+| **member** | An L3 TUN from the OS: Android `VpnService`, macOS utun, Windows wintun | The OS VPN consent prompt | *(planned: M6)* See §5. |
+| **BSD / macOS splice** | BPF device | access to `/dev/bpf*` | *(planned: M5)* |
 
 **A node always runs as an ordinary user.** For splice, the service manager starts the node script with
-`CAP_NET_RAW` as an ambient capability. The script's first act is `lw start --splice eth0`. That call opens the
-packet socket, forks the engine worker, and then clears *every* capability set (effective, permitted, inheritable
-and ambient) in both processes. No script code after that line holds any privilege, and hibr itself never gains
-one, which is in keeping with hibr's ADR 0016 (see [DECISIONS D4](DECISIONS.md#d4)).
+`CAP_NET_RAW` as an ambient capability. `lw start --splice eth0` opens the packet socket, forks the engine worker, and
+then clears *every* capability set (effective, permitted, inheritable and ambient) in both processes and sets
+`no_new_privs`. No script code after that holds any privilege, and hibr itself never gains one, in keeping with hibr's
+ADR 0016 (see [ADR 0004](adr/0004-a-node-never-runs-as-root.md)). `longwire setup splice NIC` prints the service unit.
 
 Splice details (Linux):
-- `socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))` bound to the interface. Promiscuous mode comes from
-  `PACKET_ADD_MEMBERSHIP` / `PACKET_MR_PROMISC`, which is reference-counted and cleared automatically when the
-  socket closes, so nothing is left behind on a crash.
-- `PACKET_IGNORE_OUTGOING` (Linux ≥ 4.20) keeps frames we inject from being read back as local traffic.
-- Receive ring `TPACKET_V3` (mmap) for low per-packet cost; plain `recvfrom` as the fallback.
-- Frames between two *local* MACs are dropped at once, since they never need to leave the site. A small classic BPF
-  prefilter drops the noisiest local-only traffic (e.g. 802.3x pause, LLDP) in the kernel.
+- `socket(AF_PACKET, SOCK_RAW, ETH_P_ALL)` bound to the interface. Promiscuous mode comes from
+  `PACKET_ADD_MEMBERSHIP` / `PACKET_MR_PROMISC`, which the kernel releases when the socket closes, so nothing is left
+  behind after a crash.
+- **No loop.** `PACKET_IGNORE_OUTGOING` (Linux 4.20 and later) keeps the frames this box injects from being read back
+  as local traffic, and the read path also discards anything the kernel marks as outgoing.
+- **Unfinished checksums are completed.** A frame from a virtual NIC (veth, virtio) can arrive with its TCP/UDP
+  checksum only partly done; the packet socket says so (`PACKET_AUXDATA`) and longwire finishes it before the frame
+  goes anywhere else, or the far LAN would drop it.
+- **Coalesced frames are cut.** See §6.
+- Reading uses one `recvmsg` per frame; a `TPACKET_V3` ring and batching, for speed, *(planned: M7)*.
 
 ## 3. Keeping the WAN quiet
 
 Bridging L2 over the internet carries the LAN's chatter. longwire trims it without breaking anything:
 
-- **ARP / IPv6 ND suppression.** Each node keeps an IP→MAC cache learned from ARP replies and NAs crossing the line.
-  When a local host ARPs for a remote IP that the cache knows, the local node answers on the remote host's behalf,
-  and the request never crosses the WAN. Unknown entries flood as usual.
-- **Broadcast/multicast rate limit** per peer: default 1,000 pps with a burst of 200, which kills a broadcast storm
-  before it costs anything.
-- **DHCP stays honest.** DHCP isn't filtered. A line has one subnet, and normally one DHCP server. If two sites each
-  run one, `longwire status` warns: "2 DHCP servers seen on line 7f3a9c". Silencing either one is a config choice we
-  don't make for you.
-- **MAC table aging** at 300 s. Entries move at once when a MAC appears at a new port (a laptop walking between
-  sites).
+- **ARP suppression (IPv4).** Each node keeps an IP→MAC cache learned from ARP packets crossing the switch. When a
+  local host asks who has an address the cache knows to be across the line (the MAC is learned behind a peer, and the
+  entry is under 120 s old), the node answers the request itself and the question never crosses the WAN. Probes and
+  announcements (sender address 0, or sender = target) always cross. IPv6 neighbour discovery *(planned: M3)*.
+- **Flood budget.** Frames flooded to a peer are limited to 1000 a second after a burst of 200, per peer. A
+  broadcast storm costs the WAN almost nothing; a unicast frame to a known address is never limited.
+- **DHCP stays honest.** DHCP is not filtered: a line has one subnet and normally one DHCP server. A warning when two
+  sites each run one *(planned: M3)*.
 
-## 4. Loops and high availability
+## 4. Two boxes on one segment: site groups
 
-Split horizon prevents loops *between* sites. The remaining danger is **two splice nodes on the same physical
-segment** (two boxes at one site, or a site cabled to itself). longwire detects this and turns it into a feature:
+Split horizon prevents loops *between* sites. The remaining danger is **two splice boxes on the same physical LAN
+segment**: each would forward the other's frames, and a loop follows. Boxes that share a secret avoid it by electing
+one to forward:
 
-- Every splice node sends a **line probe** onto its local segment once per second. It's a small frame with IEEE
-  local-experimental EtherType `0x88B5`, carrying the line ID, the node's key ID and a MAC under the line key.
-- A node that hears a valid probe from *another member of its own line* on its *local* port knows they share a
-  segment. They form a **site group**: the lowest key ID is **active**, and the others are **standby** (connected
-  and keyed, but not forwarding frames).
-- After 3 missed probes, the next standby takes over and sends gratuitous ARP for the MACs it learned, so failover
-  takes about 3 seconds. Two boxes at a site give you HA for free.
+- The secret is a file of 64 hex digits given to every box of the site with `--site-key FILE`. Without it a box does
+  not look for others, so two boxes on one segment **must** share one. (A line key derived automatically comes with
+  lines *(planned: M3)*.)
+- Every box sends a **probe** once a second: a broadcast frame with EtherType `0x88B5` (IEEE local experimental),
+  carrying its key id, the time, and a MAC under the site secret. Probes are consumed locally and never forwarded
+  over the line. A probe more than 30 s off the local clock is ignored.
+- A box that has heard no other member for 3.5 seconds is alone. Among the boxes heard, the one with the **lowest key
+  id is active**; the rest are **standby**. A standby box keeps its sessions up (so a takeover needs no handshake) but
+  forwards nothing and delivers nothing to the LAN. A new box listens for 3 seconds before it forwards anything.
+- The active box shares, every 2 seconds, the list of remote hosts it knows (up to 64 MACs). When a standby box takes
+  over it sends one frame from each of those addresses onto the LAN, so every switch on the segment learns at once that
+  they are now behind it, and then sends gratuitous ARP for the hosts it has seen ARP. Without this, the LAN would keep
+  sending their traffic to the box that went quiet until its tables aged out.
 
-## 5. Member mode: a phone as an Ethernet host
+Measured in the test suite: the active box is killed and traffic resumes in about 4 seconds, with nothing done to
+any host. A takeover within two seconds of the group forming, before the first list has been shared, falls back to
+ordinary learning and is slower.
+
+## 5. Member mode: a phone as an Ethernet host *(planned: M6)*
 
 Android and macOS give apps an IP tunnel, not Ethernet. longwire bridges the gap **in userspace**, on the device:
 
 1. The device gets a stable, locally administered MAC derived from its key: `02:` + 5 bytes of `BLAKE2b(key-id)`.
-2. A built-in **DHCPv4 client** (~300 lines) sends its DISCOVER over the line. *The far LAN's own DHCP server hands
-   out the lease*, so the phone gets a real address, gateway and DNS from home.
-3. An **ARP responder** answers for that address, and **IPv6** runs SLAAC + an NDP responder.
-4. IP packets from the OS tunnel are wrapped in Ethernet frames toward the learned gateway/peer MACs, and frames for
-   our MAC are unwrapped back into the tunnel.
+2. A built-in **DHCPv4 client** sends its DISCOVER over the line. *The far LAN's own DHCP server hands out the
+   lease*, so the phone gets a real address, gateway and DNS from home.
+3. An **ARP responder** answers for that address, and **IPv6** runs SLAAC and an NDP responder.
+4. IP packets from the OS tunnel are wrapped in Ethernet frames toward the learned gateway or peer MACs, and frames
+   for our MAC are unwrapped back into the tunnel.
 5. The tunnel gets the lease's address and, by default, only the line's subnet (*split*). `--all-traffic` also
    routes the default route through the far site's gateway.
 
-Members, along with laptops in jack mode that ask for it, are **leaves** by default. A leaf keeps *one* session, to
-the node it dialed, and that node treats the leaf like a host on its local port: it forwards the leaf's frames to
-the rest of the line and floods line traffic to the leaf. One session means one keepalive, which a phone battery
-appreciates. Sites are always full-mesh **trunks**.
+Members, along with laptops in jack mode that ask for it, are **leaves**: a leaf keeps *one* session, to the node it
+dialed, and that node treats the leaf like a host on its local port. One session means one keepalive, which a phone
+battery appreciates. Sites are **trunks**, a full mesh.
 
-## 6. MTU
+## 6. Packet sizes
 
-Overhead per data packet: IP (20/40) + UDP (8) + longwire header (12) + payload kind (1) + Poly1305 tag (16).
+Overhead per data packet: IP (20) + UDP (8) + longwire header (12) + payload kind (1) + Poly1305 tag (16) = 57 bytes
+over IPv4. The underlay is IPv4 only for now; IPv6 *(planned: M3)*.
 
 | Situation | Handling |
 |---|---|
-| jack, shell, member | The interface MTU is set to **1400**, which is safe over IPv4, IPv6 and PPPoE. |
-| splice | LAN hosts send 1500-byte frames and we can't change them. So: **(1)** clamp the TCP MSS in SYN and SYN-ACK frames as they pass, to **1340** (IPv4) or **1320** (IPv6). A segment carrying 1340 bytes and the usual 12 bytes of TCP options is a 1406-byte frame, which travels in one datagram. **(2)** A frame up to **1432** bytes goes in one datagram (1432 + 12-byte header + 1-byte kind + 16-byte tag + 28 bytes of UDP/IPv4 = 1489, which fits PPPoE's 1492). A larger one is split across two datagrams (`FRAG`) and put back together on arrival; each peer holds four reassembly slots with a 2 s timeout. **(3)** A NIC can hand a splice box a *coalesced* TCP frame of up to 64 KB (GRO, or a virtual NIC's GSO), so oversize TCP frames are cut into line-sized segments with fresh lengths, sequence numbers and checksums; that is always valid TCP. Other oversize frames are dropped and counted. The line carries IPv4 underlay datagrams only for now. |
-| path MTU | Probed per peer at session start (1280 → 1500 binary search with padded keepalives) and re-probed when packet loss suggests a black hole. |
+| jack, sock | The tap's MTU is set to **1400** when it is created (`longwire setup jack` prints the command), so frames are at most 1414 bytes and always fit one datagram. |
+| splice | LAN hosts send 1500-byte frames and we can't change them. So: **(1)** clamp the TCP MSS in SYN and SYN-ACK frames as they pass, to **1340** (IPv4) or **1320** (IPv6). A segment carrying 1340 bytes and the usual 12 bytes of TCP options is a 1406-byte frame, which travels in one datagram. **(2)** A frame up to **1432** bytes goes in one datagram (1432 + 29 + 28 = 1489, which fits PPPoE's 1492). A larger one is split across two datagrams (`FRAG`) and put back together on arrival; each peer holds four reassembly slots with a 2 s timeout. **(3)** A NIC can hand a splice box a *coalesced* TCP frame of up to 64 KB (GRO, or a virtual NIC's GSO), so oversize TCP frames are cut into line-sized segments with fresh lengths, sequence numbers and checksums; that is always valid TCP. Other oversize frames are dropped and counted. |
+| path MTU | Probing the real path MTU per peer *(planned: M7)*. Until then the constants above assume 1492 or better. |
 
 ## 7. The three components
 
 | | Component | Language | Owns |
 |---|---|---|---|
-| 1 | `longwire-switchboard` | hibr script | registration policy (number allocation, tokens, release), call routing (`DIAL` → `RING` → `ANSWER` → `GO`), abuse limits, logging policy |
-| 2 | `longwire` (the node) | hibr script | the CLI; the running node's brain (answer policy, pins, lines, events); setup helpers; the desktop **Lines** pane |
-| 3 | `longwire.so` | C (hibr module) | everything that touches bytes or keys, in a forked worker process |
+| 1 | `longwire-switchboard` | hibr script | **policy**: who may register (tokens, a token reserving a number, a limit per source address) and whose ring goes through (a limit per callee per minute) |
+| 2 | `longwire` (the node) | hibr script | the commands; the answer policy (ask, known, auto, never); turning events into sentences; setup helpers |
+| 3 | `longwire.so` | C (hibr module) | **mechanism**: everything that touches bytes or keys, in a forked worker process: sockets, ports, handshake, sessions, the switch, NAT punching, the switchboard's registry and call routing, pins, cookies |
 
-**C handles bytes and keys; hibr makes the decisions.** A script never sees a packet or a key. The engine never
-decides who is allowed in.
+**C handles bytes and keys; hibr makes the decisions.** A script never sees a packet or a key, and it can make the
+engine more restrictive but never less ([ADR 0015](adr/0015-scripts-decide-c-enforces.md)).
 
 ### Process model
 
 ```
  systemd / hold / a terminal
-   └─ hibr longwire up                     node script: policy, state, UI
-        │  lw start --splice eth0          ← opens the port, forks, drops all capabilities
-        ├─ worker (C only)                 sockets, port, sessions, crypto, switch, NAT, relay
+   └─ hibr longwire up                     node script: policy, UI
+        │  lw start --splice eth0          ← opens the port, forks, clears every capability
+        ├─ worker (C only)                 sockets, port, sessions, crypto, switch, NAT punching
         │    └─ serves ~/.longwire/ctl     control socket, mode 0600, peer uid checked
         └─ while read ev </dev/longwire/events     ring → answer policy → lw pickup / lw reject
-                                                   key-changed, path, hangup → state, desktop
+                                                   key-changed, call-lost, hangup … → sentences
 
  another terminal:  longwire dial 312-884-071    → lw dial → control socket → worker
 ```
 
 - **The worker is pure C, forked by the module** (the same shape as hibr's `hold` server). The packet path never
-  enters the interpreter, so a busy script or a busy desktop can't stall traffic. Throughput is the engine's, about
-  290 Mbit/s per core under TCC.
-- **Every `lw` verb works from any hibr process.** In the process that started the worker, a verb talks to the
-  worker directly; anywhere else it goes through the control socket. That's how `longwire dial` in a second
-  terminal, or the desktop pane, reaches the running node.
-- **Events** (`ring`, `connected`, `path`, `key-changed`, `hangup`) stream from the worker as JSON lines on
-  `/dev/longwire/events`. hibr parses them into maps with `json parse`.
-- **If the node script dies,** the worker keeps every established call up. New rings are rejected after 60 s until
-  the script comes back, and its service manager restarts it.
-- **The switchboard has the same split.** `lw sb start` forks a C worker that handles sessions, handshakes,
-  `HELLO`, cookies, heartbeats, presence and the bundle store. Only registration and call-setup messages
-  reach the script, which makes the decisions. That's a few per second per call, never per heartbeat (see
+  enters the interpreter, so a busy script can't stall traffic. It closes every inherited descriptor and locks its key
+  memory.
+- **Every `lw` verb works from any hibr process,** through the control socket. That is how `longwire dial` in a
+  second terminal reaches the running node.
+- **Events** stream from the worker as JSON lines on `/dev/longwire/events` (see [CLI](CLI.md#events)).
+  hibr parses them with `json parse`.
+- **If the node script dies,** the worker keeps every established call up. A ring that nobody answers is refused
+  after 60 s, and the service manager restarts the script.
+- **The switchboard has the same split.** `lw sb start` forks a C worker that handles sessions, handshakes, `HELLO`,
+  cookies, heartbeats, presence, the number registry and call routing. Only two decisions reach the script, a
+  registration from a key it hasn't seen and a ring, so a few events per call and none per heartbeat (see
   [SWITCHBOARD](SWITCHBOARD.md#how-tiny)).
 
 ### Source layout
 
 ```
-engine/                      plain C99 — never includes hibr.h, never allocates on the data path
-  lw.h                       engine API (opaque lw_node*, event callbacks) — what the module and, later, JNI call
-  ev.c                       poll/epoll loop, timers; single-threaded in v1
-  wire.c                     packet encode/decode — the only code that parses network input
-  hs.c                       handshake state machine (see CRYPTO)
-  sess.c                     sessions, counters, replay window, rekey
-  sw.c                       the switch: MAC table, flood, split horizon, ARP/ND cache, rate limits
-  nat.c                      candidates, punch scheduler, port-spray, path upgrades
-  relay.c                    relay routes
-  line.c                     line membership, admits, line key, probes, site groups
-  member.c                   L3↔L2 adapter: DHCP client, ARP/ND responder
-  sbc.c                      switchboard client
-  sb.c                       switchboard worker: sessions, presence, heartbeats, bundle store
-  ctl.c                      control socket (~/.longwire/ctl), text requests, JSON replies, event stream
-  caps.c                     drop every capability set after the port is open
-  port_splice_linux.c  port_jack_linux.c  port_shell_linux.c  port_bpf.c  port_tun.c
-module/longwire.c            hibr glue: the `lw` builtin, /dev/longwire/ scheme, results as maps, forks the worker
-scripts/longwire.hibr        component 2: the node (hibr catalogue app)
-scripts/longwire-switchboard.hibr   component 1: the switchboard (hibr catalogue app)
-control-panel/lines.hibr     the Network pane's Lines section, shipped as a `# part:` of the node app
-packaging/                   deb, rpm, arch, homebrew (as hibr's), launchers in bin/, systemd/longwire@.service
-vendor/monocypher/           X25519, Ed25519, ChaCha20-Poly1305, BLAKE2b (pinned release)
+engine/                      plain C99: never includes hibr.h, so the Android app can reuse it
+  lw.h                       the engine's public API: configuration, open/serve, identity
+  int.h                      internal structures and the function map between the files below
+  proto.h                    message ids, candidates, the small codecs shared by node and switchboard
+  words.h                    the 256 words of the safety phrase
+  id.c                       identity from the seed, key derivation, handshake AEAD, the lw1... address
+  hs.c                       the handshake, its fragments, the load budget and cookies
+  sess.c                     sessions and the peer table: data packets, replay window, rekey, keepalive
+  sw.c                       the switch: MAC table, flood, split horizon, frame split, MSS clamp, ARP, re-segmenting
+  site.c                     site groups: probes, election, standby, takeover
+  port.c                     local ports: splice, jack, sock, none
+  caps.c                     clears every capability set once the port is open
+  ctl.c                      the control socket and the event stream
+  call.c                     the node: numbers, HELLO, candidates, pins, calls, punching, its commands
+  board.c                    the switchboard worker
+  node.c                     opening a node and the event loop
+  all.c                      unity build of the files above
+module/longwire.c            hibr glue: the `lw` builtin and the /dev/longwire/ scheme; forks the worker
+scripts/longwire.hibr        component 2: the node
+scripts/longwire-switchboard.hibr   component 1: the switchboard
+tests/                       end-to-end tests (m0, m1, m2), shared helpers (lwtest.py), the documentation check (docs.py)
+vendor/monocypher/           X25519, Ed25519, ChaCha20-Poly1305, BLAKE2b
 vendor/mlkem768/             PQClean ML-KEM-768 "clean" + fips202, with a 5-line compat shim for TCC
+brand/                       the mark and wordmark
+docs/                        these documents
+control-panel/lines.hibr     *(planned: M4)* the Network pane's Lines section, shipped as a `# part:` of the node app
+packaging/                   *(planned: M4)* deb, rpm, arch and homebrew builds, the launchers, the systemd unit
 ```
 
-When the Android app comes ([ROADMAP](ROADMAP.md) M6), it compiles `engine/` with the NDK behind a small Kotlin
-`VpnService`. That's the only place the engine is used without hibr.
+When the Android app comes (M6), it compiles `engine/` with the NDK behind a small Kotlin `VpnService`. That is the
+only place the engine is used without hibr.
 
 **The control socket.** The worker owns the sockets, the port and all keys. The node script, `longwire` commands
 in other terminals and the desktop pane all reach it through `lw` verbs, which travel over a Unix socket (mode 0600
-in `~/.longwire/`). Requests are one text line; replies are one JSON object, which the module turns into a map in
-`$RET`. Keys never cross the control socket.
+in `~/.longwire/`). A request is one text line; the reply is one JSON object (put in `$RET`), or, after `watch`, the
+connection stays open and carries events. Keys never cross the control socket.
 
 **State on disk (`~/.longwire/`).** This isn't configuration, just state:
 
 | File | Contents |
 |---|---|
 | `seed` | 32 bytes, mode 0600. *This is your identity and your number.* |
-| `known` | pinned peers: number → key ID, first seen, policy |
-| `lines` | lines this node belongs to, its role, and the line key (encrypted under the seed) |
+| `known` | pins: number → key id, one line each; written when a call comes up, edited by `longwire unpin` |
 | `ctl` | the control socket |
+| `switchboard/numbers.log` | on a switchboard: every number issued, with its key id and bundle |
+| `switchboard/seed`, `switchboard/ctl` | the switchboard's own identity and control socket |

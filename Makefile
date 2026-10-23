@@ -21,6 +21,7 @@ check: all
 	sh tests/m0.sh
 	sh tests/m1.sh
 	sh tests/m2.sh
+	python3 -I tests/docs.py
 
 clean:
 	rm -rf $(B)

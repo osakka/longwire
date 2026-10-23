@@ -1,67 +1,82 @@
 # Threat model
 
+What longwire defends against, what it does not, and what is still open. Designed-but-unbuilt defences carry
+`*(planned: M3)*`.
+
 ## What longwire is protecting
 
 1. **Confidentiality and integrity of every frame** on the line, against anyone on the path, both today and for a
-   future quantum attacker who recorded it.
-2. **Admission.** Only nodes that a line member has picked up, or admitted, ever reach your LAN.
-3. **Identity binding.** Once you've talked to a number, nobody can impersonate it to you. That includes the
-   switchboard.
-4. **Availability of the data path,** independent of the switchboard. Established calls survive the switchboard
-   going down.
+   future quantum attacker who recorded it ([CRYPTO](CRYPTO.md)).
+2. **Admission.** Only a node that you picked up (or, with the `auto` policy, chose to pick up for anyone), or that you
+   configured with `--peer`, ever reaches your LAN.
+3. **Identity binding.** Once you've been connected to a number, nobody can impersonate it to you. That includes the
+   switchboard: the number is pinned to its key, and a different key drops the call.
+4. **Availability of the data path,** independent of the switchboard. A call that is up survives the switchboard going
+   down.
 
 ## Adversaries
 
 | Adversary | Can | Cannot |
 |---|---|---|
-| **Passive network observer** (ISP, Wi-Fi, state), quantum-capable later | see that two IPs exchange UDP, plus sizes and timing | read frames, learn the initiator's identity, or decrypt recordings later (hybrid KEM) |
-| **Active network attacker** | drop, delay, replay or inject packets; flood handshakes | forge or replay data (AEAD + replay window), complete a handshake without the keys, or make a responder do public-key work without `mac1` |
-| **Malicious or compromised switchboard** | see presence, IPs and who dials whom; refuse service; on a *first* call, hand out the wrong key for a number | read or alter traffic; impersonate a number you've already called (the key is pinned); join a line (a member must pick up) |
-| **Number squatter** | register numbers | take an existing number (numbers are bound to keys, first come). A *released* and re-assigned number shows up as a key mismatch, like SSH's changed-host-key warning |
-| **Malicious line member** | everything a host on your LAN can do: ARP spoofing, DHCP, scanning | read other members' pairwise sessions *in transit* (it can see broadcast/flood traffic that reaches it, as any LAN host would) |
-| **Malicious relay** (a line member) | see sizes and timing of relayed traffic; drop it | read or alter it: relayed packets are end-to-end A↔B sessions |
-| **Stolen device** | everything that device's key could do | survive eviction: `longwire evict <number>` cuts it off and rotates the line key |
+| **Passive network observer** (ISP, Wi-Fi, state), quantum-capable later | see that two addresses exchange UDP, plus sizes and timing | read frames, learn the initiator's identity, or decrypt recordings later (hybrid KEM) |
+| **Active network attacker** | drop, delay, replay or inject packets; flood handshakes | forge or replay data (AEAD and the replay window), complete a handshake without the keys, or make a responder do public-key work without knowing its key id and, once it is under load, a cookie for the attacker's own address |
+| **Malicious or compromised switchboard** | see presence, addresses and who rings whom; refuse service; on a *first* call, hand out the wrong key for a number | read or alter traffic; impersonate a number you have already been connected to (the key is pinned); make you accept a call (a ring asks, under the default policy) |
+| **Number squatter** | register numbers | take an existing number: numbers are bound to keys, first come. Numbers are never released today, so none is ever re-issued; once release exists *(planned: M3)* a re-issued number shows up as a key mismatch, like SSH's changed-host-key warning |
+| **Malicious peer on a call** | everything a host on your LAN can do: ARP spoofing, DHCP, scanning | read other peers' sessions *in transit* (it sees what is flooded to it, as any LAN host would) |
+| **Malicious relay** | see sizes and timing of the traffic it relays; drop it | read or alter it: relayed packets are end-to-end sessions *(planned: M3)* |
+| **Stolen device** | be that device: the seed *is* the number and the key | be stopped by anything but replacing the identity today. Eviction from a line, with a rotated line key, *(planned: M3)* |
+| **Attacker on a site's own LAN segment** | do anything a LAN host can; flood the segment; replay a recorded probe to keep a dead box looking alive for a few seconds | forge a probe or a host list (both are authenticated with the site secret); join the line |
 
 ## Things to say plainly
 
-- **A line is a cable into your LAN.** Admitting a number is like plugging a stranger's laptop into your switch. The
-  first ring always asks, and the default answer policy is `ask`.
+- **A call is a cable into your LAN.** Accepting a number is like plugging a stranger's laptop into your switch. The
+  first ring always asks, and the default answer policy is `ask`; `auto` removes that and is for headless boxes you
+  have decided to trust.
 - **The first call trusts the switchboard,** exactly as the first SSH connection trusts DNS. To remove even that,
-  dial the full address (`longwire dial lw1q…`) or compare the 6-word **safety phrase** both sides show on first
-  pickup.
-- **What the switchboard sees:** that you're online, your public IP and port, which numbers dial which, and when.
+  compare the six-word **safety phrase** both sides show. A number's key is pinned once a call is up, so from then on a
+  lying switchboard cannot substitute another. Dialing a full address (`lw1…`) rather than a number *(planned: M3)*.
+- **What the switchboard sees:** that you're online, your public address and port, which numbers ring which, and when.
   On the default public switchboard, that's its operator, the longwire project. If that metadata matters, run your
   own switchboard; it's one more script in the same install (`longwire-switchboard`). See
   [SWITCHBOARD](SWITCHBOARD.md#what-it-sees).
 - **Out of scope for v1:** hiding *that* two sites talk (traffic analysis, padding, cover traffic), anonymity, and
   resisting a compromised endpoint OS.
 
-## Known gaps today
-
-- **Two strict NATs cannot connect yet** (hard-NAT traversal and relay are M3); the call fails with a plain message.
-- **HELLO answers are limited globally,** not per source.
-
 ## Handshake floods
 
-Every handshake costs a KEM decapsulation, so each node keeps a budget (50/s; 2,000/s on a switchboard). Past half of
-it the node is *under load* and stops doing handshake work for anyone who hasn't proven they can receive replies at
+Every handshake costs a KEM decapsulation, so each node keeps a budget (50 a second; 2000 on a switchboard). Past half
+of it the node is *under load* and stops doing handshake work for anyone who hasn't proven they can receive replies at
 their source address: it answers a short `COOKIE` instead, and a real peer retries with it at once. A flood from
 spoofed or unreachable addresses therefore costs the victim one small reply per packet and no public-key work, and a
-legitimate handshake still completes during it (tested: a sustained flood, three rekeys, no lapse). What remains:
-an attacker with a *real* address can fetch a cookie, and is then limited to 2 handshakes a second from that address
+legitimate handshake still completes during it (tested: a sustained flood, three rekeys, no lapse). What remains: an
+attacker with a *real* address can fetch a cookie, and is then limited to 2 handshakes a second from that address
 (burst 8); and someone who can see the cookie reply on the path can replay it from the same address, as in WireGuard.
 Cookies are keyed by address and port, so two nodes behind one NAT address each get their own.
 
-## Hardening built into the design
+## Known gaps today
 
-- One parser for untrusted input (`engine/wire.c`), fuzzed continuously (libFuzzer/AFL++ with the gcc/clang build).
-- No allocation on the data path. Fixed-size tables with explicit limits: peers, MAC entries (default 8,192),
-  reassembly slots (64) and pending handshakes per source (1).
-- Keys live in one place: the C worker. The seed is mode 0600 and loaded into worker memory that's `mlock`ed where
-  the OS allows. It never crosses the control socket and never enters a hibr variable, so scripts handle numbers
-  and decisions, never secrets. The control socket is mode 0600 and checks the peer's uid
-  (`SO_PEERCRED` / `getpeereid`).
-- Nothing is setuid, and hibr never gains privilege (hibr ADR 0016). Splice gets `CAP_NET_RAW` from the service
-  manager as an ambient capability. `lw start` is the first thing the node script does, and it clears every
-  capability set in both processes once the packet socket is open. The scripts load the module by explicit path, so
-  the privileged moment never searches the environment for code.
+- **Two strict NATs cannot connect;** the call fails with a plain message. Hard-NAT traversal and relaying
+  *(planned: M3)*.
+- **`HELLO` answers are limited globally,** not per source *(planned: M3)*.
+- **A crossed rekey can stall a link** until the dead-peer timer fires (76 s at the default keepalive). It is rare
+  by construction, and the tie-break that removes it *(planned: M3)*.
+- **The handshake composition has had no formal analysis or external review,** and the vendored crypto has not been
+  checked against known-answer vectors *(planned: M8)*.
+- **VLAN-tagged traffic through a splice box is neither handled nor tested** *(planned)*, the underlay is IPv4 only
+  *(planned: M3)*, and the jack port is untested.
+
+## Hardening in the code
+
+- Parsers of untrusted input are few and small: handshake fragments (`engine/hs.c`), data packets (`engine/sess.c`),
+  `HELLO` and `PUNCH` and the control messages (`engine/call.c`, `engine/board.c`), and the frames read from the LAN
+  (`engine/sw.c`). Fuzzing them continuously *(planned: M8)*.
+- No allocation on the data path. Tables have fixed sizes: peers (16, or 1024 on a switchboard), MAC entries (8,192),
+  handshake slots (8, one per source), and four reassembly slots per peer, created on first use.
+- Keys live in one place: the C worker. The seed is mode 0600 and loaded into worker memory that is `mlock`ed where the
+  OS allows. It never crosses the control socket and never enters a hibr variable, so scripts handle numbers and
+  decisions, never secrets. The control socket is mode 0600 and checks the peer's uid (`SO_PEERCRED`). The worker
+  closes every descriptor it inherits.
+- Nothing is setuid, and hibr never gains privilege (hibr ADR 0016). Splice gets `CAP_NET_RAW` from the service manager
+  as an ambient capability. `lw start` opens the packet socket and then clears every capability set in both
+  processes and sets `no_new_privs`. The scripts load the module by explicit path, so the privileged moment never
+  searches the environment for code.
