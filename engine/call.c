@@ -1086,6 +1086,43 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			call_end(c);
 		return snprintf(out, cap, "{\"call\":\"%s\"}\n", accept ? "answered" : "rejected");
 	}
+	if (!strncmp(line, "who ", 4)) {		/* everything this node knows about a number: nothing is asked of the switchboard */
+		char num[NUMLEN + 1], f[16], addr[60], kh[65], ph[120] = "";
+		const uint8_t *kid = 0;
+		const lw_peer *p;
+		const lw_member *m = 0;
+		int i, pinned = 0, len;
+
+		if (parse_number(line + 4, num))
+			return snprintf(out, cap, "{\"error\":\"not a valid number\"}\n");
+		fmt_number(f, num);
+		if (!strcmp(num, n->number))
+			kid = n->id.key_id;
+		for (i = 0; i < n->npins && !kid; i++)
+			if (!strcmp(n->pins[i].number, num)) {
+				kid = n->pins[i].key_id;
+				pinned = 1;
+			}
+		p = peer_by_number(n, num);
+		if (!kid && p)
+			kid = p->key_id;
+		for (i = 0; i < n->line.nm && !kid; i++)
+			if (!strcmp(n->line.m[i].number, num))
+				kid = n->line.m[i].key_id;
+		if (!kid)
+			return snprintf(out, cap, "{\"error\":\"%s is not known here: nothing has been called, pinned or listed on your line\"}\n", f);
+		if (n->line.have)
+			m = line_member(n, kid);
+		lw_address(addr, kid);
+		lw_hex(kh, kid, 32);
+		if (p && p->cur.valid)
+			phrase_of(ph, sizeof ph, p->dial ? n->id.key_id : p->key_id, p->dial ? p->key_id : n->id.key_id);
+		len = snprintf(out, cap, "{\"number\":\"%s\",\"you\":%s,\"key_id\":\"%s\",\"address\":\"%s\",\"pinned\":%s,\"line_member\":%s,"
+			"\"connected\":%s,\"path\":\"%s\",\"phrase\":\"%s\"}\n", f, kid == n->id.key_id ? "true" : "false", kh, addr,
+			pinned ? "true" : "false", m ? "true" : "false", p && p->cur.valid ? "true" : "false",
+			p && p->cur.valid ? (p->relayed ? "relay" : "direct") : "", ph);
+		return len;
+	}
 	if (!strncmp(line, "unpin ", 6)) {
 		char num[NUMLEN + 1], f[16];
 

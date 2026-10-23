@@ -19,6 +19,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 - **Per-source `HELLO` limit:** 2 a second (burst 4) from any one address, on top of the global 20 a second.
 - **Crossed handshakes:** `tests/crossed.sh` starts both ends at once behind a delaying proxy; the link comes up and keeps
   rekeying. A lower-key-id tie-break was tried and dropped: it made that case worse, and no stall could be reproduced.
+- **`longwire who NUMBER`:** what the node knows of a number (full address, pin, line membership, path, safety phrase). It is
+  local and asks the switchboard nothing; `LOOKUP` and dialing a full address stay planned.
 - **Tests:** `tests/m3b.sh`: two members behind symmetric NATs and a public third; frames (and full-size, fragmented ones)
   cross the relay, the NATs are loosened, the pair goes direct, then the relay is shut down and the pair carries on. The
   NAT simulator moved to `tests/lwnat.py`.

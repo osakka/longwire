@@ -31,6 +31,7 @@ usage: longwire <command>
   hangup [NUMBER]                             end every call and leave the line; or just the call with NUMBER
   peers                                       the line: its members and which of them are connected
   evict NUMBER                                remove a member from the line for good, and change its key
+  who NUMBER                                  what this node knows of a number: its full address, pin, path and safety phrase
   unpin NUMBER                                forget a number's key: the next call from it is a first call again
   status                                      what the node is doing (JSON)
   down                                        stop the node
@@ -172,6 +173,7 @@ reject)  run lw reject "$@" ;;
 hangup)  run lw hangup "$@" ;;
 evict)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw evict "$1" ;;
 peers)   run lw peers ;;
+who)     [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw who "$1" ;;
 unpin)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw unpin "$1" ;;
 status)  run lw status ;;
 down)    run lw stop ;;

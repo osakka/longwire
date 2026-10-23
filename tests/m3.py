@@ -78,6 +78,14 @@ def main():
     check(bool(ok), "a and b are on one line: b (the callee) founded it and admitted a")
     sa, sbb = N["a"].status()["line"], N["b"].status()["line"]
     check(sa["id"] == sbb["id"] and sbb["founder"] is True and sa["founder"] is False, f"same line {sa['id']}; b is the founder")
+    import json
+    rc, out = N["a"].cmd("who", num["b"])
+    w = json.loads(out) if rc == 0 else {}
+    check(w.get("connected") is True and w.get("path") == "direct" and w.get("line_member") is True and w.get("pinned") is True
+          and w.get("address", "").startswith("lw1") and len(w.get("phrase", "").split()) == 6 and w.get("key_id") == N["b"].status()["key_id"],
+          f"who shows b to a: connected, direct, pinned, on the line, with its full address and safety phrase ({out[:90]}...)")
+    rc, out = N["a"].cmd("who", "123-456-789")
+    check("not a valid number" in out, "who refuses a number with a bad check digit")
     check(bool(settled("ab")), "after a short listen, both boxes are forwarding (a box that has just joined waits 3 s)")
     check(ping(host["a"], "10.0.0.2", 3) == 3, "a1 pings b1: two LANs, one subnet")
 

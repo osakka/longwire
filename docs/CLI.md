@@ -51,7 +51,7 @@ and on the other machine's `up` terminal:
 | `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode |
 | `longwire-switchboard [options]` | run a switchboard ([SWITCHBOARD](SWITCHBOARD.md)) |
 | `longwire` with no arguments starts the node if it isn't running, then shows status | *(planned: M4)* |
-| `longwire who NUMBER` | a number's full address, pin and safety phrase *(planned: M3)* |
+| `longwire who NUMBER` | what this node knows of a number (JSON): its key id and full address, whether it is pinned, on your line, connected (and by what path), and the safety phrase of a live call. It asks nobody, so a number never called, pinned or listed is "not known here" |
 | `longwire answer POLICY` | change the answer policy while running *(planned: M3)* |
 | `longwire watch` | stream events as sentences *(planned: M4)* |
 | `longwire shell NUMBER` | dial, then a shell whose only network is the line *(planned: M5)* |
@@ -148,7 +148,7 @@ verb works from any hibr process, through the worker's control socket (`~/.longw
 | `lw status` | the JSON above, also in `$RET` |
 | `lw key new\|id\|address\|bundle SEEDFILE` | create or read an identity |
 | `lw sb start [options]`, `lw sb reply ID accept\|refuse [ARG...]` | the switchboard worker, and the script's decisions |
-| `lw who NUM` | a number's details *(planned: M3)* |
+| `lw who NUM` | what this node knows of a number (JSON) |
 
 **`lw start` is one-way for the calling process.** Clearing capabilities also sets `no_new_privs` on the hibr process that
 ran it. In a long-lived interactive shell that means `sudo` and other setuid programs stop working afterwards. A node

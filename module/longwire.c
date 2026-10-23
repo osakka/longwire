@@ -312,7 +312,7 @@ int m_lw(sh *s, int ac, char **av)
 		return ask(s, sock, "status\n", 0);
 	if (!strcmp(av[1], "stop"))
 		return ask(s, sock, "stop\n", 0);
-	if ((!strcmp(av[1], "dial") || !strcmp(av[1], "unpin") || !strcmp(av[1], "evict")) && ac >= 3) {
+	if ((!strcmp(av[1], "dial") || !strcmp(av[1], "unpin") || !strcmp(av[1], "who") || !strcmp(av[1], "evict")) && ac >= 3) {
 		snprintf(req, sizeof req, "%s %s\n", av[1], av[2]);
 		return ask(s, sock, req, 1);
 	}
