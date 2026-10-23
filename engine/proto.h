@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#define T_COOKIE 0x03
 #define T_PUNCH 0x06
 #define T_HELLO 0x08
 #define K_CTL   0x10

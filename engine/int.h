@@ -39,6 +39,7 @@ typedef struct lw_hsi {			/* initiator's pending handshake */
 	uint16_t hs_id;
 	uint32_t my_idx;
 	uint8_t  e[32], ck[32], h[32];
+	uint8_t  tag0[16];		/* tag of the first INIT fragment: the associated data of a cookie reply */
 	uint8_t  ek[LW_MLKEM_SK];
 	uint8_t  msg[HS_INIT_LEN];
 	double   sent, next_retry;
@@ -58,6 +59,8 @@ typedef struct lw_peer {
 	lw_sess  cur, prev, next;
 	lw_hsi   hs;
 	uint8_t  last_tai[12];
+	uint8_t  cookie[16];		/* what the responder gave us when it was under load */
+	double   cookie_t;
 	double   last_tx, last_rx, last_hs_try, hello_next, touched;
 	int      hello_tries;
 	uint64_t rx_frames, tx_frames, rx_bytes, tx_bytes;
@@ -73,7 +76,7 @@ typedef struct mac_ent {
 typedef struct hs_slot {		/* handshake fragment reassembly, per source */
 	int used; double t;
 	struct sockaddr_storage src; socklen_t srclen;
-	uint8_t type; uint16_t hs_id; int count, got;
+	uint8_t type; uint16_t hs_id; int count, got, cok;
 	uint8_t buf[2][HS_CHUNK]; int len[2];
 } hs_slot;
 
@@ -139,8 +142,12 @@ struct lw_node {
 	int      subs[MAXSUBS];
 	struct board *bd;
 	double   hello_tokens, hello_t;
-	double   hs_tokens, hs_t;	/* handshake budget (interim DoS limit until cookies, M3) */
-	uint64_t hs_shed;
+	double   hs_tokens, hs_t;	/* handshake budget: past half spent, the node is under load and wants cookies */
+	uint64_t hs_shed, cookies_sent, cookies_got, hs_nocookie, hs_badmac2;
+	int      cookie_ok;		/* the INIT being consumed carried valid cookie MACs on every fragment */
+	uint8_t  csecret[2][32];	/* cookie secret now and before the last rotation */
+	double   csecret_t;
+	struct { uint32_t ip; double tok, t; } srcl[64];	/* per-source budget for cookie holders, under load */
 };
 
 double lw_now(void);
@@ -159,7 +166,10 @@ int  hs_init_build(lw_node *n, lw_peer *p);
 int  hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, const struct sockaddr *src, socklen_t sl);
 int  hs_resp_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, const struct sockaddr *src, socklen_t sl);
 void hs_send(lw_node *n, int type, uint16_t hs_id, const uint8_t *m, size_t len,
-	     const uint8_t peer_key_id[32], const struct sockaddr *dst, socklen_t dl);
+	     const uint8_t peer_key_id[32], const struct sockaddr *dst, socklen_t dl,
+	     const uint8_t *cookie, uint8_t *tag0_out);
+void hs_start(lw_node *n, lw_peer *p);
+void cookie_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
 void hs_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
 
 /* sess.c */

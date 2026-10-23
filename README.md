@@ -86,7 +86,7 @@ GPL-3.0-or-later. See [COPYING](COPYING).
 learning switch and rekey under load (M0). A switchboard script hands out numbers under a token policy, nodes dial
 each other through it, and two nodes behind separate NATs reach each other directly by hole punching, with pins and
 a safety phrase (M1). Everything is driven from hibr scripts and verified by `make check` under both TCC and gcc.
-Not yet: splice, hard-NAT traversal and relay, DoS cookies, the desktop, the real tap port (untested here: no
+Not yet: splice, hard-NAT traversal and relay, the desktop, the real tap port (untested here: no
 `/dev/net/tun`). See [ROADMAP](docs/ROADMAP.md#m1-what-exists).
 
 ```

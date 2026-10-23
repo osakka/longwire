@@ -234,6 +234,8 @@ int lw_node_serve(lw_node *n)
 				n->rx_pkts++;
 				if (buf[0] == T_DATA)
 					sess_input(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
+				else if (buf[0] == T_COOKIE)
+					cookie_input(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
 				else if (buf[0] == T_PUNCH)
 					punch_input(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
 				else if (buf[0] == T_HELLO)

@@ -38,12 +38,19 @@
 
 ## Known gaps today
 
-- **No DoS cookies yet.** A flood of well-formed handshakes is *shed* by a budget (50/s on a node, 2000/s on a
-  switchboard), so CPU stays bounded and live sessions are unharmed, but an attacker who knows a node's key ID can use
-  the same budget to starve legitimate new handshakes. Cookies fix that and are required before the public switchboard
-  goes live ([ROADMAP](ROADMAP.md#m1-what-exists)).
 - **Two strict NATs cannot connect yet** (hard-NAT traversal and relay are M3); the call fails with a plain message.
 - **HELLO answers are limited globally,** not per source.
+
+## Handshake floods
+
+Every handshake costs a KEM decapsulation, so each node keeps a budget (50/s; 2,000/s on a switchboard). Past half of
+it the node is *under load* and stops doing handshake work for anyone who hasn't proven they can receive replies at
+their source address: it answers a short `COOKIE` instead, and a real peer retries with it at once. A flood from
+spoofed or unreachable addresses therefore costs the victim one small reply per packet and no public-key work, and a
+legitimate handshake still completes during it (tested: a sustained flood, three rekeys, no lapse). What remains:
+an attacker with a *real* address can fetch a cookie, and is then limited to 2 handshakes a second from that address
+(burst 8); and someone who can see the cookie reply on the path can replay it from the same address, as in WireGuard.
+Cookies are keyed by address and port, so two nodes behind one NAT address each get their own.
 
 ## Hardening built into the design
 

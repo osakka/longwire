@@ -79,15 +79,32 @@ Only an authenticated packet can move an endpoint.
 Handshake messages are larger than one datagram (because of ML-KEM). Each one is sent as fragments:
 
 ```
- type:1 ‖ hs_id:2 ‖ frag:1 (index<<4 | count) ‖ chunk (≤ 1212) ‖ tag:16
- tag = BLAKE2b-128(key = H("mac1" ‖ receiver.key_id), every byte before it)
+ type:1 ‖ hs_id:2 ‖ frag:1 (index<<4 | count) ‖ chunk (≤ 1212) ‖ tag:16 ‖ cmac:16
+ tag  = BLAKE2b-128(key = H("mac1" ‖ receiver.key_id), every byte before it)
+ cmac = BLAKE2b-128(key = cookie, every byte before it)      or sixteen zero bytes when no cookie is held
 ```
 
 `HS_INIT` is 2416 bytes and `HS_RESP` is 2260, so each is exactly 2 fragments (a full handshake is 4 datagrams, each
-under 1232 bytes, once every 2 minutes). Every fragment carries its own tag, so a responder discards anything that
+at most 1248 bytes, once every 2 minutes). Every fragment carries its own tag, so a responder discards anything that
 doesn't prove knowledge of its key ID *before* buffering a byte. (The whole-message `mac1` at the end of the
 handshake, checked after reassembly, can't serve for this: it sits in the last fragment.) A responder buffers at
-most **one** partial message per source address, for at most 1 s. The `hs_id` is chosen by the initiator and echoed
+most **one** partial message per source address, for at most 1 s.
+
+**Cookies (DoS defence).** Each handshake costs a KEM decapsulation, so a responder counts them in a budget (50/s on
+a node, 2,000/s on a switchboard). Once the budget is more than half spent, the responder is *under load*: a
+`HS_INIT` fragment whose `cmac` isn't valid for its source address gets no slot and no work, only a `COOKIE` reply:
+
+```
+ 0x03 ‖ hs_id:2 ‖ nonce:24 ‖ XChaCha20-Poly1305(key = H("cookie--" ‖ responder.key_id), ad = the fragment's tag,
+                                                  plaintext = cookie:16) ‖ tag:16          = 59 bytes
+ cookie = BLAKE2b-128(key = secret, source address and port)       the secret rotates every 120 s
+```
+
+The initiator decrypts it (the associated data is the tag of the fragment it sent, which an off-path attacker never
+sees), keeps the cookie for 120 s, and retries at once with `cmac` set. Fragments that carry a valid cookie skip the
+global budget, so a flood from addresses that can't receive replies can't starve a real handshake. They are limited
+per source address instead (burst 8, 2 per second). The `mac2` field at the end of the reassembled message is the
+same cookie MAC over the whole message and is checked as well, when a cookie is in play. The `hs_id` is chosen by the initiator and echoed
 in the response, which is how a reply is matched to its attempt. Each retry builds a completely fresh handshake
 (new ephemerals, a larger `tai64n`), so a retransmission is never mistaken for a replay.
 

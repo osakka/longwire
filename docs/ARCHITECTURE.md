@@ -148,7 +148,7 @@ decides who is allowed in.
 - **If the node script dies,** the worker keeps every established call up. New rings are rejected after 60 s until
   the script comes back, and its service manager restarts it.
 - **The switchboard has the same split.** `lw sb start` forks a C worker that handles sessions, handshakes,
-  `HELLO`/`ECHO`, cookies, heartbeats, presence and the bundle store. Only registration and call-setup messages
+  `HELLO`, cookies, heartbeats, presence and the bundle store. Only registration and call-setup messages
   reach the script, which makes the decisions. That's a few per second per call, never per heartbeat (see
   [SWITCHBOARD](SWITCHBOARD.md#how-tiny)).
 

@@ -183,7 +183,7 @@ a = ctl("A")
 check(c["peers"][0]["state"] in ("handshaking", "idle"), "node C (unknown to A) never reaches 'up'")
 check(a["drop_garbage"] > 0, f"A counted C's handshakes as garbage ({a['drop_garbage']}) and did not answer")
 
-# --- a flood of INITs that pass the cheap checks must be shed, not processed ---------
+# --- handshake floods and cookies ------------------------------------------------
 import hashlib
 def b2(data, key=None, size=32): return hashlib.blake2b(data, digest_size=size, key=key or b"").digest()
 kid_a = bytes.fromhex(ctl("A")["key_id"])
@@ -195,17 +195,44 @@ def crafted_init(i):
     for fi, off in enumerate((0, 1212)):
         chunk = m[off:off + 1212]
         pkt = bytes([1]) + struct.pack("<H", i & 0xffff) + bytes([fi << 4 | 2]) + chunk
-        out.append(pkt + b2(pkt, key=mk, size=16))         # ...and valid per-fragment tags
+        pkt += b2(pkt, key=mk, size=16)                    # valid per-fragment tag (an attacker knows A's public key id)...
+        out.append(pkt + bytes(16))                        # ...but no cookie: it never received one
     return out
-shed0 = ctl("A")["hs_shed"]
-us = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-t0 = time.time()
+us = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); us.settimeout(0.3)
+cs0 = ctl("A")["cookies_sent"]
 for i in range(400):
     for pkt in crafted_init(i): us.sendto(pkt, ("127.0.0.1", A_PORT))
-time.sleep(1.0)
-shed = ctl("A")["hs_shed"] - shed0
-check(shed >= 300, f"a flood of 400 well-formed INITs: {shed} shed by the handshake budget (50/s on a node)")
+time.sleep(0.8)
+replies = []
+try:
+    while True: replies.append(us.recv(2048))
+except socket.timeout: pass
+sent = ctl("A")["cookies_sent"] - cs0
+check(sent >= 300, f"a flood of 400 well-formed INITs without cookies: A answered {sent} with a cookie and did no handshake work")
+check(replies and all(len(r) == 59 and r[0] == 3 for r in replies), f"...each reply is a 59-byte COOKIE ({len(replies)} received by the flooder)")
 check(ctl("A")["peers"][0]["state"] == "up", "...and the existing session is unharmed")
+
+# the test that matters: while the flood continues, a legitimate handshake (B's rekey, every 4 s) still completes
+stop_flood = threading.Event()
+def flood():
+    j = 1000
+    while not stop_flood.is_set():
+        for pkt in crafted_init(j): us.sendto(pkt, ("127.0.0.1", A_PORT))
+        j += 1
+        time.sleep(0.003)
+th = threading.Thread(target=flood, daemon=True); th.start()
+got0 = ctl("B")["cookies_got"]; sent0 = ctl("A")["cookies_sent"]
+ages, down, t_end = [], 0, time.time() + 14
+while time.time() < t_end:
+    a_, b_ = ctl("A")["peers"][0], ctl("B")["peers"][0]
+    if a_["state"] != "up" or b_["state"] != "up": down += 1
+    ages.append(b_["age"])
+    time.sleep(0.25)
+stop_flood.set(); th.join()
+resets = sum(1 for x, y in zip(ages, ages[1:]) if y < x)      # B's session got younger: it was replaced
+check(resets >= 2, f"during a sustained flood B still completed {resets} legitimate rekeys (A was under load, so B had to present a cookie)")
+check(down == 0, f"...and the session was up at every one of {len(ages)} samples ({down} lapses)")
+check(ctl("B")["cookies_got"] > got0 and ctl("A")["cookies_sent"] - sent0 > 500, f"B was handed a cookie ({ctl('B')['cookies_got'] - got0}) while A answered {ctl('A')['cookies_sent'] - sent0} flood fragments with cookies")
 
 px.run_ = False
 print("\nFAILED: " + "; ".join(fails) if fails else "\nall M0 python checks passed")

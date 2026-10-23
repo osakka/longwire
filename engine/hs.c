@@ -53,6 +53,12 @@ static void mac16(uint8_t out[16], const uint8_t key[32], const uint8_t *m, size
 	crypto_blake2b_keyed(out, 16, key, 32, m, n);
 }
 
+/* the same with a 16-byte key: a cookie */
+static void cmac16(uint8_t out[16], const uint8_t cookie[16], const uint8_t *m, size_t n)
+{
+	crypto_blake2b_keyed(out, 16, cookie, 16, m, n);
+}
+
 static void tai64n(uint8_t out[12])
 {
 	struct timespec t;
@@ -113,7 +119,10 @@ int hs_init_build(lw_node *n, lw_peer *p)
 	mix(h, m + 2352, 32);
 	mac1_key(mk, p->key_id);
 	mac16(m + 2384, mk, m, 2384);
-	memset(m + 2400, 0, 16);			/* mac2: cookies come later */
+	if (p->cookie_t && n->now - p->cookie_t < 120.0)	/* the responder asked for a cookie: show it */
+		cmac16(m + 2400, p->cookie, m, 2400);
+	else
+		memset(m + 2400, 0, 16);
 	memcpy(hs->ck, ck, 32);
 	memcpy(hs->h, h, 32);
 	memcpy(hs->e, e, 32);
@@ -126,6 +135,144 @@ int hs_init_build(lw_node *n, lw_peer *p)
 	crypto_wipe(s1, 32);
 	crypto_wipe(t, 32);
 	return 0;
+}
+
+/* ---- load, cookies, and the per-source budget -------------------------------- */
+
+static double hs_rate(const lw_node *n) { return n->role ? 2000.0 : 50.0; }
+
+static void budget_refill(lw_node *n)
+{
+	double r = hs_rate(n);
+
+	n->hs_tokens += (n->now - n->hs_t) * r;
+	if (n->hs_tokens > r)
+		n->hs_tokens = r;
+	n->hs_t = n->now;
+}
+
+/* Under load = more than half of the handshake budget is gone. */
+static int under_load(lw_node *n)
+{
+	budget_refill(n);
+	return n->hs_tokens < hs_rate(n) / 2;
+}
+
+static void budget_take(lw_node *n)
+{
+	budget_refill(n);
+	if (n->hs_tokens >= 1.0)
+		n->hs_tokens -= 1.0;
+}
+
+static void secret_rotate(lw_node *n)
+{
+	if (!n->csecret_t || n->now - n->csecret_t > 120.0) {
+		memcpy(n->csecret[1], n->csecret[0], 32);
+		lw_rand(n->csecret[0], 32);
+		if (!n->csecret_t)
+			memcpy(n->csecret[1], n->csecret[0], 32);
+		n->csecret_t = n->now;
+	}
+}
+
+/* The cookie for a source address under the current (which=0) or previous secret. */
+static int cookie_for(lw_node *n, const struct sockaddr *src, socklen_t sl, int which, uint8_t out[16])
+{
+	const struct sockaddr_in *a = (const void *)src;
+	uint8_t b[6];
+
+	if (src->sa_family != AF_INET || sl < sizeof *a)
+		return 0;
+	secret_rotate(n);
+	memcpy(b, &a->sin_addr, 4);
+	memcpy(b + 4, &a->sin_port, 2);
+	crypto_blake2b_keyed(out, 16, n->csecret[which], 32, b, 6);
+	return 1;
+}
+
+static int cookie_valid(lw_node *n, const struct sockaddr *src, socklen_t sl, const uint8_t *msg, size_t len, const uint8_t cmac[16])
+{
+	uint8_t ck[16], exp[16];
+	int w;
+
+	for (w = 0; w < 2; w++) {
+		if (!cookie_for(n, src, sl, w, ck))
+			return 0;
+		cmac16(exp, ck, msg, len);
+		if (!crypto_verify16(exp, cmac))
+			return 1;
+	}
+	return 0;
+}
+
+/* A cookie holder under load is still limited, per source address: burst 8, 2 a second. */
+static int src_ok(lw_node *n, const struct sockaddr *src)
+{
+	const struct sockaddr_in *a = (const void *)src;
+	uint32_t ip = a->sin_addr.s_addr;
+	int i = (int)((ip * 2654435761u) >> 26) & 63;
+
+	if (n->srcl[i].ip != ip) {
+		n->srcl[i].ip = ip;
+		n->srcl[i].tok = 8.0;
+		n->srcl[i].t = n->now;
+	}
+	n->srcl[i].tok += (n->now - n->srcl[i].t) * 2.0;
+	if (n->srcl[i].tok > 8.0)
+		n->srcl[i].tok = 8.0;
+	n->srcl[i].t = n->now;
+	if (n->srcl[i].tok < 1.0)
+		return 0;
+	n->srcl[i].tok -= 1.0;
+	return 1;
+}
+
+static void cookie_reply(lw_node *n, uint16_t hs_id, const uint8_t ad[16], const struct sockaddr *src, socklen_t sl)
+{
+	uint8_t pkt[59], key[32], ck[16];
+
+	if (!cookie_for(n, src, sl, 0, ck))
+		return;
+	lw_h2(key, "cookie--", 8, n->id.key_id, 32);
+	pkt[0] = T_COOKIE;
+	pkt[1] = (uint8_t)hs_id;
+	pkt[2] = (uint8_t)(hs_id >> 8);
+	lw_rand(pkt + 3, 24);
+	crypto_aead_lock(pkt + 27, pkt + 43, key, pkt + 3, ad, 16, ck, 16);
+	sendto(n->udp, pkt, sizeof pkt, 0, src, sl);
+	n->cookies_sent++;
+	crypto_wipe(key, 32);
+}
+
+void cookie_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
+{
+	uint16_t id;
+	uint8_t key[32], ck[16];
+	lw_peer *p = 0;
+	int i;
+
+	(void)src; (void)sl;
+	if (len != 59)
+		return;
+	id = (uint16_t)(pkt[1] | pkt[2] << 8);
+	for (i = 0; i < n->maxpeers; i++)
+		if (n->peers[i].used && n->peers[i].hs.active && n->peers[i].hs.hs_id == id) {
+			p = &n->peers[i];
+			break;
+		}
+	if (!p || n->now - p->cookie_t < 1.0)		/* one retry a second at most: no ping-pong */
+		return;
+	lw_h2(key, "cookie--", 8, p->key_id, 32);
+	if (crypto_aead_unlock(ck, pkt + 43, key, pkt + 3, p->hs.tag0, 16, pkt + 27, 16)) {
+		crypto_wipe(key, 32);
+		return;
+	}
+	crypto_wipe(key, 32);
+	memcpy(p->cookie, ck, 16);
+	p->cookie_t = n->now;
+	n->cookies_got++;
+	hs_start(n, p);					/* ask again, this time with the cookie */
 }
 
 int hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, const struct sockaddr *src, socklen_t sl)
@@ -141,18 +288,24 @@ int hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 	mac16(mac, n->mac1_key, m, 2384);
 	if (crypto_verify16(mac, m + 2384))
 		return -1;
-	{	/* each INIT from here on costs a KEM decapsulation: shed load rather than melt */
-		double rate = n->role ? 2000.0 : 50.0;
+	if (under_load(n)) {		/* only a source that has proven it can receive replies gets work */
+		uint8_t ck16[16], exp[16];
 
-		n->hs_tokens += (n->now - n->hs_t) * rate;
-		if (n->hs_tokens > rate)
-			n->hs_tokens = rate;
-		n->hs_t = n->now;
-		if (n->hs_tokens < 1.0) {
+		if (!n->cookie_ok || !cookie_for(n, src, sl, 0, ck16)) {
+			n->hs_nocookie++;
+			return -1;
+		}
+		cmac16(exp, ck16, m, 2400);
+		if (crypto_verify16(exp, m + 2400)) {
+			n->hs_badmac2++;
+			return -1;
+		}
+		if (!src_ok(n, src)) {
 			n->hs_shed++;
 			return -1;
 		}
-		n->hs_tokens -= 1.0;
+	} else {
+		budget_take(n);
 	}
 	start(ck, h, n->id.key_id);
 	mix(h, m, 32);
@@ -216,7 +369,7 @@ int hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 		p->eplen = sl;
 	}
 	hs_send(n, T_HS_RESP, hs_id, resp, HS_RESP_LEN,
-		p->key_id, (struct sockaddr *)&p->ep, p->eplen);
+		p->key_id, (struct sockaddr *)&p->ep, p->eplen, 0, 0);
 	crypto_wipe(e2, 32); crypto_wipe(k, 32); crypto_wipe(t, 32); crypto_wipe(ck, 32);
 	crypto_wipe(s1, 32); crypto_wipe(s2, 32); crypto_wipe(s3, 32);
 	return 0;
@@ -288,9 +441,10 @@ int hs_resp_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 /* Fragments carry a 16-byte tag keyed by the receiver's mac1 key, so a
  * responder can discard unauthenticated fragments before buffering anything. */
 void hs_send(lw_node *n, int type, uint16_t hs_id, const uint8_t *m, size_t len,
-	     const uint8_t peer_key_id[32], const struct sockaddr *dst, socklen_t dl)
+	     const uint8_t peer_key_id[32], const struct sockaddr *dst, socklen_t dl,
+	     const uint8_t *cookie, uint8_t *tag0_out)
 {
-	uint8_t pkt[4 + HS_CHUNK + 16], mk[32];
+	uint8_t pkt[4 + HS_CHUNK + 32], mk[32];
 	int count = (int)((len + HS_CHUNK - 1) / HS_CHUNK), i;
 
 	mac1_key(mk, peer_key_id);
@@ -303,7 +457,13 @@ void hs_send(lw_node *n, int type, uint16_t hs_id, const uint8_t *m, size_t len,
 		pkt[3] = (uint8_t)(i << 4 | count);
 		memcpy(pkt + 4, m + off, c);
 		mac16(pkt + 4 + c, mk, pkt, 4 + c);
-		sendto(n->udp, pkt, 4 + c + 16, 0, dst, dl);
+		if (i == 0 && tag0_out)
+			memcpy(tag0_out, pkt + 4 + c, 16);
+		if (cookie)
+			cmac16(pkt + 4 + c + 16, cookie, pkt, 4 + c + 16);
+		else
+			memset(pkt + 4 + c + 16, 0, 16);
+		sendto(n->udp, pkt, 4 + c + 32, 0, dst, dl);
 	}
 }
 
@@ -347,25 +507,33 @@ static hs_slot *slot_for(lw_node *n, const struct sockaddr *src, socklen_t sl, i
 void hs_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
 {
 	uint8_t mac[16], msg[HS_CHUNK * 2];
-	int count, idx, type = pkt[0];
+	int count, idx, type = pkt[0], cok;
 	uint16_t id;
 	hs_slot *s;
 	size_t c;
 
-	if (len < 4 + 16 || len > 4 + HS_CHUNK + 16)
+	if (len < 4 + 32 || len > 4 + HS_CHUNK + 32)
 		goto bad;
-	mac16(mac, n->mac1_key, pkt, len - 16);
-	if (crypto_verify16(mac, pkt + len - 16))
+	mac16(mac, n->mac1_key, pkt, len - 32);
+	if (crypto_verify16(mac, pkt + len - 32))
 		goto bad;
 	id = (uint16_t)(pkt[1] | pkt[2] << 8);
 	idx = pkt[3] >> 4;
 	count = pkt[3] & 15;
 	if (count < 1 || count > 2 || idx >= count)
 		goto bad;
-	c = len - 4 - 16;
+	cok = cookie_valid(n, src, sl, pkt, len - 16, pkt + len - 16);
+	if (type == T_HS_INIT && !cok && under_load(n)) {	/* no slot, no work: just the cookie */
+		cookie_reply(n, id, pkt + len - 32, src, sl);
+		return;
+	}
+	c = len - 4 - 32;
 	s = slot_for(n, src, sl, type, id);
 	if (s->count && s->count != count)
 		goto bad;
+	if (!s->count)
+		s->cok = 1;
+	s->cok &= cok;
 	s->count = count;
 	if (!(s->got & (1 << idx))) {
 		memcpy(s->buf[idx], pkt + 4, c);
@@ -380,6 +548,7 @@ void hs_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr 
 		memcpy(msg + c, s->buf[1], (size_t)s->len[1]);
 		c += (size_t)s->len[1];
 	}
+	n->cookie_ok = s->cok;
 	s->used = 0;
 	if (type == T_HS_INIT) {
 		if (hs_init_consume(n, msg, c, id, src, sl))

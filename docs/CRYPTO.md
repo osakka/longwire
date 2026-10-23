@@ -111,11 +111,12 @@ ck = H(name);   h = H(ck ‖ R.key_id)
 | replay of HS_INIT | rejected: tai64n must increase per initiator key | same |
 
 **DoS.** R checks the per-fragment tag, which is a `mac1` over each fragment ([PROTOCOL §3](PROTOCOL.md#3-sessions-and-timers)),
-before doing *any* public-key work. That proves the sender knows R's key ID, which
-filters scans. *(M0 sends `mac2` as zeros and has no cookie reply yet; it arrives with the switchboard in M1.)* Under load (more than 50 handshakes/s on a node, or 2,000/s on a switchboard, by default), R answers
-with a `COOKIE` instead: an
-XChaCha20-Poly1305 encryption of `BLAKE2b-128(key = rotating_secret, src_addr)`. The initiator must echo it in
-`mac2`. This is WireGuard's mechanism, unchanged.
+before doing *any* public-key work. That proves the sender knows R's key ID, which filters scans. Under load, R
+answers with a `COOKIE` instead of working: an XChaCha20-Poly1305 encryption of
+`BLAKE2b-128(key = rotating_secret, source address)`, which the initiator echoes in `cmac` on every fragment and in
+`mac2` at the end of the message. It is WireGuard's mechanism, with the cookie MAC on each fragment so that R can
+refuse at the first fragment, before it buffers anything. Details, sizes and limits are in
+[PROTOCOL §3](PROTOCOL.md#3-sessions-and-timers).
 
 ## 5. Key schedule
 

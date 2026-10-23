@@ -3,7 +3,7 @@
 > *It puts the call through, then it hangs up.*
 
 The switchboard is component 1: a hibr script, `longwire-switchboard`, on the same module as every node. The
-module's C worker (`lw sb start`) handles sessions, handshakes, `HELLO`/`ECHO`, cookies, heartbeats, presence and
+module's C worker (`lw sb start`) handles sessions, handshakes, `HELLO`, cookies, heartbeats, presence and
 the bundle store. The script makes the decisions: who gets which number, which tokens are valid, who is rung and
 when to punch, and what is rate-limited. The switchboard does three jobs and nothing else:
 
@@ -97,8 +97,8 @@ default, and `--log calls` exists for operators who need it, with a warning.
 - **Work:** one handshake per node every **10 minutes** (switchboard sessions rekey slowly, because they only carry
   control messages), one heartbeat every 25 s, plus calls. 100,000 online nodes is about 170 handshakes/s. At
   roughly 3 ms of responder CPU per handshake under TCC, that's about half a core, so a $3 VPS handles tens of
-  thousands of nodes. The switchboard's cookie threshold defaults to **2,000 handshakes/s**, against 50/s for an
-  ordinary node, so legitimate nodes never pay the cookie round trip in normal operation.
+  thousands of nodes. The switchboard's handshake budget is **2,000/s**, against 50/s for an ordinary node. Cookies are
+  asked for only once more than half of it is spent, so in normal operation no node pays the extra round trip.
 - **Abuse limits:** registrations per IP per hour, dials per number per minute and rings per callee per minute. A
   dial to an unknown number and a dial that's refused get the same response time.
 - **Many switchboards.** v1 has one switchboard per deployment, so numbers are local to it. Federation (`number@sb`)

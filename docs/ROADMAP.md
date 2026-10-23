@@ -25,14 +25,12 @@ across a userspace NAT router in unprivileged network namespaces.
   and a pinned number answered by a different key (the call is dropped and the user told).
 - **Symmetric NAT on one side:** both ends get `no direct path (both sides behind strict NAT?)` and nothing is left
   half-open; the router confirms it blocked the punches.
-- **Interim handshake limit:** a flood of 400 well-formed handshakes is shed by the budget (50/s per node, 2000/s on
-  a switchboard) and the live session is unharmed.
+- **Handshake flood:** 400 well-formed handshakes without cookies are answered with `COOKIE` replies and no handshake
+  work; the live session is unharmed. (Cookies landed after M1; see the next section.)
 
 Not done, and said plainly:
 - **No default switchboard yet:** `--switchboard HOST:PORT/KEY` is required until you supply the host.
 - **NAT type, spray and relay** (`ECHO`, hard-NAT rungs): M3. Two strict NATs fail cleanly rather than connect.
-- **No DoS cookies.** The handshake budget keeps the switchboard alive but also lets a flooder starve real
-  handshakes. Cookies (`mac2`) are the real fix and block making the public switchboard public.
 - **Numbers are never released**, `LOOKUP`/`who`, per-source HELLO limit, and the 10-minute rekey for switchboard
   sessions are not built.
 - The callee of a call whose caller drops it on a key mismatch waits out the 8 s punch timeout instead of being told.
@@ -72,7 +70,7 @@ Not done, and said plainly:
   session the other holds as its previous one, and the link goes dark until the dead-peer timer redials
   (about 76 s). The responder's rekey is deliberately 10 s behind the initiator's to make this rare, and the lower-
   key-ID rule in [PROTOCOL §3](PROTOCOL.md#3-sessions-and-timers) is not implemented yet.
-- IPv4 only; no cookies (`mac2` is zeros); no events stream; no `watch`; MAC-table limits are fixed.
+- IPv4 only; MAC-table limits are fixed.
 - A frame bigger than the line's packet limit is dropped rather than split (M2).
 
 **Later, not promised:** federated switchboards (`number@sb`), ML-DSA admit signatures, more than one line per node,

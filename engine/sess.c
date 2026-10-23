@@ -215,7 +215,7 @@ void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 	}
 }
 
-static void hs_start(lw_node *n, lw_peer *p)
+void hs_start(lw_node *n, lw_peer *p)
 {
 	if (!p->eplen || !p->have_bundle)
 		return;
@@ -224,7 +224,8 @@ static void hs_start(lw_node *n, lw_peer *p)
 	if (hs_init_build(n, p))
 		return;
 	hs_send(n, T_HS_INIT, p->hs.hs_id, p->hs.msg, HS_INIT_LEN, p->key_id,
-		(struct sockaddr *)&p->ep, p->eplen);
+		(struct sockaddr *)&p->ep, p->eplen,
+		p->cookie_t && n->now - p->cookie_t < 120.0 ? p->cookie : 0, p->hs.tag0);
 	p->last_hs_try = n->now;
 }
 
