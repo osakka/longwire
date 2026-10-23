@@ -264,6 +264,27 @@ for m in re.findall(r"\]\((\d{4}-[^)]+\.md)\)", index):
     if not os.path.exists("docs/adr/" + m):
         bad("docs/adr/README.md", f"lists {m}, which does not exist")
 
+# TCC is the only compiler (ADR 0021): no other compiler is offered, planned or used anywhere we write
+RECORD = ("docs/adr/0021-tcc-is-the-compiler-without-exception.md", "CHANGELOG.md")
+for f in DOCS:
+    if f in RECORD:
+        continue
+    for n, line in enumerate(read(f).splitlines(), 1):
+        if re.search(r"\b(gcc|g\+\+|clang|llvm|msvc|NDK|CC=)\w*", line, re.I):
+            bad(f"{f}:{n}", "names a compiler other than TCC (docs/adr/0021): " + line.strip()[:70])
+mk = read("Makefile")
+if not re.search(r"^override CC = tcc$", mk, re.M):
+    bad("Makefile", "must say `override CC = tcc`")
+for n, line in enumerate(mk.splitlines(), 1):
+    if re.search(r"\b(gcc|clang|cc)\b", line) and not line.lstrip().startswith("#"):
+        bad(f"Makefile:{n}", "names a compiler other than TCC: " + line.strip()[:70])
+for f in sorted(glob.glob("tests/*.sh") + glob.glob("tests/*.py") + glob.glob("scripts/*")):
+    if f.endswith("docs.py"):
+        continue
+    for n, line in enumerate(read(f).splitlines(), 1):
+        if re.search(r"\b(gcc|clang)\b", line):
+            bad(f"{f}:{n}", "uses a compiler other than TCC: " + line.strip()[:70])
+
 if problems:
     print("documentation is out of step with the code:")
     for p in problems:

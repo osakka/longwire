@@ -18,7 +18,7 @@ that takes over can send one frame from each of those addresses and move every s
 ## Consequences
 
 Two boxes on one segment **must** share a key, or they loop; deriving it automatically needs lines *(planned: M3)*. In
-the test suite the active box is killed and traffic resumes in about 4 seconds with nothing done to any host. A takeover
+the test suite the active box is killed and traffic resumes in about 4 seconds (the test allows up to 14) with nothing done to any host. A takeover
 in the first two seconds after the group forms, before a list has been shared, falls back to ordinary learning and is
 slower. A box that restarts takes over again if its key id is lowest. See
 [ARCHITECTURE §4](../ARCHITECTURE.md#4-two-boxes-on-one-segment-site-groups).

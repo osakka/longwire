@@ -25,7 +25,7 @@ What longwire defends against, what it does not, and what is still open. Designe
 | **Malicious peer on a call** | everything a host on your LAN can do: ARP spoofing, DHCP, scanning | read other peers' sessions *in transit* (it sees what is flooded to it, as any LAN host would) |
 | **Malicious relay** | see sizes and timing of the traffic it relays; drop it | read or alter it: relayed packets are end-to-end sessions *(planned: M3)* |
 | **Stolen device** | be that device: the seed *is* the number and the key | be stopped by anything but replacing the identity today. Eviction from a line, with a rotated line key, *(planned: M3)* |
-| **Attacker on a site's own LAN segment** | do anything a LAN host can; flood the segment; replay a recorded probe to keep a dead box looking alive for a few seconds | forge a probe or a host list (both are authenticated with the site secret); join the line |
+| **Attacker on a site's own LAN segment** | do anything a LAN host can; flood the segment; replay a recorded probe to keep a dead box looking alive for up to about 30 seconds after it was recorded | forge a probe or a host list (both are authenticated with the site secret); join the line |
 
 ## Things to say plainly
 
@@ -48,7 +48,7 @@ Every handshake costs a KEM decapsulation, so each node keeps a budget (50 a sec
 of it the node is *under load* and stops doing handshake work for anyone who hasn't proven they can receive replies at
 their source address: it answers a short `COOKIE` instead, and a real peer retries with it at once. A flood from
 spoofed or unreachable addresses therefore costs the victim one small reply per packet and no public-key work, and a
-legitimate handshake still completes during it (tested: a sustained flood, three rekeys, no lapse). What remains: an
+legitimate handshake still completes during it (tested: during a sustained flood a peer completes at least two rekeys and the session never lapses). What remains: an
 attacker with a *real* address can fetch a cookie, and is then limited to 2 handshakes a second from that address
 (burst 8); and someone who can see the cookie reply on the path can replay it from the same address, as in WireGuard.
 Cookies are keyed by address and port, so two nodes behind one NAT address each get their own.
@@ -72,11 +72,11 @@ Cookies are keyed by address and port, so two nodes behind one NAT address each 
   (`engine/sw.c`). Fuzzing them continuously *(planned: M8)*.
 - No allocation on the data path. Tables have fixed sizes: peers (16, or 1024 on a switchboard), MAC entries (8,192),
   handshake slots (8, one per source), and four reassembly slots per peer, created on first use.
-- Keys live in one place: the C worker. The seed is mode 0600 and loaded into worker memory that is `mlock`ed where the
-  OS allows. It never crosses the control socket and never enters a hibr variable, so scripts handle numbers and
-  decisions, never secrets. The control socket is mode 0600 and checks the peer's uid (`SO_PEERCRED`). The worker
+- Keys are handled in C only. The seed is mode 0600. `lw start` and `lw key` read it inside the module's process and
+  wipe it before returning; the worker keeps its identity in memory that is `mlock`ed where the OS allows. It never
+  crosses the control socket and never enters a hibr variable, so scripts handle numbers and decisions, never secrets. The control socket is mode 0600 and checks the peer's uid (`SO_PEERCRED`). The worker
   closes every descriptor it inherits.
 - Nothing is setuid, and hibr never gains privilege (hibr ADR 0016). Splice gets `CAP_NET_RAW` from the service manager
-  as an ambient capability. `lw start` opens the packet socket and then clears every capability set in both
-  processes and sets `no_new_privs`. The scripts load the module by explicit path, so the privileged moment never
-  searches the environment for code.
+  as an ambient capability. `lw start` opens the packet socket, clears every capability set and sets `no_new_privs`, and only
+  then forks the worker. The unit that `longwire setup splice` prints names the module by absolute path
+  (`LONGWIRE_MOD`), so the privileged moment never searches the environment for code.

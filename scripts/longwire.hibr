@@ -36,25 +36,30 @@ usage: longwire <command>
   id | address | bundle                       your key id, full address (lw1...), public bundle
 
 --answer: ask (default) rings and waits for 'longwire pickup'; known picks up numbers
-you have called before and asks about the rest; auto picks up anyone; never refuses.
+you have been connected to before and asks about the rest; auto picks up anyone; never refuses.
 EOF
 }
+
+# hibr holds plain stdout back when it is redirected (a service's log), so the node narrates on stderr,
+# which is unbuffered: a line appears when the thing happens, in a terminal and under a service manager.
+say() { echo "$@" >&2; }
 
 # A sentence for each event, the way a person wants to read it.
 announce() {
 	local ev=$1
 	case $ev in
-	registered)   echo "☎  your number ${e[number]} — dial tone" ;;
-	register-refused) echo "✗  the switchboard refused to register you: ${e[reason]}" ;;
-	ring)         echo "☎  ${e[from]} is calling"
-	              echo "   safety phrase: ${e[phrase]}"
-	              [ "${e[known]}" = true ] || echo "   first call from this number" ;;
-	connected)    echo "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"
-	              echo "   safety phrase: ${e[phrase]}" ;;
-	call-failed)  echo "✗  call failed: ${e[reason]}" ;;
-	call-lost)    echo "✗  lost the call to ${e[number]}: ${e[reason]}" ;;
-	hangup)       echo "·  ${e[number]} hung up (${e[by]})" ;;
-	key-changed)  echo "⚠  KEY CHANGED for ${e[number]}: ${e[action]}" ;;
+	registered)       say "☎  your number ${e[number]} — dial tone" ;;
+	register-refused) say "✗  the switchboard refused to register you: ${e[reason]}" ;;
+	ring)             say "☎  ${e[from]} is calling"
+	                  say "   safety phrase: ${e[phrase]}"
+	                  [ "${e[known]}" = true ] || say "   first call from this number" ;;
+	connected)        say "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"
+	                  say "   safety phrase: ${e[phrase]}" ;;
+	call-failed)      say "✗  call failed: ${e[reason]}" ;;
+	call-lost)        say "✗  lost the call to ${e[number]}: ${e[reason]}" ;;
+	site)             say "·  this box is now ${e[role]} for its LAN segment (${e[members]} on it)" ;;
+	hangup)           say "·  ${e[number]} hung up (${e[by]})" ;;
+	key-changed)      say "⚠  KEY CHANGED for ${e[number]}: ${e[action]}" ;;
 	esac
 }
 
@@ -64,8 +69,8 @@ on_ring() {
 	case $policy in
 	auto)  lw pickup > /dev/null ;;
 	never) lw reject > /dev/null ;;
-	known) if [ "${e[known]}" = true ]; then lw pickup > /dev/null; else echo "   run: longwire pickup | longwire reject (60 s)"; fi ;;
-	*)     echo "   run: longwire pickup | longwire reject (60 s)" ;;
+	known) if [ "${e[known]}" = true ]; then lw pickup > /dev/null; else say "   run: longwire pickup | longwire reject (60 s)"; fi ;;
+	*)     say "   run: longwire pickup | longwire reject (60 s)" ;;
 	esac
 }
 
@@ -79,10 +84,19 @@ cmd_up() {
 		esac
 	done
 	case $answer in ask|known|auto|never) ;; *) echo "longwire: --answer wants ask, known, auto or never" >&2; exit 2 ;; esac
-	run lw start --seed "$LW_SEED" --sock "$LW_SOCK" --state "$LW_DIR" "${args[@]}" > /dev/null
+	if lw status > /dev/null 2>&1; then
+		say "·  a node is already running: attaching to it"	# the script restarted; the worker never stopped
+	else
+		run lw start --seed "$LW_SEED" --sock "$LW_SOCK" --state "$LW_DIR" "${args[@]}" > /dev/null
+	fi
 	trap 'lw stop > /dev/null 2>&1; exit 0' TERM INT
 	exec 5</dev/longwire/events || exit 1
-	while read -r -u 5 line; do
+	# hibr runs a trap between commands, never inside a blocking read: wake once a second so TERM is prompt.
+	while :; do
+		read -r -t 1 -u 5 line
+		rc=$?
+		[ $rc -eq 142 ] && continue
+		[ $rc -ne 0 ] && break
 		json parse e "$line"
 		case ${e[event]} in
 		ring) announce ring; on_ring "$answer" ;;
@@ -107,6 +121,8 @@ After=network-online.target
 User=$(id -un)
 # CAP_NET_RAW opens the packet socket. 'lw start' clears every capability the moment it is open.
 AmbientCapabilities=CAP_NET_RAW
+# the module by absolute path, so the privileged moment never searches the environment for code
+Environment=LONGWIRE_MOD=${LONGWIRE_MOD:-/usr/lib/hibr/longwire.so}
 ExecStart=/usr/bin/longwire up --splice $2
 Restart=always
 

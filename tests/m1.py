@@ -135,13 +135,13 @@ def fmt(n): return f"{n[:3]}-{n[3:6]}-{n[6:]}"
 def frame(dst, src, payload): return dst + src + b"\x08\x00" + payload
 
 # ---------------------------------------------------------------- the test
-def build_net(mode_b):
-    """site A (cone) and site B (mode_b) behind NATs, a public net with the switchboard host"""
+def build_net(mode_a, mode_b):
+    """site A (mode_a) and site B (mode_b) behind NATs, a public net with the switchboard host"""
     sh("ip link set lo up")
     open("/proc/sys/net/ipv4/ip_forward", "w").write("0")	# only the userspace NAT may move packets
     nsA, nsB, nsS = mkns(), mkns(), mkns()
     sites = []
-    for key, ns, rif, vif, rip, vip, pub, mode in [("A", nsA, "rA", "vA", "10.0.1.1", "10.0.1.2", "192.0.2.101", "cone"),
+    for key, ns, rif, vif, rip, vip, pub, mode in [("A", nsA, "rA", "vA", "10.0.1.1", "10.0.1.2", "192.0.2.101", mode_a),
                                                    ("B", nsB, "rB", "vB", "10.0.2.1", "10.0.2.2", "192.0.2.102", mode_b)]:
         sh(f"ip link add {rif} type veth peer name {vif}"); sh(f"ip link set {vif} netns {ns.pid}")
         sh(f"ip addr add {rip}/24 dev {rif}"); sh(f"ip link set {rif} up")
@@ -161,13 +161,13 @@ def build_net(mode_b):
 
 def main():
     rnd = random.Random(7)
-    print(f"-- M1 over NAT, site B's NAT is '{MODE}'  (workdir {T})", flush=True)
-    nsA, nsB, nsS, router = build_net(MODE)
+    print(f"-- M1 over NAT: site A's NAT is 'cone', site B's is '{MODE}'  (workdir {T})", flush=True)
+    nsA, nsB, nsS, router = build_net("cone", MODE)
 
     # --- the switchboard: a script, with token policy ---------------------------
     num_b = damm_number(rnd)
     num_e = damm_number(rnd)
-    open(f"{T}/tokens", "w").write(f"tokA\ntokB {num_b}\ntokD\ntokE {num_e}\n")
+    open(f"{T}/tokens", "w").write(f"tokA\ntokB {num_b}\ntokD\ntokE {num_e}\ntokF {num_b}\n")
     sb = Node("S", nsS, "longwire-switchboard.hibr", ["--listen", "192.0.2.10:1877", "--tokens", f"{T}/tokens", "--rings-per-minute", "50"])
     for _ in range(100):
         if os.path.exists(sb.home + "/sb/seed") and os.path.exists(sb.sock): break
@@ -190,6 +190,7 @@ def main():
     D = node("D", nsA, "10.0.1.2", 4003, "tokD", "auto")
     E = node("E", nsB, "10.0.2.2", 4005, "tokE", "auto")
     C = node("C", nsA, "10.0.1.2", 4004, "tokA", "auto")        # tokA was spent by A: must be refused
+    F = node("F", nsA, "10.0.1.2", 4006, "tokF", "auto")        # tokF reserves B's number, which B already holds
 
     def registered(n, timeout=20):
         end = time.time() + timeout
@@ -281,8 +282,28 @@ def main():
     A.cmd("dial", rb["number"])
     B.w.wait("ring", 10, after=mkB); B.cmd("pickup")
     check(bool(A.w.wait("connected", 20, after=mkA) and B.w.wait("connected", 20, after=mkB)), "a third call connects again after hangup and decline")
+    # --- the node script dies and is restarted: it attaches to the worker that never stopped ------
+    la_first = open(f"{T}/A.log").read()               # the log of the script about to die (the new one reuses the file)
+    A.proc.kill()
+    A.proc.wait()
+    A2 = Node("A", nsA, "longwire.hibr", A.args)
+    time.sleep(3)
+    la2 = open(f"{T}/A.log").read()                   # the restarted script's own log: narrated live, no flush needed
+    check("already running: attaching" in la2, "a restarted `longwire up` attaches to the running worker instead of failing")
+    check("your number" in la2, "...and is told at once where registration stands (a new subscriber is replayed it)")
+
+    # --- SIGTERM to `longwire up` stops its worker promptly (what a service manager sends) -------------
+    F.proc.terminate()
+    gone = False
+    for _ in range(40):
+        time.sleep(0.25)
+        try: F.status()
+        except Exception: gone = True; break
+    check(gone and F.proc.poll() is not None, "SIGTERM to `longwire up` ends the script and stops its worker within seconds")
+
     # --- a wrong phrase must be recoverable: unpin makes the next call a first call again ---
-    mkB = B.w.mark(); A.cmd("hangup"); B.w.wait("hangup", 10, after=mkB); time.sleep(0.3)
+    mkB = B.w.mark(); A.cmd("hangup"); B.w.wait("hangup", 10, after=mkB); time.sleep(0.5)
+    check("hung up (us)" in open(f"{T}/A.log").read(), "...and its event loop is live: the restarted script narrates the hang-up it just made")
     rcu, out = B.cmd("unpin", ra["number"])
     check(rcu == 0 and "unpinned" in out, f"unpin: {out}")
     rcu2, out2 = B.cmd("unpin", ra["number"])
@@ -324,20 +345,24 @@ def main():
         for n in (A, B, D, E):
             print("   events seen by the test on", n.name, [e.get("event") for e in n.w.events])
     # --- shut down; the scripts told the story ------------------------------------
-    for n in (A, B, D, E, C, sb):
+    for n in (A2, B, D, E, C, sb):
         try: n.cmd("down") if n is not sb else subprocess.run([HIBR, "-c", f"mod load {MOD}; lw stop --sock {n.sock}"], capture_output=True)
         except Exception: pass
     time.sleep(0.8)
-    la, lb = open(f"{T}/A.log").read(), open(f"{T}/B.log").read()
-    check("your number" in la and "connected to" in la, "A's script printed its number and the connection")
+    lb = open(f"{T}/B.log").read()
+    check("your number" in la_first and "connected to" in la_first, "A's script printed its number and the connection")
     check("is calling" in lb and "safety phrase" in lb and "first call from this number" in lb, "B's script announced the ring with the phrase")
     check("KEY CHANGED" in open(f"{T}/D.log").read(), "D's script shouted about the changed key")
     check("refused to register" in open(f"{T}/C.log").read(), "C's script reported the refusal")
+    lf = open(f"{T}/F.log").read()
+    check("refused to register" in lf and "reserved" in lf and "your number" not in lf,
+          "a token whose reserved number is taken is refused, and F is NOT given a different number")
 
 def main_sym():
     """Site B behind a symmetric NAT: hole punching can't work; the call must fail cleanly."""
-    print(f"-- M1 over NAT, site B's NAT is '{MODE}'  (workdir {T})", flush=True)
-    nsA, nsB, nsS, router = build_net("sym")
+    a_mode = "sym" if MODE == "symsym" else "cone"
+    print(f"-- M1 over NAT: site A's NAT is '{a_mode}', site B's is 'sym'  (workdir {T})", flush=True)
+    nsA, nsB, nsS, router = build_net(a_mode, "sym")
     sb = Node("S", nsS, "longwire-switchboard.hibr", ["--listen", "192.0.2.10:1877"])
     for _ in range(100):
         if os.path.exists(sb.home + "/sb/seed") and os.path.exists(sb.sock): break
@@ -371,7 +396,7 @@ def main_sym():
     subprocess.run([HIBR, "-c", f"mod load {MOD}; lw stop --sock {sb.sock}"], capture_output=True)
 
 try:
-    (main_sym if MODE == "sym" else main)()
+    (main_sym if MODE in ("sym", "symsym") else main)()
 except Exception:
     import traceback
     traceback.print_exc()

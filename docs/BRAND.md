@@ -39,9 +39,9 @@ Use **"VPN"** only where people search for it ("a layer-2 VPN"), never in the pr
 
 ## Voice
 
-- **Plain and short.** The CLI says `picked up`, not `Connection established successfully`.
-- **Say what happened and what to do next.** `relay via 312-884-071 — both sides are behind strict NAT; will keep
-  trying direct` is better than `Fallback path engaged`.
+- **Plain and short.** The CLI says `connected to 312-884-076`, not `Connection established successfully`.
+- **Say what happened and what to do next.** `call failed: no direct path (both sides behind strict NAT?)` is better
+  than `Fallback path engaged`. A relayed call will say which node is relaying *(planned: M3)*.
 - **The metaphor seasons the text; it shouldn't be the whole meal.** Status words come from the telephone, but
   explanations say what's really happening ("hole-punched", "behind CGNAT").
 - **Never cute about security.** Key changes, evictions and first calls are said straight, in full.
@@ -67,11 +67,11 @@ poles and text automatically in dark mode.
 | **line black** | `#121417` | text, poles, dark backgrounds |
 | **insulator** | `#F3EEE4` | light backgrounds, text on dark |
 | **dial green** | `#2FB67C` | dial tone, connected, direct path |
-| **ringing amber** | `#E0A100` | ringing, relayed path, attention |
+| **ringing amber** | `#E0A100` | ringing, attention; a relayed path *(planned: M3)* |
 | **hang-up red** | `#D9473F` | rejected, key changed, failure |
 
-Status colours mean the same thing in the terminal (ANSI fallbacks: green, yellow, red), in the hibr desktop and on
-Android. Copper is never used for a status.
+Status colours mean the same thing in the hibr desktop and on Android *(planned: M4)*; the terminal narration is plain
+text today, and will get ANSI fallbacks (green, yellow, red) *(planned: M4)*. Copper is never used for a status.
 
 ## Type
 
@@ -83,5 +83,5 @@ Android. Copper is never used for a status.
 
 ## Glyph
 
-**☎** (U+260E) marks your own number and incoming rings in the CLI and on the hibr menu bar. It is never used for
+**☎** (U+260E) marks your own number and incoming rings in the CLI, and later the hibr menu bar *(planned: M4)*. It is never used for
 anything else.

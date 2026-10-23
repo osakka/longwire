@@ -20,8 +20,9 @@ connected, the switchboard can go away and the call stays up.
 447-120-933        9 digits: 8 random + 1 Damm check digit
 ```
 
-- **Random, not sequential**, so numbers don't leak how many users there are or when someone joined, and can't be
-  walked.
+- **Random, not sequential**, so numbers don't leak how many users there are or when someone joined. A registered node
+  can still ask whether a number exists (the answers differ: unknown, or not online), so enumeration is slow and noisy
+  rather than impossible; a limit on that *(planned: M3)*.
 - **The check digit** (Damm algorithm) catches every single-digit typo and every swap of adjacent digits; a node
   refuses such a number before anything goes on the wire.
 - **Bound to a key.** A number is the registry's record `number → bundle`. Registering again with the same key
@@ -110,7 +111,7 @@ number release *(planned: M3)*, and a longer rekey interval for switchboard sess
 - **Work:** one handshake per node every 2 minutes (the default rekey), one heartbeat every `--keepalive` seconds,
   plus calls. The handshake budget is **2,000/s** against 50/s for an ordinary node, and cookies are asked for only
   once more than half of it is spent ([PROTOCOL §3](PROTOCOL.md#3-sessions-and-timers)), so in normal operation no node
-  pays the extra round trip. The handshake is about 1.5 ms of CPU under TCC.
+  pays the extra round trip. A handshake costs a few milliseconds of CPU under TCC (about 5 ms for both ends together, [CRYPTO §6](CRYPTO.md#6-measured)), most of it on the responder.
 - **Abuse limits:** registrations per source address per hour and rings per callee per minute (the script), the
   handshake budget (the worker), and a limit on pending decisions.
 - **One switchboard per deployment.** Numbers are local to it. Federation (`number@sb`) *(planned)*.

@@ -484,6 +484,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				n->refl.type = CAND_REFL;
 				n->have_refl = 1;
 				n->registered = 1;
+				n->reg_why[0] = 0;
 				n->reg_born = p->cur.born;
 				n->reg_count++;
 				if (news) {
@@ -507,6 +508,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 
 			snprintf(r, sizeof r, "%.*s", (int)(len > 70 ? 70 : len), (const char *)pl);
 			n->reg_refused = p->cur.born;	/* don't hammer: try again on the next session */
+			snprintf(n->reg_why, sizeof n->reg_why, "%s", r);
 			ev_emit(n, "{\"event\":\"register-refused\",\"reason\":\"%s\"}", r);
 			return;
 		}
@@ -802,6 +804,21 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		return snprintf(out, cap, "{\"call\":\"hung up\"}\n");
 	}
 	return snprintf(out, cap, "{\"error\":\"unknown request\"}\n");
+}
+
+/* Registration usually completes within milliseconds of the worker starting, before a script has subscribed
+ * to the events: so a new subscriber is told where things stand, as the events it would have seen. */
+int node_replay(lw_node *n, char *o, size_t cap)
+{
+	char f[16];
+
+	if (n->registered) {
+		fmt_number(f, n->number);
+		return snprintf(o, cap, "{\"event\":\"registered\",\"number\":\"%s\"}\n", f);
+	}
+	if (n->reg_why[0])
+		return snprintf(o, cap, "{\"event\":\"register-refused\",\"reason\":\"%s\"}\n", n->reg_why);
+	return 0;
 }
 
 int node_status_json(lw_node *n, char *o, size_t cap)

@@ -5,8 +5,8 @@ to forward. This document covers framing, sessions, NAT traversal, and the desig
 Cryptographic derivations are in [CRYPTO](CRYPTO.md), and the switchboard's messages are in
 [SWITCHBOARD](SWITCHBOARD.md). Designed-but-unbuilt parts carry `*(planned: M3)*`.
 
-Integers on the wire are little-endian except where a field says otherwise (candidate ports and CTL lengths are
-big-endian). `‖` is concatenation. Sizes are in bytes.
+Integers on the wire are little-endian except where a field says otherwise (candidate ports, observed addresses, `GO`'s start
+delay, CTL lengths and the site probe's time are big-endian). `‖` is concatenation. Sizes are in bytes.
 
 ## 1. Datagram types
 
@@ -104,7 +104,7 @@ sees), keeps the cookie for 120 s, and retries at once with `cmac` set; it accep
 bad reply cannot start a loop. Fragments that carry a valid cookie skip the global budget, so a flood from addresses
 that can't receive replies can't starve a real handshake. They are limited per source address instead (burst 8,
 2 per second). The `mac2` field at the end of the reassembled message is the same cookie MAC over the whole message
-and is checked as well when a cookie is in play. The `hs_id` is chosen by the initiator and echoed in the response,
+and is checked as well, but only while the node is under load. The `hs_id` is chosen by the initiator and echoed in the response,
 which is how a reply is matched to its attempt. Each retry builds a completely fresh handshake (new ephemerals, a
 larger `tai64n`), so a retransmission is never mistaken for a replay.
 
@@ -143,7 +143,7 @@ arrives, the receiver has a working address. Both sides answer it at once (which
 The caller then sends `HS_INIT` to that address. The callee keeps punching until the session is up, because its
 mapping must stay open for the caller's handshake to arrive. A call that has no session after 8 seconds fails with
 `no direct path (both sides behind strict NAT?)`, and nothing is left behind. Two strict (symmetric) NATs therefore
-fail cleanly, as the symmetric-NAT test shows.
+fail cleanly, as the symmetric-NAT tests show (a symmetric NAT facing a cone NAT, and two symmetric NATs).
 
 ### The harder rungs *(planned: M3)*
 

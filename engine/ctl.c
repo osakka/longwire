@@ -134,6 +134,8 @@ void ctl_accept(lw_node *n)
 		n->subs[i] = c;
 		len = snprintf(out, sizeof out, "{\"event\":\"watching\",\"role\":\"%s\"}\n", n->role ? "switchboard" : "node");
 		(void)!write(c, out, (size_t)len);
+		if (!n->role && (len = node_replay(n, out, sizeof out)) > 0)
+			(void)!write(c, out, (size_t)len);
 		return;				/* the connection stays open */
 	}
 	if (!strcmp(line, "status"))

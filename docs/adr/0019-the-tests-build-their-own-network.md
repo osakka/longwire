@@ -10,7 +10,7 @@ unprivileged LXC container with no `/dev/net/tun`, no `nft` or `iptables`, and n
 
 ## Decision
 
-The end-to-end tests build a miniature internet inside `unshare -Urn`: network namespaces joined by veth pairs and Linux
+The M1 and M2 end-to-end tests build a miniature internet inside `unshare -Urn` (M0 needs no network: it runs on loopback and drives the module directly): network namespaces joined by veth pairs and Linux
 bridges, real kernel hosts running real `ping`, ARP and TCP, and, for NAT, a userspace NAT router written in Python on raw
 packet sockets with kernel forwarding turned off (port-restricted cone, or symmetric). The nodes under test are the real
 hibr scripts. Tests are mutation-checked where it matters: a deliberately reintroduced bug must make them fail.

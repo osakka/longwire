@@ -11,11 +11,14 @@ machine at the other end. Anything designed but not built carries `*(planned: M3
 $ longwire up --switchboard 203.0.113.7:1877/lw1q7m…k2a --splice eth0
 ☎  your number 447-120-933 — dial tone
 
-$ longwire dial 312-884-071
-{"call":"dialing","number":"312-884-071"}
-✓  connected to 312-884-071 (direct, 198.51.100.4:41641)
+$ longwire dial 312-884-076
+{"call":"dialing","number":"312-884-076"}
+✓  connected to 312-884-076 (direct, 198.51.100.4:41641)
    safety phrase: gopher daisy castle cactus island flint
 ```
+
+The examples write `longwire`. Until the launcher is packaged *(planned: M4)* that is `hibr scripts/longwire.hibr` with
+`LONGWIRE_MOD` pointing at the built module ([BUILD](docs/BUILD.md)).
 
 ## What it is
 
@@ -73,7 +76,7 @@ reuse it later through JNI. That app will be a fourth piece *(planned: M6)*. Tod
 
 ## Status
 
-**M0, M1 and M2 are built** and tested end to end under both a TCC and a gcc build: the handshake and its cookies, the
+**M0, M1 and M2 are built** and tested end to end, built with TCC and nothing else: the handshake and its cookies, the
 switchboard, calls through simulated NATs, and splice carrying real ping, ARP, TCP and broadcasts between two LANs that
 are one subnet, with a second box on the same segment taking over when the first is killed. The jack port, real
 routers and real wide-area links are untested. See the [roadmap](docs/ROADMAP.md).

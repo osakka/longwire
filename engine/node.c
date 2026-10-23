@@ -79,9 +79,9 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 	for (i = 0; i < MAC_SLOTS; i++)
 		n->macs[i].port = -2;
 	n->now = n->started = lw_now();
+	n->role = cfg->role;
 	n->hs_t = n->now;
 	n->hs_tokens = n->role ? 2000.0 : 50.0;
-	n->role = cfg->role;
 	n->maxpeers = cfg->maxpeers > 0 ? cfg->maxpeers : (cfg->role ? 1024 : 16);
 	n->peers = calloc((size_t)n->maxpeers, sizeof *n->peers);
 	if (!n->peers) {

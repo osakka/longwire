@@ -429,9 +429,7 @@ int hs_resp_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 	}
 	p->cur = ns;
 	p->next.valid = 0;
-	crypto_wipe(hs->ek, sizeof hs->ek);
-	crypto_wipe(hs->e, 32);
-	hs->active = 0;
+	explicit_bzero(hs, sizeof *hs);			/* ephemerals, chaining key, transcript: all of it, and not active */
 	sess_send(n, p, K_KEEPALIVE, 0, 0);			/* key confirmation */
 	crypto_wipe(k, 32); crypto_wipe(t, 32); crypto_wipe(ck, 32);
 	crypto_wipe(s2, 32); crypto_wipe(s3, 32);

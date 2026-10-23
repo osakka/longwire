@@ -84,7 +84,7 @@ int sess_send(lw_node *n, lw_peer *p, uint8_t kind, const uint8_t *body, size_t 
 	if (!s->valid || len > FRAME_MAX || !p->eplen)
 		return -1;
 	if (s->ctr_send >= ((uint64_t)1 << 60) || n->now - s->born > n->rekey_after * REJECT_FACTOR) {
-		s->valid = 0;
+		explicit_bzero(s, sizeof *s);		/* past its hard limit: erase the keys */
 		return -1;
 	}
 	buf[0] = T_DATA;
@@ -190,7 +190,7 @@ void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 	if (s == &p->next) {				/* first data from the initiator: confirmed */
 		p->prev = p->cur;
 		p->cur = p->next;
-		p->next.valid = 0;
+		explicit_bzero(&p->next, sizeof p->next);	/* the keys now live in cur */
 		p->cur.confirmed = 1;
 		p->rekeys++;
 		s = &p->cur;
@@ -260,14 +260,14 @@ void sess_timers(lw_node *n)
 			continue;
 		}
 		if (p->prev.valid && n->now - c->born > 10)
-			p->prev.valid = 0;
+			explicit_bzero(&p->prev, sizeof p->prev);
 		if (c->valid) {
 			double heard = p->last_rx > c->born ? p->last_rx : c->born;
 			double sent = p->last_tx > c->born ? p->last_tx : c->born;
 
 			age = n->now - c->born;
 			if (n->now - heard > 3.0 * n->keepalive + 1 || age > n->rekey_after * REJECT_FACTOR)
-				c->valid = 0;			/* dead peer, or keys past their hard limit */
+				explicit_bzero(c, sizeof *c);	/* dead peer, or keys past their hard limit: erase them */
 			else if (n->now - sent >= n->keepalive)
 				sess_send(n, p, K_KEEPALIVE, 0, 0);
 		}

@@ -1,7 +1,8 @@
 # Build and install
 
 **Dependencies: hibr, and libc.** The crypto is vendored. There's no OpenSSL, no libsodium, no pkg-config, and no
-build system beyond one `Makefile`, in the same spirit as hibr's own ADR 0001. Anything designed and unbuilt carries
+build system beyond one `Makefile`, in the same spirit as hibr's own ADR 0001. **TCC is the only compiler**, with no
+exceptions ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)). Anything designed and unbuilt carries
 `*(planned: M4)*`.
 
 ## Building and running today
@@ -15,12 +16,12 @@ hibr scripts/longwire.hibr up --switchboard HOST:1877/lw1… --splice eth0      
 ```
 
 The module is built from source and the scripts run from the repository; the packages and the catalogue
-(below) *(planned: M4)*. `make` needs `tcc` (or `CC=gcc`) and hibr's header directory, `../hibr` by default.
+(below) *(planned: M4)*. `make` needs `tcc` and hibr's header directory, `../hibr` by default.
 
 ```
-make CC=gcc OPT=-O2          # the same source with gcc: about 7× the crypto throughput
-make HIBR=/path/to/hibr      # hibr's headers somewhere else
-make check                   # all the tests, below
+make HIBR_SRC=/path/to/hibr  # hibr's source tree, for its headers (not the HIBR the tests use)
+make lint                    # TCC's own warnings, as errors, on everything we wrote
+make check                   # lint, then all the tests, below
 make clean
 ```
 
@@ -32,8 +33,8 @@ them.
 
 The module is `module/longwire.c` plus the engine (`engine/all.c`) and `vendor/`, compiled together. The engine is
 compiled *separately from* `hibr.h`, which is what keeps it free of hibr: its helper names would otherwise collide with
-hibr's headers. Both `make` (TCC) and `make CC=gcc OPT=-O2` build clean (gcc with `-Wall -Wextra`), and the same tests
-pass on each.
+hibr's headers. The Makefile says `override CC = tcc`, so naming a different compiler on the command line changes nothing; there are no
+optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is part of `make check`.
 
 ## How it will ship *(planned: M4)*
 
@@ -68,7 +69,8 @@ app longwire "One long wire between your sites: dial a number, share a LAN" 1.0
 ```
 
 **Loading the module.** Scripts use `mod load "${LONGWIRE_MOD:-longwire}"`: an explicit path when `LONGWIRE_MOD` is
-set, a search by name otherwise. A service sets it to the module's absolute path, so the privileged moment never
+set, a search by name otherwise. The unit that `longwire setup splice` prints sets it to the module's absolute path
+(`/usr/lib/hibr/longwire.so` unless `LONGWIRE_MOD` is already set when you run it), so the privileged moment never
 searches `HIBR_MODPATH` or the working directory for code.
 
 ## Running a site node (splice)
@@ -85,6 +87,8 @@ After=network-online.target
 User=you
 # CAP_NET_RAW opens the packet socket. 'lw start' clears every capability the moment it is open.
 AmbientCapabilities=CAP_NET_RAW
+# the module by absolute path, so the privileged moment never searches the environment for code
+Environment=LONGWIRE_MOD=/usr/lib/hibr/longwire.so
 ExecStart=/usr/bin/longwire up --splice eth0
 Restart=always
 
@@ -103,7 +107,7 @@ Jack mode needs no service and no privilege after the one-time tap: `longwire up
 
 ## Vendored code
 
-| Directory | Upstream | Tested at | TCC changes |
+| Directory | Upstream | Revision (also in [vendor/README.md](../vendor/README.md)) | TCC changes |
 |---|---|---|---|
 | `vendor/monocypher/` | Monocypher (incl. `optional/monocypher-ed25519.c`), CC0 / BSD-2 | `f5f0a19` | none |
 | `vendor/mlkem768/` | PQClean `crypto_kem/ml-kem-768/clean` + `common/fips202.c`, public domain | `0586a82` | `compat.h` replaced by a 5-line shim (below) |
@@ -125,12 +129,12 @@ shim and runs the known-answer tests (NIST vectors for ML-KEM, RFC 8439, RFC 774
 | TCC reality | Consequence |
 |---|---|
 | no `__int128` | Use 32-bit-limb arithmetic. Monocypher and PQClean `clean` already do (verified). |
-| no SIMD intrinsics, little optimisation | The cipher runs at about 290 Mbit/s per core. x86-64 assembly paths (TCC's assembler handles x86; arm64 is still to be verified) *(planned: M7)*; the gcc build is there for speed now. |
+| no SIMD intrinsics, little optimisation | The cipher runs at about 290 Mbit/s per core. More speed comes from the code, not another compiler: x86-64 assembly paths that TCC's assembler builds (arm64 is still to be verified) *(planned: M7)*. |
 | can't parse some glibc headers (e.g. `regex.h`, as hibr found) | Only plain POSIX headers are included. The few Linux-specific constants (packet sockets, tun, capabilities) are spelled out in `engine/port.c` and `engine/caps.c`, so TCC never has to parse the kernel's headers. |
-| no sanitizers | Sanitizers, fuzzing and coverage on the gcc/clang build *(planned: M8)*. |
+| no sanitizers | `-Wall -Werror` always on (`make lint`), small parsers, the end-to-end tests, and fuzzing with a harness TCC builds *(planned: M8)*. |
 
-Measured in the design spike (x86_64, TCC 0.9.27): the complete crypto test harness linked to **134 KB** under TCC. A
-static gcc `-Os` build of the same harness was 736 KB. `tcc … -run` compiled and ran it from source in one step.
+Measured in the design spike (x86_64, TCC 0.9.27): the complete crypto test harness linked to **134 KB**, and
+`tcc … -run` compiled and ran it from source in one step.
 
 ## Platforms
 
@@ -140,11 +144,11 @@ static gcc `-Os` build of the same harness was 736 KB. `tcc … -run` compiled a
 | **Linux**, unprivileged | shell | *(planned: M5)* |
 | **FreeBSD / OpenBSD** | splice (BPF), jack (tap) | `net.link.tap.user_open=1`; BPF device permissions for splice *(planned: M5)* |
 | **macOS** | splice (BPF, wired), member (utun) | BPF injection works with `/dev/bpf*` access, as Wireshark's ChmodBPF grants; macOS has no L2 tap without a system extension *(planned: M5)* |
-| **Android** | member | `engine/` compiled with the NDK inside a small Kotlin `VpnService` app, the UDP socket `protect()`ed; the only place without hibr *(planned: M6)* |
+| **Android** | member | `engine/` built by TCC for arm64 into a library a small Kotlin `VpnService` app loads, the UDP socket `protect()`ed; the only place without hibr. Whether TCC can build an Android-loadable library is unverified and comes first *(planned: M6)* |
 | **Windows**, **iOS** | member | *(planned)* |
 
 ## The module and hibr's ABI
 
-A module built out of tree in this repository against `../hibr/include/hibr.h` loads with `mod load` in hibr 0.99.302
+A module built out of tree in this repository against `../hibr/include/hibr.h` loads with `mod load` in hibr 0.99.x
 at **ABI 16**. Nothing in the hibr tree has to change. When hibr's ABI moves, only `module/longwire.c` needs
 attention; `engine/` doesn't include `hibr.h` and doesn't care.

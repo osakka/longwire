@@ -29,6 +29,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0018](0018-boxes-on-one-segment-elect-one-to-forward.md) | Boxes on one segment share a secret and elect one to forward | accepted |
 | [0019](0019-the-tests-build-their-own-network.md) | The tests build their own network from unprivileged namespaces | accepted |
 | [0020](0020-the-docs-are-checked-against-the-code.md) | The documentation is checked against the code | accepted |
+| [0021](0021-tcc-is-the-compiler-without-exception.md) | TCC is the compiler, without exception | accepted |
 
 ---
 

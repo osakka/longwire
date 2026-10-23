@@ -200,9 +200,13 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved)
 	memset(&r, 0, sizeof r);
 	memcpy(r.bundle, p->bundle, LW_BUNDLE);
 	memcpy(r.key_id, p->key_id, 32);
-	if (reserved && strlen(reserved) == NUMLEN && damm_ok(reserved, NUMLEN) && !reg_by_number(b, reserved))
+	if (reserved) {				/* a token reserved this number: it is theirs, or the answer is no */
+		if (strlen(reserved) != NUMLEN || !damm_ok(reserved, NUMLEN) || reg_by_number(b, reserved)) {
+			refuse(n, p, "the number reserved for this token is not available");
+			return;
+		}
 		memcpy(r.number, reserved, NUMLEN + 1);
-	else
+	} else
 		for (tries = 0; tries < 20; tries++) {
 			mint_number(r.number);
 			if (!reg_by_number(b, r.number))

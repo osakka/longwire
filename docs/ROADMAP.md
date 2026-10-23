@@ -21,7 +21,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 
 ## Built
 
-**M0, M1 and M2** are built and tested by `make check` under both a TCC and a gcc build: the hybrid handshake with
+**M0, M1 and M2** are built with TCC (and only TCC) and tested by `make check`: the hybrid handshake with
 cookies, sessions, the learning switch, the hibr module and both scripts; numbers, rings, pins and hole punching through
 a userspace NAT; splice carrying real ping, ARP, TCP and broadcasts between two LANs that are one subnet, and two boxes
 on one segment with a failover. The test suites are described in [ADR 0019](adr/0019-the-tests-build-their-own-network.md).
@@ -62,16 +62,17 @@ and then dial and pick up entirely from the hibr desktop.
 
 **M6: Pocket.** Done when a phone on mobile data gets a lease from the home router and prints to the home printer.
 - The member-mode adapter (a virtual MAC, a DHCPv4 client, ARP and NDP responders); the leaf role; the Android app
-  (`VpnService` around `engine/` through JNI, the one piece outside hibr)
+  (`VpnService` around `engine/` through JNI, the one piece outside hibr). First, confirm that TCC can build the engine
+  as an Android library: [ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md) leaves no other compiler to use
 
-**M7: Speed.** Done when the gcc build reaches 1 Gbit/s and the TCC build 600 Mbit/s on x86-64.
+**M7: Speed.** Done when the TCC build reaches 600 Mbit/s on x86-64.
 - A `TPACKET_V3` receive ring, `recvmmsg` and `sendmmsg`, one worker per core, x86-64 assembly for ChaCha20 (arm64 once
   TCC's assembler is verified), an optional AEGIS-256 suite, real path-MTU probing, and a proper end-to-end benchmark
 
 **M8: 1.0.** Done when an independent report has no open high-severity findings.
 - A formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto and a script that
-  fetches and verifies the vendored sources; fuzzing of every parser; timing tests; sanitizer builds; reproducible
-  builds; an external review
+  fetches and verifies the vendored sources; fuzzing of every parser with a harness built by TCC; timing tests;
+  reproducible builds; an external review
 
 ## Unscheduled
 

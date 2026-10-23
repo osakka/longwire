@@ -134,7 +134,7 @@ class Watcher(threading.Thread):
 class Node:
     """A node (or the switchboard) run as its real hibr script inside a namespace."""
     def __init__(self, name, ns, script, args):
-        self.name, self.script, self.ns = name, script, ns
+        self.name, self.script, self.ns, self.args = name, script, ns, args
         self.home = f"{T}/{name}"
         os.makedirs(self.home + "/lw", exist_ok=True)
         self.env = dict(os.environ, HOME=self.home, LONGWIRE_MOD=MOD, LW_DIR=self.home + "/lw", SB_DIR=self.home + "/sb")

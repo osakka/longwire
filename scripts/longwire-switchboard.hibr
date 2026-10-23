@@ -13,7 +13,6 @@
 #                 spent when it is used. Without it, registration is open.
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
-export LW_SOCK=${LW_SOCK:-$SB_DIR/ctl}
 listen=0.0.0.0:1877
 tokens=
 per_ip_hour=20
@@ -36,6 +35,7 @@ while [ $# -gt 0 ]; do
 	shift 2 2>/dev/null || shift
 done
 
+export LW_SOCK=${LW_SOCK:-$SB_DIR/ctl}		# after the options: --state moves the socket too
 mkdir -p "$SB_DIR" && chmod 700 "$SB_DIR"
 declare -A seen    # counters, keyed by what they count and the hour or minute
 

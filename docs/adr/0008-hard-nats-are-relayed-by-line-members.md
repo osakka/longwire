@@ -17,7 +17,7 @@ out of the data path. Before relaying there is a port-spray rung for the case wh
 ## Consequences
 
 Relaying depends on lines of more than two nodes existing, so it is part of M3, not M1. Until then two strict NATs fail
-cleanly with a plain message and nothing left half-open, which the symmetric-NAT test checks.
+cleanly with a plain message and nothing left half-open, which the symmetric-NAT tests check (against a cone NAT, and against another symmetric one).
 
 ---
 

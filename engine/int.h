@@ -141,6 +141,7 @@ struct lw_node {
 	double   reg_born;		/* the switchboard session we registered on */
 	double   reg_refused;		/* the session on which we were refused: don't ask again until it changes */
 	uint64_t reg_count;		/* NUMBER replies received (registrations, including after each rekey) */
+	char     reg_why[80];		/* why the switchboard last refused to register us, "" if it has not */
 	double   next_hb, next_reg;
 	lw_cand  refl;			/* what the switchboard saw of us */
 	int      have_refl;
@@ -250,6 +251,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 void node_timers(lw_node *n);
 int  node_cmd(lw_node *n, const char *line, char *out, size_t cap);
 int  node_status_json(lw_node *n, char *o, size_t cap);
+int  node_replay(lw_node *n, char *o, size_t cap);	/* what a new event subscriber missed: our registration state */
 int  node_init(lw_node *n, char *err, size_t errn);
 void fmt_number(char out[16], const char *num9);
 int  parse_number(const char *in, char out[NUMLEN + 1]);	/* 0 = ok, check digit verified */

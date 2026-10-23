@@ -5,6 +5,6 @@
 # connect) and one NAT symmetric (the call must fail cleanly).
 set -e
 cd "$(dirname "$0")/.."
-for mode in cone sym; do
+for mode in cone sym symsym; do
   unshare -Urn python3 -I tests/m1.py $mode
 done

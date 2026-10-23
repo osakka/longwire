@@ -10,8 +10,9 @@ the question is how little, for how long, and how it is granted.
 ## Decision
 
 - **splice** needs `CAP_NET_RAW` to open a packet socket. The service manager grants it once, as an *ambient capability*
-  to the node's process only. `lw start` opens the socket, forks the engine worker, and then clears every capability set
-  (effective, permitted, inheritable, ambient) in both processes and sets `no_new_privs`. No script code that runs
+  to the node's process only. `lw start` opens the socket, clears every capability set
+  (effective, permitted, inheritable, ambient) and sets `no_new_privs`, and only then forks the engine worker, which
+  inherits the empty sets. No script code that runs
   afterwards holds any privilege.
 - **jack** needs a tap device the user owns, created once: `ip tuntap add mode tap user $USER`.
 - **shell** uses unprivileged user namespaces and needs nothing *(planned: M5)*.

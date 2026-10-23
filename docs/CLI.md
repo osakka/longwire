@@ -14,13 +14,15 @@ $ longwire up --switchboard 203.0.113.7:1877/lw1q7m…k2a --splice eth0
 ☎  your number 447-120-933 — dial tone
 ```
 
+(The examples write `longwire`; until the launcher is packaged *(planned: M4)* that is `hibr scripts/longwire.hibr`.)
+
 `longwire up` runs the node in the foreground, which is what a service unit or `hold` runs. It creates your identity
 (`~/.longwire/seed`, 32 bytes, mode 0600: back it up, it *is* your number), starts the engine worker, registers with the
 switchboard, and prints what happens as sentences. In another terminal:
 
 ```
-$ longwire dial 312-884-071
-{"call":"dialing","number":"312-884-071"}
+$ longwire dial 312-884-076
+{"call":"dialing","number":"312-884-076"}
 ```
 
 and on the other machine's `up` terminal:
@@ -128,7 +130,7 @@ verb works from any hibr process, through the worker's control socket (`~/.longw
 
 | Verb | Does |
 |---|---|
-| `lw start [options]` | open the port, fork the engine worker, clear every capability set in both processes (see the note below) |
+| `lw start [options]` | open the port, clear every capability set, then fork the engine worker, which inherits the empty sets (see the note below) |
 | `lw stop` | end the worker |
 | `lw dial NUM`, `lw pickup`, `lw reject`, `lw hangup`, `lw unpin NUM` | calls and pins |
 | `lw status` | the JSON above, also in `$RET` |

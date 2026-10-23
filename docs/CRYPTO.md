@@ -17,7 +17,7 @@ one new thing is how they're combined, and that combination must be formally ana
 | hash / KDF / MAC | **BLAKE2b** (256-bit and 128-bit outputs, keyed) | Monocypher | fast, and keyed mode is a PRF, so no HMAC is needed |
 | signatures (admit and evict records) | **Ed25519** (RFC 8032) | Monocypher `optional/` | standard, so other implementations can verify. Every identity already carries an Ed25519 key; nothing signs with it until lines exist *(planned: M3)* |
 | hash inside ML-KEM | SHA-3 / SHAKE | PQClean `fips202.c` | required by FIPS 203 |
-| randomness | `getrandom(2)` / `getentropy(3)` | OS | never a userspace PRNG |
+| randomness | `getrandom(2)` | OS | never a userspace PRNG; no entropy means exit, not a weaker source |
 
 **On "quantum-safe".** A 256-bit symmetric key is already adequate against quantum attackers: Grover's algorithm
 only halves the effective strength. The threat that matters is *harvest now, decrypt later*: someone records your
@@ -134,17 +134,17 @@ refuse at the first fragment, before it buffers anything. Details, sizes and lim
 On this design machine (x86_64, one core, Linux 7.0), with vendored Monocypher (`f5f0a19`) and PQClean ML-KEM-768
 `clean` (`0586a82`):
 
-| Operation | TCC 0.9.27 | GCC -O3 -march=native |
-|---|---|---|
-| ML-KEM-768 keygen + encaps + decaps | **1.1–1.5 ms** | 0.31 ms |
-| X25519 public key + DH | 0.53 ms | 0.18 ms |
-| ChaCha20-Poly1305 on 1400 B packets | **36 MB/s ≈ 290 Mbit/s** (26 kpps) | 256 MB/s ≈ 2 Gbit/s (183 kpps) |
+| Operation | TCC 0.9.27 |
+|---|---|
+| ML-KEM-768 keygen + encaps + decaps | **1.1–1.5 ms** |
+| X25519 public key + DH | 0.53 ms |
+| ChaCha20-Poly1305 on 1400 B packets | **36 MB/s ≈ 290 Mbit/s** (26 kpps) |
 
 A full handshake costs about 5 ms of CPU under TCC, once every two minutes per peer. The cipher alone runs at about
 **290 Mbit/s per core** under TCC, which is the agreed v1 target. End to end, the only throughput measured so far is
 the test suite's 3 MB TCP transfer across two splice nodes, which ran at about 50 Mbit/s over veth pairs with a TCC
-build; a proper benchmark *(planned: M7)*. The same source builds with gcc or clang (`make CC=gcc OPT=-O2`) when more
-is needed. Hand-written x86-64 assembly for ChaCha20 (TCC's assembler handles
+build; a proper benchmark *(planned: M7)*. TCC is the only compiler ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)),
+so more speed comes from the code: hand-written x86-64 assembly for ChaCha20 (TCC's assembler handles
 x86; arm64 is still to be verified) *(planned: M7)*, as is an optional AEGIS-256 suite for machines with AES-NI *(planned: M7)*.
 
 Monocypher, Ed25519 included, compiles under TCC with no changes. PQClean needs one 5-line `compat.h` shim, because
@@ -157,9 +157,9 @@ supports the same `__asm__` barrier). The ML-KEM round trip was checked to agree
   Tamarin or ProVerif model, then an external review, before anyone relies on it *(planned: M8)*. The vendored
   libraries have not been checked against known-answer vectors either *(planned: M8)*; their correctness rests on
   upstream's own tests.
-- **Signatures are classical.** Admit and evict records will use Ed25519. They are only ever accepted *inside* a
+- **Signatures are classical.** Admit and evict records will use Ed25519 *(planned: M3)*. They are only ever accepted *inside* a
   PQ-authenticated session from a line member, which limits what forging one buys. ML-DSA is a later option *(planned)*.
 - **Constant-time code depends on the compiler.** TCC barely optimises, which tends to *help* here. Timing tests
-  (dudect-style) on both the TCC and gcc builds *(planned: M8)*.
+  (dudect-style) on the TCC build *(planned: M8)*.
 - **Your LAN is now their LAN.** Cryptography authenticates the *peers*. It doesn't make a line member trustworthy;
   see [THREAT-MODEL](THREAT-MODEL.md).

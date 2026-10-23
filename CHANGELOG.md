@@ -5,6 +5,29 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## M2: splice, and the documentation made to match the code
 
+- **TCC only, no exceptions** ([ADR 0021](docs/adr/0021-tcc-is-the-compiler-without-exception.md)): the gcc option and the
+  gcc cross-check runs are gone, the Makefile says `override CC = tcc` (a compiler named on the command line changes
+  nothing), `make lint` is TCC's own `-Wall -Werror`, the Android plan no longer names the NDK (whether TCC can build
+  that library is an open item, ROADMAP M6), and `tests/docs.py` fails if another compiler is named.
+- **Fixed after an independent review of the docs against the code:**
+  - a switchboard started with the *node's* handshake budget (50, not 2000) because the role was read before it was set;
+  - a token's reserved number, if taken, was silently replaced by a random one; now the registration is refused;
+  - expired and superseded session keys, and a finished handshake's secrets, are erased, not just marked unused;
+  - a registration finishing in milliseconds could complete before the node script subscribed to events, so the user saw
+    nothing; a new subscriber is now told the registration state (`registered` or `register-refused`) on connecting;
+  - the node narrated on stdout, which hibr holds back when redirected, so a service's log lines appeared late; it now
+    narrates on stderr;
+  - `longwire up` ignored SIGTERM while waiting for an event (hibr runs traps between commands); it now wakes every
+    second, so a service manager's stop is prompt and stops the worker;
+  - a restarted `longwire up` failed because a worker was already running; it now attaches to it;
+  - `longwire setup splice` now prints `Environment=LONGWIRE_MOD=` so the privileged moment names the module by path;
+  - the switchboard script's control socket now follows `--state`; the Makefile's `HIBR` is `HIBR_SRC` so it no longer
+    clashes with the `HIBR` the tests use; the `site` event is narrated.
+  - Documentation: the example number `312-884-071` fails its own check digit (now `312-884-076`); the symmetric-NAT test
+    covered symmetric-against-cone only (a symmetric-against-symmetric run was added); the order of the capability drop and
+    the fork, the seed's brief life in the module process, the MTU wording, the probe-replay window, the endianness
+    list, what the tests assert (`at least two rekeys`), and a dozen smaller points were corrected.
+
 - **Splice:** an `AF_PACKET` port on a NIC in promiscuous mode, with no interface created. Frames the box injects are not
   read back (`PACKET_IGNORE_OUTGOING` and a direction filter); unfinished TCP/UDP checksums from virtual NICs are
   completed; coalesced TCP frames of up to 64 KB are cut into line-sized segments instead of being dropped.
@@ -13,7 +36,7 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
   learned MACs are flushed and traffic for them is flooded again.
 - **Site groups:** boxes sharing one LAN segment and a secret announce themselves with authenticated probes, the lowest
   key id forwards, the others stand by and keep a list of the remote hosts, and on takeover re-announce them so the LAN's
-  switches move at once. Tested: kill the active box, traffic resumes in about 4 seconds.
+  switches move at once. Tested: kill the active box, traffic resumes in about 4 seconds (the test allows up to 14).
 - **`call-lost`:** a call that was up notices when its other end dies, reports it, and goes idle; the script decides
   whether to dial again.
 - **Handshake cookies:** past half the handshake budget a node answers an `HS_INIT` fragment without a valid cookie with a

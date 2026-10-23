@@ -22,7 +22,7 @@ a second, and a holder of a cookie skips the global budget but is limited per so
 
 Handshake fragments grow by 16 bytes, to at most 1248, still under the 1280-byte IPv6 minimum. A flood from addresses that
 cannot receive replies costs a small reply per packet and no public-key work, and a legitimate handshake still completes
-during it (the test sustains a flood while a peer rekeys three times). An attacker with a real address can fetch a cookie
+during it (the test sustains a flood while a peer rekeys, and requires at least two rekeys and no lapse). An attacker with a real address can fetch a cookie
 and is then held to 2 handshakes a second; someone who can read the path can replay a cookie from the same address.
 
 ---

@@ -54,8 +54,8 @@ modes differ only in what that port is:
 | **BSD / macOS splice** | BPF device | access to `/dev/bpf*` | *(planned: M5)* |
 
 **A node always runs as an ordinary user.** For splice, the service manager starts the node script with
-`CAP_NET_RAW` as an ambient capability. `lw start --splice eth0` opens the packet socket, forks the engine worker, and
-then clears *every* capability set (effective, permitted, inheritable and ambient) in both processes and sets
+`CAP_NET_RAW` as an ambient capability. `lw start --splice eth0` opens the packet socket, then clears *every* capability set (effective, permitted,
+inheritable and ambient) and forks the engine worker, which inherits the empty sets; it also sets
 `no_new_privs`. No script code after that holds any privilege, and hibr itself never gains one, in keeping with hibr's
 ADR 0016 (see [ADR 0004](adr/0004-a-node-never-runs-as-root.md)). `longwire setup splice NIC` prints the service unit.
 
@@ -104,8 +104,8 @@ one to forward:
   they are now behind it, and then sends gratuitous ARP for the hosts it has seen ARP. Without this, the LAN would keep
   sending their traffic to the box that went quiet until its tables aged out.
 
-Measured in the test suite: the active box is killed and traffic resumes in about 4 seconds, with nothing done to
-any host. A takeover within two seconds of the group forming, before the first list has been shared, falls back to
+In the test suite the active box is killed and traffic resumes, with nothing done to any host, in about 4 seconds
+(the test allows up to 14). A takeover within two seconds of the group forming, before the first list has been shared, falls back to
 ordinary learning and is slower.
 
 ## 5. Member mode: a phone as an Ethernet host *(planned: M6)*
@@ -132,7 +132,7 @@ over IPv4. The underlay is IPv4 only for now; IPv6 *(planned: M3)*.
 
 | Situation | Handling |
 |---|---|
-| jack, sock | The tap's MTU is set to **1400** when it is created (`longwire setup jack` prints the command), so frames are at most 1414 bytes and always fit one datagram. |
+| jack, sock | `longwire setup jack` prints the command that sets the tap's MTU to **1400**, so frames are at most 1414 bytes and fit one datagram. The engine does not enforce it: a larger frame is split like any other. A `sock` port has no MTU. |
 | splice | LAN hosts send 1500-byte frames and we can't change them. So: **(1)** clamp the TCP MSS in SYN and SYN-ACK frames as they pass, to **1340** (IPv4) or **1320** (IPv6). A segment carrying 1340 bytes and the usual 12 bytes of TCP options is a 1406-byte frame, which travels in one datagram. **(2)** A frame up to **1432** bytes goes in one datagram (1432 + 29 + 28 = 1489, which fits PPPoE's 1492). A larger one is split across two datagrams (`FRAG`) and put back together on arrival; each peer holds four reassembly slots with a 2 s timeout. **(3)** A NIC can hand a splice box a *coalesced* TCP frame of up to 64 KB (GRO, or a virtual NIC's GSO), so oversize TCP frames are cut into line-sized segments with fresh lengths, sequence numbers and checksums; that is always valid TCP. Other oversize frames are dropped and counted. |
 | path MTU | Probing the real path MTU per peer *(planned: M7)*. Until then the constants above assume 1492 or better. |
 
@@ -152,13 +152,13 @@ engine more restrictive but never less ([ADR 0015](adr/0015-scripts-decide-c-enf
 ```
  systemd / hold / a terminal
    └─ hibr longwire up                     node script: policy, UI
-        │  lw start --splice eth0          ← opens the port, forks, clears every capability
+        │  lw start --splice eth0          ← opens the port, clears every capability, forks
         ├─ worker (C only)                 sockets, port, sessions, crypto, switch, NAT punching
         │    └─ serves ~/.longwire/ctl     control socket, mode 0600, peer uid checked
         └─ while read ev </dev/longwire/events     ring → answer policy → lw pickup / lw reject
                                                    key-changed, call-lost, hangup … → sentences
 
- another terminal:  longwire dial 312-884-071    → lw dial → control socket → worker
+ another terminal:  longwire dial 312-884-076    → lw dial → control socket → worker
 ```
 
 - **The worker is pure C, forked by the module** (the same shape as hibr's `hold` server). The packet path never
@@ -169,7 +169,8 @@ engine more restrictive but never less ([ADR 0015](adr/0015-scripts-decide-c-enf
 - **Events** stream from the worker as JSON lines on `/dev/longwire/events` (see [CLI](CLI.md#events)).
   hibr parses them with `json parse`.
 - **If the node script dies,** the worker keeps every established call up. A ring that nobody answers is refused
-  after 60 s, and the service manager restarts the script.
+  after 60 s. A restarted script finds the worker still running and attaches to it (`up` says so), so a service manager can
+  restart the script freely; `longwire down` stops the worker.
 - **The switchboard has the same split.** `lw sb start` forks a C worker that handles sessions, handshakes, `HELLO`,
   cookies, heartbeats, presence, the number registry and call routing. Only two decisions reach the script, a
   registration from a key it hasn't seen and a ring, so a few events per call and none per heartbeat (see
@@ -207,7 +208,7 @@ control-panel/lines.hibr     *(planned: M4)* the Network pane's Lines section, s
 packaging/                   *(planned: M4)* deb, rpm, arch and homebrew builds, the launchers, the systemd unit
 ```
 
-When the Android app comes (M6), it compiles `engine/` with the NDK behind a small Kotlin `VpnService`. That is the
+When the Android app comes (M6), it builds `engine/` with TCC for arm64 into a library behind a small Kotlin `VpnService`. That is the
 only place the engine is used without hibr.
 
 **The control socket.** The worker owns the sockets, the port and all keys. The node script, `longwire` commands
