@@ -24,7 +24,8 @@ What longwire defends against, what it does not, and what is still open. Designe
 | **Number squatter** | register numbers | take an existing number: numbers are bound to keys, first come. Numbers are never released today, so none is ever re-issued; once release exists *(planned: M3)* a re-issued number shows up as a key mismatch, like SSH's changed-host-key warning |
 | **Malicious peer on a call** | everything a host on your LAN can do: ARP spoofing, DHCP, scanning | read other peers' sessions *in transit* (it sees what is flooded to it, as any LAN host would) |
 | **Malicious relay** | see sizes and timing of the traffic it relays; drop it | read or alter it: relayed packets are end-to-end sessions *(planned: M3)* |
-| **Stolen device** | be that device: the seed *is* the number and the key | be stopped by anything but replacing the identity today. Eviction from a line, with a rotated line key, *(planned: M3)* |
+| **Stolen device** | be that device: the seed *is* the number and the key | outlast an eviction: any member can evict it (`longwire evict`), which removes it from every member's list, rotates the line key, and bars it from ringing back in. Its own number and key stay its own, so the identity itself is replaced to be rid of it elsewhere |
+| **Malicious line member** | everything a peer on a call can do, and also vouch for other nodes and evict any member: there is no owner and no quorum | read other members' sessions in transit. Any member can be evicted by any other, which is the trust a line implies |
 | **Attacker on a site's own LAN segment** | do anything a LAN host can; flood the segment; replay a recorded probe to keep a dead box looking alive for up to about 30 seconds after it was recorded | forge a probe or a host list (both are authenticated with the site secret); join the line |
 
 ## Things to say plainly

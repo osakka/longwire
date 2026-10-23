@@ -129,7 +129,16 @@ int hs_init_build(lw_node *n, lw_peer *p)
 	hs->active = 1;
 	hs->sent = n->now;
 	hs->next_retry = n->now + 1.0;
-	lw_rand(&hs->hs_id, sizeof hs->hs_id);
+	for (;;) {				/* unique among our own handshakes in flight: replies are matched by it */
+		int i, clash = 0;
+
+		lw_rand(&hs->hs_id, sizeof hs->hs_id);
+		for (i = 0; i < n->maxpeers; i++)
+			if (n->peers[i].used && &n->peers[i] != p && n->peers[i].hs.active && n->peers[i].hs.hs_id == hs->hs_id)
+				clash = 1;
+		if (!clash)
+			break;
+	}
 	crypto_wipe(e, 32);
 	crypto_wipe(k, 32);
 	crypto_wipe(s1, 32);

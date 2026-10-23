@@ -15,7 +15,7 @@ one new thing is how they're combined, and that combination must be formally ana
 | data AEAD | **ChaCha20-Poly1305** (RFC 8439) | Monocypher (`crypto_aead_init_ietf`) | fast in plain C without AES-NI or SIMD, which matters under TCC |
 | cookie AEAD | XChaCha20-Poly1305 | Monocypher | random 24-byte nonces, safe for stateless cookies |
 | hash / KDF / MAC | **BLAKE2b** (256-bit and 128-bit outputs, keyed) | Monocypher | fast, and keyed mode is a PRF, so no HMAC is needed |
-| signatures (admit and evict records) | **Ed25519** (RFC 8032) | Monocypher `optional/` | standard, so other implementations can verify. Every identity already carries an Ed25519 key; nothing signs with it until lines exist *(planned: M3)* |
+| signatures (admit and evict records) | **Ed25519** (RFC 8032) | Monocypher `optional/` | standard, so other implementations can verify. Every identity carries an Ed25519 key; it signs admits and evictions ([PROTOCOL §6](PROTOCOL.md#6-control-messages-and-lines)) |
 | hash inside ML-KEM | SHA-3 / SHAKE | PQClean `fips202.c` | required by FIPS 203 |
 | randomness | `getrandom(2)` | OS | never a userspace PRNG; no entropy means exit, not a weaker source |
 
@@ -125,7 +125,7 @@ refuse at the first fragment, before it buffers anything. Details, sizes and lim
 |---|---|
 | seed | forever. Your identity; writing it out as 24 words *(planned: M3)* |
 | transport keys | `--rekey` (default 120 s) until the next handshake; hard limit 1.5 × that, or 2⁶⁰ packets |
-| line key | until a member is evicted, then rotated *(planned: M3)* |
+| line key | until a member is evicted, then rotated; it derives the site secret and never encrypts data |
 | call token | one call setup, under 10 s |
 | cookie secret | rotated every 120 s |
 
@@ -157,8 +157,11 @@ supports the same `__asm__` barrier). The ML-KEM round trip was checked to agree
   Tamarin or ProVerif model, then an external review, before anyone relies on it *(planned: M8)*. The vendored
   libraries have not been checked against known-answer vectors either *(planned: M8)*; their correctness rests on
   upstream's own tests.
-- **Signatures are classical.** Admit and evict records will use Ed25519 *(planned: M3)*. They are only ever accepted *inside* a
-  PQ-authenticated session from a line member, which limits what forging one buys. ML-DSA is a later option *(planned)*.
+- **Signatures are classical.** Admits and evictions use Ed25519. An eviction is accepted only inside a PQ-authenticated
+  session from the member that signed it, but an *admit* travels in a ring, through the switchboard, and is checked by its
+  signature alone: an attacker able to forge Ed25519 could get a node let in, unprompted, to a line it was never vouched
+  into. The node would still have to complete a handshake under its own key. ML-DSA signatures are a later option
+  *(planned)*.
 - **Constant-time code depends on the compiler.** TCC barely optimises, which tends to *help* here. Timing tests
   (dudect-style) on the TCC build *(planned: M8)*.
 - **Your LAN is now their LAN.** Cryptography authenticates the *peers*. It doesn't make a line member trustworthy;

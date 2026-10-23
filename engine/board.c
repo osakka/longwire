@@ -27,6 +27,8 @@ typedef struct bcall {
 	uint8_t  id[8], caller[32], callee[32];
 	lw_cand  cc[MAXCANDS];
 	int      ncc;
+	uint8_t  admit[ADMIT_LEN];	/* the caller's admit to a line, carried untouched: the switchboard does not know lines */
+	int      alen;
 	double   deadline;
 } bcall;
 
@@ -37,6 +39,8 @@ typedef struct pend {
 	uint8_t  key[32], callee[32];	/* key = who asked */
 	lw_cand  cc[MAXCANDS];
 	int      ncc;
+	uint8_t  admit[ADMIT_LEN];
+	int      alen;
 	double   deadline;
 } pend;
 
@@ -226,10 +230,18 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved)
 	send_number(n, p, &r);
 }
 
-static void rejected(lw_node *n, const uint8_t key[32], const uint8_t id[8], int why)
+/* The number of whoever holds `key`, or NULL: a caller with several dials open is told which one was refused. */
+static const char *num_of(struct board *b, const uint8_t key[32])
+{
+	reg *r = reg_by_key(b, key);
+
+	return r ? r->number : 0;
+}
+
+static void rejected(lw_node *n, const uint8_t key[32], const uint8_t id[8], int why, const char *callee_number)
 {
 	lw_peer *p = peer_by_key(n, key);
-	uint8_t b[9];
+	uint8_t b[9 + NUMLEN];
 
 	if (!p || !p->cur.valid)
 		return;
@@ -238,20 +250,25 @@ static void rejected(lw_node *n, const uint8_t key[32], const uint8_t id[8], int
 	else
 		memset(b, 0, 8);
 	b[8] = (uint8_t)why;
-	ctl_msg_send(n, p, M_REJECTED, b, 9);
+	if (callee_number)
+		memcpy(b + 9, callee_number, NUMLEN);
+	else
+		memset(b + 9, '0', NUMLEN);
+	ctl_msg_send(n, p, M_REJECTED, b, sizeof b);
 }
 
-static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t callee_key[32], lw_cand *cc, int ncc)
+static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t callee_key[32], lw_cand *cc, int ncc,
+		       const uint8_t *admit, int alen)
 {
 	struct board *b = n->bd;
 	reg *cr = reg_by_key(b, caller_key), *ce = reg_by_key(b, callee_key);
 	lw_peer *cp = peer_by_key(n, caller_key), *ep = peer_by_key(n, callee_key);
 	bcall *c = 0;
-	uint8_t m[8 + NUMLEN + LW_BUNDLE + 1 + MAXCANDS * 7];
+	uint8_t m[8 + NUMLEN + LW_BUNDLE + 1 + MAXCANDS * 7 + 1 + ADMIT_LEN];
 	int i, o;
 
 	if (!cr || !ce || !cp || !ep || !online(n, ce)) {
-		rejected(n, caller_key, 0, R_OFFLINE);
+		rejected(n, caller_key, 0, R_OFFLINE, num_of(b, callee_key));
 		return;
 	}
 	for (i = 0; i < MAXCALLS; i++)
@@ -260,7 +277,7 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 			break;
 		}
 	if (!c) {
-		rejected(n, caller_key, 0, R_BUSY);
+		rejected(n, caller_key, 0, R_BUSY, ce->number);
 		return;
 	}
 	memset(c, 0, sizeof *c);
@@ -277,6 +294,11 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 	memcpy(m + 8 + NUMLEN, cr->bundle, LW_BUNDLE);
 	o = 8 + NUMLEN + LW_BUNDLE;
 	o += cands_write(m + o, c->cc, c->ncc);
+	if (alen == ADMIT_LEN) {			/* handed on exactly as it came */
+		m[o++] = ADMIT_LEN;
+		memcpy(m + o, admit, ADMIT_LEN);
+		o += ADMIT_LEN;
+	}
 	ctl_msg_send(n, ep, M_RING, m, (size_t)o);
 }
 
@@ -343,8 +365,9 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		return;
 	case M_DIAL: {
 		lw_cand cc[MAXCANDS];
-		int nc = 0;
+		int nc = 0, cn, alen = 0;
 		char num[NUMLEN + 1];
+		const uint8_t *admit = 0;
 		reg *ce;
 
 		if (!r || len < NUMLEN + 1)
@@ -352,18 +375,22 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		r->seen = n->now;
 		memcpy(num, pl, NUMLEN);
 		num[NUMLEN] = 0;
-		if (cands_read(pl + NUMLEN, len - NUMLEN, cc, &nc) < 0)
+		if ((cn = cands_read(pl + NUMLEN, len - NUMLEN, cc, &nc)) < 0)
 			return;
+		if (len >= NUMLEN + (size_t)cn + 1 + ADMIT_LEN && pl[NUMLEN + cn] == ADMIT_LEN) {
+			admit = pl + NUMLEN + cn + 1;		/* opaque to us */
+			alen = ADMIT_LEN;
+		}
 		if (!(ce = reg_by_number(b, num))) {
-			rejected(n, p->key_id, 0, R_UNKNOWN);
+			rejected(n, p->key_id, 0, R_UNKNOWN, num);
 			return;
 		}
 		if (ce == r) {
-			rejected(n, p->key_id, 0, R_SELF);
+			rejected(n, p->key_id, 0, R_SELF, num);
 			return;
 		}
 		if (!online(n, ce)) {
-			rejected(n, p->key_id, 0, R_OFFLINE);
+			rejected(n, p->key_id, 0, R_OFFLINE, num);
 			return;
 		}
 		if (n->cfg.policy_script) {
@@ -371,19 +398,23 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			char f1[16], f2[16];
 
 			if (!q) {
-				rejected(n, p->key_id, 0, R_BUSY);
+				rejected(n, p->key_id, 0, R_BUSY, num);
 				return;
 			}
 			memcpy(q->key, p->key_id, 32);
 			memcpy(q->callee, ce->key_id, 32);
 			memcpy(q->cc, cc, (size_t)nc * sizeof *cc);
 			q->ncc = nc;
+			if (alen) {
+				memcpy(q->admit, admit, ADMIT_LEN);
+				q->alen = alen;
+			}
 			q->deadline = n->now + 2.0;
 			fmt_number(f1, r->number);
 			fmt_number(f2, ce->number);
 			ev_emit(n, "{\"event\":\"dial\",\"id\":%d,\"from\":\"%s\",\"to\":\"%s\",\"ip\":\"%s\"}", q->id, f1, f2, ep);
 		} else
-			route_dial(n, p->key_id, ce->key_id, cc, nc);
+			route_dial(n, p->key_id, ce->key_id, cc, nc, admit, alen);
 		return;
 	}
 	case M_ANSWER: {
@@ -402,7 +433,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		if (!c)
 			return;
 		if (pl[8] != V_ACCEPT) {
-			rejected(n, c->caller, c->id, pl[8] == V_BUSY ? R_BUSY : R_DECLINED);
+			rejected(n, c->caller, c->id, pl[8] == V_BUSY ? R_BUSY : R_DECLINED, num_of(b, c->callee));
 			c->used = 0;
 			return;
 		}
@@ -447,7 +478,7 @@ void board_timers(lw_node *n)
 
 	for (i = 0; i < MAXCALLS; i++)
 		if (b->calls[i].used && n->now > b->calls[i].deadline) {
-			rejected(n, b->calls[i].caller, b->calls[i].id, R_TIMEOUT);
+			rejected(n, b->calls[i].caller, b->calls[i].id, R_TIMEOUT, num_of(b, b->calls[i].callee));
 			memset(&b->calls[i], 0, sizeof b->calls[i]);
 		}
 	for (i = 0; i < MAXPEND; i++) {
@@ -461,7 +492,7 @@ void board_timers(lw_node *n)
 			if (p && p->cur.valid)
 				refuse(n, p, "no decision from the switchboard policy");
 		} else
-			rejected(n, q->key, 0, R_POLICY);
+			rejected(n, q->key, 0, R_POLICY, num_of(b, q->callee));
 		q->used = 0;
 	}
 }
@@ -491,9 +522,9 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			else
 				refuse(n, p, arg[0] ? arg : "registration refused");
 		} else if (!strcmp(verdict, "accept"))
-			route_dial(n, q->key, q->callee, q->cc, q->ncc);
+			route_dial(n, q->key, q->callee, q->cc, q->ncc, q->admit, q->alen);
 		else
-			rejected(n, q->key, 0, R_POLICY);
+			rejected(n, q->key, 0, R_POLICY, num_of(b, q->callee));
 		return snprintf(out, cap, "{\"ok\":true}\n");
 	}
 	return snprintf(out, cap, "{\"error\":\"no such pending request (timed out?)\"}\n");

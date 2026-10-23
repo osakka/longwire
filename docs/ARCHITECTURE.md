@@ -35,8 +35,11 @@ clients or servers here, only ports.
                                          [switchboard]
 ```
 
-A node is on at most one call at a time, and a call is between two nodes. Lines of three or more nodes (the picture)
-*(planned: M3)* use the same switch; M1 and M2 connect two sites.
+A call is between two nodes, and a node can be on many calls at once. When a call comes up the two ends find out
+whether either holds a **line**, and a node that is called by a newcomer vouches for it, so calls accumulate into the full
+mesh in the picture ([PROTOCOL §6](PROTOCOL.md#6-control-messages-and-lines), [ADR 0022](adr/0022-lines-form-by-vouching.md)).
+A node is on one line of up to 16. Until relaying exists *(planned: M3)* a pair that cannot connect splits the line, and
+the node says so.
 
 ## 2. Attaching a node: ports
 
@@ -90,9 +93,10 @@ Split horizon prevents loops *between* sites. The remaining danger is **two spli
 segment**: each would forward the other's frames, and a loop follows. Boxes that share a secret avoid it by electing
 one to forward:
 
-- The secret is a file of 64 hex digits given to every box of the site with `--site-key FILE`. Without it a box does
-  not look for others, so two boxes on one segment **must** share one. (A line key derived automatically comes with
-  lines *(planned: M3)*.)
+- The secret is derived from the line key, so boxes of one line share it automatically (a rotated key is accepted
+  alongside the previous one for 30 seconds, so an eviction doesn't flap a site). A file of 64 hex digits given with
+  `--site-key FILE` overrides it, which is how two boxes work that are not on a line. A box with neither does not look
+  for others, so two boxes on one segment **must** have one or the other.
 - Every box sends a **probe** once a second: a broadcast frame with EtherType `0x88B5` (IEEE local experimental),
   carrying its key id, the time, and a MAC under the site secret. Probes are consumed locally and never forwarded
   over the line. A probe more than 30 s off the local clock is ignored.
@@ -189,10 +193,11 @@ engine/                      plain C99: never includes hibr.h, so the Android ap
   sess.c                     sessions and the peer table: data packets, replay window, rekey, keepalive
   sw.c                       the switch: MAC table, flood, split horizon, frame split, MSS clamp, ARP, re-segmenting
   site.c                     site groups: probes, election, standby, takeover
+  line.c                     lines: members, admits, eviction, persistence, the mesh maintainer
   port.c                     local ports: splice, jack, sock, none
   caps.c                     clears every capability set once the port is open
   ctl.c                      the control socket and the event stream
-  call.c                     the node: numbers, HELLO, candidates, pins, calls, punching, its commands
+  call.c                     the node: numbers, HELLO, candidates, pins, the call table, punching, its commands
   board.c                    the switchboard worker
   node.c                     opening a node and the event loop
   all.c                      unity build of the files above
@@ -222,6 +227,7 @@ connection stays open and carries events. Keys never cross the control socket.
 |---|---|
 | `seed` | 32 bytes, mode 0600. *This is your identity and your number.* |
 | `known` | pins: number → key id, one line each; written when a call comes up, edited by `longwire unpin` |
+| `lines` | the line this node is on: its id, founder, line key (sealed under the seed), the node's own admit, the members, and the evictions |
 | `ctl` | the control socket |
 | `switchboard/numbers.log` | on a switchboard: every number issued, with its key id and bundle |
 | `switchboard/seed`, `switchboard/ctl` | the switchboard's own identity and control socket |

@@ -20,8 +20,9 @@ drops the call and raises `key-changed`.
 ## Consequences
 
 The first call trusts the switchboard unless the phrase is compared. If the *caller* drops a call on a key mismatch, the
-callee is not told and waits out the 8-second punch timeout. The policy `line` (a member's admit rings through
-unprompted) comes with lines *(planned: M3)*.
+callee is not told and waits out the 8-second punch timeout. A node vouched for by a member of your line
+(an admit) rings through unprompted under every policy but `never`, which is how a mesh builds without a prompt on any
+member ([0022](0022-lines-form-by-vouching.md)).
 
 ---
 

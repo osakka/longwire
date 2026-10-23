@@ -343,7 +343,13 @@ static int pin_remove(lw_node *n, const char *num)
 int node_init(lw_node *n, char *err, size_t errn)
 {
 	n->sb = -1;
-	n->call.peer = -1;
+	n->ncalls = n->maxpeers;
+	n->calls = calloc((size_t)n->ncalls, sizeof *n->calls);
+	if (!n->calls) {
+		snprintf(err, errn, "out of memory");
+		return -1;
+	}
+	line_init(n);
 	pins_load(n);
 	if (n->cfg.switchboard[0]) {
 		char hp[200], *slash = strrchr(n->cfg.switchboard, '/');
@@ -395,31 +401,137 @@ static lw_peer *sbp(lw_node *n)
 	return n->sb >= 0 && n->peers[n->sb].cur.valid ? &n->peers[n->sb] : 0;
 }
 
-static void call_end(lw_node *n)
+/* ---- the call table: a line is many calls at once ------------------------------ */
+
+static lw_call *call_by_id(lw_node *n, const uint8_t id[8])
 {
-	memset(&n->call, 0, sizeof n->call);
-	n->call.peer = -1;
+	int i;
+
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state != CALL_IDLE && !memcmp(n->calls[i].id, id, 8))
+			return &n->calls[i];
+	return 0;
 }
 
-static void send_answer(lw_node *n, int verdict)
+static lw_call *call_out_for(lw_node *n, const char *num)
+{
+	int i;
+
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state == CALL_OUT && !strcmp(n->calls[i].number, num))
+			return &n->calls[i];
+	return 0;
+}
+
+static lw_call *call_slot(lw_node *n)
+{
+	int i;
+
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state == CALL_IDLE) {
+			memset(&n->calls[i], 0, sizeof n->calls[i]);
+			n->calls[i].peer = -1;
+			return &n->calls[i];
+		}
+	return 0;
+}
+
+int call_for_number(lw_node *n, const char *num)
+{
+	int i;
+
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state != CALL_IDLE && !strcmp(n->calls[i].number, num))
+			return 1;
+	return 0;
+}
+
+static void call_end(lw_call *c)
+{
+	memset(c, 0, sizeof *c);
+	c->peer = -1;
+}
+
+/* How many calls a person is being asked about or waiting on: an admitted mesh call never counts. */
+static int interactive(lw_node *n)
+{
+	int i, c = 0;
+
+	for (i = 0; i < n->ncalls; i++) {
+		const lw_call *k = &n->calls[i];
+
+		if ((k->state == CALL_OUT && !k->auto_) || (k->state == CALL_RINGING && !k->admitted))
+			c++;
+	}
+	return c;
+}
+
+static void send_answer(lw_node *n, lw_call *c, int verdict)
 {
 	lw_peer *s = sbp(n);
 	uint8_t b[8 + 1 + 1 + MAXCANDS * 7];
-	lw_cand c[MAXCANDS];
+	lw_cand cc[MAXCANDS];
 	int nc;
 
 	if (!s)
 		return;
-	memcpy(b, n->call.id, 8);
+	memcpy(b, c->id, 8);
 	b[8] = (uint8_t)verdict;
-	nc = verdict == V_ACCEPT ? gather(n, c, MAXCANDS) : 0;
-	ctl_msg_send(n, s, M_ANSWER, b, 9 + (size_t)cands_put(b + 9, c, nc));
+	nc = verdict == V_ACCEPT ? gather(n, cc, MAXCANDS) : 0;
+	ctl_msg_send(n, s, M_ANSWER, b, 9 + (size_t)cands_put(b + 9, cc, nc));
 }
 
-static void punch_send(lw_node *n)
+/* Start a call: the interactive kind a person asked for, or a mesh call to a fellow member. */
+int call_dial(lw_node *n, const char *num, int auto_, char *err, size_t errn)
+{
+	lw_peer *s = sbp(n);
+	uint8_t b[NUMLEN + 1 + MAXCANDS * 7 + 1 + ADMIT_LEN];
+	lw_cand cc[MAXCANDS];
+	uint8_t admit[ADMIT_LEN];
+	lw_call *c;
+	size_t o;
+	int nc;
+
+	if (!s || !n->registered) {
+		snprintf(err, errn, "no dial tone: not registered with a switchboard");
+		return -1;
+	}
+	if (!strcmp(num, n->number)) {
+		snprintf(err, errn, "%s", reason_str(R_SELF));
+		return -1;
+	}
+	if (call_for_number(n, num)) {
+		snprintf(err, errn, "already connected to, or calling, that number");
+		return -1;
+	}
+	if (!auto_ && interactive(n)) {
+		snprintf(err, errn, "already dialing or ringing: answer or hang up first");
+		return -1;
+	}
+	if (!(c = call_slot(n))) {
+		snprintf(err, errn, "too many calls");
+		return -1;
+	}
+	c->state = CALL_OUT;
+	c->we_caller = 1;
+	c->auto_ = auto_;
+	memcpy(c->number, num, NUMLEN + 1);
+	c->deadline = n->now + 65.0;			/* outlast the callee's 60 s of ringing */
+	memcpy(b, num, NUMLEN);
+	nc = gather(n, cc, MAXCANDS);
+	o = NUMLEN + (size_t)cands_put(b + NUMLEN, cc, nc);
+	if (line_admit_for(n, admit)) {			/* present our admit: a member we dial will not ask about us */
+		b[o++] = ADMIT_LEN;
+		memcpy(b + o, admit, ADMIT_LEN);
+		o += ADMIT_LEN;
+	}
+	ctl_msg_send(n, s, M_DIAL, b, o);
+	return 0;
+}
+
+static void punch_send(lw_node *n, lw_call *c)
 {
 	uint8_t pk[33];
-	lw_call *c = &n->call;
 	int i;
 
 	pk[0] = T_PUNCH;
@@ -441,11 +553,11 @@ static void punch_send(lw_node *n)
 
 void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
 {
-	lw_call *c = &n->call;
+	lw_call *c;
 	uint8_t mac[16];
 	lw_peer *p;
 
-	if (len != 33 || c->state != CALL_PUNCH || memcmp(pkt + 1, c->id, 8) || c->peer < 0 || sl != sizeof c->verified)
+	if (len != 33 || sl != sizeof c->verified || !(c = call_by_id(n, pkt + 1)) || c->state != CALL_PUNCH || c->peer < 0)
 		return;
 	crypto_blake2b_keyed(mac, 16, c->token, 32, pkt, 17);
 	if (crypto_verify16(mac, pkt + 17))
@@ -459,7 +571,7 @@ void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 	c->have_verified = 1;
 	memcpy(&p->ep, src, sl);
 	p->eplen = sl;
-	punch_send(n);				/* open the way back at once */
+	punch_send(n, c);			/* open the way back at once */
 	if (c->we_caller) {			/* the caller makes the handshake */
 		p->dial = 1;
 		p->last_hs_try = 0;
@@ -467,10 +579,48 @@ void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 	}
 }
 
+/* End every call on a peer and drop it. */
+void call_drop_peer(lw_node *n, lw_peer *p, const char *why)
+{
+	int i, idx = (int)(p - n->peers);
+
+	(void)why;
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state != CALL_IDLE && n->calls[i].peer == idx)
+			call_end(&n->calls[i]);
+	peer_drop(n, p);
+}
+
+void call_drop_all(lw_node *n, const char *why)
+{
+	int i;
+
+	for (i = 0; i < n->maxpeers; i++)
+		if (n->peers[i].used && !n->peers[i].is_sb)
+			call_drop_peer(n, &n->peers[i], why);
+	for (i = 0; i < n->ncalls; i++)
+		call_end(&n->calls[i]);
+}
+
+lw_peer *peer_by_number(lw_node *n, const char *num)
+{
+	int i;
+
+	for (i = 0; i < n->maxpeers; i++)
+		if (n->peers[i].used && !n->peers[i].is_sb && !strcmp(n->peers[i].number, num))
+			return &n->peers[i];
+	return 0;
+}
+
+/* A call is up: the two ends find out whether either holds a line. */
+void call_peer_up(lw_node *n, lw_peer *p, int dialer)
+{
+	p->dialer = dialer;
+	line_call_up(n, p);
+}
+
 void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len)
 {
-	lw_call *c = &n->call;
-
 	if (n->sb >= 0 && p == &n->peers[n->sb]) {
 		switch (msg) {
 		case M_NUMBER:
@@ -513,41 +663,59 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			return;
 		}
 		case M_RING: {
-			int nc = 0, pc;
+			int nc = 0, pc, cn, admitted = 0, i;
 			char f[16], ph[120];
-			uint8_t kid[32];
+			uint8_t kid[32], reply[9];
 			lw_cand cc[MAXCANDS];
 			char num[NUMLEN + 1];
+			const uint8_t *admit = 0;
+			size_t base = 8 + NUMLEN + LW_BUNDLE;
+			lw_call *c, *mine;
 
-			if (len < 8 + NUMLEN + LW_BUNDLE + 1)
+			if (len < base + 1)
 				return;
 			memcpy(num, pl + 8, NUMLEN);
 			num[NUMLEN] = 0;
-			if (c->state != CALL_IDLE) {		/* busy: answer without disturbing the call in progress */
-				uint8_t b[9];
-
-				memcpy(b, pl, 8);
-				b[8] = V_BUSY;
-				ctl_msg_send(n, p, M_ANSWER, b, 9);
+			memcpy(reply, pl, 8);
+			if ((cn = cands_get(pl + base, len - base, cc, &nc)) < 0)
+				return;
+			if (len >= base + (size_t)cn + 1 + ADMIT_LEN && pl[base + cn] == ADMIT_LEN)
+				admit = pl + base + cn + 1;
+			lw_h(kid, pl + 8 + NUMLEN, LW_BUNDLE);
+			fmt_number(f, num);
+			if (line_evicted(n, kid)) {		/* it was put off the line: it stays off */
+				reply[8] = V_REJECT;
+				ctl_msg_send(n, p, M_ANSWER, reply, 9);
+				ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"refused a call from a node evicted from the line\"}", f);
 				return;
 			}
-			if (cands_get(pl + 8 + NUMLEN + LW_BUNDLE, len - 8 - NUMLEN - LW_BUNDLE, cc, &nc) < 0)
-				return;
-			lw_h(kid, pl + 8 + NUMLEN, LW_BUNDLE);
 			pc = pin_check(n, num, kid);
-			fmt_number(f, num);
 			if (pc < 0) {			/* the number answered with a different key than before */
-				uint8_t b[9];
-
-				memcpy(b, pl, 8);
-				b[8] = V_REJECT;
-				ctl_msg_send(n, p, M_ANSWER, b, 9);
+				reply[8] = V_REJECT;
+				ctl_msg_send(n, p, M_ANSWER, reply, 9);
 				ev_emit(n, "{\"event\":\"key-changed\",\"number\":\"%s\",\"action\":\"refused the call\"}", f);
 				return;
 			}
-			memset(c, 0, sizeof *c);
+			admitted = line_admit_ok(n, admit, kid);
+			if ((mine = call_out_for(n, num))) {	/* glare: we are dialing each other. The lower key id's call stands */
+				if (memcmp(n->id.key_id, kid, 32) < 0) {
+					reply[8] = V_BUSY;
+					ctl_msg_send(n, p, M_ANSWER, reply, 9);
+					return;
+				}
+				call_end(mine);
+			}
+			for (i = 0; i < n->ncalls; i++)		/* the same call twice */
+				if (n->calls[i].state != CALL_IDLE && !memcmp(n->calls[i].id, pl, 8))
+					return;
+			if ((!admitted && interactive(n)) || !(c = call_slot(n))) {
+				reply[8] = V_BUSY;		/* busy: answer without disturbing what is in progress */
+				ctl_msg_send(n, p, M_ANSWER, reply, 9);
+				return;
+			}
 			c->state = CALL_RINGING;
-			c->peer = -1;
+			c->admitted = admitted;
+			c->auto_ = admitted;
 			memcpy(c->id, pl, 8);
 			memcpy(c->number, num, NUMLEN + 1);
 			memcpy(c->bundle, pl + 8 + NUMLEN, LW_BUNDLE);
@@ -560,8 +728,8 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 
 				lw_hex(hx, c->id, 8);
 				lw_hex(kh, kid, 32);
-				ev_emit(n, "{\"event\":\"ring\",\"call\":\"%s\",\"from\":\"%s\",\"key_id\":\"%s\",\"phrase\":\"%s\",\"known\":%s}",
-					hx, f, kh, ph, pc ? "true" : "false");
+				ev_emit(n, "{\"event\":\"ring\",\"call\":\"%s\",\"from\":\"%s\",\"key_id\":\"%s\",\"phrase\":\"%s\",\"known\":%s,\"admit\":%s}",
+					hx, f, kh, ph, pc ? "true" : "false", admitted ? "true" : "false");
 			}
 			return;
 		}
@@ -571,19 +739,21 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			uint8_t kid[32];
 			lw_cand cc[MAXCANDS];
 			lw_peer *q;
+			lw_call *c;
 			size_t o = 8 + 1 + 2 + NUMLEN + 32;
 
-			if (len < o + LW_BUNDLE + 1 || (c->state != CALL_OUT && c->state != CALL_RINGING))
+			if (len < o + LW_BUNDLE + 1)
 				return;
 			role = pl[8];
 			delay = (int)get16(pl + 9);
 			memcpy(num, pl + 11, NUMLEN);
 			num[NUMLEN] = 0;
-			if (c->state == CALL_OUT) {		/* we never saw the id: the number we dialed identifies it */
-				if (strcmp(num, c->number))
+			if (!(c = call_by_id(n, pl))) {		/* the caller never saw the id: the number it dialed identifies the call */
+				if (!(c = call_out_for(n, num)))
 					return;
 				memcpy(c->id, pl, 8);
-			} else if (memcmp(pl, c->id, 8))
+			}
+			if (c->state != CALL_OUT && c->state != CALL_RINGING)
 				return;
 			if (cands_get(pl + o + LW_BUNDLE, len - o - LW_BUNDLE, cc, &nc) < 0)
 				return;
@@ -591,14 +761,18 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			fmt_number(f, num);
 			if (pin_check(n, num, kid) < 0) {
 				ev_emit(n, "{\"event\":\"key-changed\",\"number\":\"%s\",\"action\":\"call dropped\"}", f);
-				call_end(n);
+				call_end(c);
 				return;
 			}
 			if (!(q = peer_by_key(n, kid)))
 				q = peer_add(n, pl + o);
+			else if (q->cur.valid) {		/* already connected: this call has nothing to add */
+				call_end(c);
+				return;
+			}
 			if (!q) {
 				ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"peer table full\"}");
-				call_end(n);
+				call_end(c);
 				return;
 			}
 			memcpy(q->number, num, NUMLEN + 1);
@@ -616,31 +790,50 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			return;
 		}
 		case M_REJECTED:
-			if (len >= 9 && c->state == CALL_OUT) {
-				char f[16];
+			if (len >= 9 + NUMLEN) {
+				char num[NUMLEN + 1];
+				lw_call *c;
 
-				fmt_number(f, c->number);
-				ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"%s\"}", f, reason_str(pl[8]));
-				call_end(n);
+				memcpy(num, pl + 9, NUMLEN);
+				num[NUMLEN] = 0;
+				c = call_by_id(n, pl);
+				if (!c || c->state != CALL_OUT)
+					c = call_out_for(n, num);
+				if (c && c->state == CALL_OUT) {
+					char f[16];
+
+					fmt_number(f, c->number);
+					if (!c->auto_)	/* a mesh call that fails is retried quietly */
+						ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"%s\"}", f, reason_str(pl[8]));
+					call_end(c);
+				}
 			}
 			return;
 		}
 		return;
 	}
-	if (msg == M_BYE && c->peer >= 0 && p == &n->peers[c->peer]) {
+	if (msg == M_BYE) {				/* the other end hung up (leave = it also left the line) */
 		char f[16];
+		int i, idx = (int)(p - n->peers);
 
 		fmt_number(f, p->number);
 		ev_emit(n, "{\"event\":\"hangup\",\"number\":\"%s\",\"by\":\"them\"}", f);
+		if (len >= 1 && pl[0])
+			line_member_left(n, p->key_id);
+		for (i = 0; i < n->ncalls; i++)
+			if (n->calls[i].state != CALL_IDLE && n->calls[i].peer == idx)
+				call_end(&n->calls[i]);
 		peer_drop(n, p);
-		call_end(n);
+		return;
 	}
+	if (msg >= M_LINEHELLO && msg <= M_LINEKEY)
+		line_msg(n, p, msg, pl, len);
 }
 
 void node_timers(lw_node *n)
 {
-	lw_call *c = &n->call;
 	lw_peer *s = sbp(n);
+	int i;
 
 	if (s) {
 		int need = n->registered ? n->reg_born != s->cur.born : n->reg_refused != s->cur.born;
@@ -662,117 +855,148 @@ void node_timers(lw_node *n)
 			n->next_hb = n->now + n->keepalive;
 		}
 	}
-	switch (c->state) {
-	case CALL_OUT:
-		if (n->now > c->deadline) {
-			char f[16];
+	for (i = 0; i < n->ncalls; i++) {
+		lw_call *c = &n->calls[i];
 
-			fmt_number(f, c->number);
-			ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"no answer\"}", f);
-			call_end(n);
-		}
-		break;
-	case CALL_RINGING:
-		if (n->now > c->deadline) {		/* nobody picked up: refuse */
-			send_answer(n, V_REJECT);
-			ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"you did not pick up\"}");
-			call_end(n);
-		}
-		break;
-	case CALL_UP:
-		if (c->peer >= 0 && !n->peers[c->peer].cur.valid) {
-			/* The session is gone (the dead-peer timer, or keys past their limit) and nothing has replaced it
-			 * for a grace period: the other end has died or the path has. Say so; the script decides whether
-			 * to dial again. */
-			if (!c->lost_t)
-				c->lost_t = n->now;
-			else if (n->now - c->lost_t > 2.0 * n->keepalive) {
+		switch (c->state) {
+		case CALL_OUT:
+			if (n->now > c->deadline) {
 				char f[16];
 
 				fmt_number(f, c->number);
-				ev_emit(n, "{\"event\":\"call-lost\",\"number\":\"%s\",\"we_called\":%s,\"reason\":\"no answer from the other end\"}",
-					f, c->we_caller ? "true" : "false");
-				peer_drop(n, &n->peers[c->peer]);
-				call_end(n);
+				if (!c->auto_)
+					ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"no answer\"}", f);
+				call_end(c);
 			}
-		} else
-			c->lost_t = 0;
-		break;
-	case CALL_PUNCH:
-	case CALL_SETUP:
-		if (c->peer >= 0 && n->peers[c->peer].cur.valid) {
-			char f[16], ep[64], ph[120];
-			const uint8_t *pk = n->peers[c->peer].key_id;
+			break;
+		case CALL_RINGING:
+			if (n->now > c->deadline) {		/* nobody picked up: refuse */
+				send_answer(n, c, V_REJECT);
+				ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"you did not pick up\"}");
+				call_end(c);
+			}
+			break;
+		case CALL_UP:
+			if (c->peer >= 0 && !n->peers[c->peer].cur.valid) {
+				/* The session is gone (the dead-peer timer, or keys past their limit) and nothing has replaced it
+				 * for a grace period: the other end has died or the path has. Say so; the script decides whether
+				 * to dial again, and a line's mesh maintainer does so by itself. */
+				if (!c->lost_t)
+					c->lost_t = n->now;
+				else if (n->now - c->lost_t > 2.0 * n->keepalive) {
+					char f[16];
 
-			fmt_number(f, c->number);
-			addr_str(&n->peers[c->peer].ep, ep, sizeof ep);
-			if (c->we_caller)			/* (caller, callee) on both screens: the same six words */
-				phrase_of(ph, sizeof ph, n->id.key_id, pk);
-			else
-				phrase_of(ph, sizeof ph, pk, n->id.key_id);
-			pin_add(n, c->number, pk);		/* the session is proven; the number now belongs to this key */
-			c->state = CALL_UP;
-			ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"direct\",\"ep\":\"%s\",\"phrase\":\"%s\"}", f, ep, ph);
+					fmt_number(f, c->number);
+					ev_emit(n, "{\"event\":\"call-lost\",\"number\":\"%s\",\"we_called\":%s,\"reason\":\"no answer from the other end\"}",
+						f, c->we_caller ? "true" : "false");
+					peer_drop(n, &n->peers[c->peer]);
+					call_end(c);
+				}
+			} else
+				c->lost_t = 0;
+			break;
+		case CALL_PUNCH:
+		case CALL_SETUP:
+			if (c->peer >= 0 && n->peers[c->peer].cur.valid) {
+				char f[16], ep[64], ph[120];
+				lw_peer *pe = &n->peers[c->peer];
+				const uint8_t *pk = pe->key_id;
+
+				fmt_number(f, c->number);
+				addr_str(&pe->ep, ep, sizeof ep);
+				if (c->we_caller)			/* (caller, callee) on both screens: the same six words */
+					phrase_of(ph, sizeof ph, n->id.key_id, pk);
+				else
+					phrase_of(ph, sizeof ph, pk, n->id.key_id);
+				pin_add(n, c->number, pk);		/* the session is proven; the number now belongs to this key */
+				c->state = CALL_UP;
+				ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"direct\",\"ep\":\"%s\",\"phrase\":\"%s\"}", f, ep, ph);
+				call_peer_up(n, pe, c->we_caller);
+				break;
+			}
+			if (c->state == CALL_PUNCH && n->now >= c->start_at && n->now >= c->next_punch) {
+				punch_send(n, c);
+				c->next_punch = n->now + 0.1;
+			}
+			if (n->now > c->deadline) {
+				char f[16];
+
+				fmt_number(f, c->number);
+				if (!c->auto_)
+					ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"no direct path (both sides behind strict NAT?)\"}", f);
+				if (c->peer >= 0)
+					peer_drop(n, &n->peers[c->peer]);
+				call_end(c);
+			}
 			break;
 		}
-		if (c->state == CALL_PUNCH && n->now >= c->start_at && n->now >= c->next_punch) {
-			punch_send(n);
-			c->next_punch = n->now + 0.1;
-		}
-		if (n->now > c->deadline) {
-			char f[16];
-
-			fmt_number(f, c->number);
-			ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"no direct path (both sides behind strict NAT?)\"}", f);
-			if (c->peer >= 0)
-				peer_drop(n, &n->peers[c->peer]);
-			call_end(n);
-		}
-		break;
 	}
+	line_timers(n);
 }
 
 /* ---- commands from the control socket ---------------------------------------- */
 
+/* The ringing call a command means: the one named by a call id prefix, else the only one (a person's, if several). */
+static lw_call *ringing_for(lw_node *n, const char *prefix, const char **why)
+{
+	lw_call *found = 0, *person = 0;
+	int i, matches = 0, persons = 0;
+
+	for (i = 0; i < n->ncalls; i++) {
+		lw_call *c = &n->calls[i];
+		char hx[17];
+
+		if (c->state != CALL_RINGING)
+			continue;
+		lw_hex(hx, c->id, 8);
+		if (prefix[0] && strncmp(hx, prefix, strlen(prefix)))
+			continue;
+		matches++;
+		found = c;
+		if (!c->admitted) {
+			persons++;
+			person = c;
+		}
+	}
+	if (!matches) {
+		*why = "nothing is ringing";
+		return 0;
+	}
+	if (matches == 1)
+		return found;
+	if (!prefix[0] && persons == 1)
+		return person;
+	*why = "several calls are ringing: name one by its call id";
+	return 0;
+}
+
 int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 {
-	lw_call *c = &n->call;
 	lw_peer *s = sbp(n);
+	int r;
 
+	if ((r = line_cmd(n, line, out, cap)) >= 0)		/* evict, peers */
+		return r;
 	if (!strncmp(line, "dial ", 5)) {
-		char num[NUMLEN + 1], f[16];
-		uint8_t b[NUMLEN + 1 + MAXCANDS * 7];
-		lw_cand cc[MAXCANDS];
-		int nc;
+		char num[NUMLEN + 1], f[16], err[100];
 
 		if (parse_number(line + 5, num))
 			return snprintf(out, cap, "{\"error\":\"not a valid number (9 digits with a check digit)\"}\n");
-		if (!s || !n->registered)
-			return snprintf(out, cap, "{\"error\":\"no dial tone: not registered with a switchboard\"}\n");
-		if (!strcmp(num, n->number))
-			return snprintf(out, cap, "{\"error\":\"%s\"}\n", reason_str(R_SELF));
-		if (c->state != CALL_IDLE)
-			return snprintf(out, cap, "{\"error\":\"already in a call\"}\n");
-		memset(c, 0, sizeof *c);
-		c->state = CALL_OUT;
-		c->peer = -1;
-		c->we_caller = 1;
-		memcpy(c->number, num, NUMLEN + 1);
-		c->deadline = n->now + 65.0;		/* outlast the callee's 60 s of ringing */
-		memcpy(b, num, NUMLEN);
-		nc = gather(n, cc, MAXCANDS);
-		ctl_msg_send(n, s, M_DIAL, b, NUMLEN + (size_t)cands_put(b + NUMLEN, cc, nc));
+		if (call_dial(n, num, 0, err, sizeof err))
+			return snprintf(out, cap, "{\"error\":\"%s\"}\n", err);
 		fmt_number(f, num);
 		return snprintf(out, cap, "{\"call\":\"dialing\",\"number\":\"%s\"}\n", f);
 	}
-	if (!strcmp(line, "pickup") || !strcmp(line, "reject")) {
+	if (!strncmp(line, "pickup", 6) || !strncmp(line, "reject", 6)) {
 		int accept = line[0] == 'p';
+		const char *why = "";
+		lw_call *c = ringing_for(n, line[6] == ' ' ? line + 7 : "", &why);
 
-		if (c->state != CALL_RINGING || !s)
-			return snprintf(out, cap, "{\"error\":\"nothing is ringing\"}\n");
-		send_answer(n, accept ? V_ACCEPT : V_REJECT);
+		if (!c || !s)
+			return snprintf(out, cap, "{\"error\":\"%s\"}\n", c ? "no switchboard" : why);
+		send_answer(n, c, accept ? V_ACCEPT : V_REJECT);
 		if (!accept)
-			call_end(n);
+			call_end(c);
 		return snprintf(out, cap, "{\"call\":\"%s\"}\n", accept ? "answered" : "rejected");
 	}
 	if (!strncmp(line, "unpin ", 6)) {
@@ -785,22 +1009,38 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			return snprintf(out, cap, "{\"error\":\"%s was not pinned\"}\n", f);
 		return snprintf(out, cap, "{\"unpinned\":\"%s\"}\n", f);
 	}
-	if (!strcmp(line, "hangup")) {
-		if (c->state == CALL_IDLE)
-			return snprintf(out, cap, "{\"error\":\"no call\"}\n");
-		if (c->state == CALL_RINGING)
-			send_answer(n, V_REJECT);
-		if (c->peer >= 0) {
-			lw_peer *p = &n->peers[c->peer];
-			char f[16];
+	if (!strncmp(line, "hangup", 6)) {
+		char num[NUMLEN + 1] = "";
+		int i, any = 0, leave;
 
-			if (p->cur.valid)
-				ctl_msg_send(n, p, M_BYE, 0, 0);
-			fmt_number(f, p->number);
-			ev_emit(n, "{\"event\":\"hangup\",\"number\":\"%s\",\"by\":\"us\"}", f);
-			peer_drop(n, p);
+		if (line[6] == ' ' && parse_number(line + 7, num))
+			return snprintf(out, cap, "{\"error\":\"not a valid number\"}\n");
+		leave = !num[0] && n->line.have;		/* no number: hang up on everyone, and leave the line */
+		for (i = 0; i < n->ncalls; i++) {
+			lw_call *c = &n->calls[i];
+
+			if (c->state == CALL_IDLE || (num[0] && strcmp(c->number, num)))
+				continue;
+			any = 1;
+			if (c->state == CALL_RINGING)
+				send_answer(n, c, V_REJECT);
+			if (c->peer >= 0) {
+				lw_peer *p = &n->peers[c->peer];
+				char f[16];
+				uint8_t lv = (uint8_t)leave;
+
+				if (p->cur.valid)
+					ctl_msg_send(n, p, M_BYE, &lv, 1);
+				fmt_number(f, p->number);
+				ev_emit(n, "{\"event\":\"hangup\",\"number\":\"%s\",\"by\":\"us\"}", f);
+				peer_drop(n, p);
+			}
+			call_end(c);
 		}
-		call_end(n);
+		if (leave)
+			line_leave(n);
+		if (!any)
+			return snprintf(out, cap, "{\"error\":\"no call\"}\n");
 		return snprintf(out, cap, "{\"call\":\"hung up\"}\n");
 	}
 	return snprintf(out, cap, "{\"error\":\"unknown request\"}\n");
@@ -811,22 +1051,34 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 int node_replay(lw_node *n, char *o, size_t cap)
 {
 	char f[16];
+	int len = 0;
 
 	if (n->registered) {
 		fmt_number(f, n->number);
-		return snprintf(o, cap, "{\"event\":\"registered\",\"number\":\"%s\"}\n", f);
-	}
-	if (n->reg_why[0])
-		return snprintf(o, cap, "{\"event\":\"register-refused\",\"reason\":\"%s\"}\n", n->reg_why);
-	return 0;
+		len = snprintf(o, cap, "{\"event\":\"registered\",\"number\":\"%s\"}\n", f);
+	} else if (n->reg_why[0])
+		len = snprintf(o, cap, "{\"event\":\"register-refused\",\"reason\":\"%s\"}\n", n->reg_why);
+	return len + line_replay(n, o + len, cap - (size_t)len);
 }
 
 int node_status_json(lw_node *n, char *o, size_t cap)
 {
 	char kid[65], ep[64], num[16] = "", sbs[24], refl[64] = "";
-	static const char *const CS[] = { "idle", "dialing", "ringing", "punching", "connecting", "up" };
+	const char *cs = "idle";
 	int len, i, any = 0;
 
+	for (i = 0; i < n->ncalls; i++) {		/* one word for the calls as a whole: the most urgent first */
+		const lw_call *k = &n->calls[i];
+
+		if (k->state == CALL_OUT && !k->auto_)
+			cs = "dialing";
+		else if (k->state == CALL_RINGING && !k->admitted && strcmp(cs, "dialing"))
+			cs = "ringing";
+		else if ((k->state == CALL_PUNCH || k->state == CALL_SETUP) && !strcmp(cs, "idle"))
+			cs = "connecting";
+		else if (k->state == CALL_UP && !strcmp(cs, "idle"))
+			cs = "up";
+	}
 	lw_hex(kid, n->id.key_id, 32);
 	if (n->number[0])
 		fmt_number(num, n->number);
@@ -837,7 +1089,7 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
 		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"peers\":[",
-		kid, num, sbs, refl, CS[n->call.state], (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
+		kid, num, sbs, refl, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,
@@ -864,6 +1116,27 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 			(unsigned long long)p->drop_replay);
 		any = 1;
 	}
-	len += snprintf(o + len, cap - (size_t)len, "]}\n");
+	len += snprintf(o + len, cap - (size_t)len, "],\"calls\":[");
+	any = 0;
+	for (i = 0; i < n->ncalls && len < (int)cap - 400; i++) {
+		static const char *const SN[] = { "idle", "dialing", "ringing", "punching", "connecting", "up" };
+		const lw_call *k = &n->calls[i];
+		char f[16], hx[17];
+
+		if (k->state == CALL_IDLE)
+			continue;
+		fmt_number(f, k->number);
+		lw_hex(hx, k->id, 8);
+		len += snprintf(o + len, cap - (size_t)len, "%s{\"call\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"we_called\":%s,\"mesh\":%s}",
+				any ? "," : "", hx, f, SN[k->state], k->we_caller ? "true" : "false", k->auto_ ? "true" : "false");
+		any = 1;
+	}
+	len += snprintf(o + len, cap - (size_t)len, "],\"line\":");
+	{
+		int l = line_value(n, o + len, cap - (size_t)len);
+
+		len += l;
+	}
+	len += snprintf(o + len, cap - (size_t)len, "}\n");
 	return len;
 }

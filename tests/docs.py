@@ -104,6 +104,13 @@ if os.path.exists("docs/ARCHITECTURE.md"):
     except StopIteration:
         bad("docs/ARCHITECTURE.md", "has no '### Source layout' block")
 
+# ...and the other way: every source file we wrote is in that layout
+if os.path.exists("docs/ARCHITECTURE.md"):
+    arch = read("docs/ARCHITECTURE.md")
+    for f in sorted(glob.glob("engine/*.c") + glob.glob("engine/*.h") + glob.glob("scripts/*.hibr") + ["module/longwire.c"]):
+        if not re.search(r"^\s*(?:\S+/)?" + re.escape(os.path.basename(f)) + r"\b", arch, re.M):
+            bad("docs/ARCHITECTURE.md", f"the source layout does not list {f}")
+
 # ---------------------------------------------------------------- verbs and commands
 mod = read("module/longwire.c")
 verbs = set(re.findall(r'strcmp\(av\[1\], "(\w+)"\)', mod))
@@ -143,7 +150,8 @@ for c in sorted(cmds - doc_cmds):
 
 # ---------------------------------------------------------------- events
 engine = code("engine/*.c")
-node_events = set(re.findall(r'\\"event\\":\\"([a-z-]+)\\"', code("engine/call.c", "engine/site.c")))
+node_events = set(re.findall(r'\\"event\\":\\"([a-z-]+)\\"', code("engine/call.c", "engine/site.c", "engine/line.c")))
+node_events |= set(re.findall(r'member_json\(n, "([a-z-]+)"', read("engine/line.c")))   # names passed to a helper
 sb_events = set(re.findall(r'\\"event\\":\\"([a-z-]+)\\"', code("engine/board.c")))
 m = re.search(r"\*\*Events\.\*\*(.*?)\n\n", cli, re.S)
 doc_events = set(re.findall(r"`([a-z]+(?:-[a-z]+)*)`", m.group(1))) if m else set()
@@ -151,7 +159,7 @@ if not m:
     bad("docs/CLI.md", "has no '**Events.**' paragraph")
 for e in sorted(node_events - doc_events):
     bad("docs/CLI.md", f"the node emits the event `{e}`, which the Events paragraph does not list")
-named = {e for e in doc_events if e not in ("number", "path", "ep", "phrase", "reason", "from", "known", "by", "us", "them", "we_called", "role", "members", "lw", "active", "standby")}
+named = {e for e in doc_events if e not in ("number", "path", "ep", "phrase", "reason", "from", "known", "by", "us", "them", "we_called", "role", "members", "lw", "active", "standby", "admit", "line", "up")}
 for e in sorted(named - node_events - {"watch"}):
     bad("docs/CLI.md", f"the Events paragraph lists `{e}`, which no code emits")
 sbdoc = read("docs/SWITCHBOARD.md")

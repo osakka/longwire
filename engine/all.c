@@ -6,6 +6,7 @@
 #include "sess.c"
 #include "sw.c"
 #include "site.c"
+#include "line.c"
 #include "port.c"
 #include "caps.c"
 #include "ctl.c"

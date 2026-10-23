@@ -27,6 +27,7 @@
 #define SITE_MEMBERS 4
 #define MAXSUBS 4
 #define OFFERS 16
+#define ED_OFF (1 + 32 + LW_MLKEM_PK)	/* where a bundle keeps its Ed25519 public key */
 
 typedef struct lw_sess {
 	int      valid, confirmed, we_init;
@@ -73,6 +74,9 @@ typedef struct lw_peer {
 	double   cookie_t;
 	double   last_tx, last_rx, last_hs_try, hello_next, touched;
 	int      hello_tries;
+	int      dialer;		/* we made the call that created this peer */
+	int      lh_sent, lh_got, lh_has, linked;	/* the line handshake with this peer */
+	uint8_t  lh_id[8];
 	uint64_t rx_frames, tx_frames, rx_bytes, tx_bytes;
 	uint64_t rekeys, drop_auth, drop_replay;
 } lw_peer;
@@ -101,6 +105,10 @@ enum { CALL_IDLE, CALL_OUT, CALL_RINGING, CALL_PUNCH, CALL_SETUP, CALL_UP };
 
 typedef struct lw_call {
 	int      state, we_caller, peer;
+	int      auto_;			/* a mesh call to a fellow member: nobody is asked */
+	int      admitted;		/* (a ring) the caller held a valid admit */
+	uint8_t  admit[ADMIT_LEN];	/* (a ring) what it presented, or (a dial) what we presented */
+	int      has_admit;
 	uint8_t  id[8], token[32];
 	char     number[NUMLEN + 1];
 	uint8_t  bundle[LW_BUNDLE];	/* the other end's, from RING or GO */
@@ -110,6 +118,32 @@ typedef struct lw_call {
 	int      have_verified;
 	struct sockaddr_in verified;
 } lw_call;
+
+typedef struct lw_member {
+	uint8_t  key_id[32], ed_pub[32];
+	char     number[NUMLEN + 1];
+	uint8_t  role;
+	double   next_try;		/* the mesh maintainer's back-off */
+	int      tries;
+} lw_member;
+
+typedef struct lw_evict {
+	uint8_t  key_id[32];
+	uint64_t time;
+} lw_evict;
+
+typedef struct lw_line {
+	int      have;
+	uint8_t  id[8], founder[32], key[32], prev_key[32];
+	double   key_t;			/* when the key last changed: the grace window for the old one */
+	uint8_t  admit[ADMIT_LEN];	/* this node's own */
+	lw_member m[LINE_MAX];
+	int      nm;
+	lw_evict ev[32];
+	int      nev;
+	double   joined, tick;
+	int      said_partial, said_complete;
+} lw_line;
 
 typedef struct pin {
 	char    number[NUMLEN + 1];
@@ -145,7 +179,9 @@ struct lw_node {
 	double   next_hb, next_reg;
 	lw_cand  refl;			/* what the switchboard saw of us */
 	int      have_refl;
-	lw_call  call;
+	lw_call *calls;			/* the call table: a line is many calls at once */
+	int      ncalls;
+	lw_line  line;
 	pin     *pins;
 	int      npins, cappins;
 	uint16_t udp_port;
@@ -155,7 +191,8 @@ struct lw_node {
 	struct { uint32_t ip; uint8_t mac[6]; double t; } arp[256];
 	int      splice;			/* the local port is a NIC on a LAN segment */
 	uint8_t  nic_mac[6];
-	uint8_t  site_key[32];
+	uint8_t  site_key[32], site_key_prev[32];
+	double   site_key_prev_t;
 	int      have_site_key, standby, gratuitous;
 	struct { uint8_t key_id[32]; double seen; int used; } site[SITE_MEMBERS];
 	double   site_probe_t, site_since, site_sync_t, site_sync_sent;
@@ -250,6 +287,11 @@ void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len);
 void node_timers(lw_node *n);
 int  node_cmd(lw_node *n, const char *line, char *out, size_t cap);
+int  call_dial(lw_node *n, const char *num9, int auto_, char *err, size_t errn);
+void call_peer_up(lw_node *n, lw_peer *p, int dialer);	/* a call came up: the line handshake starts */
+int  call_for_number(lw_node *n, const char *num9);	/* is there a call (any state) with this number */
+const uint8_t *peer_ed_pub(const lw_peer *p);
+lw_peer *peer_by_number(lw_node *n, const char *num9);
 int  node_status_json(lw_node *n, char *o, size_t cap);
 int  node_replay(lw_node *n, char *o, size_t cap);	/* what a new event subscriber missed: our registration state */
 int  node_init(lw_node *n, char *err, size_t errn);
@@ -258,6 +300,27 @@ int  parse_number(const char *in, char out[NUMLEN + 1]);	/* 0 = ok, check digit 
 int  damm_ok(const char *digits, int n);
 void mint_number(char out[NUMLEN + 1]);
 void phrase_of(char *out, size_t cap, const uint8_t a[32], const uint8_t b[32]);
+
+/* line.c: lines of more than two nodes (docs/PROTOCOL.md §6) */
+void line_init(lw_node *n);
+int  line_have(const lw_node *n);
+int  line_admit_for(lw_node *n, uint8_t out[ADMIT_LEN]);	/* our own admit, to present when dialing; 0 if none */
+int  line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32]);
+int  line_evicted(lw_node *n, const uint8_t kid[32]);
+void line_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len);
+void line_call_up(lw_node *n, lw_peer *p);
+void line_timers(lw_node *n);
+int  line_cmd(lw_node *n, const char *cmd, char *out, size_t cap);
+int  line_status_json(lw_node *n, char *o, size_t cap);
+int  line_value(lw_node *n, char *o, size_t cap);
+int  line_replay(lw_node *n, char *o, size_t cap);
+void line_leave(lw_node *n);
+void line_member_left(lw_node *n, const uint8_t kid[32]);
+void call_drop_peer(lw_node *n, lw_peer *p, const char *why);	/* end every call on this peer and drop it */
+void call_drop_all(lw_node *n, const char *why);
+void lw_sign(const lw_id *id, const uint8_t *m, size_t n, uint8_t sig[64]);
+int  lw_verify(const uint8_t pub[32], const uint8_t *m, size_t n, const uint8_t sig[64]);
+void site_derive(lw_node *n);					/* the site secret from the line key */
 
 /* board.c: the switchboard worker */
 int  board_open(lw_node *n, char *err, size_t errn);

@@ -28,8 +28,9 @@ The examples write `longwire`. Until the launcher is packaged *(planned: M4)* th
   server: each node is a port on one software switch.
 - **You dial a number.** Every node gets a short number from the **switchboard**, a tiny rendezvous server. It
   introduces two nodes, coordinates a NAT hole-punch, then **hangs up**. Traffic never passes through it.
-- **Two sites behind ordinary NATs connect directly.** Two *strict* (symmetric) NATs fail with a plain message
-  today; relaying through another node of your own line, still end-to-end encrypted, *(planned: M3)*.
+- **Two sites behind ordinary NATs connect directly,** and any number of sites form one **line**: call one member and the
+  rest of the mesh builds itself. Two *strict* (symmetric) NATs fail with a plain message today, and on a line that
+  splits it; relaying through another node of your own line, still end-to-end encrypted, *(planned: M3)*.
 - **It never runs as root.** Bridging a whole site needs one capability, granted once by the service manager and
   dropped as soon as the network port is open. Joining a single Linux host needs one tap device you own, created once.
 - **It's quantum-safe.** The handshake is hybrid X25519 + ML-KEM-768, the data is ChaCha20-Poly1305, and keys rotate
@@ -76,9 +77,10 @@ reuse it later through JNI. That app will be a fourth piece *(planned: M6)*. Tod
 
 ## Status
 
-**M0, M1 and M2 are built** and tested end to end, built with TCC and nothing else: the handshake and its cookies, the
-switchboard, calls through simulated NATs, and splice carrying real ping, ARP, TCP and broadcasts between two LANs that
-are one subnet, with a second box on the same segment taking over when the first is killed. The jack port, real
+**M0, M1 and M2, and the first stage of M3, are built** and tested end to end, built with TCC and nothing else: the
+handshake and its cookies, the switchboard, calls through simulated NATs, splice carrying real ping, ARP, TCP and
+broadcasts between LANs that are one subnet, a second box on a segment taking over when the first is killed, and lines of
+up to 16 sites that join by number, build their own mesh with no prompt, evict a member, and heal after a restart. The jack port, real
 routers and real wide-area links are untested. See the [roadmap](docs/ROADMAP.md).
 
 ```

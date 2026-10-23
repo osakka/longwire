@@ -172,3 +172,18 @@ def identity(name):
     path = f"{T}/{name}.bundle"
     open(path, "w").write(out)
     return path
+
+
+def veth(ns_x, name_x, ns_y, name_y, bridge_x=None, bridge_y=None):
+    """A veth pair. An end whose namespace is None stays in ours, optionally enslaved to a bridge (also ours)."""
+    sh("ip link add vx type veth peer name vy")
+    for end, ns, name, br in (("vx", ns_x, name_x, bridge_x), ("vy", ns_y, name_y, bridge_y)):
+        if ns is None:
+            sh(f"ip link set {end} name {name}")
+            if br:
+                sh(f"ip link set {name} master {br}")
+            sh(f"ip link set {name} up")
+        else:
+            sh(f"ip link set {end} netns {ns.pid}")
+            nsh(ns, f"ip link set {end} name {name}")
+            nsh(ns, f"ip link set {name} up")

@@ -86,7 +86,7 @@ static int ask(sh *s, const char *sock, const char *req, int fail_on_error)
 
 static int usage(sh *s)
 {
-	hibr_fail(s, "usage: lw start|stop|status|dial|pickup|reject|hangup|unpin|key|sb ...  (see docs/CLI.md)");
+	hibr_fail(s, "usage: lw start|stop|status|dial|pickup|reject|hangup|unpin|evict|peers|key|sb ...  (see docs/CLI.md)");
 	return HIBR_FAIL;
 }
 
@@ -301,12 +301,27 @@ int m_lw(sh *s, int ac, char **av)
 		return ask(s, sock, "status\n", 0);
 	if (!strcmp(av[1], "stop"))
 		return ask(s, sock, "stop\n", 0);
-	if ((!strcmp(av[1], "dial") || !strcmp(av[1], "unpin")) && ac >= 3) {
+	if ((!strcmp(av[1], "dial") || !strcmp(av[1], "unpin") || !strcmp(av[1], "evict")) && ac >= 3) {
 		snprintf(req, sizeof req, "%s %s\n", av[1], av[2]);
 		return ask(s, sock, req, 1);
 	}
+	if (!strcmp(av[1], "peers"))
+		return ask(s, sock, "peers\n", 1);
 	if (!strcmp(av[1], "pickup") || !strcmp(av[1], "reject") || !strcmp(av[1], "hangup")) {
-		snprintf(req, sizeof req, "%s\n", av[1]);
+		const char *arg = 0;			/* pickup and reject may name a call, hangup a number */
+
+		for (i = 2; i < ac; i++) {
+			if (!strcmp(av[i], "--sock")) {
+				i++;
+				continue;
+			}
+			arg = av[i];
+			break;
+		}
+		if (arg)
+			snprintf(req, sizeof req, "%s %s\n", av[1], arg);
+		else
+			snprintf(req, sizeof req, "%s\n", av[1]);
 		return ask(s, sock, req, 1);
 	}
 	if (!strcmp(av[1], "key"))

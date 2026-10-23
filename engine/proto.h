@@ -13,7 +13,12 @@
 #define K_CTL   0x10
 
 /* CTL messages between peers (inside a session) */
-#define M_BYE      0x08
+#define M_LINEHELLO 0x01	/* has_line(1) line_id(8) */
+#define M_LINE      0x02	/* line_id founder key admit n x (number key_id ed_pub role) */
+#define M_MEMBER    0x03	/* number key_id ed_pub role admit */
+#define M_EVICT     0x04	/* line_id key_id time evictor sig */
+#define M_LINEKEY   0x05	/* line_id key */
+#define M_BYE      0x08		/* leave(1) */
 /* node <-> switchboard */
 #define M_REGISTER 0x20		/* token_len(1) token */
 #define M_NUMBER   0x21		/* number(9) observed(6) */
@@ -41,6 +46,9 @@
 #define CAND_REFL 2
 #define MAXCANDS 8
 #define NUMLEN 9
+#define ADMIT_LEN 145		/* line_id 8, key_id 32, role 1, admitted_by 32, time 8, sig 64 */
+#define LINE_MAX 16
+#define MEMBER_LEN 74		/* number 9, key_id 32, ed_pub 32, role 1 */
 
 typedef struct lw_cand {
 	uint8_t  ip[4];

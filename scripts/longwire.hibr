@@ -27,8 +27,10 @@ usage: longwire <command>
      [--splice NIC [--site-key FILE] | --jack TAP | --sock-port LOCAL:PEER] [--listen [ADDR:]PORT]
      [--peer BUNDLEFILE[@HOST:PORT]]...      run this node (foreground: a service or hold runs this)
   dial NUMBER                                 call a number
-  pickup | reject                             answer the ringing call
-  hangup                                      end the call
+  pickup [ID] | reject [ID]                   answer the ringing call (ID, from the ring, if several ring)
+  hangup [NUMBER]                             end every call and leave the line; or just the call with NUMBER
+  peers                                       the line: its members and which of them are connected
+  evict NUMBER                                remove a member from the line for good, and change its key
   unpin NUMBER                                forget a number's key: the next call from it is a first call again
   status                                      what the node is doing (JSON)
   down                                        stop the node
@@ -50,9 +52,17 @@ announce() {
 	case $ev in
 	registered)       say "☎  your number ${e[number]} — dial tone" ;;
 	register-refused) say "✗  the switchboard refused to register you: ${e[reason]}" ;;
-	ring)             say "☎  ${e[from]} is calling"
-	                  say "   safety phrase: ${e[phrase]}"
-	                  [ "${e[known]}" = true ] || say "   first call from this number" ;;
+	ring)             if [ "${e[admit]}" = true ]; then say "☎  ${e[from]} is joining the line (vouched for by a member)"
+	                  else say "☎  ${e[from]} is calling"
+	                       say "   safety phrase: ${e[phrase]}"
+	                       [ "${e[known]}" = true ] || say "   first call from this number"; fi ;;
+	line-joined)      say "·  on line ${e[line]} with ${e[members]} members" ;;
+	member-joined)    say "·  ${e[number]} joined the line" ;;
+	member-left)      say "·  ${e[number]} left the line" ;;
+	member-evicted)   say "·  ${e[number]} was evicted from the line" ;;
+	evicted)          say "⚠  you were evicted from line ${e[line]}" ;;
+	line-partial)     say "⚠  the line is not a full mesh: ${e[up]} of ${e[members]} members reachable (frames between the others are not forwarded)" ;;
+	line-complete)    say "·  the line is a full mesh (${e[members]} members)" ;;
 	connected)        say "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"
 	                  say "   safety phrase: ${e[phrase]}" ;;
 	call-failed)      say "✗  call failed: ${e[reason]}" ;;
@@ -63,13 +73,18 @@ announce() {
 	esac
 }
 
-# The answer policy: decide what a ring means.
+# The answer policy: decide what a ring means. A node vouched for by a member of our line (admit) is let in under every
+# policy but `never`: that is how a mesh builds without a prompt on any member.
 on_ring() {
-	local policy=$1
+	local policy=$1 id=${e[call]}
+	if [ "${e[admit]}" = true ] && [ "$policy" != never ]; then
+		lw pickup "$id" > /dev/null
+		return
+	fi
 	case $policy in
-	auto)  lw pickup > /dev/null ;;
-	never) lw reject > /dev/null ;;
-	known) if [ "${e[known]}" = true ]; then lw pickup > /dev/null; else say "   run: longwire pickup | longwire reject (60 s)"; fi ;;
+	auto)  lw pickup "$id" > /dev/null ;;
+	never) lw reject "$id" > /dev/null ;;
+	known) if [ "${e[known]}" = true ]; then lw pickup "$id" > /dev/null; else say "   run: longwire pickup | longwire reject (60 s)"; fi ;;
 	*)     say "   run: longwire pickup | longwire reject (60 s)" ;;
 	esac
 }
@@ -150,9 +165,11 @@ cmd=${1:-}
 case $cmd in
 up)      cmd_up "$@" ;;
 dial)    [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw dial "$1" ;;
-pickup)  run lw pickup ;;
-reject)  run lw reject ;;
-hangup)  run lw hangup ;;
+pickup)  run lw pickup "$@" ;;
+reject)  run lw reject "$@" ;;
+hangup)  run lw hangup "$@" ;;
+evict)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw evict "$1" ;;
+peers)   run lw peers ;;
 unpin)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw unpin "$1" ;;
 status)  run lw status ;;
 down)    run lw stop ;;

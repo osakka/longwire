@@ -1,4 +1,4 @@
-# 0011 — One switchboard per deployment, and one call at a time
+# 0011 — One switchboard per deployment, and a person is asked about one call at a time
 
 Status: accepted
 
@@ -13,8 +13,9 @@ nodes.
 
 ## Consequences
 
-A second ring while on a call is answered busy. Federation (`number@sb`) *(planned)* and lines of three or more nodes
-*(planned: M3)* are later work that does not change the switch's design.
+Lines of three or more nodes have since been built ([0022](0022-lines-form-by-vouching.md)), so a node can be on many calls
+at once; only a person is asked about one ring at a time (a second unvouched ring is answered busy). Federation
+(`number@sb`) *(planned)* is later work that does not change the switch's design.
 
 ---
 

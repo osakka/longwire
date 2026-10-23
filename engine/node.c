@@ -82,7 +82,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 	n->role = cfg->role;
 	n->hs_t = n->now;
 	n->hs_tokens = n->role ? 2000.0 : 50.0;
-	n->maxpeers = cfg->maxpeers > 0 ? cfg->maxpeers : (cfg->role ? 1024 : 16);
+	n->maxpeers = cfg->maxpeers > 0 ? cfg->maxpeers : (cfg->role ? 1024 : 32);
 	n->peers = calloc((size_t)n->maxpeers, sizeof *n->peers);
 	if (!n->peers) {
 		snprintf(err, errn, "out of memory");
@@ -176,6 +176,7 @@ void lw_node_release(lw_node *n)
 	if (n->ctl_fd >= 0)
 		close(n->ctl_fd);
 	crypto_wipe(&n->id, sizeof n->id);
+	free(n->calls);
 	free(n->peers);
 	free(n->pins);
 	free(n->bd);

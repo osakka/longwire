@@ -189,42 +189,66 @@ being used as an open reflector.
 
 ## 6. Control messages and lines
 
-A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. Between two nodes on a call, the only message built is
-`BYE`: `longwire hangup` sends it and the other end tells its user. The messages with a switchboard (`0x20`–`0x2f`)
-are in [SWITCHBOARD](SWITCHBOARD.md).
+A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. The messages with a switchboard (`0x20`–`0x2f`) are in
+[SWITCHBOARD](SWITCHBOARD.md). Between two nodes:
 
 | msg | name | body |
 |---|---|---|
-| `0x01` | `PEERS` | list of `{number, key_id, role, relay, candidates}` *(planned: M3)* |
-| `0x02` | `ADMIT` | signed admit record *(planned: M3)* |
-| `0x03` | `EVICT` | signed evict record *(planned: M3)* |
-| `0x04` | `LINEKEY` | new line key, inside the pairwise session *(planned: M3)* |
-| `0x05` | `RELAY_REQ` | §5 *(planned: M3)* |
-| `0x06` | `RELAY_OK` | §5 *(planned: M3)* |
-| `0x07` | `PMTU` | probe result *(planned: M7)* |
-| `0x08` | `BYE` | hanging up |
+| `0x01` | `LINEHELLO` | `has_line:1 ‖ line_id:8`, sent by each end when a call comes up |
+| `0x02` | `LINE` | `line_id:8 ‖ founder:32 ‖ line_key:32 ‖ admit:145 ‖ n:1 ‖ n × (number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1)`: the line, handed to a new member |
+| `0x03` | `MEMBER` | `number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1 ‖ admit:145`: a new member, announced to the others |
+| `0x04` | `EVICT` | `line_id:8 ‖ key_id:32 ‖ time:8 ‖ evictor:32 ‖ sig:64` |
+| `0x05` | `LINEKEY` | `line_id:8 ‖ key:32`: the new line key, inside the pairwise session |
+| `0x06` | `RELAY_REQ` | §5 *(planned: M3)* |
+| `0x07` | `RELAY_OK` | §5 *(planned: M3)* |
+| `0x08` | `BYE` | `leave:1`: hanging up; `1` also leaves the line |
+| `0x09` | `PMTU` | probe result *(planned: M7)* |
 
-### Lines and party lines *(planned: M3)*
+### Lines and party lines
 
-A **line** is one L2 segment with a 64-bit random `line_id`, shown as its first 6 hex digits (`7f3a9c`), and a
-32-byte **line key** that every member holds. The line key authenticates the probes between boxes of one site (which
-use a shared site secret until then, [ARCHITECTURE §4](ARCHITECTURE.md#4-two-boxes-on-one-segment-site-groups)). It
-never encrypts data: sessions are always pairwise.
+A **line** is one L2 segment: a 64-bit random `line_id` (shown as its first 6 hex digits, `7f3a9c`), a **founder**, a
+32-byte **line key** that every member holds, and a list of **members** (number, key id, Ed25519 public key, role).
+The line key never encrypts data, since sessions are always pairwise; it derives the secret that boxes of one site use
+for their probes ([ARCHITECTURE §4](ARCHITECTURE.md#4-two-boxes-on-one-segment-site-groups)), unless `--site-key` is
+given. Lines persist in `~/.longwire/lines`: the line id, founder, line key (sealed under the seed), the node's own
+admit, the members, and the evictions. A node is on at most one line; at most 16 nodes are on one.
 
-**Joining.** When node N dials number M:
+**Admits.** An admit is the proof that a member vouched for a node:
+`line_id:8 ‖ key_id:32 ‖ role:1 ‖ admitted_by:32 ‖ time:8 ‖ sig:64` (145 bytes), the signature being Ed25519 by
+`admitted_by` over the 81 bytes before it. It is valid for a node that holds the line if the `line_id` matches, the
+`admitted_by` key is in the *persisted* member list (not merely connected right now), the signature verifies against
+the key stored for that member, and the `time` is later than any eviction recorded for that `key_id`. The **founder**
+admits itself (`admitted_by` = `key_id` = the founder), and members accept a self-admit only for the recorded founder, so
+every member holds an admit, the first included. An admit rides in the `DIAL` and `RING` messages as an optional
+trailing blob (`admit_len:1`, 0 or 145 then the admit); the switchboard passes it through without looking at it.
 
-1. If neither node is on a line, M creates one and becomes its first member. If M is on a line, N joins M's line.
-   If *both* are already on different lines, the call is refused with `BUSY: already on line 7f3a9c` in v1.
-2. M picks up, by asking its user or following its answer policy ([CLI](CLI.md)).
-3. M signs an **admit** record, `ADMIT{line_id, key_id_N, role, admitted_by: key_id_M, time}` with Ed25519, and
-   sends it to N and to every member.
-4. M sends N the line key and `PEERS`: every member's number, key id, role (`trunk` | `leaf`) and relay offer.
-5. If N is a **trunk** (a site), it dials every member through the switchboard, presenting the admit record. Members
-   pick up automatically for a valid admit, so the full mesh builds itself with no more prompts. A **leaf** stays
-   with M only.
+**Joining.** When a call comes up, each end sends `LINEHELLO`. Then:
 
-**Leaving.** `longwire hangup` sends `BYE` to all peers. The line keeps existing while at least one member remains.
+1. If neither end is on a line, the callee founds one (new id and key, itself founder and first member), admits the
+   caller and sends it `LINE`.
+2. If exactly one end is on a line, that end is the hub: it admits the other and sends it `LINE`, and tells every
+   member it is directly connected to about the newcomer with `MEMBER`.
+3. If both ends are on the *same* line, nothing happens: this is a mesh edge. If they are on different lines, the call
+   ends with `BYE` and the dialer is told `that node is on another line`.
+4. A newcomer that receives `LINE` dials every member it is not connected to, through the switchboard, presenting its
+   admit. A member that holds a valid admit for the caller reports `admit: true` in the `ring` event; the node script
+   picks up such rings under every policy except `never`, so a mesh builds with no prompt on any member.
 
-**Eviction.** `longwire evict <number>` signs `EVICT{line_id, key_id}`. Every member tears down sessions with that
-key and refuses it from then on. The evicting node also generates a new line key and sends it to the remaining
-members, so the evicted node can no longer forge probes.
+Every node on a line keeps dialing members it has no session with, with a back-off (8 s, doubling to 60 s), so a mesh
+heals after a restart or a drop and a restarted member rejoins on the admit it persisted. If two members dial each other
+at once, the call from the node with the lower key id stands and the other is answered busy.
+
+**Partial meshes.** Split horizon assumes a full mesh: a frame from A that reaches B is never forwarded to C. If a pair
+cannot connect, that pair is partitioned, silently, until relaying exists *(planned: M3)*. So a node reports it: the
+status lists members against sessions up, and `line-partial` fires if the mesh is still incomplete 30 seconds after the
+node joined (`line-complete` when it completes).
+
+**Leaving.** `longwire hangup` sends `BYE` with `leave` set to every peer and forgets the line; the line goes on while
+any member remains.
+
+**Eviction.** `longwire evict NUMBER` signs `EVICT` and sends it to every member, which verifies the signature against
+the evictor's stored key, drops the member and its sessions, and records `(key_id, time)` so no older admit can bring it
+back. The evictor also draws a new line key and sends `LINEKEY` to the remaining members, so the evicted node can no
+longer forge probes; a site accepts probes under the previous key for a short grace period so a rotation doesn't flap
+a site's boxes. Any member can evict any other: a line is a cable into everyone's LAN, and its members trust each other
+to that extent ([THREAT-MODEL](THREAT-MODEL.md)).

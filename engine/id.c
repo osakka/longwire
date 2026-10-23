@@ -225,3 +225,14 @@ int lw_address_parse(const char *s, uint8_t key_id[32])
 	}
 	return -1;
 }
+
+/* Ed25519 with the identity's signing key (the bundle carries the public half at offset 1217). */
+void lw_sign(const lw_id *id, const uint8_t *m, size_t n, uint8_t sig[64])
+{
+	crypto_ed25519_sign(sig, id->ed_sk, m, n);
+}
+
+int lw_verify(const uint8_t pub[32], const uint8_t *m, size_t n, const uint8_t sig[64])
+{
+	return crypto_ed25519_check(sig, pub, m, n) == 0;
+}

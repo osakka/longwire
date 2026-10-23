@@ -54,8 +54,8 @@ before the handshake. Messages are `CTL` messages inside that session:
 | `NUMBER` | `0x21` | sb → node | number(9), observed address | the node's number, and the address the switchboard saw it at (its reflexive candidate) |
 | `HEARTBEAT` | `0x22` | node → sb | candidates | every `--keepalive` s (default 25), which also holds the NAT mapping open → `HBACK` |
 | `HBACK` | `0x23` | sb → node | observed address | refreshes the reflexive candidate |
-| `DIAL` | `0x24` | caller → sb | number, caller candidates | the switchboard rings the callee, or answers `REJECTED` |
-| `RING` | `0x25` | sb → callee | call id, caller number, caller bundle, candidates | the phone rings |
+| `DIAL` | `0x24` | caller → sb | number, caller candidates, admit | the switchboard rings the callee, or answers `REJECTED`. The admit is an optional trailing blob (length byte, then 0 or 145 bytes) that the switchboard passes on untouched |
+| `RING` | `0x25` | sb → callee | call id, caller number, caller bundle, candidates, admit | the phone rings. The switchboard never reads the admit and does not know lines |
 | `ANSWER` | `0x26` | callee → sb | call id, accept \| reject \| busy, candidates | |
 | `GO` | `0x27` | sb → both | call id, role, delay, peer number, `call_token`, peer bundle, candidates | start punching ([PROTOCOL §4](PROTOCOL.md#4-nat-traversal)). The caller learns the callee's bundle here, so this is where pins are checked |
 | `REJECTED` | `0x28` | sb → caller | call id, reason | unknown number, not online, declined, busy, refused by policy, no answer |

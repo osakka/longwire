@@ -12,7 +12,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 | **M0** | First frame: handshake, sessions, switch, module, node script | built |
 | **M1** | Dial tone: switchboard, numbers, dial and ring, pins, NAT hole punching | built |
 | **M2** | Splice: one subnet over two LANs, site groups, cookies | built |
-| **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | planned |
+| **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | in progress: lines built; the rest planned |
 | **M4** | Desktop and distribution | planned |
 | **M5** | No privilege, more Unix | planned |
 | **M6** | Pocket: member mode, Android | planned |
@@ -21,10 +21,10 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 
 ## Built
 
-**M0, M1 and M2** are built with TCC (and only TCC) and tested by `make check`: the hybrid handshake with
+**M0, M1 and M2, and stage 1 of M3,** are built with TCC (and only TCC) and tested by `make check`: the hybrid handshake with
 cookies, sessions, the learning switch, the hibr module and both scripts; numbers, rings, pins and hole punching through
 a userspace NAT; splice carrying real ping, ARP, TCP and broadcasts between two LANs that are one subnet, and two boxes
-on one segment with a failover. The test suites are described in [ADR 0019](adr/0019-the-tests-build-their-own-network.md).
+on one segment with a failover, and a four-site line that builds its own mesh, evicts a member, and heals when one restarts. The test suites are described in [ADR 0019](adr/0019-the-tests-build-their-own-network.md).
 
 What is *not* verified by those tests, plainly:
 - **The jack port (a real tap) is untested.** The machine this was built on is an LXC container with no
@@ -38,16 +38,18 @@ What is *not* verified by those tests, plainly:
 
 ## Coming
 
-**M3: Party line.** Done when four sites, one behind carrier NAT on both ends, are all one L2 network, and a relayed
-pair upgrades to direct once a path exists.
-- Lines of more than two nodes: admits, `PEERS`, the automatic full mesh, eviction and line-key rotation, the `line`
-  answer policy, `longwire peers`, `who`, `answer` and `evict`, a site secret derived from the line key
+**M3: Party line** (in progress). Done when four sites, one behind carrier NAT on both ends, are all one L2 network, and a
+relayed pair upgrades to direct once a path exists.
+- *Built (stage 1):* lines of up to 16 nodes: joining by vouching, admits, the self-building mesh with no prompt, eviction
+  with line-key rotation, persistence and rejoining, `longwire peers` and `evict`, a site secret derived from the line key,
+  partial-mesh reporting ([ADR 0022](adr/0022-lines-form-by-vouching.md)). Tested with four spliced sites and no NAT.
 - Hard NATs: the `ECHO` exchange and NAT-type detection, port spray, relaying through a line member, path upgrades,
-  global IPv6 and NAT-PMP candidates
+  global IPv6 and NAT-PMP candidates. **A pair that cannot reach each other splits a line silently, so this is the
+  stage that makes lines work behind strict NATs.**
 - IPv6: the underlay, and neighbour-discovery suppression
 - Smaller things: a tie-break for a crossed rekey; a longer rekey for switchboard sessions; a per-source limit on
-  `HELLO`; a warning when two DHCP servers share a line; `LOOKUP`, dialing a full address, number release after a year
-  unused; `longwire key export` and `import`
+  `HELLO`; a warning when two DHCP servers share a line; `LOOKUP` and `longwire who`, dialing a full address, number
+  release after a year unused; `longwire key export` and `import`
 
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install longwire`,
 and then dial and pick up entirely from the hibr desktop.

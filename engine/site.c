@@ -65,8 +65,14 @@ int site_input(lw_node *n, const uint8_t *f, size_t len)
 	if (len != plen || (sync && f[19] > 64))
 		return 1;
 	crypto_blake2b_keyed(mac, 16, n->site_key, 32, f, plen - 16);
-	if (crypto_verify16(mac, f + plen - 16))
-		return 1;
+	if (crypto_verify16(mac, f + plen - 16)) {
+		/* a line key just rotated: boxes learn of it a moment apart, so the old secret still counts for a while */
+		if (n->site_key_prev_t <= 0 || n->now - n->site_key_prev_t > 30.0)
+			return 1;
+		crypto_blake2b_keyed(mac, 16, n->site_key_prev, 32, f, plen - 16);
+		if (crypto_verify16(mac, f + plen - 16))
+			return 1;
+	}
 	for (k = 0; k < 8; k++)
 		t = t << 8 | f[(sync ? 14 + 6 + 32 : 14 + 5 + 32) + k];
 	if ((int64_t)t - (int64_t)time(0) > 30 || (int64_t)time(0) - (int64_t)t > 30)
@@ -180,4 +186,29 @@ void site_timers(lw_node *n)
 		ev_emit(n, "{\"event\":\"site\",\"role\":\"active\",\"members\":%d}", site_members(n) + 1);
 	} else if (!was && n->standby)
 		ev_emit(n, "{\"event\":\"site\",\"role\":\"standby\",\"members\":%d}", site_members(n) + 1);
+}
+
+/* The site secret comes from the line key unless one was given with --site-key. A rotated key is kept as the previous
+ * one for a short grace window (see site_input). On a line the box listens first; off it there is no group. */
+void site_derive(lw_node *n)
+{
+	uint8_t k[32];
+
+	if (!n->splice || n->cfg.site_key_path[0])
+		return;
+	if (!n->line.have) {
+		n->have_site_key = 0;
+		n->standby = 0;
+		return;
+	}
+	crypto_blake2b_keyed(k, 32, n->line.key, 32, (const uint8_t *)"longwire site v1", 16);
+	if (!n->have_site_key) {
+		n->have_site_key = 1;
+		n->standby = 1;
+		n->site_since = n->now;
+	} else if (memcmp(k, n->site_key, 32)) {
+		memcpy(n->site_key_prev, n->site_key, 32);
+		n->site_key_prev_t = n->now;
+	}
+	memcpy(n->site_key, k, 32);
 }

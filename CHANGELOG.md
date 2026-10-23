@@ -3,6 +3,31 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3, stage 1: lines of more than two nodes
+
+- **Lines** ([ADR 0022](docs/adr/0022-lines-form-by-vouching.md)): up to 16 nodes on one L2 segment, joined by number.
+  A node joins by calling any member, which vouches for it with a signed (Ed25519) admit and hands it the line; the
+  newcomer then calls every other member, presenting the admit, and a member that holds a valid admit lets it through
+  without a prompt under every answer policy but `never`. The founder admits itself. An admit is valid if its signer is in
+  the *persisted* member list and it is newer than any eviction of that key.
+- **Eviction:** `longwire evict NUMBER` signs and sends an eviction, drops the member everywhere, rotates the line key and
+  bars the key from ringing back in. Lines persist (`~/.longwire/lines`, the key sealed under the seed), so a restarted member
+  rejoins on the admit it kept, with nobody asked. A node that finds itself on no complete mesh says so (`line-partial`).
+- **Behind it:** the single call became a call table (a line is many calls at once); a call that creates a mesh edge is
+  quiet when it fails and retried with a back-off; two members dialing each other at once are resolved by key id;
+  `DIAL` and `RING` carry the admit as an opaque blob, and `REJECTED` now names the number so a caller with several dials
+  open knows which one failed; the switchboard knows nothing of lines.
+- **The site secret** for two boxes on one segment is derived from the line key (a rotated key is accepted alongside the
+  old one for 30 seconds); `--site-key` still overrides it.
+- **New commands and verbs:** `peers`, `evict`, `pickup ID`, `reject ID`, `hangup NUMBER`; new events `line-joined`,
+  `member-joined`, `member-left`, `member-evicted`, `evicted`, `line-partial`, `line-complete`; `ring` gains `admit`.
+- **Also:** handshake ids are unique among a node's concurrent handshakes (a line starts many at once); a node holds 32
+  peers by default.
+- **Tests:** `tests/m3.sh` builds four LANs as one subnet, joined by number: the mesh builds with no prompt on any member,
+  all twelve host pairs ping, a broadcast reaches every site, a fourth site joins through a different member, a member is
+  evicted and cannot dial back in while the rest are untouched, a killed member restarts and the mesh heals from its
+  persisted state, and a member leaves.
+
 ## M2: splice, and the documentation made to match the code
 
 - **TCC only, no exceptions** ([ADR 0021](docs/adr/0021-tcc-is-the-compiler-without-exception.md)): the gcc option and the
