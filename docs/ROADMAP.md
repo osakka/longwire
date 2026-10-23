@@ -18,7 +18,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 | **M6** | Pocket: member mode, Android | planned |
 | **M7** | Speed | planned |
 | **M8** | 1.0: verification | planned |
-| **M9** | Operator grade: a switchboard that can run a service for others | proposed |
+| **M9** | Operator grade: replicas, federation, a switchboard that can run a service for others | proposed |
 
 ## Built
 
@@ -48,6 +48,14 @@ relayed pair upgrades to direct once a path exists.
   [ADR 0008](adr/0008-hard-nats-are-relayed-by-line-members.md)). Tested with two members behind symmetric NATs and a
   public third: frames cross the relay, then the NATs are loosened and the pair finds its own path.
 - Hard NATs, the rest: the `ECHO` exchange and NAT-type detection, port spray, global IPv6 and NAT-PMP candidates.
+- **The number format, before anything public exists** ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md),
+  proposed): a full number is a switchboard code and a local number (`+731042 312-884-076`), carried in the wire messages, the
+  pins, the saved line and the registry from the start. Once the default public switchboard issues a number the format is
+  frozen, so this is a gate on M4.
+- **Operator-managed lines** (last stage of M3, with its own ADR; amends [0022](adr/0022-lines-form-by-vouching.md)'s "no owner"):
+  a line may name an authority key whose signed admits and evictions every member accepts, so an operator rather than a
+  member decides who joins and can revoke centrally. Member vouching stays the default; the desktop pane needs to know which
+  kind of line it is looking at.
 - IPv6: the underlay, and neighbour-discovery suppression
 - Smaller things: a longer rekey for switchboard sessions; a warning when two DHCP servers share a line;  number
   release after a year unused; `longwire key export` and `import`
@@ -77,33 +85,39 @@ and then dial and pick up entirely from the hibr desktop.
   fetches and verifies the vendored sources; fuzzing of every parser with a harness built by TCC; timing tests;
   reproducible builds; an external review
 
-**M9: Operator grade** *(proposed: for review, not yet agreed)*. Done when a failover test passes: a standby takes over
+**M9: Operator grade** *(proposed, decisions below taken)*. Done when a failover test passes: a standby takes over
 from a killed primary under a load of 10,000 simulated nodes, every node is back within 30 seconds, no number or name is
 lost or issued twice, and the operator can see all of it on a dashboard without reading a log. M8 makes the product
 trustworthy; M9 makes the *switchboard* something a third party can run as a service. What is true today is the baseline:
 
-- *Today:* one process, one registry file, about a hundred million possible numbers (8 random digits and a check digit),
-  never released; 1,024 sessions by default; a status call and a script log for visibility; no failover; the switchboard's
-  address is pinned by every node, so its key cannot be changed without re-pointing them.
+- *Today:* one process, one registry file, about a hundred million possible local numbers, never released; 1,024 sessions by
+  default; a status call and a script log for visibility; no failover; the switchboard's address is pinned by every node,
+  so its key cannot be changed without re-pointing them.
+
+Two relationships are kept apart on purpose. **Replicas** are several processes that are *one* switchboard: one registry, one
+code, one writer at a time. **Federation peers** are separate switchboards, each with its own registry and its own code, that
+agree to connect calls between them. Redundancy comes first; federation builds on it.
+
+*Redundancy (first)*
+- A fixed, operator-configured set of two or three replicas, not general consensus. The registry and name bindings are
+  append-only logs, so replication is shipping them; one replica is the writer, elected among the set, and the others
+  serve existing numbers, lookups and rings from their copy.
+- The rule is stated once: **uniqueness is never traded for availability.** A replica that cannot reach a majority serves
+  what it has and refuses new registrations and name bindings until it can. Two replicas cannot form a majority alone, so
+  a set of two needs a tie-breaker the operator names; a set of three needs none.
+- A node takes a list of switchboard addresses (the replicas of one switchboard) and registers with the first that answers.
+- Rotating the switchboard's own key with an overlap period, announced to nodes inside the old session, so a pinned address
+  can change without a flag day.
+
+*Federation (second)*
+- A full number's code ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)) names a switchboard.
+  A registry of switchboards, joined by proving control of the switchboard's key, hands out short aliases for the derived
+  codes (the area and country codes of the comparison), and `+555` stays set aside for tests. Dialing a number on another
+  switchboard introduces the two nodes through the two switchboards; the data path is still direct, as it is today.
 
 *Number space and lifecycle* (builds on number release, M3)
 - Numbers released after a year unused, then held back for another year before reuse so a stale pin cannot meet a stranger;
-  a warning when the space is half used; an operator choice of a longer number format for a new deployment (a format
-  carried in the switchboard's address, so a node never guesses).
-- Names (ADR 0023) get the same life cycle as numbers.
-
-*Redundancy*
-- A node takes a list of switchboards and registers with the first that answers; the standby serves lookups and rings
-  from a copy of the registry. The registry and name bindings are append-only logs, so replication is shipping them.
-- One writer at a time. Issuing a number and binding a name are the only operations that need agreement, and the design
-  rule is that uniqueness is never traded for availability: during a partition the standby serves existing numbers and
-  refuses new registrations. Which of leader election or an operator-driven promotion is wanted is a decision for an ADR.
-- Rotating the switchboard's own key with an overlap period, announced to nodes inside the old session, so a pinned
-  address can change without a flag day.
-
-*Federation* (moved here from "Unscheduled")
-- `number@switchboard`: numbers are local to a switchboard, and a dial names another one. Lines already work across NATs
-  without the switchboard, so this adds lookup and introduction between two switchboards, not a new data path.
+  a warning when the space is half used. Names (ADR 0023) get the same life cycle.
 
 *Scale*
 - More than a thousand sessions per worker (tens of thousands): a smaller peer slot for a node that only registers, one
@@ -115,16 +129,14 @@ trustworthy; M9 makes the *switchboard* something a third party can run as a ser
   dropping sessions, backup and restore of the registry, and the abuse limits as operator settings.
 - The switchboard's key in a hardware module or the platform's key store, not a file.
 
-*Tenancy and control*
-- Several lines per node, so one gateway can serve more than one customer; an operator-signed admit as an alternative to
-  member vouching, so an operator, not a member, decides who may join a managed line and can revoke centrally.
-- Quotas per token (nodes, lines, lookups).
+*Tenancy*
+- Several lines per node, so one gateway can serve more than one customer; quotas per token (nodes, lines, lookups). (The
+  operator-signed admit is in M3.)
 
 *Assurance* (with M8)
 - Signed releases and an SBOM, a published data-retention statement, a penetration test of the switchboard, and a runbook.
 
-Open questions for review: whether federation or redundancy comes first; leader election or manual promotion; whether
-an operator-signed admit belongs here or earlier; and the number format. None of these is decided.
+Still open: how the registry of switchboard codes is governed and by whom, and who runs the tie-breaker for a set of two.
 
 ## Unscheduled
 
