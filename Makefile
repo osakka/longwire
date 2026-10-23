@@ -20,6 +20,7 @@ $(B):
 check: all
 	sh tests/m0.sh
 	sh tests/m1.sh
+	sh tests/m2.sh
 
 clean:
 	rm -rf $(B)

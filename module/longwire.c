@@ -159,7 +159,12 @@ static int do_start(sh *s, int ac, char **av, int role)
 		if (!strcmp(a, "--jack") && !role) {
 			snprintf(c->port_kind, sizeof c->port_kind, "jack");
 			snprintf(c->port_arg, sizeof c->port_arg, "%s", v);
-		} else if (!strcmp(a, "--sock-port") && !role) {
+		} else if (!strcmp(a, "--splice") && !role) {
+			snprintf(c->port_kind, sizeof c->port_kind, "splice");
+			snprintf(c->port_arg, sizeof c->port_arg, "%s", v);
+		} else if (!strcmp(a, "--site-key") && !role)
+			snprintf(c->site_key_path, sizeof c->site_key_path, "%s", v);
+		else if (!strcmp(a, "--sock-port") && !role) {
 			snprintf(c->port_kind, sizeof c->port_kind, "sock");
 			snprintf(c->port_arg, sizeof c->port_arg, "%s", v);
 		} else if (!strcmp(a, "--listen"))
@@ -202,7 +207,7 @@ static int do_start(sh *s, int ac, char **av, int role)
 		}
 	}
 	if (!c->port_kind[0]) {
-		hibr_fail(s, "lw start: need --jack TAPNAME (or --sock-port LOCAL:PEER for tests)");
+		hibr_fail(s, "lw start: need --splice NIC, --jack TAPNAME (or --sock-port LOCAL:PEER for tests)");
 		goto out;
 	}
 	{

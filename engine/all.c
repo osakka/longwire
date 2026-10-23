@@ -5,6 +5,7 @@
 #include "hs.c"
 #include "sess.c"
 #include "sw.c"
+#include "site.c"
 #include "port.c"
 #include "caps.c"
 #include "ctl.c"

@@ -158,6 +158,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 		goto fail;
 	if (n->role ? board_open(n, err, errn) : node_init(n, err, errn))
 		goto fail;
+	site_init(n);
 	return n;
 fail:
 	lw_node_release(n);
@@ -207,6 +208,7 @@ int lw_node_serve(lw_node *n)
 {
 	struct pollfd pf[3];
 	uint8_t buf[2048];
+	static uint8_t big[65600];		/* a NIC may hand us a 64 KB coalesced frame */
 	struct sockaddr_storage ss;
 	socklen_t sl;
 	ssize_t r;
@@ -247,10 +249,16 @@ int lw_node_serve(lw_node *n)
 			}
 		if (pf[1].revents & POLLIN)
 			for (i = 0; i < 256; i++) {
-				r = port_read(n, buf, sizeof buf);
+				r = port_read(n, big, sizeof big);
 				if (r < 1)
 					break;
-				sw_from_local(n, buf, (size_t)r);
+				if (r > FRAME_MAX) {		/* a coalesced frame from a NIC: cut it down to size */
+					if (resegment(n, big, (size_t)r))
+						n->resegmented++;
+					else
+						n->drop_oversize++;
+				} else
+					sw_from_local(n, big, (size_t)r);
 			}
 		if (pf[2].revents & POLLIN)
 			ctl_accept(n);
@@ -259,6 +267,7 @@ int lw_node_serve(lw_node *n)
 			board_timers(n);
 		else
 			node_timers(n);
+		site_timers(n);
 		ctl_subs_reap(n);
 	}
 	ctl_close(n);

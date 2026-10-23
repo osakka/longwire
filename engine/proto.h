@@ -9,6 +9,7 @@
 #define T_COOKIE 0x03
 #define T_PUNCH 0x06
 #define T_HELLO 0x08
+#define K_FRAG  0x01		/* a frame too big for one datagram: id(2) part(1) total(2) bytes */
 #define K_CTL   0x10
 
 /* CTL messages between peers (inside a session) */

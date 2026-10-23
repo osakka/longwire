@@ -21,6 +21,10 @@
 #define WIN_WORDS 64			/* 4096-packet replay window */
 #define MAC_SLOTS 8192
 #define FRAME_MAX 1514
+#define FRAME_SINGLE 1432		/* a frame up to this size travels in one datagram, larger ones in two: 1432 + 29 + 28 = 1489 fits PPPoE */
+#define LINE_MSS4 1340			/* TCP MSS on the line: a segment with 12 bytes of options is a 1406-byte frame, under FRAME_SINGLE */
+#define LINE_MSS6 1320
+#define SITE_MEMBERS 4
 #define MAXSUBS 4
 #define OFFERS 16
 
@@ -46,6 +50,10 @@ typedef struct lw_hsi {			/* initiator's pending handshake */
 	int      tries;
 } lw_hsi;
 
+typedef struct frag {		/* frames being put back together, per peer */
+	struct { int used; uint16_t id; int total, got; double t; uint8_t buf[FRAME_MAX]; } s[4];
+} frag;
+
 typedef struct lw_peer {
 	int      used;
 	int      have_bundle;		/* a peer known only by key id (the switchboard) has none yet */
@@ -59,6 +67,8 @@ typedef struct lw_peer {
 	lw_sess  cur, prev, next;
 	lw_hsi   hs;
 	uint8_t  last_tai[12];
+	frag    *fr;			/* allocated on the first split frame */
+	double   bc_tok, bc_t;		/* flood budget for frames we send this peer */
 	uint8_t  cookie[16];		/* what the responder gave us when it was under load */
 	double   cookie_t;
 	double   last_tx, last_rx, last_hs_try, hello_next, touched;
@@ -138,6 +148,18 @@ struct lw_node {
 	pin     *pins;
 	int      npins, cappins;
 	uint16_t udp_port;
+	/* M2: the switch's extras and the site group */
+	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize;
+	uint16_t frag_id;
+	struct { uint32_t ip; uint8_t mac[6]; double t; } arp[256];
+	int      splice;			/* the local port is a NIC on a LAN segment */
+	uint8_t  nic_mac[6];
+	uint8_t  site_key[32];
+	int      have_site_key, standby, gratuitous;
+	struct { uint8_t key_id[32]; double seen; int used; } site[SITE_MEMBERS];
+	double   site_probe_t, site_since, site_sync_t, site_sync_sent;
+	uint8_t  site_sync[64][6];	/* remote hosts the active box knows, so a standby can announce them when it takes over */
+	int      site_sync_n;
 	/* events and control */
 	int      subs[MAXSUBS];
 	struct board *bd;
@@ -187,10 +209,23 @@ lw_peer *peer_for_unknown(lw_node *n, const uint8_t key_id[32]);	/* switchboard:
 void peer_drop(lw_node *n, lw_peer *p);
 int  ctl_msg_send(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *payload, size_t len);
 
+/* site.c: boxes sharing one LAN segment elect one to forward */
+void site_init(lw_node *n);
+void site_timers(lw_node *n);
+int  site_input(lw_node *n, const uint8_t *f, size_t len);	/* 1 = a probe, consumed */
+const char *site_role(const lw_node *n);
+int  site_members(const lw_node *n);
+
 /* sw.c */
 void sw_from_local(lw_node *n, const uint8_t *f, size_t len);
 void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len);
 int  sw_count(const lw_node *n);
+int  resegment(lw_node *n, const uint8_t *frame, size_t len);
+void l4_csum_fix(uint8_t *f, size_t len);
+unsigned lw_sum16(const uint8_t *p, size_t n, unsigned sum);
+int  sw_remote_macs(lw_node *n, uint8_t out[][6], int max);	/* MACs learned behind peers */
+void sw_gratuitous(lw_node *n);
+void sw_fragment(lw_node *n, int pi, const uint8_t *body, size_t len);
 
 /* port.c */
 int  port_open(lw_node *n, char *err, size_t errn);

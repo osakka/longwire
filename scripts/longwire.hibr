@@ -24,7 +24,7 @@ usage() {
 usage: longwire <command>
 
   up [--switchboard HOST:PORT/KEY] [--answer ask|known|auto|never] [--token T]
-     [--jack TAP | --sock-port LOCAL:PEER] [--listen [ADDR:]PORT]
+     [--splice NIC [--site-key FILE] | --jack TAP | --sock-port LOCAL:PEER] [--listen [ADDR:]PORT]
      [--peer BUNDLEFILE[@HOST:PORT]]...      run this node (foreground: a service or hold runs this)
   dial NUMBER                                 call a number
   pickup | reject                             answer the ringing call
@@ -32,6 +32,7 @@ usage: longwire <command>
   unpin NUMBER                                forget a number's key: the next call from it is a first call again
   status                                      what the node is doing (JSON)
   down                                        stop the node
+  setup splice NIC | setup jack [TAP]         print the one-time privileged step for that attach mode
   id | address | bundle                       your key id, full address (lw1...), public bundle
 
 --answer: ask (default) rings and waits for 'longwire pickup'; known picks up numbers
@@ -91,6 +92,40 @@ cmd_up() {
 	done
 }
 
+# The one privileged step each attach mode needs, printed for you to run (or install). The node never asks for root.
+cmd_setup() {
+	case ${1:-} in
+	splice)
+		[ -n "${2:-}" ] || { echo "usage: longwire setup splice NIC" >&2; exit 2; }
+		cat <<EOF
+# /etc/systemd/system/longwire.service — splice $2: the one privileged step, done once
+[Unit]
+Description=longwire site node (splice on $2)
+After=network-online.target
+
+[Service]
+User=$(id -un)
+# CAP_NET_RAW opens the packet socket. 'lw start' clears every capability the moment it is open.
+AmbientCapabilities=CAP_NET_RAW
+ExecStart=/usr/bin/longwire up --splice $2
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+		;;
+	jack)
+		cat <<EOF
+# once, as root: a tap device you own, then the node runs as you with no privilege at all
+ip tuntap add dev ${2:-lw0} mode tap user $(id -un)
+ip link set ${2:-lw0} mtu 1400 up
+# then: longwire up --jack ${2:-lw0} ...
+EOF
+		;;
+	*) echo "usage: longwire setup splice NIC | setup jack [TAP]" >&2; exit 2 ;;
+	esac
+}
+
 mkdir -p "$LW_DIR" && chmod 700 "$LW_DIR"
 
 cmd=${1:-}
@@ -105,6 +140,7 @@ hangup)  run lw hangup ;;
 unpin)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw unpin "$1" ;;
 status)  run lw status ;;
 down)    run lw stop ;;
+setup)   cmd_setup "$@" ;;
 id)      run lw key new "$LW_SEED" > /dev/null; run lw key id "$LW_SEED" ;;
 address) run lw key new "$LW_SEED" > /dev/null; run lw key address "$LW_SEED" ;;
 bundle)  run lw key new "$LW_SEED" > /dev/null; run lw key bundle "$LW_SEED" ;;

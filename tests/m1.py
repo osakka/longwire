@@ -9,51 +9,15 @@
 # The NAT is a userspace router (below) on raw packet sockets: port-restricted
 # cone ("cone") or symmetric ("sym"), so a direct path exists only if the hole
 # punching really works. Run via tests/m1.sh, which wraps this in `unshare -Urn`.
-import json, os, random, shlex, shutil, socket, struct, subprocess, sys, tempfile, threading, time
+import json, os, random, socket, struct, subprocess, sys, threading, time
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HIBR = os.environ.get("HIBR", ROOT + "/../hibr/build/hibr")
-MOD = ROOT + "/build/longwire.so"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import lwtest as L
+from lwtest import ROOT, HIBR, MOD, T, check, sh, nsh, mac_of, mkns, Watcher, Node
+
 MODE = sys.argv[1] if len(sys.argv) > 1 else "cone"
-T = tempfile.mkdtemp(prefix="lwm1.")
-fails = []
-procs = []
-
-def check(ok, what):
-    print(("ok   " if ok else "FAIL ") + what, flush=True)
-    if not ok:
-        fails.append(what)
-
-def sh(cmd):
-    subprocess.run(shlex.split(cmd), check=True)
 
 # ---------------------------------------------------------------- the network
-def mkns():
-    p = subprocess.Popen(["unshare", "-n", "sleep", "1000"])
-    procs.append(p)
-    mine = os.readlink("/proc/self/ns/net")
-    for _ in range(200):
-        try:
-            if os.readlink(f"/proc/{p.pid}/ns/net") != mine:
-                return p
-        except OSError:
-            pass
-        time.sleep(0.05)
-    raise SystemExit("could not create a network namespace")
-
-def nsh(ns, cmd, out=False):
-    r = subprocess.run(["nsenter", "-t", str(ns.pid), "-n"] + shlex.split(cmd), check=True,
-                       capture_output=out, text=True)
-    return r.stdout.strip() if out else None
-
-def mac_of(ifname, ns=None):
-    # /sys shows the namespace it was mounted in, so ask `ip` (in the right namespace)
-    cmd = ["ip", "-o", "link", "show", "dev", ifname]
-    if ns is not None:
-        cmd = ["nsenter", "-t", str(ns.pid), "-n"] + cmd
-    out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
-    return out.split("link/ether")[1].split()[0]
-
 def aton(ip): return socket.inet_aton(ip)
 def mac_b(m): return bytes.fromhex(m.replace(":", ""))
 
@@ -139,71 +103,7 @@ class Router(threading.Thread):
                 self.route(sip, sport, dip, dport, payload)
 
 # ---------------------------------------------------------------- the nodes
-class Watcher(threading.Thread):
-    def __init__(self, sockpath):
-        super().__init__(daemon=True)
-        self.events, self.cv, self.path = [], threading.Condition(), sockpath
-        self.start()
-    def run(self):
-        for _ in range(100):
-            try:
-                s = socket.socket(socket.AF_UNIX); s.connect(self.path); break
-            except OSError:
-                time.sleep(0.1)
-        else:
-            return
-        s.sendall(b"watch\n")
-        buf = b""
-        while True:
-            try: d = s.recv(4096)
-            except OSError: return
-            if not d: return
-            buf += d
-            while b"\n" in buf:
-                line, buf = buf.split(b"\n", 1)
-                try: ev = json.loads(line)
-                except ValueError: continue
-                with self.cv:
-                    self.events.append(ev); self.cv.notify_all()
-    def wait(self, name, timeout=15, pred=lambda e: True, after=0):
-        end = time.time() + timeout
-        with self.cv:
-            while True:
-                for i, e in enumerate(self.events[after:], after):
-                    if e.get("event") == name and pred(e):
-                        return e
-                left = end - time.time()
-                if left <= 0: return None
-                self.cv.wait(left)
-    def mark(self):
-        with self.cv: return len(self.events)
-
-class Node:
-    def __init__(self, name, ns, script, args, extra_env=None):
-        self.name, self.script = name, script
-        self.home = f"{T}/{name}"
-        os.makedirs(self.home, exist_ok=True)
-        self.env = dict(os.environ, HOME=self.home, LONGWIRE_MOD=MOD, LW_DIR=self.home + "/lw", SB_DIR=self.home + "/sb")
-        self.env.update(extra_env or {})
-        self.sock = self.env["SB_DIR" if "switchboard" in script else "LW_DIR"] + "/ctl"
-        self.env["LW_SOCK"] = self.sock
-        self.log = open(f"{T}/{name}.log", "w")
-        self.proc = subprocess.Popen(["nsenter", "-t", str(ns.pid), "-n", HIBR, ROOT + "/scripts/" + script] + args,
-                                     env=self.env, stdout=self.log, stderr=subprocess.STDOUT)
-        procs.append(self.proc)
-        self.w = Watcher(self.sock)
-    def cmd(self, *a):
-        r = subprocess.run([HIBR, ROOT + "/scripts/longwire.hibr", *a], env=self.env, capture_output=True, text=True)
-        return r.returncode, (r.stdout + r.stderr).strip()
-    def status(self):
-        s = socket.socket(socket.AF_UNIX); s.settimeout(3); s.connect(self.sock); s.sendall(b"status\n")
-        d = b""
-        while True:
-            c = s.recv(65536)
-            if not c: break
-            d += c
-        return json.loads(d)
-
+# ---------------------------------------------------------------- the nodes
 class Collector(threading.Thread):
     def __init__(self, path):
         super().__init__(daemon=True)
@@ -420,7 +320,7 @@ def main():
     refused = [e for e in C.w.events if e.get("event") == "register-refused"]
     crk = C.status()["sb_rekeys"]
     check(0 < len(refused) <= crk + 1, f"a refused node asks once per session, not every 2 s: {len(refused)} refusals over {crk + 1} sessions")
-    if fails:
+    if L.fails:
         for n in (A, B, D, E):
             print("   events seen by the test on", n.name, [e.get("event") for e in n.w.events])
     # --- shut down; the scripts told the story ------------------------------------
@@ -472,11 +372,9 @@ def main_sym():
 
 try:
     (main_sym if MODE == "sym" else main)()
+except Exception:
+    import traceback
+    traceback.print_exc()
+    L.fails.append("the test itself raised an exception")
 finally:
-    for p in procs:
-        try: p.kill()
-        except Exception: pass
-    time.sleep(0.2)
-    shutil.rmtree(T, ignore_errors=True)
-print("\nFAILED: " + "; ".join(fails) if fails else "\nall M1 checks passed (" + MODE + ")")
-sys.exit(1 if fails else 0)
+    L.finish("M1 (" + MODE + ")")

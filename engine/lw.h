@@ -34,8 +34,8 @@ typedef struct lw_cfg {
 	char seed_path[256];
 	char ctl_path[256];
 	char log_path[256];
-	char port_kind[16];		/* "jack" | "sock" */
-	char port_arg[256];		/* tap name | "mypath:peerpath" */
+	char port_kind[16];		/* "splice" | "jack" | "sock" | "none" */
+	char port_arg[256];		/* NIC name | tap name | "mypath:peerpath" */
 	char listen[64];		/* "port" or "addr:port" */
 	int  rekey_after;		/* seconds, default 120 */
 	int  keepalive;			/* seconds, default 25 */
@@ -50,6 +50,7 @@ typedef struct lw_cfg {
 	int  policy_script;		/* switchboard: wait for the script's verdicts */
 	int  maxpeers;			/* default 16 (switchboard: 1024) */
 	char token[64];			/* presented when registering */
+	char site_key_path[256];	/* splice: shared secret of the boxes on one LAN segment (hex), enables site groups */
 } lw_cfg;
 
 typedef struct lw_node lw_node;

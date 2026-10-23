@@ -2,6 +2,7 @@
  * Sessions: transport keys, data packets, replay window, rekey, keepalive
  * (docs/PROTOCOL.md §2-3). */
 #define _GNU_SOURCE
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include "int.h"
@@ -208,6 +209,8 @@ void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 			else
 				node_msg(n, p, plain[1], plain + 4, l);
 		}
+	} else if (plain[0] == K_FRAG && !p->is_sb) {
+		sw_fragment(n, (int)(p - n->peers), plain + 1, pl - 1);
 	} else if (plain[0] == K_FRAME && !p->is_sb) {
 		p->rx_frames++;
 		p->rx_bytes += pl - 1;
@@ -339,6 +342,8 @@ static lw_peer *peer_slot(lw_node *n)
 void peer_drop(lw_node *n, lw_peer *p)
 {
 	int idx = (int)(p - n->peers), i;
+
+	free(p->fr);
 
 	for (i = 0; i < MAC_SLOTS; i++)		/* whatever was learned behind this peer is no longer reachable */
 		if (n->macs[i].port == idx)
