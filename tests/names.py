@@ -61,13 +61,12 @@ def main():
     # --- full numbers: a switchboard's code, then the local number (ADR 0024) ----------------
     import re
     full = {k: n.status()["full"] for k, n in zip("ABCDE", (A, B, C, D, E))}
-    pat = re.compile(r"^\+(\d{6}) (\d{3}-\d{3}-\d{3})$")
+    pat = re.compile(r"^\+(0\d{6}) (\d{3}-\d{3}-\d{3})$")
     m_ = {k: pat.match(v) for k, v in full.items()}
     check(all(m_.values()) and all(m_[k].group(2) == num[k] for k in "ABCDE"), f"every node knows its full number: {full['A']}")
     check(m_["A"].group(1) == m_["B"].group(1) == m_["C"].group(1) and m_["D"].group(1) == m_["E"].group(1) != m_["A"].group(1),
           "nodes on one switchboard share its code; the other switchboard has a different one")
-    check(not m_["A"].group(1).startswith("0"), "a derived code never starts with 0, so short registry codes can never equal one")
-
+    check(all(m_[k].group(1).startswith("0") for k in "ABCDE"), "a derived code starts with 0, which no assigned code ever does")
     # --- caller ID -----------------------------------------------------------------
     mk = B.w.mark()
     A.cmd("dial", num["B"])
@@ -76,6 +75,12 @@ def main():
     check(ring is not None and ring["from"] == num["A"], "...next to the number, which is what identifies the caller")
     B.cmd("pickup")
     check(B.w.wait("connected", 20, after=mk) is not None, "the call connects")
+    code_a = m_["A"].group(1)
+    rc, out = B.cmd("who", "+" + code_a + num["A"].replace("-", ""))
+    check(rc == 0 and json.loads(out)["number"] == num["A"], "the separators are optional: the plan is prefix-free, so the digits alone are unambiguous")
+    rc, out = B.cmd("who", "+" + code_a[:-1] + num["A"].replace("-", ""))
+    check(rc != 0 and "another switchboard" in out, "a code with a digit missing is refused, not read as a different split")
+
     rc, out = B.cmd("who", full["A"])
     check(rc == 0 and json.loads(out)["number"] == num["A"], "who takes a full number as well as a local one")
     rc, out = B.cmd("who", "+" + m_["D"].group(1) + " " + num["D"])

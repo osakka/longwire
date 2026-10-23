@@ -49,10 +49,10 @@ relayed pair upgrades to direct once a path exists.
   public third: frames cross the relay, then the NATs are loosened and the pair finds its own path.
 - Hard NATs, the rest: the `ECHO` exchange and NAT-type detection, port spray, global IPv6 and NAT-PMP candidates.
 - **The number format, before anything public exists** ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)):
-  a full number is a switchboard code and a local number (`+731042 312-884-076`). *Built:* the derived six-digit code, full
+  a full number is a switchboard code and a local number (`+0731042 312-884-076`). *Built:* the derived code (a `0` and six digits), full
   numbers shown and typed everywhere, pins and line members that name their switchboard by key. *Still to build:* the
   registry that assigns short codes (a switchboard registers with it as a node registers with a switchboard, so
-  `longwire-switchboard` gains `--registry HOST:PORT/KEY`, or `none` for a private one), and reserved codes. Once the default
+  `longwire-switchboard` gains `--registry HOST:PORT/KEY`, or `none` for a private one), and the prefix-free allocation rule (shortest first, half of the free prefixes at each length). Once the default
   public switchboard issues a number the format is frozen, so this is a gate on M4. The registry is a second thing hosted on
   the project's domain, with the default public switchboard.
 - **Operator-managed lines** (last stage of M3, with its own ADR; amends [0022](adr/0022-lines-form-by-vouching.md)'s "no owner"):

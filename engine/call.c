@@ -87,20 +87,20 @@ void home_kid(const lw_node *n, uint8_t out[32])
 		lw_address_parse(slash + 1, out);
 }
 
-void sb_code(const uint8_t kid[32], char out[8])
+void sb_code(const uint8_t kid[32], char out[9])
 {
 	uint8_t h[32];
 	uint32_t v;
 
 	lw_h2(h, "sbcode--", 8, kid, 32);
 	v = (uint32_t)h[0] | (uint32_t)h[1] << 8 | (uint32_t)h[2] << 16 | (uint32_t)h[3] << 24;
-	snprintf(out, 8, "%06u", 100000u + v % 900000u);
+	snprintf(out, 8, "0%06u", v % 1000000u);	/* a leading 0 is a derived code: no assigned code ever begins with 0 */
 }
 
 void full_number(const lw_node *n, const char *local, char *out, size_t cap)
 {
 	uint8_t k[32];
-	char code[8], f[16];
+	char code[9], f[16];
 
 	home_kid(n, k);
 	fmt_number(f, local);
@@ -111,30 +111,37 @@ void full_number(const lw_node *n, const char *local, char *out, size_t cap)
 		snprintf(out, cap, "%s", f);
 }
 
-/* A number as a person types it: the local part alone (our own switchboard's), or "+CODE local". */
+/* A number as a person types it: the local part alone (our own switchboard's), or "+CODE local". Codes form a
+ * prefix-free plan (ADR 0024), so the separator is optional: our own code is matched as a prefix of the digits. */
 int parse_full(const lw_node *n, const char *in, char out[NUMLEN + 1], char *err, size_t errn)
 {
 	while (*in == ' ')
 		in++;
 	if (*in == '+') {
-		char code[8], mine[8];
+		char mine[9], d[24];
 		uint8_t k[32];
-		int d = 0;
+		size_t l = 0, ml;
 
-		in++;
-		while (*in >= '0' && *in <= '9' && d < 7)
-			code[d++] = *in++;
-		code[d] = 0;
-		if (d < 1 || d > 6) {
-			snprintf(err, errn, "not a valid number: a code is 1 to 6 digits");
-			return -1;
-		}
+		for (in++; *in && l < sizeof d - 1; in++)
+			if (*in >= '0' && *in <= '9')
+				d[l++] = *in;
+			else if (*in != ' ' && *in != '-') {
+				snprintf(err, errn, "not a valid number: a full number is + code, then 9 digits");
+				return -1;
+			}
+		d[l] = 0;
 		home_kid(n, k);
 		sb_code(k, mine);
-		if (!n->cfg.switchboard[0] || strcmp(code, mine)) {
-			snprintf(err, errn, "that number is on another switchboard (+%s); calling across switchboards is planned (M9)", code);
+		ml = strlen(mine);
+		if (!n->cfg.switchboard[0] || l < ml || strncmp(d, mine, ml)) {
+			snprintf(err, errn, "that number is on another switchboard, or its code is mistyped (yours is +%s); calling across switchboards is planned (M9)", mine);
 			return -1;
 		}
+		if (parse_number(d + ml, out)) {
+			snprintf(err, errn, "not a valid number (9 digits with a check digit)");
+			return -1;
+		}
+		return 0;
 	}
 	if (parse_number(in, out)) {
 		snprintf(err, errn, "not a valid number (9 digits with a check digit)");

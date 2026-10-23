@@ -370,7 +370,7 @@ int  node_replay(lw_node *n, char *o, size_t cap);	/* what a new event subscribe
 int  node_init(lw_node *n, char *err, size_t errn);
 void fmt_number(char out[16], const char *num9);
 void home_kid(const lw_node *n, uint8_t out[32]);			/* key id of this node's switchboard (zeros if none) */
-void sb_code(const uint8_t kid[32], char out[8]);			/* the 6-digit code every switchboard has, derived from its key */
+void sb_code(const uint8_t kid[32], char out[9]);			/* the derived code, 0 and six digits: every switchboard has, derived from its key */
 void full_number(const lw_node *n, const char *local, char *out, size_t cap);	/* "+731042 312-884-076" */
 int  parse_full(const lw_node *n, const char *in, char out[NUMLEN + 1], char *err, size_t errn);	/* local, or code + local */
 int  parse_number(const char *in, char out[NUMLEN + 1]);	/* 0 = ok, check digit verified */
