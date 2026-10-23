@@ -23,15 +23,16 @@ usage() {
 	cat <<EOF
 usage: longwire <command>
 
-  up [--switchboard HOST:PORT/KEY] [--answer ask|known|auto|never] [--token T]
+  up [--switchboard HOST:PORT/KEY] [--answer ask|known|auto|never] [--token T] [--name TEXT] [--listed]
      [--splice NIC [--site-key FILE] | --jack TAP | --sock-port LOCAL:PEER] [--listen [ADDR:]PORT]
      [--peer BUNDLEFILE[@HOST:PORT]]...      run this node (foreground: a service or hold runs this)
-  dial NUMBER                                 call a number
+  dial NUMBER|lw1...                          call a number, or a full address (needs the switchboard's directory)
   pickup [ID] | reject [ID]                   answer the ringing call (ID, from the ring, if several ring)
   hangup [NUMBER]                             end every call and leave the line; or just the call with NUMBER
   peers                                       the line: its members and which of them are connected
   evict NUMBER                                remove a member from the line for good, and change its key
   who NUMBER                                  what this node knows of a number: its full address, pin, path and safety phrase
+  who NAME|lw1...                             ask the switchboard's directory (if it has one) for listed nodes by name or full address
   unpin NUMBER                                forget a number's key: the next call from it is a first call again
   status                                      what the node is doing (JSON)
   down                                        stop the node
@@ -54,9 +55,12 @@ announce() {
 	registered)       say "☎  your number ${e[number]} — dial tone" ;;
 	register-refused) say "✗  the switchboard refused to register you: ${e[reason]}" ;;
 	ring)             if [ "${e[admit]}" = true ]; then say "☎  ${e[from]} is joining the line (vouched for by a member)"
-	                  else say "☎  ${e[from]} is calling"
+	                  else
+	                       if [ -n "${e[name]}" ]; then say "☎  ${e[from]} is calling, and says it is \"${e[name]}\" (a claim: only the safety phrase proves anything)"
+	                       else say "☎  ${e[from]} is calling"; fi
 	                       say "   safety phrase: ${e[phrase]}"
 	                       [ "${e[known]}" = true ] || say "   first call from this number"; fi ;;
+	found)            [ "${e[directory]}" = true ] || say "·  this switchboard has no directory" ;;
 	line-joined)      say "·  on line ${e[line]} with ${e[members]} members" ;;
 	member-joined)    say "·  ${e[number]} joined the line" ;;
 	member-left)      say "·  ${e[number]} left the line" ;;
@@ -124,6 +128,24 @@ cmd_up() {
 	done
 }
 
+# Ask the switchboard's directory for a name or a full address, and print its answer (JSON). The answer arrives as an
+# event, so listen first and ask second.
+cmd_find() {
+	local i rc
+	exec 5</dev/longwire/events || exit 1
+	run lw lookup "$1" > /dev/null
+	for i in 1 2 3 4 5 6 7 8; do
+		read -r -t 1 -u 5 line
+		rc=$?
+		[ $rc -eq 142 ] && continue
+		[ $rc -ne 0 ] && break
+		json parse e "$line"
+		[ "${e[event]}" = found ] && { echo "$line"; return 0; }
+	done
+	echo "longwire: the directory did not answer" >&2
+	exit 1
+}
+
 # The one privileged step each attach mode needs, printed for you to run (or install). The node never asks for root.
 cmd_setup() {
 	case ${1:-} in
@@ -173,7 +195,11 @@ reject)  run lw reject "$@" ;;
 hangup)  run lw hangup "$@" ;;
 evict)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw evict "$1" ;;
 peers)   run lw peers ;;
-who)     [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw who "$1" ;;
+who)     [ $# -eq 1 ] || { usage >&2; exit 2; }
+         case $1 in
+         [0-9][0-9][0-9]-[0-9][0-9][0-9]-[0-9][0-9][0-9]|[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) run lw who "$1" ;;
+         *) cmd_find "$1" ;;
+         esac ;;
 unpin)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw unpin "$1" ;;
 status)  run lw status ;;
 down)    run lw stop ;;

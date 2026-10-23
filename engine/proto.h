@@ -33,6 +33,8 @@
 #define M_ANSWER   0x26		/* call_id(8) verdict(1) ncand cands */
 #define M_GO       0x27		/* call_id(8) role(1) delay_ms(2) number(9) token(32) bundle ncand cands */
 #define M_REJECTED 0x28		/* call_id(8) reason(1) */
+#define M_LOOKUP   0x29		/* kind(1: 0 key id, 1 name) query */
+#define M_FOUND    0x2a		/* status(1: 0 ok, 1 no directory) kind(1) query_len(1) query n(1) n x (number(9) key_id(32) namelen(1) name) */
 #define M_REFUSED  0x2f		/* reason string */
 
 #define V_ACCEPT 0
@@ -50,6 +52,12 @@
 #define CAND_REFL 2
 #define MAXCANDS 8
 #define NUMLEN 9
+#define TAG_ADMIT  1		/* optional parts of DIAL, RING and REGISTER: tag(1) len(1) bytes */
+#define TAG_NAME   2
+#define TAG_LISTED 3
+#define LW_NAME_MAX   32
+#define CAPS_CALLERID 1		/* NUMBER's flags: what this switchboard offers */
+#define CAPS_DIRECTORY 2
 #define ADMIT_LEN 145		/* line_id 8, key_id 32, role 1, admitted_by 32, time 8, sig 64 */
 #define LINE_MAX 16
 #define MEMBER_LEN 74		/* number 9, key_id 32, ed_pub 32, role 1 */

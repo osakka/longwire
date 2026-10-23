@@ -37,7 +37,7 @@ connected, the switchboard can go away and the call stays up.
   up on every node that pinned the old key as `key-changed`, and the call would be refused.
 - **The full number** (`lw1…`, 55 characters) is the key id in base32. A switchboard is given by it
   (`--switchboard host:port/lw1…`; 64 hex digits also work). Dialing a full address instead of a number
-  *(planned: M3)*.
+  works when the switchboard has a directory and the node is listed in it ([ADR 0023](adr/0023-names-are-opt-in-claims.md)).
 
 ## Talking to the switchboard
 
@@ -50,15 +50,17 @@ before the handshake. Messages are `CTL` messages inside that session:
 
 | msg | id | Direction | Body | Meaning |
 |---|---|---|---|---|
-| `REGISTER` | `0x20` | node → sb | token | → `NUMBER` or `REFUSED`. The node's bundle is already known from its session |
-| `NUMBER` | `0x21` | sb → node | number(9), observed address | the node's number, and the address the switchboard saw it at (its reflexive candidate) |
+| `REGISTER` | `0x20` | node → sb | token, then optional parts: name, listed | → `NUMBER` or `REFUSED`. The node's bundle is already known from its session |
+| `NUMBER` | `0x21` | sb → node | number(9), observed address, flags (caller ID offered, directory offered) | the node's number, and the address the switchboard saw it at (its reflexive candidate) |
 | `HEARTBEAT` | `0x22` | node → sb | candidates | every `--keepalive` s (default 25), which also holds the NAT mapping open → `HBACK` |
 | `HBACK` | `0x23` | sb → node | observed address | refreshes the reflexive candidate |
-| `DIAL` | `0x24` | caller → sb | number, caller candidates, admit | the switchboard rings the callee, or answers `REJECTED`. The admit is an optional trailing blob (length byte, then 0 or 145 bytes) that the switchboard passes on untouched |
-| `RING` | `0x25` | sb → callee | call id, caller number, caller bundle, candidates, admit | the phone rings. The switchboard never reads the admit and does not know lines |
+| `DIAL` | `0x24` | caller → sb | number, caller candidates, optional parts (admit) | the switchboard rings the callee, or answers `REJECTED`. The admit is an optional trailing blob (length byte, then 0 or 145 bytes) that the switchboard passes on untouched |
+| `RING` | `0x25` | sb → callee | call id, caller number, caller bundle, candidates, optional parts (admit, caller name) | the phone rings. The switchboard never reads the admit and does not know lines |
 | `ANSWER` | `0x26` | callee → sb | call id, accept \| reject \| busy, candidates | |
 | `GO` | `0x27` | sb → both | call id, role, delay, peer number, `call_token`, peer bundle, candidates | start punching ([PROTOCOL §4](PROTOCOL.md#4-nat-traversal)). The caller learns the callee's bundle here, so this is where pins are checked |
 | `REJECTED` | `0x28` | sb → caller | call id, reason | unknown number, not online, declined, busy, refused by policy, no answer |
+| `LOOKUP` | `0x29` | node → sb | kind (key id or name), query | the directory ([ADR 0023](adr/0023-names-are-opt-in-claims.md)): → `FOUND` |
+| `FOUND` | `0x2a` | sb → node | status (ok, no directory, slow down), query, up to 8 × (number, key id, name) | only nodes that chose to be listed. A node may look up once a second, with a burst of 5 |
 | `REFUSED` | `0x2f` | sb → node | reason text | registration refused |
 
 A node counts as **online** if its session is up and it has been heard from in the last 80 seconds. The switchboard
@@ -84,6 +86,8 @@ answers with this policy:
 | `--rings-per-minute N` | 6 | rings per callee per minute |
 | `--state DIR` | `~/.longwire/switchboard` | the seed, the control socket, `numbers.log` |
 | `--max-nodes N` | 1024 | how many node sessions the worker holds at once |
+| `--caller-id on\|off` | on | carry the name a caller announced on its rings; off drops names |
+| `--directory on\|off` | on | answer lookups for nodes that listed themselves; off answers none |
 
 Without `--policy script` (the engine's own default), the worker accepts everything.
 
@@ -91,7 +95,7 @@ Without `--policy script` (the engine's own default), the worker accepts everyth
 whom: the registry on disk (`numbers.log`) holds numbers and keys, never calls.
 
 Everything the switchboard does not do yet is marked where it is described and listed under its milestone in the
-[ROADMAP](ROADMAP.md): NAT-type detection (`ECHO`) *(planned: M3)*, `LOOKUP` (ask the switchboard who holds a key) *(planned: M3)*,
+[ROADMAP](ROADMAP.md): NAT-type detection (`ECHO`) *(planned: M3)*,
 number release *(planned: M3)*, and a longer rekey interval for switchboard sessions *(planned: M3)*.
 
 ## What it sees
@@ -101,6 +105,7 @@ number release *(planned: M3)*, and a longer rekey interval for switchboard sess
 | that a number is online, and the public IP:port it connects from | any frame, any traffic volume after `GO`, or how long a call lasts |
 | who rings whom, and when (until `GO`, then it forgets) | MAC or IP addresses inside the line |
 | bundles (public keys) and the numbers they hold | seeds, session keys, call contents |
+| a name, in memory only, for each node that gave one, and whether it asked to be listed | a name for a node that gave none: nothing is ever invented or written to `numbers.log` |
 
 ## How tiny
 

@@ -44,7 +44,7 @@ Use **"VPN"** only where people search for it ("a layer-2 VPN"), never in the pr
   than `Fallback path engaged`. A relayed call says which node is relaying: `connected to 540-283-207 through a relay (312-884-076)`.
 - **The metaphor seasons the text; it shouldn't be the whole meal.** Status words come from the telephone, but
   explanations say what's really happening ("hole-punched", "behind CGNAT").
-- **Never cute about security.** Key changes, evictions and first calls are said straight, in full.
+- **A name is a claim and is worded as one: `312-884-076 is calling, and says it is "Osama's laptop"`. Never cute about security.** Key changes, evictions and first calls are said straight, in full.
 
 ## Mark
 

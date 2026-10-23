@@ -175,6 +175,11 @@ The full design is a ladder, each rung tried when the one before fails:
   the punched address as well as through the relay; the first authenticated datagram that arrives from the other end
   itself ends the relay on that side, and the other side follows on seeing it. Session keys don't change when the path does.
 
+**Optional parts.** `DIAL`, `RING` and `REGISTER` end with optional parts, each `tag:1 ‖ len:1 ‖ bytes`, read to the end of
+the message and skipped if the tag is unknown: tag 1 is a line admit (145 bytes), 2 a name (at most 32 bytes of UTF-8, no
+control characters), 3 "listed" (no bytes). The switchboard adds the caller's name to `RING` itself, from what the caller
+registered, if it carries names.
+
 ## 5. Relay *(built, M3 stage 2)*
 
 A relay is an ordinary member of the line that has a public address (`--relay auto`, the default: the address the

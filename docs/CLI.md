@@ -51,6 +51,8 @@ and on the other machine's `up` terminal:
 | `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode |
 | `longwire-switchboard [options]` | run a switchboard ([SWITCHBOARD](SWITCHBOARD.md)) |
 | `longwire` with no arguments starts the node if it isn't running, then shows status | *(planned: M4)* |
+| `longwire who NAME` or `who lw1…` | ask the switchboard's directory for listed nodes whose name contains the text (3 characters or more), or that hold that full address: up to 8 results, each with number, key id and name (JSON). A name is a claim, so check the safety phrase on the first call |
+| `longwire dial lw1…` | call a full address, through the directory. Fails plainly if the switchboard has none or the node is not listed |
 | `longwire who NUMBER` | what this node knows of a number (JSON): its key id and full address, whether it is pinned, on your line, connected (and by what path), and the safety phrase of a live call. It asks nobody, so a number never called, pinned or listed is "not known here" |
 | `longwire answer POLICY` | change the answer policy while running *(planned: M3)* |
 | `longwire watch` | stream events as sentences *(planned: M4)* |
@@ -65,6 +67,8 @@ and on the other machine's `up` terminal:
 |---|---|
 | `--switchboard HOST:PORT/KEY` | the switchboard to register with; `KEY` is its full address (`lw1…`) or 64 hex digits. Required until a default public switchboard is in the script ([ADR 0014](adr/0014-a-default-public-switchboard.md)) |
 | `--token T` | the registration token, for a switchboard that requires one |
+| `--name TEXT` | announce this name (32 bytes of text) to the nodes you call, via a switchboard that carries names. Default: none ([ADR 0023](adr/0023-names-are-opt-in-claims.md)) |
+| `--listed` | list that name and your number in the switchboard's directory so others can find you by name or full address. Default: not listed |
 | `--answer ask\|known\|auto\|never` | the [answer policy](#answer-policy); default `ask` |
 | `--splice NIC` | attach to a LAN: frames go straight on that NIC. Needs `CAP_NET_RAW` once (`longwire setup splice NIC`) |
 | `--site-key FILE` | the secret shared by every splice box on this LAN segment, 64 hex digits. On a line the boxes derive it themselves from the line key; this is for two boxes that are not on one, and overrides the derived key ([ARCHITECTURE §4](ARCHITECTURE.md#4-two-boxes-on-one-segment-site-groups)) |
@@ -125,7 +129,7 @@ tabular view *(planned: M4)*.
 ## Events
 
 **Events.** Everything the worker does is an event, one JSON object per line on `/dev/longwire/events`: `registered`,
-`register-refused` (with `reason`), `ring` (with `from`, `phrase`, `known`, `admit`), `connected` (with `number`, `path`, `ep`,
+`register-refused` (with `reason`), `ring` (with `from`, a name that is empty if none was announced, `phrase`, `known`, `admit`), `found` (the directory's answer: the query, whether there is a directory, whether you were told to slow down, and the results), `connected` (with `number`, `path`, `ep`,
 `phrase`; a relayed one says so in its path field and names the relay in a via field), `path` (a relayed peer found a direct path: `number`, `path`, `ep`), `call-failed` (with a plain-language `reason`), `call-lost` (a call that was up lost its other end; the
 script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `key-changed` (a number answered with a
 different key than before), `site` (a splice box became `active` or `standby`), and for lines `line-joined` (with `line`,
@@ -149,6 +153,7 @@ verb works from any hibr process, through the worker's control socket (`~/.longw
 | `lw key new\|id\|address\|bundle SEEDFILE` | create or read an identity |
 | `lw sb start [options]`, `lw sb reply ID accept\|refuse [ARG...]` | the switchboard worker, and the script's decisions |
 | `lw who NUM` | what this node knows of a number (JSON) |
+| `lw lookup NAME\|lw1…` | ask the directory; the answer arrives as a `found` event |
 
 **`lw start` is one-way for the calling process.** Clearing capabilities also sets `no_new_privs` on the hibr process that
 ran it. In a long-lived interactive shell that means `sudo` and other setuid programs stop working afterwards. A node

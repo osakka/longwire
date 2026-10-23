@@ -150,6 +150,10 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->cand_loopback = 1;
 			continue;
 		}
+		if (!strcmp(a, "--listed") && !role) {
+			c->listed = 1;
+			continue;
+		}
 		if (!v) {
 			snprintf(msg, sizeof msg, "lw start: option %s needs a value", a);
 			hibr_fail(s, msg);
@@ -177,6 +181,12 @@ static int do_start(sh *s, int ac, char **av, int role)
 			snprintf(c->state_dir, sizeof c->state_dir, "%s", v);
 		else if (!strcmp(a, "--switchboard") && !role)
 			snprintf(c->switchboard, sizeof c->switchboard, "%s", v);
+		else if (!strcmp(a, "--name") && !role)
+			snprintf(c->name, sizeof c->name, "%s", v);
+		else if (!strcmp(a, "--caller-id") && role)
+			c->no_caller_id = !strcmp(v, "off");
+		else if (!strcmp(a, "--directory") && role)
+			c->no_directory = !strcmp(v, "off");
 		else if (!strcmp(a, "--token"))
 			snprintf(c->token, sizeof c->token, "%s", v);
 		else if (!strcmp(a, "--policy") && role)
@@ -312,7 +322,7 @@ int m_lw(sh *s, int ac, char **av)
 		return ask(s, sock, "status\n", 0);
 	if (!strcmp(av[1], "stop"))
 		return ask(s, sock, "stop\n", 0);
-	if ((!strcmp(av[1], "dial") || !strcmp(av[1], "unpin") || !strcmp(av[1], "who") || !strcmp(av[1], "evict")) && ac >= 3) {
+	if ((!strcmp(av[1], "dial") || !strcmp(av[1], "unpin") || !strcmp(av[1], "who") || !strcmp(av[1], "lookup") || !strcmp(av[1], "evict")) && ac >= 3) {
 		snprintf(req, sizeof req, "%s %s\n", av[1], av[2]);
 		return ask(s, sock, req, 1);
 	}

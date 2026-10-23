@@ -161,3 +161,45 @@ void ctl_close(lw_node *n)
 		unlink(n->cfg.ctl_path);
 	}
 }
+
+/* ---- names: claims that pass through us and into JSON ----------------------------- */
+
+int name_ok(const uint8_t *s, size_t n)
+{
+	size_t i = 0;
+
+	if (n > LW_NAME_MAX)
+		return 0;
+	while (i < n) {
+		uint8_t c = s[i];
+		int extra = c < 0x80 ? 0 : (c & 0xe0) == 0xc0 && c >= 0xc2 ? 1 : (c & 0xf0) == 0xe0 ? 2 : (c & 0xf8) == 0xf0 && c <= 0xf4 ? 3 : -1;
+
+		if (extra < 0 || i + (size_t)extra >= n)
+			return 0;
+		if (c < 0x20 || c == 0x7f)
+			return 0;
+		for (int k = 1; k <= extra; k++)
+			if ((s[i + (size_t)k] & 0xc0) != 0x80)
+				return 0;
+		i += (size_t)extra + 1;
+	}
+	return 1;
+}
+
+void json_esc(char *out, size_t cap, const char *in)
+{
+	size_t o = 0;
+
+	for (; *in && o + 7 < cap; in++) {
+		unsigned char c = (unsigned char)*in;
+
+		if (c == '"' || c == '\\') {
+			out[o++] = '\\';
+			out[o++] = (char)c;
+		} else if (c < 0x20 || c == 0x7f)
+			o += (size_t)snprintf(out + o, 7, "\\u%04x", c);
+		else
+			out[o++] = (char)c;
+	}
+	out[o] = 0;
+}

@@ -3,6 +3,18 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: caller ID and the directory
+
+- **Names are opt-in claims** ([ADR 0023](docs/adr/0023-names-are-opt-in-claims.md)): `up --name TEXT` announces a name when
+  you ring someone, `--listed` puts it in the switchboard's directory. Both default to off. A switchboard carries names and
+  answers lookups unless started with `--caller-id off` / `--directory off`, and tells each node what it offers.
+- **Directory:** `longwire who NAME` (3+ characters, up to 8 results) and `who lw1…`, and `longwire dial lw1…` to call a
+  full address. Only listed nodes are found; a node may look up once a second (burst 5) and is told when it is too fast.
+- **Behind it:** `DIAL`, `RING` and `REGISTER` carry optional parts as tagged trailers (the admit moved into one); names are
+  validated (UTF-8, no control characters, 32 bytes) and escaped wherever they reach JSON; the switchboard keeps names in
+  memory only. New messages `LOOKUP`, `FOUND`. `ring` events gain `name`; new event `found`; status gains `switchboard_offers`.
+- **Tests:** `tests/names.sh` (two switchboards, quotes and backslashes in a name, unlisted nodes not found, rate limit).
+
 ## M3, stage 2: relaying and path upgrade
 
 - **Relay** ([ADR 0008](docs/adr/0008-hard-nats-are-relayed-by-line-members.md), [PROTOCOL §5](docs/PROTOCOL.md#5-relay-built-m3-stage-2)):

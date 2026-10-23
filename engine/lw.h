@@ -50,6 +50,9 @@ typedef struct lw_cfg {
 	int  policy_script;		/* switchboard: wait for the script's verdicts */
 	int  maxpeers;			/* default 16 (switchboard: 1024) */
 	char token[64];			/* presented when registering */
+	char name[40];			/* the name this node announces to those it calls; none if empty */
+	int  listed;			/* list that name in the switchboard's directory */
+	int  no_caller_id, no_directory;	/* switchboard: refuse to carry names / answer lookups */
 	int  relay;			/* relay for line members: 0 only when publicly reachable (auto), 1 always, 2 never */
 	int  direct_retry;		/* seconds between tries for a direct path to a relayed member (default 60) */
 	char site_key_path[256];	/* splice: shared secret of the boxes on one LAN segment (hex), enables site groups */

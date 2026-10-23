@@ -367,6 +367,10 @@ static int pin_remove(lw_node *n, const char *num)
 
 int node_init(lw_node *n, char *err, size_t errn)
 {
+	if (n->cfg.name[0] && !name_ok((const uint8_t *)n->cfg.name, strlen(n->cfg.name))) {
+		snprintf(err, errn, "--name must be at most %d bytes of text with no control characters", LW_NAME_MAX);
+		return -1;
+	}
 	n->sb = -1;
 	n->ncalls = n->maxpeers;
 	n->calls = calloc((size_t)n->ncalls, sizeof *n->calls);
@@ -510,7 +514,7 @@ static void send_answer(lw_node *n, lw_call *c, int verdict)
 int call_dial(lw_node *n, const char *num, int auto_, char *err, size_t errn)
 {
 	lw_peer *s = sbp(n);
-	uint8_t b[NUMLEN + 1 + MAXCANDS * 7 + 1 + ADMIT_LEN];
+	uint8_t b[NUMLEN + 1 + MAXCANDS * 7 + 2 + ADMIT_LEN];
 	lw_cand cc[MAXCANDS];
 	uint8_t admit[ADMIT_LEN];
 	lw_call *c;
@@ -545,11 +549,8 @@ int call_dial(lw_node *n, const char *num, int auto_, char *err, size_t errn)
 	memcpy(b, num, NUMLEN);
 	nc = gather(n, cc, MAXCANDS);
 	o = NUMLEN + (size_t)cands_put(b + NUMLEN, cc, nc);
-	if (line_admit_for(n, admit)) {			/* present our admit: a member we dial will not ask about us */
-		b[o++] = ADMIT_LEN;
-		memcpy(b + o, admit, ADMIT_LEN);
-		o += ADMIT_LEN;
-	}
+	if (line_admit_for(n, admit))			/* present our admit: a member we dial will not ask about us */
+		o += (size_t)tlv_put(b + o, TAG_ADMIT, admit, ADMIT_LEN);
 	ctl_msg_send(n, s, M_DIAL, b, o);
 	return 0;
 }
@@ -671,6 +672,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				n->reg_why[0] = 0;
 				n->reg_born = p->cur.born;
 				n->reg_count++;
+				n->sb_caps = len >= NUMLEN + 7 ? pl[NUMLEN + 6] : 0;
 				if (news) {
 					char f[16];
 
@@ -679,6 +681,69 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				}
 			}
 			return;
+		case M_FOUND: {				/* the directory's answer to a LOOKUP */
+			uint8_t kind;
+			size_t ql, o;
+			int cnt, i, rl = 0, dir, limited;
+			char q[2 * LW_NAME_MAX + 80], res[2200], first[NUMLEN + 1] = "";
+
+			if (len < 4)
+				return;
+			dir = pl[0] != 1;
+			limited = pl[0] == 2;
+			kind = pl[1];
+			ql = pl[2];
+			if (len < 4 + ql || kind > 1 || ql > 64)
+				return;
+			cnt = pl[3 + ql];
+			o = 4 + ql;
+			if (kind == 1) {
+				char raw[LW_NAME_MAX + 1] = "";
+
+				memcpy(raw, pl + 3, ql > LW_NAME_MAX ? LW_NAME_MAX : ql);
+				json_esc(q, sizeof q, raw);
+			} else
+				lw_hex(q, pl + 3, 32);
+			res[0] = 0;
+			for (i = 0; i < cnt && i < 8; i++) {
+				char num[NUMLEN + 1], f[16], kh[65], nm[LW_NAME_MAX + 1] = "", en[2 * LW_NAME_MAX + 8];
+				size_t nl;
+
+				if (o + NUMLEN + 33 > len)
+					break;
+				nl = pl[o + NUMLEN + 32];
+				if (o + NUMLEN + 33 + nl > len || !name_ok(pl + o + NUMLEN + 33, nl))
+					break;
+				memcpy(nm, pl + o + NUMLEN + 33, nl);
+				memcpy(num, pl + o, NUMLEN);
+				num[NUMLEN] = 0;
+				if (!i)
+					memcpy(first, num, sizeof first);
+				fmt_number(f, num);
+				lw_hex(kh, pl + o + NUMLEN, 32);
+				json_esc(en, sizeof en, nm);
+				rl += snprintf(res + rl, sizeof res - (size_t)rl, "%s{\"number\":\"%s\",\"key_id\":\"%s\",\"name\":\"%s\"}",
+					       i ? "," : "", f, kh, en);
+				o += NUMLEN + 33 + nl;
+			}
+			ev_emit(n, "{\"event\":\"found\",\"query\":\"%s\",\"directory\":%s,\"limited\":%s,\"results\":[%s]}", q, dir ? "true" : "false",
+				limited ? "true" : "false", res);
+			if (limited && n->look.active) {
+				n->look.active = 0;
+				ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"too many directory lookups: wait a moment\"}");
+			} else if (n->look.active && kind == 0 && n->look.kind == 0 && ql == 32 && !memcmp(n->look.key, pl + 3, 32)) {
+				char err[100];
+
+				n->look.active = 0;
+				if (!dir)
+					ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"this switchboard has no directory\"}");
+				else if (!first[0])
+					ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"that address is not listed in the directory\"}");
+				else if (call_dial(n, first, 0, err, sizeof err))
+					ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"%s\"}", err);
+			}
+			return;
+		}
 		case M_HBACK:
 			if (len >= 6) {
 				memcpy(n->refl.ip, pl, 4);
@@ -713,8 +778,12 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			memcpy(reply, pl, 8);
 			if ((cn = cands_get(pl + base, len - base, cc, &nc)) < 0)
 				return;
-			if (len >= base + (size_t)cn + 1 + ADMIT_LEN && pl[base + cn] == ADMIT_LEN)
-				admit = pl + base + cn + 1;
+			{
+				size_t al;
+
+				if ((admit = tlv_find(pl + base + cn, len - base - (size_t)cn, TAG_ADMIT, &al)) && al != ADMIT_LEN)
+					admit = 0;
+			}
 			lw_h(kid, pl + 8 + NUMLEN, LW_BUNDLE);
 			fmt_number(f, num);
 			if (line_evicted(n, kid)) {		/* it was put off the line: it stays off */
@@ -748,6 +817,16 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				return;
 			}
 			c->state = CALL_RINGING;
+			c->name[0] = 0;
+			{
+				size_t nl;
+				const uint8_t *nm = tlv_find(pl + base + cn, len - base - (size_t)cn, TAG_NAME, &nl);
+
+				if (nm && name_ok(nm, nl)) {	/* a claim: shown as one, and never trusted for anything */
+					memcpy(c->name, nm, nl);
+					c->name[nl] = 0;
+				}
+			}
 			c->admitted = admitted;
 			c->auto_ = admitted;
 			memcpy(c->id, pl, 8);
@@ -762,8 +841,11 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 
 				lw_hex(hx, c->id, 8);
 				lw_hex(kh, kid, 32);
-				ev_emit(n, "{\"event\":\"ring\",\"call\":\"%s\",\"from\":\"%s\",\"key_id\":\"%s\",\"phrase\":\"%s\",\"known\":%s,\"admit\":%s}",
-					hx, f, kh, ph, pc ? "true" : "false", admitted ? "true" : "false");
+				char en[2 * LW_NAME_MAX + 8];
+
+				json_esc(en, sizeof en, c->name);
+				ev_emit(n, "{\"event\":\"ring\",\"call\":\"%s\",\"from\":\"%s\",\"name\":\"%s\",\"key_id\":\"%s\",\"phrase\":\"%s\",\"known\":%s,\"admit\":%s}",
+					hx, f, en, kh, ph, pc ? "true" : "false", admitted ? "true" : "false");
 			}
 			return;
 		}
@@ -875,12 +957,16 @@ void node_timers(lw_node *n)
 		int need = n->registered ? n->reg_born != s->cur.born : n->reg_refused != s->cur.born;
 
 		if (need && n->now >= n->next_reg) {
-			uint8_t b[1 + 64];
-			size_t tl = strlen(n->cfg.token);
+			uint8_t b[1 + 64 + 2 + LW_NAME_MAX + 2];
+			size_t tl = strlen(n->cfg.token), o = 1 + tl;
 
 			b[0] = (uint8_t)tl;
 			memcpy(b + 1, n->cfg.token, tl);
-			ctl_msg_send(n, s, M_REGISTER, b, 1 + tl);
+			if (n->cfg.name[0])
+				o += (size_t)tlv_put(b + o, TAG_NAME, n->cfg.name, strlen(n->cfg.name));
+			if (n->cfg.listed)
+				o += (size_t)tlv_put(b + o, TAG_LISTED, 0, 0);
+			ctl_msg_send(n, s, M_REGISTER, b, o);
 			n->next_reg = n->now + 2.0;
 		} else if (n->registered && n->now >= n->next_hb) {
 			uint8_t b[1 + MAXCANDS * 7];
@@ -890,6 +976,10 @@ void node_timers(lw_node *n)
 			ctl_msg_send(n, s, M_HEARTBEAT, b, (size_t)cands_put(b, cc, nc));
 			n->next_hb = n->now + n->keepalive;
 		}
+	}
+	if (n->look.active && n->now - n->look.t > 5.0) {
+		n->look.active = 0;
+		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"the directory did not answer\"}");
 	}
 	for (i = 0; i < n->ncalls; i++) {
 		lw_call *c = &n->calls[i];
@@ -1064,6 +1154,39 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 
 	if ((r = line_cmd(n, line, out, cap)) >= 0)		/* evict, peers */
 		return r;
+	if (!strncmp(line, "lookup ", 7) || (!strncmp(line, "dial lw1", 8))) {	/* the directory, by full address or by name; dialing waits on it */
+		int dial = line[0] == 'd';
+		const char *q = line + (dial ? 5 : 7);
+		uint8_t b[1 + 64];
+		size_t ql;
+
+		if (!s || !n->registered)
+			return snprintf(out, cap, "{\"error\":\"no dial tone: not registered with a switchboard\"}\n");
+		if (!(n->sb_caps & CAPS_DIRECTORY))
+			return snprintf(out, cap, "{\"error\":\"this switchboard has no directory\"}\n");
+		if (dial && n->look.active && n->now - n->look.t < 5.0)
+			return snprintf(out, cap, "{\"error\":\"already looking an address up\"}\n");
+		if (!lw_address_parse(q, b + 1)) {
+			b[0] = 0;
+			ql = 32;
+		} else if (dial) {
+			return snprintf(out, cap, "{\"error\":\"not a full address (lw1 and 52 characters)\"}\n");
+		} else {
+			ql = strlen(q);
+			if (ql < 3 || ql > LW_NAME_MAX || !name_ok((const uint8_t *)q, ql))
+				return snprintf(out, cap, "{\"error\":\"a name to look for is 3 to %d characters\"}\n", LW_NAME_MAX);
+			b[0] = 1;
+			memcpy(b + 1, q, ql);
+		}
+		if (dial) {
+			n->look.active = 1;
+			n->look.kind = 0;
+			n->look.t = n->now;
+			memcpy(n->look.key, b + 1, 32);
+		}
+		ctl_msg_send(n, s, M_LOOKUP, b, 1 + ql);
+		return snprintf(out, cap, "{\"%s\":\"asked\"}\n", dial ? "call" : "lookup");
+	}
 	if (!strncmp(line, "dial ", 5)) {
 		char num[NUMLEN + 1], f[16], err[100];
 
@@ -1212,7 +1335,7 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 	len = snprintf(o, cap,
 		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
-		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
+		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
 		kid, num, sbs, refl, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
@@ -1220,6 +1343,7 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		(unsigned long long)n->arp_answered, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, site_role(n), site_members(n), n->site_sync_n,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->hs_nocookie, (unsigned long long)n->hs_badmac2, (unsigned long long)n->cookies_got, (unsigned long long)n->reg_count,
 		(unsigned long long)(n->sb >= 0 ? n->peers[n->sb].rekeys : 0),
+		(n->sb_caps & CAPS_CALLERID) && (n->sb_caps & CAPS_DIRECTORY) ? "\"caller-id\",\"directory\"" : (n->sb_caps & CAPS_CALLERID) ? "\"caller-id\"" : (n->sb_caps & CAPS_DIRECTORY) ? "\"directory\"" : "",
 		relay_live(n), (unsigned long long)n->relay_fwd, (unsigned long long)n->relay_drop, relay_offered(n) ? "true" : "false");
 	for (i = 0; i < n->maxpeers && len < (int)cap - 700; i++) {
 		lw_peer *p = &n->peers[i];

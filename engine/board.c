@@ -20,6 +20,9 @@ typedef struct reg {
 	char    number[NUMLEN + 1];
 	uint8_t bundle[LW_BUNDLE], key_id[32];
 	double  seen;
+	char    name[LW_NAME_MAX + 1];		/* in memory only: sent again whenever the node registers */
+	int     listed;
+	double  look_tok, look_t;		/* a budget for directory lookups */
 } reg;
 
 typedef struct bcall {
@@ -41,6 +44,8 @@ typedef struct pend {
 	int      ncc;
 	uint8_t  admit[ADMIT_LEN];
 	int      alen;
+	char     name[LW_NAME_MAX + 1];	/* (a registration) */
+	int      listed;
 	double   deadline;
 } pend;
 
@@ -180,13 +185,14 @@ static void persist(struct board *b, const reg *r)
 
 static void send_number(lw_node *n, lw_peer *p, const reg *r)
 {
-	uint8_t b[NUMLEN + 6];
+	uint8_t b[NUMLEN + 7];
 	lw_cand c;
 
 	memcpy(b, r->number, NUMLEN);
 	observed(p, &c);
 	memcpy(b + NUMLEN, c.ip, 4);
 	put16(b + NUMLEN + 4, c.port);
+	b[NUMLEN + 6] = (uint8_t)((n->cfg.no_caller_id ? 0 : CAPS_CALLERID) | (n->cfg.no_directory ? 0 : CAPS_DIRECTORY));
 	ctl_msg_send(n, p, M_NUMBER, b, sizeof b);
 }
 
@@ -195,7 +201,7 @@ static void refuse(lw_node *n, lw_peer *p, const char *why)
 	ctl_msg_send(n, p, M_REFUSED, (const uint8_t *)why, strlen(why));
 }
 
-static void do_register(lw_node *n, lw_peer *p, const char *reserved)
+static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char *name, int listed)
 {
 	struct board *b = n->bd;
 	reg r;
@@ -221,6 +227,8 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved)
 		return;
 	}
 	r.seen = n->now;
+	snprintf(r.name, sizeof r.name, "%s", name);
+	r.listed = listed;
 	if (b->n == b->cap) {
 		b->cap = b->cap ? b->cap * 2 : 64;
 		b->regs = realloc(b->regs, (size_t)b->cap * sizeof *b->regs);
@@ -264,7 +272,7 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 	reg *cr = reg_by_key(b, caller_key), *ce = reg_by_key(b, callee_key);
 	lw_peer *cp = peer_by_key(n, caller_key), *ep = peer_by_key(n, callee_key);
 	bcall *c = 0;
-	uint8_t m[8 + NUMLEN + LW_BUNDLE + 1 + MAXCANDS * 7 + 1 + ADMIT_LEN];
+	uint8_t m[8 + NUMLEN + LW_BUNDLE + 1 + MAXCANDS * 7 + 2 + ADMIT_LEN + 2 + LW_NAME_MAX];
 	int i, o;
 
 	if (!cr || !ce || !cp || !ep || !online(n, ce)) {
@@ -294,11 +302,10 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 	memcpy(m + 8 + NUMLEN, cr->bundle, LW_BUNDLE);
 	o = 8 + NUMLEN + LW_BUNDLE;
 	o += cands_write(m + o, c->cc, c->ncc);
-	if (alen == ADMIT_LEN) {			/* handed on exactly as it came */
-		m[o++] = ADMIT_LEN;
-		memcpy(m + o, admit, ADMIT_LEN);
-		o += ADMIT_LEN;
-	}
+	if (alen == ADMIT_LEN)				/* handed on exactly as it came */
+		o += tlv_put(m + o, TAG_ADMIT, admit, ADMIT_LEN);
+	if (cr->name[0] && !n->cfg.no_caller_id)
+		o += tlv_put(m + o, TAG_NAME, cr->name, strlen(cr->name));
 	ctl_msg_send(n, ep, M_RING, m, (size_t)o);
 }
 
@@ -321,14 +328,32 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 {
 	struct board *b = n->bd;
 	reg *r = reg_by_key(b, p->key_id);
-	char ep[64];
+	char ep[64], nm_[LW_NAME_MAX + 1];
+	int listed_ = 0;
 
 	addr_str(&p->ep, ep, sizeof ep);
 	switch (msg) {
 	case M_REGISTER:
 		if (len < 1 || (size_t)pl[0] + 1 > len)
 			return;
+		{					/* optional parts after the token: a name, and whether to list it */
+			size_t nl = 0, ll = 0;
+			const uint8_t *nm = tlv_find(pl + 1 + pl[0], len - 1 - pl[0], TAG_NAME, &nl);
+
+			nm_[0] = 0;
+			if (nm && !name_ok(nm, nl)) {
+				refuse(n, p, "the name is not acceptable (32 bytes of text, no control characters)");
+				return;
+			}
+			if (nm && !n->cfg.no_caller_id) {	/* a switchboard that forbids caller ID just does not keep it */
+				memcpy(nm_, nm, nl);
+				nm_[nl] = 0;
+			}
+			listed_ = tlv_find(pl + 1 + pl[0], len - 1 - pl[0], TAG_LISTED, &ll) && !n->cfg.no_directory;
+		}
 		if (r) {				/* the same key always gets the same number */
+			snprintf(r->name, sizeof r->name, "%s", nm_);
+			r->listed = listed_;
 			r->seen = n->now;
 			send_number(n, p, r);
 			return;
@@ -343,11 +368,13 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			}
 			memcpy(q->key, p->key_id, 32);
 			q->deadline = n->now + 2.0;
+			snprintf(q->name, sizeof q->name, "%s", nm_);
+			q->listed = listed_;
 			lw_hex(kh, p->key_id, 32);
 			snprintf(tok, sizeof tok, "%.*s", (int)pl[0] > 63 ? 63 : (int)pl[0], (const char *)pl + 1);
 			ev_emit(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"token\":\"%s\"}", q->id, kh, ep, tok);
 		} else
-			do_register(n, p, 0);
+			do_register(n, p, 0, nm_, listed_);
 		return;
 	case M_HEARTBEAT:
 		if (!r)
@@ -363,6 +390,59 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			ctl_msg_send(n, p, M_HBACK, a, 6);
 		}
 		return;
+	case M_LOOKUP: {				/* the directory: only nodes that chose to be listed are found */
+		uint8_t o[4 + LW_NAME_MAX + 1 + 8 * (NUMLEN + 32 + 1 + LW_NAME_MAX)];
+		size_t k = 3, ql;
+		int hits = 0, i;
+		char q[LW_NAME_MAX + 1];
+
+		if (!r || len < 2)
+			return;
+		r->look_tok += (n->now - r->look_t) * 1.0;		/* 1 a second, burst 5 */
+		r->look_t = n->now;
+		if (r->look_tok > 5.0)
+			r->look_tok = 5.0;
+		ql = len - 1;
+		if (r->look_tok < 1.0) {			/* say so, so the node can tell the person */
+			uint8_t lim[4] = { 2, pl[0] > 1 ? 1 : pl[0], 0, 0 };
+
+			ctl_msg_send(n, p, M_FOUND, lim, sizeof lim);
+			return;
+		}
+		r->look_tok -= 1.0;
+		if ((pl[0] == 0 && ql != 32) || (pl[0] == 1 && (ql < 3 || ql > LW_NAME_MAX)) || pl[0] > 1)
+			return;
+		o[0] = n->cfg.no_directory ? 1 : 0;
+		o[1] = pl[0];
+		o[2] = (uint8_t)ql;
+		memcpy(o + 3, pl + 1, ql);
+		k = 3 + ql;
+		o[k++] = 0;				/* the count, filled in below */
+		if (!n->cfg.no_directory) {
+			if (pl[0] == 1) {
+				memcpy(q, pl + 1, ql);
+				q[ql] = 0;
+			}
+			for (i = 0; i < b->n && hits < 8; i++) {
+				const reg *e = &b->regs[i];
+				size_t nl = strlen(e->name);
+
+				if (!e->listed || !online(n, (reg *)e))
+					continue;
+				if (pl[0] == 0 ? memcmp(e->key_id, pl + 1, 32) != 0 : !nl || !strcasestr(e->name, q))
+					continue;
+				memcpy(o + k, e->number, NUMLEN);
+				memcpy(o + k + NUMLEN, e->key_id, 32);
+				o[k + NUMLEN + 32] = (uint8_t)nl;
+				memcpy(o + k + NUMLEN + 33, e->name, nl);
+				k += NUMLEN + 33 + nl;
+				hits++;
+			}
+			o[3 + ql] = (uint8_t)hits;
+		}
+		ctl_msg_send(n, p, M_FOUND, o, k);
+		return;
+	}
 	case M_DIAL: {
 		lw_cand cc[MAXCANDS];
 		int nc = 0, cn, alen = 0;
@@ -377,9 +457,13 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		num[NUMLEN] = 0;
 		if ((cn = cands_read(pl + NUMLEN, len - NUMLEN, cc, &nc)) < 0)
 			return;
-		if (len >= NUMLEN + (size_t)cn + 1 + ADMIT_LEN && pl[NUMLEN + cn] == ADMIT_LEN) {
-			admit = pl + NUMLEN + cn + 1;		/* opaque to us */
-			alen = ADMIT_LEN;
+		{
+			size_t al;
+
+			if ((admit = tlv_find(pl + NUMLEN + cn, len - NUMLEN - (size_t)cn, TAG_ADMIT, &al)) && al == ADMIT_LEN)
+				alen = ADMIT_LEN;		/* opaque to us */
+			else
+				admit = 0;
 		}
 		if (!(ce = reg_by_number(b, num))) {
 			rejected(n, p->key_id, 0, R_UNKNOWN, num);
@@ -518,7 +602,7 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			if (!p || !p->cur.valid)
 				return snprintf(out, cap, "{\"error\":\"the node has gone\"}\n");
 			if (!strcmp(verdict, "accept"))
-				do_register(n, p, arg[0] ? arg : 0);
+				do_register(n, p, arg[0] ? arg : 0, q->name, q->listed);
 			else
 				refuse(n, p, arg[0] ? arg : "registration refused");
 		} else if (!strcmp(verdict, "accept"))

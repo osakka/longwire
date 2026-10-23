@@ -126,6 +126,7 @@ typedef struct lw_call {
 	int      state, we_caller, peer;
 	int      auto_;			/* a mesh call to a fellow member: nobody is asked */
 	int      admitted;		/* (a ring) the caller held a valid admit */
+	char     name[LW_NAME_MAX + 1];	/* (a ring) the name the caller announced, if the switchboard carried one */
 	uint8_t  admit[ADMIT_LEN];	/* (a ring) what it presented, or (a dial) what we presented */
 	int      has_admit;
 	uint8_t  id[8], token[32];
@@ -204,6 +205,8 @@ struct lw_node {
 	lw_call *calls;			/* the call table: a line is many calls at once */
 	int      ncalls;
 	lw_line  line;
+	uint8_t  sb_caps;		/* what the switchboard offers: CAPS_* */
+	struct { int active, kind; uint8_t key[32]; double t; } look;	/* a lookup in flight: dialing a full address waits on it */
 	lw_route routes[64];
 	int      rx_relayed;		/* the datagram being handled came out of a relay: it says nothing about the peer's address */
 	pin     *pins;
@@ -278,6 +281,36 @@ void site_timers(lw_node *n);
 int  site_input(lw_node *n, const uint8_t *f, size_t len);	/* 1 = a probe, consumed */
 const char *site_role(const lw_node *n);
 int  site_members(const lw_node *n);
+
+/* tagged optional parts: tag(1) len(1) bytes, one after another to the end of the message */
+static inline int tlv_put(uint8_t *o, uint8_t tag, const void *v, size_t n)
+{
+	o[0] = tag;
+	o[1] = (uint8_t)n;
+	if (n)
+		memcpy(o + 2, v, n);
+	return (int)(2 + n);
+}
+
+static inline const uint8_t *tlv_find(const uint8_t *p, size_t len, uint8_t tag, size_t *n)
+{
+	while (len >= 2) {
+		size_t l = p[1];
+
+		if (l + 2 > len)
+			return 0;
+		if (p[0] == tag) {
+			*n = l;
+			return p + 2;
+		}
+		p += l + 2;
+		len -= l + 2;
+	}
+	return 0;
+}
+
+int  name_ok(const uint8_t *s, size_t n);			/* UTF-8, no control characters, at most LW_NAME_MAX bytes */
+void json_esc(char *out, size_t cap, const char *in);		/* a string safe to put between JSON quotes */
 
 /* relay.c: carrying a pair's packets through a third member (docs/PROTOCOL.md §5) */
 void relay_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
