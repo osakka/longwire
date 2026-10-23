@@ -15,7 +15,7 @@ nodes.
 
 Lines of three or more nodes have since been built ([0022](0022-lines-form-by-vouching.md)), so a node can be on many calls
 at once; only a person is asked about one ring at a time (a second unvouched ring is answered busy). Federation
-(`number@sb`) *(planned)* is later work that does not change the switch's design.
+(`number@sb`) *(planned: M9)* is later work that does not change the switch's design.
 
 ---
 

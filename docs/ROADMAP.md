@@ -18,6 +18,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 | **M6** | Pocket: member mode, Android | planned |
 | **M7** | Speed | planned |
 | **M8** | 1.0: verification | planned |
+| **M9** | Operator grade: a switchboard that can run a service for others | proposed |
 
 ## Built
 
@@ -76,7 +77,56 @@ and then dial and pick up entirely from the hibr desktop.
   fetches and verifies the vendored sources; fuzzing of every parser with a harness built by TCC; timing tests;
   reproducible builds; an external review
 
+**M9: Operator grade** *(proposed: for review, not yet agreed)*. Done when a failover test passes: a standby takes over
+from a killed primary under a load of 10,000 simulated nodes, every node is back within 30 seconds, no number or name is
+lost or issued twice, and the operator can see all of it on a dashboard without reading a log. M8 makes the product
+trustworthy; M9 makes the *switchboard* something a third party can run as a service. What is true today is the baseline:
+
+- *Today:* one process, one registry file, about a hundred million possible numbers (8 random digits and a check digit),
+  never released; 1,024 sessions by default; a status call and a script log for visibility; no failover; the switchboard's
+  address is pinned by every node, so its key cannot be changed without re-pointing them.
+
+*Number space and lifecycle* (builds on number release, M3)
+- Numbers released after a year unused, then held back for another year before reuse so a stale pin cannot meet a stranger;
+  a warning when the space is half used; an operator choice of a longer number format for a new deployment (a format
+  carried in the switchboard's address, so a node never guesses).
+- Names (ADR 0023) get the same life cycle as numbers.
+
+*Redundancy*
+- A node takes a list of switchboards and registers with the first that answers; the standby serves lookups and rings
+  from a copy of the registry. The registry and name bindings are append-only logs, so replication is shipping them.
+- One writer at a time. Issuing a number and binding a name are the only operations that need agreement, and the design
+  rule is that uniqueness is never traded for availability: during a partition the standby serves existing numbers and
+  refuses new registrations. Which of leader election or an operator-driven promotion is wanted is a decision for an ADR.
+- Rotating the switchboard's own key with an overlap period, announced to nodes inside the old session, so a pinned
+  address can change without a flag day.
+
+*Federation* (moved here from "Unscheduled")
+- `number@switchboard`: numbers are local to a switchboard, and a dial names another one. Lines already work across NATs
+  without the switchboard, so this adds lookup and introduction between two switchboards, not a new data path.
+
+*Scale*
+- More than a thousand sessions per worker (tens of thousands): a smaller peer slot for a node that only registers, one
+  worker per core, the longer rekey for switchboard sessions, and a load generator that is part of `make check`.
+
+*Operation*
+- Metrics as text a standard collector reads, structured logs, an audit trail of administrative decisions (registrations,
+  refusals, evictions of names) that records *no* calls, a token and name admin command, a configuration reload without
+  dropping sessions, backup and restore of the registry, and the abuse limits as operator settings.
+- The switchboard's key in a hardware module or the platform's key store, not a file.
+
+*Tenancy and control*
+- Several lines per node, so one gateway can serve more than one customer; an operator-signed admit as an alternative to
+  member vouching, so an operator, not a member, decides who may join a managed line and can revoke centrally.
+- Quotas per token (nodes, lines, lookups).
+
+*Assurance* (with M8)
+- Signed releases and an SBOM, a published data-retention statement, a penetration test of the switchboard, and a runbook.
+
+Open questions for review: whether federation or redundancy comes first; leader election or manual promotion; whether
+an operator-signed admit belongs here or earlier; and the number format. None of these is decided.
+
 ## Unscheduled
 
-Federated switchboards (`number@sb`), ML-DSA signatures, more than one line per node, VLAN-tagged traffic through a
+ML-DSA signatures, more than one line per node, VLAN-tagged traffic through a
 splice box, IGMP and MLD snooping, Windows and iOS members, arm64, and an OpenWrt package.

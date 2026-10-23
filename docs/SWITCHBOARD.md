@@ -119,7 +119,7 @@ number release *(planned: M3)*, and a longer rekey interval for switchboard sess
   pays the extra round trip. A handshake costs a few milliseconds of CPU under TCC (about 5 ms for both ends together, [CRYPTO §6](CRYPTO.md#6-measured)), most of it on the responder.
 - **Abuse limits:** registrations per source address per hour and rings per callee per minute (the script), the
   handshake budget (the worker), and a limit on pending decisions.
-- **One switchboard per deployment.** Numbers are local to it. Federation (`number@sb`) *(planned)*.
+- **One switchboard per deployment.** Numbers are local to it. Federation (`number@sb`), redundancy and a larger number space *(planned: M9)*.
 
 ## Running one
 
