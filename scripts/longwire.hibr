@@ -63,8 +63,10 @@ announce() {
 	evicted)          say "⚠  you were evicted from line ${e[line]}" ;;
 	line-partial)     say "⚠  the line is not a full mesh: ${e[up]} of ${e[members]} members reachable (frames between the others are not forwarded)" ;;
 	line-complete)    say "·  the line is a full mesh (${e[members]} members)" ;;
-	connected)        say "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"
+	connected)        if [ "${e[path]}" = relay ]; then say "✓  connected to ${e[number]} through a relay (${e[via]}): no direct path yet, still trying"
+	                  else say "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"; fi
 	                  say "   safety phrase: ${e[phrase]}" ;;
+	path)             say "·  ${e[number]} is now ${e[path]} (${e[ep]}): the relay is no longer needed" ;;
 	call-failed)      say "✗  call failed: ${e[reason]}" ;;
 	call-lost)        say "✗  lost the call to ${e[number]}: ${e[reason]}" ;;
 	site)             say "·  this box is now ${e[role]} for its LAN segment (${e[members]} on it)" ;;

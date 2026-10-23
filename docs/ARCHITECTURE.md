@@ -38,8 +38,8 @@ clients or servers here, only ports.
 A call is between two nodes, and a node can be on many calls at once. When a call comes up the two ends find out
 whether either holds a **line**, and a node that is called by a newcomer vouches for it, so calls accumulate into the full
 mesh in the picture ([PROTOCOL §6](PROTOCOL.md#6-control-messages-and-lines), [ADR 0022](adr/0022-lines-form-by-vouching.md)).
-A node is on one line of up to 16. Until relaying exists *(planned: M3)* a pair that cannot connect splits the line, and
-the node says so.
+A node is on one line of up to 16. A pair that cannot connect directly is relayed by another member
+([PROTOCOL §5](PROTOCOL.md#5-relay-built-m3-stage-2)); if no member will relay, the pair splits the line, and the node says so.
 
 ## 2. Attaching a node: ports
 
@@ -137,7 +137,7 @@ over IPv4. The underlay is IPv4 only for now; IPv6 *(planned: M3)*.
 | Situation | Handling |
 |---|---|
 | jack, sock | `longwire setup jack` prints the command that sets the tap's MTU to **1400**, so frames are at most 1414 bytes and fit one datagram. The engine does not enforce it: a larger frame is split like any other. A `sock` port has no MTU. |
-| splice | LAN hosts send 1500-byte frames and we can't change them. So: **(1)** clamp the TCP MSS in SYN and SYN-ACK frames as they pass, to **1340** (IPv4) or **1320** (IPv6). A segment carrying 1340 bytes and the usual 12 bytes of TCP options is a 1406-byte frame, which travels in one datagram. **(2)** A frame up to **1432** bytes goes in one datagram (1432 + 29 + 28 = 1489, which fits PPPoE's 1492). A larger one is split across two datagrams (`FRAG`) and put back together on arrival; each peer holds four reassembly slots with a 2 s timeout. **(3)** A NIC can hand a splice box a *coalesced* TCP frame of up to 64 KB (GRO, or a virtual NIC's GSO), so oversize TCP frames are cut into line-sized segments with fresh lengths, sequence numbers and checksums; that is always valid TCP. Other oversize frames are dropped and counted. |
+| splice | LAN hosts send 1500-byte frames and we can't change them. So: **(1)** clamp the TCP MSS in SYN and SYN-ACK frames as they pass, to **1340** (IPv4) or **1320** (IPv6). A segment carrying 1340 bytes and the usual 12 bytes of TCP options is a 1406-byte frame, which travels in one datagram. **(2)** A frame up to **1428** bytes goes in one datagram (1428 + 29 + 28 = 1485, and 1489 once a relay wraps it, which fits PPPoE's 1492). A larger one is split across two datagrams (`FRAG`) and put back together on arrival; each peer holds four reassembly slots with a 2 s timeout. **(3)** A NIC can hand a splice box a *coalesced* TCP frame of up to 64 KB (GRO, or a virtual NIC's GSO), so oversize TCP frames are cut into line-sized segments with fresh lengths, sequence numbers and checksums; that is always valid TCP. Other oversize frames are dropped and counted. |
 | path MTU | Probing the real path MTU per peer *(planned: M7)*. Until then the constants above assume 1492 or better. |
 
 ## 7. The three components
@@ -194,6 +194,7 @@ engine/                      plain C99: never includes hibr.h, so the Android ap
   sw.c                       the switch: MAC table, flood, split horizon, frame split, MSS clamp, ARP, re-segmenting
   site.c                     site groups: probes, election, standby, takeover
   line.c                     lines: members, admits, eviction, persistence, the mesh maintainer
+  relay.c                    relaying: the route table, wrapped datagrams, relay requests, path upgrade
   port.c                     local ports: splice, jack, sock, none
   caps.c                     clears every capability set once the port is open
   ctl.c                      the control socket and the event stream

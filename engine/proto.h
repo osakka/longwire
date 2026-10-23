@@ -7,6 +7,7 @@
 #include <string.h>
 
 #define T_COOKIE 0x03
+#define T_RELAY 0x05
 #define T_PUNCH 0x06
 #define T_HELLO 0x08
 #define K_FRAG  0x01		/* a frame too big for one datagram: id(2) part(1) total(2) bytes */
@@ -18,7 +19,10 @@
 #define M_MEMBER    0x03	/* number key_id ed_pub role admit */
 #define M_EVICT     0x04	/* line_id key_id time evictor sig */
 #define M_LINEKEY   0x05	/* line_id key */
+#define M_RELAY_REQ 0x06	/* to_key_id(32): please carry my packets to this member */
+#define M_RELAY_OK  0x07	/* role(1) peer_key_id(32) route(3) peer_bundle(1249) */
 #define M_BYE      0x08		/* leave(1) */
+#define M_RELAY_NO  0x0a	/* peer_key_id(32) */
 /* node <-> switchboard */
 #define M_REGISTER 0x20		/* token_len(1) token */
 #define M_NUMBER   0x21		/* number(9) observed(6) */

@@ -75,6 +75,8 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 	n->udp = n->port_fd = n->ctl_fd = -1;
 	n->rekey_after = cfg->rekey_after > 0 ? cfg->rekey_after : 120;
 	n->keepalive = cfg->keepalive > 0 ? cfg->keepalive : 25;
+	if (n->cfg.direct_retry <= 0)
+		n->cfg.direct_retry = 60;
 	n->mtu = cfg->mtu > 0 ? cfg->mtu : 1400;
 	for (i = 0; i < MAC_SLOTS; i++)
 		n->macs[i].port = -2;
@@ -205,6 +207,25 @@ static void close_inherited(const lw_node *n)
 	closedir(d);
 }
 
+/* One datagram off the wire (or out of a relay's wrapping) to whoever handles its type. */
+void node_dispatch(lw_node *n, const uint8_t *buf, size_t r, const struct sockaddr *ss, socklen_t sl)
+{
+	if (buf[0] == T_DATA)
+		sess_input(n, buf, r, ss, sl);
+	else if (buf[0] == T_COOKIE)
+		cookie_input(n, buf, r, ss, sl);
+	else if (buf[0] == T_PUNCH)
+		punch_input(n, buf, r, ss, sl);
+	else if (buf[0] == T_HELLO)
+		hello_input(n, buf, r, ss, sl);
+	else if (buf[0] == T_HS_INIT || buf[0] == T_HS_RESP)
+		hs_input(n, buf, r, ss, sl);
+	else if (buf[0] == T_RELAY)
+		relay_input(n, buf, r, ss, sl);
+	else
+		n->drop_garbage++;
+}
+
 int lw_node_serve(lw_node *n)
 {
 	struct pollfd pf[3];
@@ -235,18 +256,7 @@ int lw_node_serve(lw_node *n)
 				if (r < 1)
 					break;
 				n->rx_pkts++;
-				if (buf[0] == T_DATA)
-					sess_input(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
-				else if (buf[0] == T_COOKIE)
-					cookie_input(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
-				else if (buf[0] == T_PUNCH)
-					punch_input(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
-				else if (buf[0] == T_HELLO)
-					hello_input(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
-				else if (buf[0] == T_HS_INIT || buf[0] == T_HS_RESP)
-					hs_input(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
-				else
-					n->drop_garbage++;
+				node_dispatch(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
 			}
 		if (pf[1].revents & POLLIN)
 			for (i = 0; i < 256; i++) {

@@ -91,7 +91,7 @@ Without `--policy script` (the engine's own default), the worker accepts everyth
 whom: the registry on disk (`numbers.log`) holds numbers and keys, never calls.
 
 Everything the switchboard does not do yet is marked where it is described and listed under its milestone in the
-[ROADMAP](ROADMAP.md): NAT-type detection (`ECHO`) and relaying *(planned: M3)*, `LOOKUP` and `longwire who` *(planned: M3)*,
+[ROADMAP](ROADMAP.md): NAT-type detection (`ECHO`) *(planned: M3)*, `LOOKUP` and `longwire who` *(planned: M3)*,
 number release *(planned: M3)*, and a longer rekey interval for switchboard sessions *(planned: M3)*.
 
 ## What it sees

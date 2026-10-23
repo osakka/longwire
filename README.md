@@ -29,8 +29,8 @@ The examples write `longwire`. Until the launcher is packaged *(planned: M4)* th
 - **You dial a number.** Every node gets a short number from the **switchboard**, a tiny rendezvous server. It
   introduces two nodes, coordinates a NAT hole-punch, then **hangs up**. Traffic never passes through it.
 - **Two sites behind ordinary NATs connect directly,** and any number of sites form one **line**: call one member and the
-  rest of the mesh builds itself. Two *strict* (symmetric) NATs fail with a plain message today, and on a line that
-  splits it; relaying through another node of your own line, still end-to-end encrypted, *(planned: M3)*.
+  rest of the mesh builds itself. Two *strict* (symmetric) NATs go through another node of your own line with a public address, still end-to-end
+  encrypted, and move to a direct path as soon as one exists.
 - **It never runs as root.** Bridging a whole site needs one capability, granted once by the service manager and
   dropped as soon as the network port is open. Joining a single Linux host needs one tap device you own, created once.
 - **It's quantum-safe.** The handshake is hybrid X25519 + ML-KEM-768, the data is ChaCha20-Poly1305, and keys rotate

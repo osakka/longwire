@@ -16,7 +16,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0005](0005-standard-primitives-and-a-hybrid-handshake.md) | Standard primitives, and a hybrid X25519 + ML-KEM-768 handshake | accepted |
 | [0006](0006-the-v1-target-is-about-300-mbit-s-under-tcc.md) | The v1 throughput target is about 300 Mbit/s, built with TCC | accepted |
 | [0007](0007-three-components-all-hibr.md) | Three components, all hibr: a switchboard script, a node script, a module | accepted |
-| [0008](0008-hard-nats-are-relayed-by-line-members.md) | Hard NATs are relayed by line members, never by the switchboard | accepted *(planned: M3)* |
+| [0008](0008-hard-nats-are-relayed-by-line-members.md) | Hard NATs are relayed by line members, never by the switchboard | accepted |
 | [0009](0009-the-first-ring-asks-and-a-key-is-pinned-once-the-call-is-up.md) | The first ring asks, and a key is pinned once the call is up | accepted |
 | [0010](0010-numbers-are-allocated-and-bound-to-keys.md) | Numbers are allocated by the switchboard and bound to keys | accepted |
 | [0011](0011-one-switchboard-and-one-call-at-a-time.md) | One switchboard per deployment, and one call at a time | accepted |

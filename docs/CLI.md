@@ -72,6 +72,8 @@ and on the other machine's `up` terminal:
 | `--sock-port LOCAL:PEER` | frames as datagrams on a Unix socket: for tests |
 | `--listen [ADDR:]PORT` | the UDP address to listen on (default: any port) |
 | `--peer BUNDLE[@HOST:PORT]` | a peer known by its bundle file; with an address the node dials it, without it waits. Used without a switchboard |
+| `--relay yes\|no\|auto` | relay for members of your line: `auto` (default) only when this node has a public address |
+| `--direct-retry S` | how often a relayed peer tries for a direct path (60, doubling to 600) |
 | `--keepalive S`, `--rekey S` | keepalive interval (25) and rekey interval (120), in seconds |
 | `--cand-loopback` | offer 127.x as a call candidate: tests, and two nodes on one host |
 | `--seed FILE`, `--sock PATH`, `--state DIR` | where the identity, control socket and pins live (default `~/.longwire/`) |
@@ -124,7 +126,7 @@ tabular view *(planned: M4)*.
 
 **Events.** Everything the worker does is an event, one JSON object per line on `/dev/longwire/events`: `registered`,
 `register-refused` (with `reason`), `ring` (with `from`, `phrase`, `known`, `admit`), `connected` (with `number`, `path`, `ep`,
-`phrase`), `call-failed` (with a plain-language `reason`), `call-lost` (a call that was up lost its other end; the
+`phrase`; a relayed one says so in its path field and names the relay in a via field), `path` (a relayed peer found a direct path: `number`, `path`, `ep`), `call-failed` (with a plain-language `reason`), `call-lost` (a call that was up lost its other end; the
 script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `key-changed` (a number answered with a
 different key than before), `site` (a splice box became `active` or `standby`), and for lines `line-joined` (with `line`,
 `members`), `member-joined`, `member-left` and `member-evicted` (each with `number`), `evicted` (you were put off the

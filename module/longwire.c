@@ -185,6 +185,17 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->maxpeers = atoi(v);
 		else if (!strcmp(a, "--rekey"))
 			c->rekey_after = atoi(v);
+		else if (!strcmp(a, "--relay")) {
+			if (!strcmp(v, "yes"))
+				c->relay = 1;
+			else if (!strcmp(v, "no"))
+				c->relay = 2;
+			else if (strcmp(v, "auto")) {
+				hibr_fail(s, "lw start: --relay is yes, no or auto");
+				goto out;
+			}
+		} else if (!strcmp(a, "--direct-retry"))
+			c->direct_retry = atoi(v);
 		else if (!strcmp(a, "--keepalive"))
 			c->keepalive = atoi(v);
 		else if (!strcmp(a, "--peer") && !role) {

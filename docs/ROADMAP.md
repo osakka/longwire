@@ -12,7 +12,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 | **M0** | First frame: handshake, sessions, switch, module, node script | built |
 | **M1** | Dial tone: switchboard, numbers, dial and ring, pins, NAT hole punching | built |
 | **M2** | Splice: one subnet over two LANs, site groups, cookies | built |
-| **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | in progress: lines built; the rest planned |
+| **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | in progress: lines and relaying built; the rest planned |
 | **M4** | Desktop and distribution | planned |
 | **M5** | No privilege, more Unix | planned |
 | **M6** | Pocket: member mode, Android | planned |
@@ -43,9 +43,10 @@ relayed pair upgrades to direct once a path exists.
 - *Built (stage 1):* lines of up to 16 nodes: joining by vouching, admits, the self-building mesh with no prompt, eviction
   with line-key rotation, persistence and rejoining, `longwire peers` and `evict`, a site secret derived from the line key,
   partial-mesh reporting ([ADR 0022](adr/0022-lines-form-by-vouching.md)). Tested with four spliced sites and no NAT.
-- Hard NATs: the `ECHO` exchange and NAT-type detection, port spray, relaying through a line member, path upgrades,
-  global IPv6 and NAT-PMP candidates. **A pair that cannot reach each other splits a line silently, so this is the
-  stage that makes lines work behind strict NATs.**
+- *Built (stage 2):* relaying through a line member and path upgrade ([PROTOCOL §5](PROTOCOL.md#5-relay-built-m3-stage-2),
+  [ADR 0008](adr/0008-hard-nats-are-relayed-by-line-members.md)). Tested with two members behind symmetric NATs and a
+  public third: frames cross the relay, then the NATs are loosened and the pair finds its own path.
+- Hard NATs, the rest: the `ECHO` exchange and NAT-type detection, port spray, global IPv6 and NAT-PMP candidates.
 - IPv6: the underlay, and neighbour-discovery suppression
 - Smaller things: a tie-break for a crossed rekey; a longer rekey for switchboard sessions; a per-source limit on
   `HELLO`; a warning when two DHCP servers share a line; `LOOKUP` and `longwire who`, dialing a full address, number

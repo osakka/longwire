@@ -569,6 +569,15 @@ void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 		return;
 	memcpy(&c->verified, src, sl);
 	c->have_verified = 1;
+	if (p->relayed) {			/* a try for a better path: the session is up, so just aim some copies at this address */
+		memcpy(&p->probe_ep, src, sl);
+		p->probe_len = sl;
+		p->probe_until = n->now + 10.0;
+		p->probe_next = 0;
+		punch_send(n, c);
+		call_end(c);
+		return;
+	}
 	memcpy(&p->ep, src, sl);
 	p->eplen = sl;
 	punch_send(n, c);			/* open the way back at once */
@@ -766,7 +775,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			}
 			if (!(q = peer_by_key(n, kid)))
 				q = peer_add(n, pl + o);
-			else if (q->cur.valid) {		/* already connected: this call has nothing to add */
+			else if (q->cur.valid && !q->relayed) {	/* already connected: this call has nothing to add */
 				call_end(c);
 				return;
 			}
@@ -826,8 +835,10 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 		peer_drop(n, p);
 		return;
 	}
-	if (msg >= M_LINEHELLO && msg <= M_LINEKEY)
+	if (msg >= M_LINEHELLO && msg <= M_LINEKEY && msg != M_RELAY_REQ && msg != M_RELAY_OK)
 		line_msg(n, p, msg, pl, len);
+	else if (msg == M_RELAY_REQ || msg == M_RELAY_OK || msg == M_RELAY_NO)
+		relay_msg(n, p, msg, pl, len);
 }
 
 void node_timers(lw_node *n)
@@ -897,7 +908,7 @@ void node_timers(lw_node *n)
 			break;
 		case CALL_PUNCH:
 		case CALL_SETUP:
-			if (c->peer >= 0 && n->peers[c->peer].cur.valid) {
+			if (c->peer >= 0 && n->peers[c->peer].cur.valid && !n->peers[c->peer].relayed) {
 				char f[16], ep[64], ph[120];
 				lw_peer *pe = &n->peers[c->peer];
 				const uint8_t *pk = pe->key_id;
@@ -924,13 +935,64 @@ void node_timers(lw_node *n)
 				fmt_number(f, c->number);
 				if (!c->auto_)
 					ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"no direct path (both sides behind strict NAT?)\"}", f);
-				if (c->peer >= 0)
+				if (c->peer >= 0 && !n->peers[c->peer].relayed)
 					peer_drop(n, &n->peers[c->peer]);
 				call_end(c);
 			}
 			break;
 		}
 	}
+	for (i = 0; i < n->maxpeers; i++) {
+		lw_peer *p = &n->peers[i];
+		const lw_peer *v;
+		char f[16];
+
+		if (!p->used || !p->relayed)
+			continue;
+		v = &n->peers[p->via_peer];
+		fmt_number(f, p->number);
+		if (!v->used || memcmp(v->key_id, p->via_kid, 32) || !v->cur.valid) {	/* the relay is gone: so is this path */
+			if (p->announced)
+				ev_emit(n, "{\"event\":\"call-lost\",\"number\":\"%s\",\"we_called\":%s,\"reason\":\"the relay went away\"}", f, p->dial ? "true" : "false");
+			peer_drop(n, p);
+			continue;
+		}
+		if (p->cur.valid && !p->announced) {
+			char fv[16], ph[120];
+
+			p->announced = 1;
+			fmt_number(fv, v->number);
+			phrase_of(ph, sizeof ph, p->dial ? n->id.key_id : p->key_id, p->dial ? p->key_id : n->id.key_id);
+			ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"relay\",\"via\":\"%s\",\"phrase\":\"%s\"}", f, fv, ph);
+			call_peer_up(n, p, p->dial);
+		}
+		if (p->announced && !p->cur.valid) {
+			if (!p->lost_t)
+				p->lost_t = n->now;
+			else if (n->now - p->lost_t > 2.0 * n->keepalive) {
+				ev_emit(n, "{\"event\":\"call-lost\",\"number\":\"%s\",\"we_called\":%s,\"reason\":\"no answer from the other end\"}", f, p->dial ? "true" : "false");
+				peer_drop(n, p);
+				continue;
+			}
+		} else
+			p->lost_t = 0;
+		if (!p->announced && !p->cur.valid && n->now - p->touched > 40.0) {	/* the session never came up */
+			peer_drop(n, p);
+			continue;
+		}
+		/* keep trying for a direct path, less often each time */
+		if (p->cur.valid && n->now >= p->next_direct && !call_for_number(n, p->number) && n->registered) {
+			char err[80];
+			double wait = (double)n->cfg.direct_retry * (double)(1 << (p->direct_tries < 4 ? p->direct_tries : 4));
+
+			if (wait > 600.0 && n->cfg.direct_retry <= 600)
+				wait = 600.0;
+			if (!call_dial(n, p->number, 1, err, sizeof err))
+				p->direct_tries++;
+			p->next_direct = n->now + wait;
+		}
+	}
+	relay_timers(n);
 	line_timers(n);
 }
 
@@ -1088,14 +1150,15 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 	len = snprintf(o, cap,
 		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
-		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"peers\":[",
+		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
 		kid, num, sbs, refl, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,
 		(unsigned long long)n->arp_answered, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, site_role(n), site_members(n), n->site_sync_n,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->hs_nocookie, (unsigned long long)n->hs_badmac2, (unsigned long long)n->cookies_got, (unsigned long long)n->reg_count,
-		(unsigned long long)(n->sb >= 0 ? n->peers[n->sb].rekeys : 0));
+		(unsigned long long)(n->sb >= 0 ? n->peers[n->sb].rekeys : 0),
+		relay_live(n), (unsigned long long)n->relay_fwd, (unsigned long long)n->relay_drop, relay_offered(n) ? "true" : "false");
 	for (i = 0; i < n->maxpeers && len < (int)cap - 700; i++) {
 		lw_peer *p = &n->peers[i];
 		char f[16] = "";
@@ -1107,9 +1170,9 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		lw_hex(kid, p->key_id, 32);
 		addr_str(&p->ep, ep, sizeof ep);
 		len += snprintf(o + len, cap - (size_t)len,
-			"%s{\"key_id\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"path\":\"direct\",\"ep\":\"%s\",\"age\":%d,"
+			"%s{\"key_id\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"path\":\"%s\",\"ep\":\"%s\",\"age\":%d,"
 			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu}",
-			any ? "," : "", kid, f, sess_state(p), ep,
+			any ? "," : "", kid, f, sess_state(p), p->relayed ? "relay" : "direct", ep,
 			p->cur.valid ? (int)(n->now - p->cur.born) : -1,
 			(unsigned long long)p->rx_frames, (unsigned long long)p->tx_frames,
 			(unsigned long long)p->rekeys, (unsigned long long)p->drop_auth,

@@ -41,7 +41,7 @@ Use **"VPN"** only where people search for it ("a layer-2 VPN"), never in the pr
 
 - **Plain and short.** The CLI says `connected to 312-884-076`, not `Connection established successfully`.
 - **Say what happened and what to do next.** `call failed: no direct path (both sides behind strict NAT?)` is better
-  than `Fallback path engaged`. A relayed call will say which node is relaying *(planned: M3)*.
+  than `Fallback path engaged`. A relayed call says which node is relaying: `connected to 540-283-207 through a relay (312-884-076)`.
 - **The metaphor seasons the text; it shouldn't be the whole meal.** Status words come from the telephone, but
   explanations say what's really happening ("hole-punched", "behind CGNAT").
 - **Never cute about security.** Key changes, evictions and first calls are said straight, in full.
@@ -67,7 +67,7 @@ poles and text automatically in dark mode.
 | **line black** | `#121417` | text, poles, dark backgrounds |
 | **insulator** | `#F3EEE4` | light backgrounds, text on dark |
 | **dial green** | `#2FB67C` | dial tone, connected, direct path |
-| **ringing amber** | `#E0A100` | ringing, attention; a relayed path *(planned: M3)* |
+| **ringing amber** | `#E0A100` | ringing, attention; a relayed path |
 | **hang-up red** | `#D9473F` | rejected, key changed, failure |
 
 Status colours mean the same thing in the hibr desktop and on Android *(planned: M4)*; the terminal narration is plain

@@ -23,7 +23,7 @@ chatter crosses the WAN, which the switch trims with a flood budget and ARP supp
 ([0017](0017-a-splice-box-makes-a-nic-fit-the-line.md)). Loops cannot form between sites; the one way to make one is two
 boxes on the same segment, which [0018](0018-boxes-on-one-segment-elect-one-to-forward.md) handles. Lines of more than two
 nodes use the same switch, with introductions and admission ([0022](0022-lines-form-by-vouching.md)); but because split horizon needs a
-full mesh, a pair that cannot connect splits the line until relaying exists *(planned: M3)*.
+full mesh, a pair that cannot connect directly is relayed by another member ([0008](0008-hard-nats-are-relayed-by-line-members.md)), and splits the line only if no member will relay.
 
 ---
 

@@ -638,7 +638,11 @@ void line_timers(lw_node *n)
 			up++;
 			continue;
 		}
-		if (call_for_number(n, m->number) || n->now < m->next_try)
+		if (m->tries >= 2 && !call_for_number(n, m->number) && n->now >= m->next_relay) {
+			relay_request(n, m->key_id, &n->line.rr);	/* two direct tries came to nothing: have a member carry the call */
+			m->next_relay = n->now + 6.0;
+		}
+		if ((q && q->relayed) || call_for_number(n, m->number) || n->now < m->next_try)
 			continue;
 		if (!call_dial(n, m->number, 1, err, sizeof err)) {	/* dial everyone we lack a session with: it is how the mesh heals */
 			m->tries++;

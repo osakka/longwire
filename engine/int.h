@@ -21,7 +21,7 @@
 #define WIN_WORDS 64			/* 4096-packet replay window */
 #define MAC_SLOTS 8192
 #define FRAME_MAX 1514
-#define FRAME_SINGLE 1432		/* a frame up to this size travels in one datagram, larger ones in two: 1432 + 29 + 28 = 1489 fits PPPoE */
+#define FRAME_SINGLE 1428		/* a frame up to this size travels in one datagram, larger ones in two: 1428 + 29 + 4 (relay) + 28 = 1489 fits PPPoE */
 #define LINE_MSS4 1340			/* TCP MSS on the line: a segment with 12 bytes of options is a 1406-byte frame, under FRAME_SINGLE */
 #define LINE_MSS6 1320
 #define SITE_MEMBERS 4
@@ -75,11 +75,30 @@ typedef struct lw_peer {
 	double   last_tx, last_rx, last_hs_try, hello_next, touched;
 	int      hello_tries;
 	int      dialer;		/* we made the call that created this peer */
+	int      relayed;		/* every datagram for this peer goes through a relay: peers[via_peer], on route via_route */
+	int      via_peer;
+	uint32_t via_route;
+	int      announced;		/* the relayed session was reported */
+	struct sockaddr_storage probe_ep;	/* a direct address to try while relayed */
+	socklen_t probe_len;
+	double   probe_until, next_direct;
+	int      direct_tries;
+	uint8_t  via_kid[32];		/* the relay's key id: its peer slot may have been reused */
+	double   probe_next, lost_t;
 	int      lh_sent, lh_got, lh_has, linked;	/* the line handshake with this peer */
 	uint8_t  lh_id[8];
 	uint64_t rx_frames, tx_frames, rx_bytes, tx_bytes;
 	uint64_t rekeys, drop_auth, drop_replay;
 } lw_peer;
+
+typedef struct lw_route {		/* at a relay: a route between two members */
+	int      used;
+	uint32_t id;			/* the id this route's owner puts on its packets */
+	int      owner, remote;		/* peer indexes: who sends on this route, and who it is forwarded to */
+	uint32_t remote_id;
+	double   last;
+	double   tok, tok_t;		/* a per-route budget: a relay is not a free amplifier */
+} lw_route;
 
 typedef struct mac_ent {
 	uint8_t mac[6];
@@ -125,6 +144,7 @@ typedef struct lw_member {
 	uint8_t  role;
 	double   next_try;		/* the mesh maintainer's back-off */
 	int      tries;
+	double   next_relay;		/* when to ask for a relay again */
 } lw_member;
 
 typedef struct lw_evict {
@@ -143,6 +163,7 @@ typedef struct lw_line {
 	int      nev;
 	double   joined, tick;
 	int      said_partial, said_complete;
+	int      rr;			/* round-robin cursor over relay candidates */
 } lw_line;
 
 typedef struct pin {
@@ -164,6 +185,7 @@ struct lw_node {
 	mac_ent  macs[MAC_SLOTS];
 	hs_slot  slots[8];
 	lw_offer offers[OFFERS];
+	uint64_t relay_fwd, relay_drop, relay_routes;
 	uint64_t rx_pkts, drop_garbage, drop_noroute, flood, local_tx, local_rx;
 	double   now, started;
 	int      rekey_after, keepalive, mtu;
@@ -182,6 +204,8 @@ struct lw_node {
 	lw_call *calls;			/* the call table: a line is many calls at once */
 	int      ncalls;
 	lw_line  line;
+	lw_route routes[64];
+	int      rx_relayed;		/* the datagram being handled came out of a relay: it says nothing about the peer's address */
 	pin     *pins;
 	int      npins, cappins;
 	uint16_t udp_port;
@@ -227,7 +251,7 @@ int  hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, c
 int  hs_resp_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, const struct sockaddr *src, socklen_t sl);
 void hs_send(lw_node *n, int type, uint16_t hs_id, const uint8_t *m, size_t len,
 	     const uint8_t peer_key_id[32], const struct sockaddr *dst, socklen_t dl,
-	     const uint8_t *cookie, uint8_t *tag0_out);
+	     const uint8_t *cookie, uint8_t *tag0_out, lw_peer *to);
 void hs_start(lw_node *n, lw_peer *p);
 void cookie_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
 void hs_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
@@ -253,6 +277,20 @@ void site_timers(lw_node *n);
 int  site_input(lw_node *n, const uint8_t *f, size_t len);	/* 1 = a probe, consumed */
 const char *site_role(const lw_node *n);
 int  site_members(const lw_node *n);
+
+/* relay.c: carrying a pair's packets through a third member (docs/PROTOCOL.md §5) */
+void relay_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
+void relay_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len);
+int  relay_request(lw_node *n, const uint8_t member_kid[32], int *cursor);	/* ask a connected member to relay to this one */
+void peer_heard_direct(lw_node *n, lw_peer *p, const struct sockaddr *src, socklen_t sl);
+void relay_peer_gone(lw_node *n, int idx);
+void relay_timers(lw_node *n);
+void node_dispatch(lw_node *n, const uint8_t *buf, size_t r, const struct sockaddr *ss, socklen_t sl);
+const lw_member *line_member(lw_node *n, const uint8_t kid[32]);
+void peer_out(lw_node *n, lw_peer *p, const uint8_t *buf, size_t len);	/* send to a peer by whatever path it has */
+int  node_public(lw_node *n);
+int  relay_offered(lw_node *n);
+int  relay_live(const lw_node *n);							/* is this node reachable directly from the internet */
 
 /* sw.c */
 void sw_from_local(lw_node *n, const uint8_t *f, size_t len);

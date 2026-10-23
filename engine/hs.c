@@ -373,12 +373,10 @@ int hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 	ns = &p->next;
 	memset(ns, 0, sizeof *ns);
 	sess_set_keys(ns, 0, ck, my_idx, their_idx, n->now);
-	if (src->sa_family) {
-		memcpy(&p->ep, src, sl);			/* authenticated: moves the endpoint */
-		p->eplen = sl;
-	}
+	if (src->sa_family && !n->rx_relayed)
+		peer_heard_direct(n, p, src, sl);		/* authenticated: moves the endpoint */
 	hs_send(n, T_HS_RESP, hs_id, resp, HS_RESP_LEN,
-		p->key_id, (struct sockaddr *)&p->ep, p->eplen, 0, 0);
+		p->key_id, (struct sockaddr *)&p->ep, p->eplen, 0, 0, p);
 	crypto_wipe(e2, 32); crypto_wipe(k, 32); crypto_wipe(t, 32); crypto_wipe(ck, 32);
 	crypto_wipe(s1, 32); crypto_wipe(s2, 32); crypto_wipe(s3, 32);
 	return 0;
@@ -449,7 +447,7 @@ int hs_resp_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
  * responder can discard unauthenticated fragments before buffering anything. */
 void hs_send(lw_node *n, int type, uint16_t hs_id, const uint8_t *m, size_t len,
 	     const uint8_t peer_key_id[32], const struct sockaddr *dst, socklen_t dl,
-	     const uint8_t *cookie, uint8_t *tag0_out)
+	     const uint8_t *cookie, uint8_t *tag0_out, lw_peer *to)
 {
 	uint8_t pkt[4 + HS_CHUNK + 32], mk[32];
 	int count = (int)((len + HS_CHUNK - 1) / HS_CHUNK), i;
@@ -470,7 +468,10 @@ void hs_send(lw_node *n, int type, uint16_t hs_id, const uint8_t *m, size_t len,
 			cmac16(pkt + 4 + c + 16, cookie, pkt, 4 + c + 16);
 		else
 			memset(pkt + 4 + c + 16, 0, 16);
-		sendto(n->udp, pkt, 4 + c + 32, 0, dst, dl);
+		if (to)
+			peer_out(n, to, pkt, 4 + c + 32);
+		else
+			sendto(n->udp, pkt, 4 + c + 32, 0, dst, dl);
 	}
 }
 

@@ -3,6 +3,23 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3, stage 2: relaying and path upgrade
+
+- **Relay** ([ADR 0008](docs/adr/0008-hard-nats-are-relayed-by-line-members.md), [PROTOCOL §5](docs/PROTOCOL.md#5-relay-built-m3-stage-2)):
+  when two direct tries to a line member fail, a node asks a connected member to carry the pair's packets. The pair
+  runs its own handshake and session through the relay, which sees only sizes and timing; a relay is a member with a
+  public address (`--relay auto`), forwards by 24-bit route id after checking the sender's address, and holds 64 routes
+  that expire after 60 s idle. The switchboard still never relays.
+- **Path upgrade:** a relayed peer calls its member again through the switchboard (`--direct-retry`, 60 s doubling to
+  10 min); when the punch lands, session traffic goes to the punched address as well, and the first authenticated datagram
+  straight from the other end drops the relay. Event `path`; `connected` has `path` `relay` and `via`.
+- **Behind it:** every datagram to a peer now goes through one function that knows the peer's path; a datagram that came
+  out of a relay never moves a peer's address; `NODE_STATUS` gains `relay` and each peer's `path`; the packet dispatcher
+  became a function of its own. `FRAME_SINGLE` went from 1432 to 1428 so a wrapped full frame still fits a PPPoE link.
+- **Tests:** `tests/m3b.sh`: two members behind symmetric NATs and a public third; frames (and full-size, fragmented ones)
+  cross the relay, the NATs are loosened, the pair goes direct, then the relay is shut down and the pair carries on. The
+  NAT simulator moved to `tests/lwnat.py`.
+
 ## M3, stage 1: lines of more than two nodes
 
 - **Lines** ([ADR 0022](docs/adr/0022-lines-form-by-vouching.md)): up to 16 nodes on one L2 segment, joined by number.

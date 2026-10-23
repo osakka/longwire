@@ -28,6 +28,7 @@ check: all lint
 	sh tests/m1.sh
 	sh tests/m2.sh
 	sh tests/m3.sh
+	sh tests/m3b.sh
 	python3 -I tests/docs.py
 
 clean:

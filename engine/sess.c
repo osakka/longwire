@@ -99,7 +99,7 @@ int sess_send(lw_node *n, lw_peer *p, uint8_t kind, const uint8_t *body, size_t 
 	crypto_aead_init_ietf(&c, s->k_send, nonce);
 	crypto_aead_write(&c, buf + 12, buf + 12 + 1 + len, buf, 12, buf + 12, 1 + len);
 	s->ctr_send++;
-	sendto(n->udp, buf, 12 + 1 + len + 16, 0, (struct sockaddr *)&p->ep, p->eplen);
+	peer_out(n, p, buf, 12 + 1 + len + 16);
 	p->last_tx = n->now;
 	p->tx_bytes += len;
 	return 0;
@@ -195,10 +195,10 @@ void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 		p->rekeys++;
 		s = &p->cur;
 	}
-	if (sl != p->eplen || memcmp(src, &p->ep, sl)) {	/* roaming: authenticated source */
-		memcpy(&p->ep, src, sl);
-		p->eplen = sl;
-	}
+	if (n->rx_relayed)				/* it came out of a relay: that says nothing about where the peer is */
+		;
+	else if (p->relayed || sl != p->eplen || memcmp(src, &p->ep, sl))	/* roaming: authenticated source */
+		peer_heard_direct(n, p, src, sl);
 	p->last_rx = n->now;
 	if (plain[0] == K_CTL && pl >= 4) {
 		size_t l = get16(plain + 2);
@@ -228,7 +228,7 @@ void hs_start(lw_node *n, lw_peer *p)
 		return;
 	hs_send(n, T_HS_INIT, p->hs.hs_id, p->hs.msg, HS_INIT_LEN, p->key_id,
 		(struct sockaddr *)&p->ep, p->eplen,
-		p->cookie_t && n->now - p->cookie_t < 120.0 ? p->cookie : 0, p->hs.tag0);
+		p->cookie_t && n->now - p->cookie_t < 120.0 ? p->cookie : 0, p->hs.tag0, p);
 	p->last_hs_try = n->now;
 }
 
@@ -258,6 +258,10 @@ void sess_timers(lw_node *n)
 			hello_request(n, p);
 			p->hello_next = n->now + (t < 3 ? (double)(1 << t) : 8.0);
 			continue;
+		}
+		if (p->relayed && c->valid && p->probe_len && n->now < p->probe_until && n->now >= p->probe_next) {
+			sess_send(n, p, K_KEEPALIVE, 0, 0);	/* goes both ways: a direct copy opens the path */
+			p->probe_next = n->now + 0.5;
 		}
 		if (p->prev.valid && n->now - c->born > 10)
 			explicit_bzero(&p->prev, sizeof p->prev);
@@ -344,6 +348,7 @@ void peer_drop(lw_node *n, lw_peer *p)
 	int idx = (int)(p - n->peers), i;
 
 	free(p->fr);
+	relay_peer_gone(n, idx);
 
 	for (i = 0; i < MAC_SLOTS; i++)		/* whatever was learned behind this peer is no longer reachable */
 		if (n->macs[i].port == idx)

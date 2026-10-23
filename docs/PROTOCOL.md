@@ -18,7 +18,7 @@ The first byte of every datagram is its type. Anything unrecognised is dropped s
 | `0x02` | `HS_RESP` | handshake | handshake message 2 (fragmented) |
 | `0x03` | `COOKIE` | XChaCha20-Poly1305 under a key from the responder's key id | DoS cookie reply |
 | `0x04` | `DATA` | session AEAD | everything after the handshake |
-| `0x05` | `RELAY` | relay route binding | a sealed peer-to-peer packet carried by a relay *(planned: M3)* |
+| `0x05` | `RELAY` | the relay's route table, then the inner packet's own authentication | a peer-to-peer datagram carried by a relay (§5) |
 | `0x06` | `PUNCH` | call token MAC | opens NAT mappings during call setup |
 | `0x07` | `ECHO` | call token MAC | asks the switchboard's second port for our reflexive address *(planned: M3)* |
 | `0x08` | `HELLO` | the requester checks `H(bundle) == key_id` | fetch a node's bundle when only its key id is known, or offer one (bootstrap) |
@@ -58,7 +58,7 @@ Plaintext `kind` values:
 | kind | body |
 |---|---|
 | `0x00 FRAME` | one Ethernet frame, header included, without the FCS |
-| `0x01 FRAG` | `frame_id:2 ‖ part:1 (0 or 1) ‖ total_len:2 ‖ bytes` (big-endian). A frame over 1432 bytes is split across two datagrams ([ARCHITECTURE §6](ARCHITECTURE.md#6-packet-sizes)) |
+| `0x01 FRAG` | `frame_id:2 ‖ part:1 (0 or 1) ‖ total_len:2 ‖ bytes` (big-endian). A frame over 1428 bytes is split across two datagrams ([ARCHITECTURE §6](ARCHITECTURE.md#6-packet-sizes)) |
 | `0x02 KEEPALIVE` | empty |
 | `0x10 CTL` | one control message: `msg:1 ‖ len:2 (big-endian) ‖ payload` (§6) |
 
@@ -145,7 +145,7 @@ mapping must stay open for the caller's handshake to arrive. A call that has no 
 `no direct path (both sides behind strict NAT?)`, and nothing is left behind. Two strict (symmetric) NATs therefore
 fail cleanly, as the symmetric-NAT tests show (a symmetric NAT facing a cone NAT, and two symmetric NATs).
 
-### The harder rungs *(planned: M3)*
+### The harder rungs *(relay and path upgrade built; the rest planned: M3)*
 
 The full design is a ladder, each rung tried when the one before fails:
 
@@ -168,24 +168,38 @@ The full design is a ladder, each rung tried when the one before fails:
   public IP at 100 pps. The chance of a hit after *n* probes is `1 − (1 − 256/64512)ⁿ`, about **98% at 1,024
   probes**, in roughly 10 seconds. Spraying isn't attempted when *both* sides are EDM, because the odds are
   hopeless, so that case goes straight to relay.
-- **Path upgrade.** A relayed session keeps probing better candidates in the background, and moves to a better path
-  seamlessly when one is found. Session keys don't change when the path does.
+- **Path upgrade** *(built)*. A relayed pair keeps trying for a direct path, by an ordinary call through the switchboard
+  every 60 s, doubling to 10 min (`--direct-retry`). When the punch lands, each end sends copies of its session traffic to
+  the punched address as well as through the relay; the first authenticated datagram that arrives from the other end
+  itself ends the relay on that side, and the other side follows on seeing it. Session keys don't change when the path does.
 
-## 5. Relay *(planned: M3)*
+## 5. Relay *(built, M3 stage 2)*
 
-A relay is an ordinary line member with a public address that offers relaying (on by default for public
-nodes). **The switchboard never relays.**
+A relay is an ordinary member of the line that has a public address (`--relay auto`, the default: the address the
+switchboard sees is one the node holds) or was told to relay (`--relay yes`; `no` never). **The switchboard never relays.**
+A node relays only between two members of its own line that it has a direct session with, and it never relays a relayed
+leg (no chains).
 
-1. A asks relay R over their own session: `CTL RELAY_REQ{to: key_id_B}`.
-2. R asks B over *their* session, and B agrees if B is on the line.
-3. R allocates two 24-bit route ids and binds each one to an authenticated endpoint. It sends `RELAY_OK{route}` to
-   A and to B.
-4. A sends `0x05 ‖ route:3 ‖ <a complete A↔B packet>`. R checks that the source address matches the route's bound
-   endpoint, swaps the route id and forwards the packet. That's it.
+1. After two direct dial attempts to a member have failed (about 15 s), A asks each connected member in turn, every 6 s,
+   over their own session: `RELAY_REQ{key_id_C}`.
+2. R, if it will relay and has C on the line with a direct session, allocates two 24-bit route ids, one per direction,
+   and sends `RELAY_OK{role ‖ peer_key_id ‖ route ‖ peer_bundle}` to A (role 1, A dials) and to C (role 0). Otherwise
+   `RELAY_NO{key_id_C}`.
+3. A and C check that the bundle hashes to the key id and that the peer is on their line, then add the other as an
+   ordinary peer whose datagrams are all wrapped `0x05 ‖ route:3 ‖ <inner datagram>` to R. The handshake, sessions,
+   rekeying and the line protocol then run unchanged between A and C, through R.
+4. R looks the route up and checks that the source address is the one it authenticated for that route's owner, swaps the
+   route id for the other direction's and forwards. That's it. An end of the pair accepts a wrapped datagram only from
+   the relay it chose, on the route id it was given, and it never takes the peer's address from one.
 
-R sees only sizes and timing. The inner packet is A↔B's own end-to-end session, and R doesn't have its keys. Relay
-overhead is 4 bytes. Routes expire after 60 s idle, R limits each route's rate, and the source binding stops R from
-being used as an open reflector.
+R sees only sizes and timing: the inner datagram is A↔C's own end-to-end session, whose keys R does not have. The overhead
+is 4 bytes (a full-size frame is cut to `FRAME_SINGLE`, 1428 bytes, so it still fits a PPPoE link once wrapped). A relay
+holds 64 routes (two per pair), forgets one after 60 s idle, and limits each route to about 10,000 datagrams a second, so
+it is not a free amplifier. When the relay's session dies or the relay leaves, the relayed peers go with it, a
+`call-lost` is reported and the maintainer starts again.
+
+*Known limit:* the handshake's cookie reply (`COOKIE`) to a relayed `HS_INIT` is not wrapped, so a node under handshake
+load cannot be reached through a relay until the load passes.
 
 ## 6. Control messages and lines
 
@@ -199,10 +213,11 @@ A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. The messages 
 | `0x03` | `MEMBER` | `number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1 ‖ admit:145`: a new member, announced to the others |
 | `0x04` | `EVICT` | `line_id:8 ‖ key_id:32 ‖ time:8 ‖ evictor:32 ‖ sig:64` |
 | `0x05` | `LINEKEY` | `line_id:8 ‖ key:32`: the new line key, inside the pairwise session |
-| `0x06` | `RELAY_REQ` | §5 *(planned: M3)* |
-| `0x07` | `RELAY_OK` | §5 *(planned: M3)* |
+| `0x06` | `RELAY_REQ` | `key_id:32`: please carry my packets to this member (§5) |
+| `0x07` | `RELAY_OK` | `role:1 ‖ key_id:32 ‖ route:3 ‖ bundle:1249` (§5) |
 | `0x08` | `BYE` | `leave:1`: hanging up; `1` also leaves the line |
 | `0x09` | `PMTU` | probe result *(planned: M7)* |
+| `0x0a` | `RELAY_NO` | `key_id:32`: this node will not relay to that member (§5) |
 
 ### Lines and party lines
 
@@ -239,7 +254,7 @@ heals after a restart or a drop and a restarted member rejoins on the admit it p
 at once, the call from the node with the lower key id stands and the other is answered busy.
 
 **Partial meshes.** Split horizon assumes a full mesh: a frame from A that reaches B is never forwarded to C. If a pair
-cannot connect, that pair is partitioned, silently, until relaying exists *(planned: M3)*. So a node reports it: the
+cannot connect directly, it is relayed (§5); if no member will relay, that pair is partitioned, silently. So a node reports it: the
 status lists members against sessions up, and `line-partial` fires if the mesh is still incomplete 30 seconds after the
 node joined (`line-complete` when it completes).
 

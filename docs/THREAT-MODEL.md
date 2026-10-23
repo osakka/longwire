@@ -23,7 +23,7 @@ What longwire defends against, what it does not, and what is still open. Designe
 | **Malicious or compromised switchboard** | see presence, addresses and who rings whom; refuse service; on a *first* call, hand out the wrong key for a number | read or alter traffic; impersonate a number you have already been connected to (the key is pinned); make you accept a call (a ring asks, under the default policy) |
 | **Number squatter** | register numbers | take an existing number: numbers are bound to keys, first come. Numbers are never released today, so none is ever re-issued; once release exists *(planned: M3)* a re-issued number shows up as a key mismatch, like SSH's changed-host-key warning |
 | **Malicious peer on a call** | everything a host on your LAN can do: ARP spoofing, DHCP, scanning | read other peers' sessions *in transit* (it sees what is flooded to it, as any LAN host would) |
-| **Malicious relay** | see sizes and timing of the traffic it relays; drop it | read or alter it: relayed packets are end-to-end sessions *(planned: M3)* |
+| **Malicious relay** | see sizes and timing of the traffic it relays; drop it | read or alter it: relayed packets are end-to-end sessions, and a relay is only a member of the line. It can also refuse or stall the pair: they notice, ask another member, and keep trying for a direct path |
 | **Stolen device** | be that device: the seed *is* the number and the key | outlast an eviction: any member can evict it (`longwire evict`), which removes it from every member's list, rotates the line key, and bars it from ringing back in. Its own number and key stay its own, so the identity itself is replaced to be rid of it elsewhere |
 | **Malicious line member** | everything a peer on a call can do, and also vouch for other nodes and evict any member: there is no owner and no quorum | read other members' sessions in transit. Any member can be evicted by any other, which is the trust a line implies |
 | **Attacker on a site's own LAN segment** | do anything a LAN host can; flood the segment; replay a recorded probe to keep a dead box looking alive for up to about 30 seconds after it was recorded | forge a probe or a host list (both are authenticated with the site secret); join the line |
@@ -56,8 +56,8 @@ Cookies are keyed by address and port, so two nodes behind one NAT address each 
 
 ## Known gaps today
 
-- **Two strict NATs cannot connect;** the call fails with a plain message. Hard-NAT traversal and relaying
-  *(planned: M3)*.
+- **Two strict NATs connect only through a relay,** a member of the line with a public address. A line with no such
+  member splits at that pair and says so. Port spray and NAT-type detection *(planned: M3)*.
 - **`HELLO` answers are limited globally,** not per source *(planned: M3)*.
 - **A crossed rekey can stall a link** until the dead-peer timer fires (76 s at the default keepalive). It is rare
   by construction, and the tie-break that removes it *(planned: M3)*.

@@ -25,6 +25,7 @@ the mesh is incomplete.
 
 A line is a cable into every member's LAN, and any member can add or remove any other: there is no owner and no
 quorum, which is the trust the use case implies and is written down in the threat model. There are no roles beyond
-trunk (a leaf role arrives with member mode, M6). A node is on one line, up to 16 members. Until relaying exists, a pair
-that cannot reach each other (two strict NATs) splits the line silently, so partiality is reported rather than hidden.
+trunk (a leaf role arrives with member mode, M6). A node is on one line, up to 16 members. A pair that cannot reach each other
+(two strict NATs) is relayed by another member ([0008](0008-hard-nats-are-relayed-by-line-members.md)); if none will relay it splits
+the line silently, so partiality is reported rather than hidden.
 Clock skew between members blurs "later than the eviction" by the skew; admits and evictions carry the signer's clock.
