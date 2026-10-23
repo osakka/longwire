@@ -129,7 +129,7 @@ tabular view *(planned: M4)*.
 ## Events
 
 **Events.** Everything the worker does is an event, one JSON object per line on `/dev/longwire/events`: `registered`,
-`register-refused` (with `reason`), `ring` (with `from`, a name that is empty if none was announced, `phrase`, `known`, `admit`), `found` (the directory's answer: the query, whether there is a directory, whether you were told to slow down, and the results), `connected` (with `number`, `path`, `ep`,
+`register-refused` (with `reason`), `code-assigned` (a switchboard was given its short code by the registry), `ring` (with `from`, a name that is empty if none was announced, `phrase`, `known`, `admit`), `found` (the directory's answer: the query, whether there is a directory, whether you were told to slow down, and the results), `connected` (with `number`, `path`, `ep`,
 `phrase`; a relayed one says so in its path field and names the relay in a via field), `path` (a relayed peer found a direct path: `number`, `path`, `ep`), `call-failed` (with a plain-language `reason`), `call-lost` (a call that was up lost its other end; the
 script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `key-changed` (a number answered with a
 different key than before), `site` (a splice box became `active` or `standby`), and for lines `line-joined` (with `line`,
@@ -151,6 +151,7 @@ verb works from any hibr process, through the worker's control socket (`~/.longw
 | `lw evict NUM`, `lw peers` | the line: remove a member (and change the key); list the members |
 | `lw status` | the JSON above, also in `$RET` |
 | `lw key new\|id\|address\|bundle SEEDFILE` | create or read an identity |
+| `lw plan N` | the N-th assigned switchboard code of the numbering plan, counting from 0 (for operators and tests) |
 | `lw sb start [options]`, `lw sb reply ID accept\|refuse [ARG...]` | the switchboard worker, and the script's decisions |
 | `lw who NUM` | what this node knows of a number (JSON) |
 | `lw lookup NAME\|lw1…` | ask the directory; the answer arrives as a `found` event |

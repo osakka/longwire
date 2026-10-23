@@ -204,7 +204,7 @@ void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 		size_t l = get16(plain + 2);
 
 		if (l + 4 <= pl) {
-			if (n->role)
+			if (n->role && !p->is_sb)		/* (a switchboard's own registry is the one peer that answers us) */
 				board_msg(n, p, plain[1], plain + 4, l);
 			else
 				node_msg(n, p, plain[1], plain + 4, l);

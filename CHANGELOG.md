@@ -3,6 +3,19 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: the registry of switchboard codes
+
+- **A switchboard is given its short code the way a node is given a number** ([ADR 0024](docs/adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)):
+  `longwire-switchboard --registry HOST:PORT/KEY` registers with a registry (any switchboard started with `--issue-codes`) over the normal
+  handshake and is told its code in `NUMBER`; its nodes then show `+20 312-884-076`. The plan is prefix-free: `+1` goes to the
+  switchboard named by `--public-switchboard`, then `20`..`49`, `500`..`649` (without `555`), `6500`.. and so on, each length keeping the
+  upper half of its free prefixes to open the next. The derived `+0…` code keeps working beside the short one.
+- `--registry` is required (`none` for a private switchboard, which keeps its derived code). A registry limits askers (`--codes-per-ip-day`,
+  default 2), refuses when it is not a registry, and remembers its book in `codes.log`. New: event `code-assigned`, `lw plan`, status
+  fields `switchboard_codes` (nodes) and `code` / `code_refused` / `codes_issued` (switchboards).
+- **Tests:** `tests/registry.sh` (the plan, +1, +20, the per-address limit, a non-registry refusing, restarts keeping the book).
+  `LW_KEEP=1` keeps a test's logs and state for a look.
+
 ## M3: full numbers
 
 - **A full number is a switchboard code and a local number** ([ADR 0024](docs/adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)):

@@ -53,7 +53,7 @@ def main():
     router = Router(sites, "rS", mac_of("rS"), {"192.0.2.10": mac_of("vS", nsS)})
     router.start()
 
-    sb = Node("S", nsS, "longwire-switchboard.hibr", ["--listen", "192.0.2.10:1877"])
+    sb = Node("S", nsS, "longwire-switchboard.hibr", ["--registry", "none", "--listen", "192.0.2.10:1877"])
     until(lambda: os.path.exists(sb.home + "/sb/seed") and os.path.exists(sb.sock), 15)
     addr = subprocess.run([HIBR, "-c", f"mod load {MOD}; lw key address {sb.home}/sb/seed"], capture_output=True, text=True).stdout.strip()
 

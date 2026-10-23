@@ -105,7 +105,10 @@ void full_number(const lw_node *n, const char *local, char *out, size_t cap)
 	home_kid(n, k);
 	fmt_number(f, local);
 	if (n->cfg.switchboard[0]) {
-		sb_code(k, code);
+		if (n->home_code[0])			/* the registry's short code is the one to show */
+			snprintf(code, sizeof code, "%s", n->home_code);
+		else
+			sb_code(k, code);
 		snprintf(out, cap, "+%s %s", code, f);
 	} else
 		snprintf(out, cap, "%s", f);
@@ -133,7 +136,13 @@ int parse_full(const lw_node *n, const char *in, char out[NUMLEN + 1], char *err
 		home_kid(n, k);
 		sb_code(k, mine);
 		ml = strlen(mine);
-		if (!n->cfg.switchboard[0] || l < ml || strncmp(d, mine, ml)) {
+		if (n->home_code[0] && l >= strlen(n->home_code) && !strncmp(d, n->home_code, strlen(n->home_code)))
+			ml = strlen(n->home_code);		/* our assigned code: it cannot also start with 0, so it is not the derived one */
+		else if (l >= ml && !strncmp(d, mine, ml))
+			;
+		else
+			ml = 0;
+		if (!n->cfg.switchboard[0] || !ml) {
 			snprintf(err, errn, "that number is on another switchboard, or its code is mistyped (yours is +%s); calling across switchboards is planned (M9)", mine);
 			return -1;
 		}
@@ -467,6 +476,36 @@ static int pin_remove(lw_node *n, const char *num)
 	return 1;
 }
 
+/* Register with a switchboard given as HOST:PORT/KEY (for a switchboard worker: the registry of codes). */
+int sb_connect(lw_node *n, const char *spec, char *err, size_t errn)
+{
+	char hp[200], *slash = strrchr(spec, '/');
+	uint8_t kid[32];
+	lw_peer *p;
+
+	if (!slash || (size_t)(slash - spec) >= sizeof hp) {
+		snprintf(err, errn, "%s wants HOST:PORT/KEYID (64 hex or lw1...)", n->role ? "--registry" : "--switchboard");
+		return -1;
+	}
+	snprintf(hp, sizeof hp, "%.*s", (int)(slash - spec), spec);
+	if (lw_address_parse(slash + 1, kid)) {
+		snprintf(err, errn, "bad switchboard key id '%s'", slash + 1);
+		return -1;
+	}
+	if (!(p = peer_add_keyid(n, kid))) {
+		snprintf(err, errn, "peer table full");
+		return -1;
+	}
+	if (lw_resolve(hp, &p->ep, &p->eplen)) {
+		snprintf(err, errn, "cannot resolve %s", hp);
+		return -1;
+	}
+	p->dial = 1;
+	p->is_sb = 1;
+	n->sb = (int)(p - n->peers);
+	return 0;
+}
+
 /* ---- setup ------------------------------------------------------------------- */
 
 int node_init(lw_node *n, char *err, size_t errn)
@@ -484,32 +523,8 @@ int node_init(lw_node *n, char *err, size_t errn)
 	}
 	line_init(n);
 	pins_load(n);
-	if (n->cfg.switchboard[0]) {
-		char hp[200], *slash = strrchr(n->cfg.switchboard, '/');
-		uint8_t kid[32];
-		lw_peer *p;
-
-		if (!slash || (size_t)(slash - n->cfg.switchboard) >= sizeof hp) {
-			snprintf(err, errn, "--switchboard wants HOST:PORT/KEYID (64 hex or lw1...)");
-			return -1;
-		}
-		snprintf(hp, sizeof hp, "%.*s", (int)(slash - n->cfg.switchboard), n->cfg.switchboard);
-		if (lw_address_parse(slash + 1, kid)) {
-			snprintf(err, errn, "bad switchboard key id '%s'", slash + 1);
-			return -1;
-		}
-		if (!(p = peer_add_keyid(n, kid))) {
-			snprintf(err, errn, "peer table full");
-			return -1;
-		}
-		if (lw_resolve(hp, &p->ep, &p->eplen)) {
-			snprintf(err, errn, "cannot resolve switchboard %s", hp);
-			return -1;
-		}
-		p->dial = 1;
-		p->is_sb = 1;
-		n->sb = (int)(p - n->peers);
-	}
+	if (n->cfg.switchboard[0] && sb_connect(n, n->cfg.switchboard, err, errn))
+		return -1;
 	return 0;
 }
 
@@ -777,7 +792,25 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				n->reg_born = p->cur.born;
 				n->reg_count++;
 				n->sb_caps = len >= NUMLEN + 7 ? pl[NUMLEN + 6] : 0;
-				if (news) {
+				{
+					size_t cl;
+					const uint8_t *cd = len > NUMLEN + 7 ? tlv_find(pl + NUMLEN + 7, len - NUMLEN - 7, TAG_CODE, &cl) : 0;
+					char code[10];
+
+					if (cd && cl >= 1 && cl <= 9) {
+						size_t k;
+
+						for (k = 0; k < cl && cd[k] >= '0' && cd[k] <= '9'; k++)
+							code[k] = (char)cd[k];
+						code[k] = 0;
+						if (k == cl && strcmp(code, n->home_code)) {
+							memcpy(n->home_code, code, sizeof n->home_code);
+							if (n->role)
+								ev_emit(n, "{\"event\":\"code-assigned\",\"code\":\"%s\"}", code);
+						}
+					}
+				}
+				if (news && !n->role) {
 					char f[16];
 
 					fmt_number(f, n->number);
@@ -1055,27 +1088,29 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 		relay_msg(n, p, msg, pl, len);
 }
 
-void node_timers(lw_node *n)
+/* Registering with our switchboard (a switchboard registering with its registry of codes does the same, once). */
+void registration_timers(lw_node *n)
 {
 	lw_peer *s = sbp(n);
-	int i;
 
 	if (s) {
 		int need = n->registered ? n->reg_born != s->cur.born : n->reg_refused != s->cur.born;
 
 		if (need && n->now >= n->next_reg) {
-			uint8_t b[1 + 64 + 2 + LW_NAME_MAX + 2];
+			uint8_t b[1 + 64 + 2 + LW_NAME_MAX + 2 + 2];
 			size_t tl = strlen(n->cfg.token), o = 1 + tl;
 
 			b[0] = (uint8_t)tl;
 			memcpy(b + 1, n->cfg.token, tl);
+			if (n->role)				/* a switchboard asking the registry for its code */
+				o += (size_t)tlv_put(b + o, TAG_SWITCHBOARD, 0, 0);
 			if (n->cfg.name[0])
 				o += (size_t)tlv_put(b + o, TAG_NAME, n->cfg.name, strlen(n->cfg.name));
 			if (n->cfg.listed)
 				o += (size_t)tlv_put(b + o, TAG_LISTED, 0, 0);
 			ctl_msg_send(n, s, M_REGISTER, b, o);
 			n->next_reg = n->now + 2.0;
-		} else if (n->registered && n->now >= n->next_hb) {
+		} else if (n->registered && !n->role && n->now >= n->next_hb) {
 			uint8_t b[1 + MAXCANDS * 7];
 			lw_cand cc[MAXCANDS];
 			int nc = gather(n, cc, MAXCANDS);
@@ -1084,6 +1119,13 @@ void node_timers(lw_node *n)
 			n->next_hb = n->now + n->keepalive;
 		}
 	}
+}
+
+void node_timers(lw_node *n)
+{
+	int i;
+
+	registration_timers(n);
 	if (n->look.active && n->now - n->look.t > 5.0) {
 		n->look.active = 0;
 		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"the directory did not answer\"}");
@@ -1419,7 +1461,7 @@ int node_replay(lw_node *n, char *o, size_t cap)
 
 int node_status_json(lw_node *n, char *o, size_t cap)
 {
-	char kid[65], ep[64], num[16] = "", fullnum[40] = "", sbs[24], refl[64] = "";
+	char codes_json[48] = "", kid[65], ep[64], num[16] = "", fullnum[40] = "", sbs[24], refl[64] = "";
 	const char *cs = "idle";
 	int len, i, any = 0;
 
@@ -1440,13 +1482,19 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		fmt_number(num, n->number);
 		full_number(n, n->number, fullnum, sizeof fullnum);
 	}
+	if (n->sb >= 0) {			/* the codes our switchboard answers to: the registry's, if it has one, and the derived one */
+		char dc[9];
+
+		sb_code(n->peers[n->sb].key_id, dc);
+		snprintf(codes_json, sizeof codes_json, "%s%s%s\"%s\"", n->home_code[0] ? "\"" : "", n->home_code, n->home_code[0] ? "\"," : "", dc);
+	}
 	snprintf(sbs, sizeof sbs, "%s", n->sb < 0 ? "none" : sbp(n) ? (n->registered ? "dial tone" : "registering") : "no switchboard");
 	if (n->have_refl)
 		snprintf(refl, sizeof refl, "%u.%u.%u.%u:%u", n->refl.ip[0], n->refl.ip[1], n->refl.ip[2], n->refl.ip[3], n->refl.port);
 	len = snprintf(o, cap,
 		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
-		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
+		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
 		kid, num, fullnum, sbs, refl, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
@@ -1455,6 +1503,7 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->hs_nocookie, (unsigned long long)n->hs_badmac2, (unsigned long long)n->cookies_got, (unsigned long long)n->reg_count,
 		(unsigned long long)(n->sb >= 0 ? n->peers[n->sb].rekeys : 0),
 		(n->sb_caps & CAPS_CALLERID) && (n->sb_caps & CAPS_DIRECTORY) ? "\"caller-id\",\"directory\"" : (n->sb_caps & CAPS_CALLERID) ? "\"caller-id\"" : (n->sb_caps & CAPS_DIRECTORY) ? "\"directory\"" : "",
+		codes_json,
 		relay_live(n), (unsigned long long)n->relay_fwd, (unsigned long long)n->relay_drop, relay_offered(n) ? "true" : "false");
 	for (i = 0; i < n->maxpeers && len < (int)cap - 700; i++) {
 		lw_peer *p = &n->peers[i];

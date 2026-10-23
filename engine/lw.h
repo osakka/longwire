@@ -50,6 +50,9 @@ typedef struct lw_cfg {
 	int  policy_script;		/* switchboard: wait for the script's verdicts */
 	int  maxpeers;			/* default 16 (switchboard: 1024) */
 	char token[64];			/* presented when registering */
+	char registry[200];		/* switchboard: HOST:PORT/KEY of the registry of switchboard codes, or "none" */
+	char public_switchboard[100];	/* registry: the key (lw1... or hex) of the switchboard that is given the code 1 */
+	int  issue_codes;		/* this switchboard is a registry: it assigns codes to switchboards */
 	char name[40];			/* the name this node announces to those it calls; none if empty */
 	int  listed;			/* list that name in the switchboard's directory */
 	int  no_caller_id, no_directory;	/* switchboard: refuse to carry names / answer lookups */
@@ -62,6 +65,7 @@ typedef struct lw_node lw_node;
 
 /* base32 of a key id: the "full number" (lw1...), docs/CRYPTO.md §2 */
 void lw_address(char out[60], const uint8_t key_id[32]);
+void lw_nth_code(unsigned long k, char out[10]);			/* the k-th assigned switchboard code of the plan (ADR 0024) */
 int  lw_address_parse(const char *s, uint8_t key_id[32]);	/* lw1... or 64 hex; 0 = ok */
 
 /* identity */

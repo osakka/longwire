@@ -154,6 +154,10 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->listed = 1;
 			continue;
 		}
+		if (!strcmp(a, "--issue-codes") && role) {
+			c->issue_codes = 1;
+			continue;
+		}
 		if (!v) {
 			snprintf(msg, sizeof msg, "lw start: option %s needs a value", a);
 			hibr_fail(s, msg);
@@ -183,6 +187,10 @@ static int do_start(sh *s, int ac, char **av, int role)
 			snprintf(c->switchboard, sizeof c->switchboard, "%s", v);
 		else if (!strcmp(a, "--name") && !role)
 			snprintf(c->name, sizeof c->name, "%s", v);
+		else if (!strcmp(a, "--registry") && role)
+			snprintf(c->registry, sizeof c->registry, "%s", v);
+		else if (!strcmp(a, "--public-switchboard") && role)
+			snprintf(c->public_switchboard, sizeof c->public_switchboard, "%s", v);
 		else if (!strcmp(a, "--caller-id") && role)
 			c->no_caller_id = !strcmp(v, "off");
 		else if (!strcmp(a, "--directory") && role)
@@ -347,6 +355,15 @@ int m_lw(sh *s, int ac, char **av)
 	}
 	if (!strcmp(av[1], "key"))
 		return do_key(s, ac, av);
+	if (!strcmp(av[1], "plan") && ac >= 3) {		/* the numbering plan, for tests and for operators planning ahead */
+		char code[10];
+
+		lw_nth_code(strtoul(av[2], 0, 10), code);
+		hibr_ret(s, code);
+		if (!s->bind)
+			printf("%s\n", code);
+		return HIBR_OK;
+	}
 	return usage(s);
 }
 

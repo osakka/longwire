@@ -50,9 +50,10 @@ relayed pair upgrades to direct once a path exists.
 - Hard NATs, the rest: the `ECHO` exchange and NAT-type detection, port spray, global IPv6 and NAT-PMP candidates.
 - **The number format, before anything public exists** ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)):
   a full number is a switchboard code and a local number (`+0731042 312-884-076`). *Built:* the derived code (a `0` and six digits), full
-  numbers shown and typed everywhere, pins and line members that name their switchboard by key. *Still to build:* the
-  registry that assigns short codes (a switchboard registers with it as a node registers with a switchboard, so
-  `longwire-switchboard` gains `--registry HOST:PORT/KEY`, or `none` for a private one), and the prefix-free allocation rule (shortest first, half of the free prefixes at each length). Once the default
+  numbers shown and typed everywhere, pins and line members that name their switchboard by key. *Registry built:* a switchboard registers with
+  a registry (`longwire-switchboard --registry HOST:PORT/KEY`, or `none` for a private one; `--issue-codes` makes a switchboard
+  the registry) and is given its short code in the prefix-free plan: `+1` for the named public switchboard, then `20`, `21`, and so on.
+  *Waiting on the domain:* the project's own registry, which the default public switchboard will use. Once the default
   public switchboard issues a number the format is frozen, so this is a gate on M4. The registry is a second thing hosted on
   the project's domain, with the default public switchboard.
 - **Operator-managed lines** (last stage of M3, with its own ADR; amends [0022](adr/0022-lines-form-by-vouching.md)'s "no owner"):

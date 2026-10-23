@@ -28,7 +28,7 @@ def main():
     sh_("ip", "link", "set", "lo", "up")
 
     def switchboard(name, port, *extra):
-        sb = Node(name, ns, "longwire-switchboard.hibr", ["--listen", f"127.0.0.1:{port}", *extra])
+        sb = Node(name, ns, "longwire-switchboard.hibr", ["--registry", "none", "--listen", f"127.0.0.1:{port}", *extra])
         until(lambda: os.path.exists(sb.home + "/sb/seed") and os.path.exists(sb.sock), 15)
         addr = subprocess.run([HIBR, "-c", f"mod load {MOD}; lw key address {sb.home}/sb/seed"], capture_output=True, text=True).stdout.strip()
         return sb, addr
@@ -157,7 +157,7 @@ def main():
 
     S1.stop()
     time.sleep(1)
-    S1b = Node("S1", ns, "longwire-switchboard.hibr", ["--listen", "127.0.0.1:1877"])
+    S1b = Node("S1", ns, "longwire-switchboard.hibr", ["--registry", "none", "--listen", "127.0.0.1:1877"])
     until(lambda: os.path.exists(S1b.sock), 15)
     why = refused(weird, "--listed", port=4013)
     check(why is not None and "listed by another node" in why, f"the binding survived a restart of the switchboard: {why!r}")

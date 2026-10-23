@@ -50,8 +50,8 @@ before the handshake. Messages are `CTL` messages inside that session:
 
 | msg | id | Direction | Body | Meaning |
 |---|---|---|---|---|
-| `REGISTER` | `0x20` | node → sb | token, then optional parts: name, listed | → `NUMBER` or `REFUSED`. The node's bundle is already known from its session |
-| `NUMBER` | `0x21` | sb → node | number(9), observed address, flags (caller ID offered, directory offered) | the node's number, and the address the switchboard saw it at (its reflexive candidate) |
+| `REGISTER` | `0x20` | node → sb | token, then optional parts: name, listed; or, from a switchboard asking a registry for its code, "switchboard" | → `NUMBER` or `REFUSED`. The node's bundle is already known from its session |
+| `NUMBER` | `0x21` | sb → node | number(9), observed address, flags (caller ID offered, directory offered), optional parts: the switchboard's assigned code. To a switchboard registering with a registry, the number is all zeros and the code is its own | the node's number, and the address the switchboard saw it at (its reflexive candidate) |
 | `HEARTBEAT` | `0x22` | node → sb | candidates | every `--keepalive` s (default 25), which also holds the NAT mapping open → `HBACK` |
 | `HBACK` | `0x23` | sb → node | observed address | refreshes the reflexive candidate |
 | `DIAL` | `0x24` | caller → sb | number, caller candidates, optional parts (admit) | the switchboard rings the callee, or answers `REJECTED`. The admit is an optional trailing blob (length byte, then 0 or 145 bytes) that the switchboard passes on untouched |
@@ -72,6 +72,8 @@ script's verdict before refusing:
 
 - `register`: a key it has not seen before wants a number (`id`, `key_id`, `ip`, `token`, and the `name` it announced and whether it is `listed`). The script answers
   `lw sb reply ID accept [NUMBER]` or `lw sb reply ID refuse REASON...`.
+- `register` with `switchboard` true: another switchboard asks this registry for its code (`id`, `key_id`, `ip`). The shipped script
+  allows `--codes-per-ip-day` of them (default 2) per address.
 - `dial`: a registered node rings another (`id`, `from`, `to`, `ip`). The script answers `lw sb reply ID accept` or
   `lw sb reply ID refuse`.
 
@@ -86,10 +88,21 @@ answers with this policy:
 | `--rings-per-minute N` | 6 | rings per callee per minute |
 | `--state DIR` | `~/.longwire/switchboard` | the seed, the control socket, `numbers.log`, `names.log` |
 | `--max-nodes N` | 1024 | how many node sessions the worker holds at once |
+| `--registry HOST:PORT/KEY\|none` | required | the registry of switchboard codes, which gives this switchboard its short code. `none` for a private switchboard, which keeps its derived code. Required until the project's registry is running |
+| `--issue-codes` | off | this switchboard is a registry: switchboards register with it for a code (`codes.log` in `--state` holds who has which) |
+| `--public-switchboard KEY` | none | on a registry: the switchboard (`lw1…` or hex) that is given the code `+1` |
+| `--codes-per-ip-day N` | 2 | on a registry: codes asked for per source address per day. The count is kept in memory, so a restart of the registry resets it |
 | `--caller-id on\|off` | on | carry the name a caller announced on its rings; off drops names |
 | `--directory on\|off` | on | answer lookups for nodes that listed themselves; off answers none |
 
 Without `--policy script` (the engine's own default), the worker accepts everything.
+
+**The registry of switchboard codes.** A registry is an ordinary switchboard started with `--issue-codes`. A switchboard started with
+`--registry` registers with it on start, over the same handshake a node uses, saying it is a switchboard; the registry answers with
+the next code in the numbering plan ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)) and remembers it
+against the switchboard's key, so the same key always gets the same code. The switchboard puts the code in the `NUMBER` it sends to its
+nodes, and they show it (`+20 312-884-076`); the derived code (`+0…`) keeps working beside it. A switchboard that is not a registry
+refuses to issue codes.
 
 **After `GO`, the switchboard forgets the call.** The call record is erased when `GO` is sent. Nothing logs who called
 whom: the registry on disk (`numbers.log`) holds numbers and keys, never calls.

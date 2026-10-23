@@ -35,7 +35,7 @@ typedef struct bcall {
 	double   deadline;
 } bcall;
 
-enum { P_REG, P_DIAL };
+enum { P_REG, P_DIAL, P_CODE };
 
 typedef struct pend {
 	int      used, kind, id;
@@ -54,7 +54,17 @@ struct nbind {				/* a listed name belongs to the first key that listed it, like
 	char    name[LW_NAME_MAX + 1];
 };
 
+struct codeent {				/* the registry's book: which switchboard key holds which code */
+	uint8_t key[32];
+	char    code[10];
+};
+
 struct board {
+	struct codeent *codes;
+	int    ncodes, capcodes, seq;		/* seq: how many codes have been handed out in order (not counting the reserved 1) */
+	char   clog[320];
+	uint8_t pubkey[32];
+	int    have_pub;
 	struct nbind *bind;
 	int    nbind, capbind;
 	char   nlog[320];
@@ -155,6 +165,81 @@ static const char *name_apply(struct board *b, const uint8_t key[32], const char
 	return 0;
 }
 
+/* ---- the registry of switchboard codes (ADR 0024) ------------------------------------------ */
+
+/* The k-th code (from 0) of the plan: prefix-free, shortest first. At each length only the lower half of the free prefixes is
+ * given out and the upper half is kept to open the next length: 20..49, then 500..649, 6500..7249, and so on. 555 is skipped. */
+void lw_nth_code(unsigned long k, char out[10])
+{
+	unsigned long long lo = 20, hi = 80;
+	int len = 2;
+
+	for (;; len++, lo = (lo + (hi - lo) / 2) * 10, hi *= 10) {
+		unsigned long long cap = (hi - lo) / 2, use = cap, v;
+
+		if (len == 3 && 555 >= lo && 555 < lo + cap)
+			use--;
+		if (len >= 9 || k < use) {
+			v = lo + k;
+			if (len == 3 && v >= 555)
+				v++;
+			snprintf(out, 10, "%llu", v);
+			return;
+		}
+		k -= (unsigned long)use;
+	}
+}
+
+static const char *code_of(struct board *b, const uint8_t key[32])
+{
+	int i;
+
+	for (i = 0; i < b->ncodes; i++)
+		if (!crypto_verify32(b->codes[i].key, key))
+			return b->codes[i].code;
+	return 0;
+}
+
+static void code_put(struct board *b, const uint8_t key[32], const char *code, int log)
+{
+	if (b->ncodes == b->capcodes) {
+		b->capcodes = b->capcodes ? b->capcodes * 2 : 16;
+		b->codes = realloc(b->codes, (size_t)b->capcodes * sizeof *b->codes);
+	}
+	memcpy(b->codes[b->ncodes].key, key, 32);
+	snprintf(b->codes[b->ncodes].code, 10, "%s", code);
+	b->ncodes++;
+	if (strcmp(code, "1"))
+		b->seq++;
+	if (log) {
+		FILE *f = fopen(b->clog, "a");
+		char kh[65];
+
+		if (f) {
+			chmod(b->clog, 0600);
+			lw_hex(kh, key, 32);
+			fprintf(f, "%s %s\n", kh, code);
+			fclose(f);
+		}
+	}
+}
+
+/* The code of a switchboard: the one it was given before, else "1" if it is the public switchboard, else the next in the plan. */
+static const char *code_issue(struct board *b, const uint8_t key[32])
+{
+	const char *have = code_of(b, key);
+	char code[10];
+
+	if (have)
+		return have;
+	if (b->have_pub && !crypto_verify32(b->pubkey, key))
+		strcpy(code, "1");
+	else
+		lw_nth_code((unsigned long)b->seq, code);
+	code_put(b, key, code, 1);
+	return code_of(b, key);
+}
+
 static reg *reg_by_key(struct board *b, const uint8_t k[32])
 {
 	int i;
@@ -227,9 +312,23 @@ int board_open(lw_node *n, char *err, size_t errn)
 		return -1;
 	}
 	n->bd = b;
+	n->sb = -1;
 	b->next_id = 1;
 	snprintf(b->log, sizeof b->log, "%s/numbers.log", n->cfg.state_dir);
 	snprintf(b->nlog, sizeof b->nlog, "%s/names.log", n->cfg.state_dir);
+	snprintf(b->clog, sizeof b->clog, "%s/codes.log", n->cfg.state_dir);
+	if (n->cfg.public_switchboard[0] && !lw_address_parse(n->cfg.public_switchboard, b->pubkey))
+		b->have_pub = 1;
+	if ((f = fopen(b->clog, "r"))) {		/* the codes already handed out */
+		while (fgets(line, sizeof line, f)) {
+			char kh[80], code[16];
+			uint8_t key[32];
+
+			if (sscanf(line, "%79s %15s", kh, code) == 2 && strlen(code) < 10 && !lw_address_parse(kh, key) && !code_of(b, key))
+				code_put(b, key, code, 0);
+		}
+		fclose(f);
+	}
 	if ((f = fopen(b->nlog, "r"))) {		/* the listed names, last line for a key wins */
 		while (fgets(line, sizeof line, f)) {
 			char kh[80], nh[2 * LW_NAME_MAX + 8], nm[LW_NAME_MAX + 1];
@@ -289,6 +388,8 @@ int board_open(lw_node *n, char *err, size_t errn)
 		}
 		fclose(f);
 	}
+	if (n->cfg.registry[0] && strcmp(n->cfg.registry, "none") && sb_connect(n, n->cfg.registry, err, errn))
+		return -1;
 	return 0;
 }
 
@@ -309,9 +410,11 @@ static void persist(struct board *b, const reg *r)
 	fclose(f);
 }
 
-static void send_number(lw_node *n, lw_peer *p, const reg *r)
+/* NUMBER: the number, what we saw, what we offer, and a code (the registry's, for a node: its switchboard's; for a switchboard: its own). */
+static void send_number(lw_node *n, lw_peer *p, const reg *r, const char *code)
 {
-	uint8_t b[NUMLEN + 7];
+	uint8_t b[NUMLEN + 7 + 2 + 10];
+	size_t o = NUMLEN + 7;
 	lw_cand c;
 
 	memcpy(b, r->number, NUMLEN);
@@ -319,7 +422,19 @@ static void send_number(lw_node *n, lw_peer *p, const reg *r)
 	memcpy(b + NUMLEN, c.ip, 4);
 	put16(b + NUMLEN + 4, c.port);
 	b[NUMLEN + 6] = (uint8_t)((n->cfg.no_caller_id ? 0 : CAPS_CALLERID) | (n->cfg.no_directory ? 0 : CAPS_DIRECTORY));
-	ctl_msg_send(n, p, M_NUMBER, b, sizeof b);
+	if (code[0])
+		o += (size_t)tlv_put(b + o, TAG_CODE, code, strlen(code));
+	ctl_msg_send(n, p, M_NUMBER, b, o);
+}
+
+/* A switchboard that registered with us, a registry: its code, in the message a node gets its number in. */
+static void send_code(lw_node *n, lw_peer *p, const char *code)
+{
+	reg r;
+
+	memset(&r, 0, sizeof r);
+	memset(r.number, '0', NUMLEN);
+	send_number(n, p, &r, code);
 }
 
 static void refuse(lw_node *n, lw_peer *p, const char *why)
@@ -366,7 +481,7 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 	}
 	b->regs[b->n++] = r;
 	persist(b, &r);
-	send_number(n, p, &r);
+	send_number(n, p, &r, n->home_code);
 }
 
 /* The number of whoever holds `key`, or NULL: a caller with several dials open is told which one was refused. */
@@ -468,6 +583,37 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 	case M_REGISTER:
 		if (len < 1 || (size_t)pl[0] + 1 > len)
 			return;
+		{					/* a switchboard asking for its code */
+			size_t zl;
+			const char *have;
+
+			if (tlv_find(pl + 1 + pl[0], len - 1 - pl[0], TAG_SWITCHBOARD, &zl)) {
+				if (!n->cfg.issue_codes) {
+					refuse(n, p, "this switchboard does not issue codes");
+					return;
+				}
+				if ((have = code_of(b, p->key_id))) {	/* the same key always gets the same code */
+					send_code(n, p, have);
+					return;
+				}
+				if (n->cfg.policy_script) {
+					pend *q = pend_new(b, P_CODE);
+					char kh[65];
+
+					if (!q) {
+						refuse(n, p, "switchboard busy");
+						return;
+					}
+					memcpy(q->key, p->key_id, 32);
+					q->deadline = n->now + 2.0;
+					lw_hex(kh, p->key_id, 32);
+					ev_emit(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"token\":\"\",\"name\":\"\",\"listed\":false,\"switchboard\":true}",
+						q->id, kh, ep);
+				} else
+					send_code(n, p, code_issue(b, p->key_id));
+				return;
+			}
+		}
 		{					/* optional parts after the token: a name, and whether to list it */
 			size_t nl = 0, ll = 0;
 			const uint8_t *nm = tlv_find(pl + 1 + pl[0], len - 1 - pl[0], TAG_NAME, &nl);
@@ -491,7 +637,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			snprintf(r->name, sizeof r->name, "%s", nm_);
 			r->listed = listed_;
 			r->seen = n->now;
-			send_number(n, p, r);
+			send_number(n, p, r, n->home_code);
 			return;
 		}
 		if (n->cfg.policy_script) {
@@ -512,7 +658,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 				char en[2 * LW_NAME_MAX + 8];
 
 				json_esc(en, sizeof en, nm_);
-				ev_emit(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"token\":\"%s\",\"name\":\"%s\",\"listed\":%s}",
+				ev_emit(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"token\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"switchboard\":false}",
 					q->id, kh, ep, tok, en, listed_ ? "true" : "false");
 			}
 		} else
@@ -702,6 +848,8 @@ void board_timers(lw_node *n)
 	struct board *b = n->bd;
 	int i;
 
+	registration_timers(n);			/* with the registry of codes, if we have one */
+
 	for (i = 0; i < MAXCALLS; i++)
 		if (b->calls[i].used && n->now > b->calls[i].deadline) {
 			rejected(n, b->calls[i].caller, b->calls[i].id, R_TIMEOUT, num_of(b, b->calls[i].callee));
@@ -712,7 +860,7 @@ void board_timers(lw_node *n)
 
 		if (!q->used || n->now < q->deadline)
 			continue;			/* the script did not answer in time: refuse */
-		if (q->kind == P_REG) {
+		if (q->kind == P_REG || q->kind == P_CODE) {
 			lw_peer *p = peer_by_key(n, q->key);
 
 			if (p && p->cur.valid)
@@ -738,7 +886,16 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		if (!q->used || q->id != id)
 			continue;
 		q->used = 0;
-		if (q->kind == P_REG) {
+		if (q->kind == P_CODE) {
+			lw_peer *p = peer_by_key(n, q->key);
+
+			if (!p || !p->cur.valid)
+				return snprintf(out, cap, "{\"error\":\"the switchboard has gone\"}\n");
+			if (!strcmp(verdict, "accept"))
+				send_code(n, p, code_issue(b, q->key));
+			else
+				refuse(n, p, arg[0] ? arg : "code refused");
+		} else if (q->kind == P_REG) {
 			lw_peer *p = peer_by_key(n, q->key);
 
 			if (!p || !p->cur.valid)
@@ -771,7 +928,7 @@ int board_status_json(lw_node *n, char *o, size_t cap)
 	lw_address(addr, n->id.key_id);
 	return snprintf(o, cap,
 		"{\"node\":\"switchboard\",\"key_id\":\"%s\",\"address\":\"%s\",\"uptime\":%d,\"numbers\":%d,\"online\":%d,"
-		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu}\n",
+		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu,\"code\":\"%s\",\"code_refused\":\"%s\",\"codes_issued\":%d}\n",
 		kid, addr, (int)(n->now - n->started), b->n, online_n, calls,
-		n->cfg.policy_script ? "script" : "open", (unsigned long long)n->drop_garbage);
+		n->cfg.policy_script ? "script" : "open", (unsigned long long)n->drop_garbage, n->home_code, n->reg_why, b->ncodes);
 }

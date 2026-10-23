@@ -65,7 +65,7 @@ def main():
     num_b = damm_number(rnd)
     num_e = damm_number(rnd)
     open(f"{T}/tokens", "w").write(f"tokA\ntokB {num_b}\ntokD\ntokE {num_e}\ntokF {num_b}\n")
-    sb = Node("S", nsS, "longwire-switchboard.hibr", ["--listen", "192.0.2.10:1877", "--tokens", f"{T}/tokens", "--rings-per-minute", "50"])
+    sb = Node("S", nsS, "longwire-switchboard.hibr", ["--registry", "none", "--listen", "192.0.2.10:1877", "--tokens", f"{T}/tokens", "--rings-per-minute", "50"])
     for _ in range(100):
         if os.path.exists(sb.home + "/sb/seed") and os.path.exists(sb.sock): break
         time.sleep(0.1)
@@ -260,7 +260,7 @@ def main_sym():
     a_mode = "sym" if MODE == "symsym" else "cone"
     print(f"-- M1 over NAT: site A's NAT is '{a_mode}', site B's is 'sym'  (workdir {T})", flush=True)
     nsA, nsB, nsS, router = build_net(a_mode, "sym")
-    sb = Node("S", nsS, "longwire-switchboard.hibr", ["--listen", "192.0.2.10:1877"])
+    sb = Node("S", nsS, "longwire-switchboard.hibr", ["--registry", "none", "--listen", "192.0.2.10:1877"])
     for _ in range(100):
         if os.path.exists(sb.home + "/sb/seed") and os.path.exists(sb.sock): break
         time.sleep(0.1)

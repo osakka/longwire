@@ -8,12 +8,17 @@
 #   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
 #                        [--per-ip-hour N] [--rings-per-minute N] [--max-nodes N]
 #                        [--caller-id on|off] [--directory on|off]
+#                        --registry HOST:PORT/KEY|none [--issue-codes [--public-switchboard KEY]] [--codes-per-ip-day N]
 #
 # --tokens FILE   registration needs a token: one per line, "TOKEN" or
 #                 "TOKEN NUMBER" (that token claims that number). A token is
 #                 spent when it is used. Without it, registration is open.
 # --caller-id off / --directory off   do not carry names on rings / do not answer lookups (both on by default;
 #                 a node only appears in either if it asked to).
+# --registry      the registry of switchboard codes, which gives this switchboard its short code (+1, +20, ...); "none"
+#                 for a private switchboard, which keeps its derived code (+0...). Required.
+# --issue-codes   this switchboard IS a registry: it gives codes to switchboards that register with it
+#                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
 listen=0.0.0.0:1877
@@ -23,6 +28,10 @@ rings_per_min=6
 max_nodes=1024
 caller_id=on
 directory=on
+registry=
+issue_codes=
+public_sb=
+codes_per_ip_day=2
 
 mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
 
@@ -34,14 +43,23 @@ while [ $# -gt 0 ]; do
 	--per-ip-hour) per_ip_hour=$2 ;;
 	--rings-per-minute) rings_per_min=$2 ;;
 	--max-nodes) max_nodes=$2 ;;
+	--registry) registry=$2 ;;
+	--issue-codes) issue_codes=1; shift; continue ;;
+	--public-switchboard) public_sb=$2 ;;
+	--codes-per-ip-day) codes_per_ip_day=$2 ;;
 	--caller-id) caller_id=$2 ;;
 	--directory) directory=$2 ;;
-	-h|--help) sed -n '4,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+	-h|--help) sed -n '4,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 	*) echo "longwire-switchboard: unknown option $1" >&2; exit 2 ;;
 	esac
 	shift 2 2>/dev/null || shift
 done
 
+if [ -z "$registry" ]; then
+	echo "longwire-switchboard: --registry HOST:PORT/KEY is needed: the registry gives this switchboard its short code." >&2
+	echo "                      A private switchboard that wants none says --registry none and keeps its derived code." >&2
+	exit 2
+fi
 export LW_SOCK=${LW_SOCK:-$SB_DIR/ctl}		# after the options: --state moves the socket too
 mkdir -p "$SB_DIR" && chmod 700 "$SB_DIR"
 declare -A seen    # counters, keyed by what they count and the hour or minute
@@ -66,6 +84,16 @@ spend_token() {
 
 on_register() {
 	local now=$(date +%s) k n num
+	if [ "${e[switchboard]}" = true ]; then		# a switchboard asking this registry for its code: codes are scarce
+		k="code:${e[ip]%:*}:$((now / 86400))"
+		n=$(( ${seen[$k]:-0} + 1 )); seen[$k]=$n
+		if [ $n -gt $codes_per_ip_day ]; then
+			lw sb reply "${e[id]}" refuse "too many codes asked for from this address today" > /dev/null
+		else
+			lw sb reply "${e[id]}" accept > /dev/null
+		fi
+		return
+	fi
 	k="reg:${e[ip]%:*}:$((now / 3600))"
 	n=$(( ${seen[$k]:-0} + 1 )); seen[$k]=$n
 	if [ $n -gt $per_ip_hour ]; then
@@ -96,7 +124,7 @@ on_dial() {
 run() { "$@" || { echo "longwire-switchboard: ${ERRMSG:-failed}" >&2; exit 1; }; }
 
 run lw key new "$SB_DIR/seed" > /dev/null
-run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" > /dev/null
+run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} > /dev/null
 addr=$(lw key address "$SB_DIR/seed")
 echo "switchboard  $addr   (give this full address to your nodes)"
 echo "listening    udp $listen    tokens: ${tokens:-open registration}"

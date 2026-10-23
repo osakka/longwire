@@ -29,7 +29,8 @@ def finish(label):
         try: p.kill()
         except Exception: pass
     time.sleep(0.2)
-    shutil.rmtree(T, ignore_errors=True)
+    if not os.environ.get("LW_KEEP"):            # LW_KEEP=1 leaves the logs and state for a look
+        shutil.rmtree(T, ignore_errors=True)
     print("\nFAILED: " + "; ".join(fails) if fails else "\nall " + label + " checks passed")
     sys.exit(1 if fails else 0)
 

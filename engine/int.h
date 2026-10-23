@@ -206,6 +206,7 @@ struct lw_node {
 	lw_call *calls;			/* the call table: a line is many calls at once */
 	int      ncalls;
 	lw_line  line;
+	char     home_code[10];		/* the code the registry assigned (to our switchboard, or if we are one, to us); empty if none */
 	uint8_t  sb_caps;		/* what the switchboard offers: CAPS_* */
 	struct { int active, kind; uint8_t key[32]; double t; } look;	/* a lookup in flight: dialing a full address waits on it */
 	lw_route routes[64];
@@ -369,6 +370,8 @@ int  node_status_json(lw_node *n, char *o, size_t cap);
 int  node_replay(lw_node *n, char *o, size_t cap);	/* what a new event subscriber missed: our registration state */
 int  node_init(lw_node *n, char *err, size_t errn);
 void fmt_number(char out[16], const char *num9);
+int  sb_connect(lw_node *n, const char *spec, char *err, size_t errn);	/* the switchboard (or registry) this node registers with */
+void registration_timers(lw_node *n);
 void home_kid(const lw_node *n, uint8_t out[32]);			/* key id of this node's switchboard (zeros if none) */
 void sb_code(const uint8_t kid[32], char out[9]);			/* the derived code, 0 and six digits: every switchboard has, derived from its key */
 void full_number(const lw_node *n, const char *local, char *out, size_t cap);	/* "+731042 312-884-076" */

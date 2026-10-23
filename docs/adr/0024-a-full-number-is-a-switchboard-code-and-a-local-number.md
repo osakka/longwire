@@ -69,8 +69,10 @@ Amends [0010](0010-numbers-are-allocated-and-bound-to-keys.md) (a number is uniq
 unique wherever its switchboard is) and [0011](0011-one-switchboard-and-one-call-at-a-time.md) (federation now has a place to put a
 switchboard). Member records grow by 32 bytes each; a line of 16 is still well within a message. What is built: the derived
 code, the full number everywhere it is shown and typed, pins and line members that name their switchboard. What is not: the
-registry and assigned codes *(planned: M3)* (a gate on the first public switchboard, M4), and federation, redundancy and
-the registry's directory entry for a switchboard's listen address *(planned: M9)*.
+federation, redundancy and
+the registry's directory entry for a switchboard's listen address *(planned: M9)*. The registry and assigned codes are built
+(`longwire-switchboard --issue-codes`, `--registry`); the project's own registry is still to be set up, so a public switchboard waits
+on the domain.
 
 ---
 

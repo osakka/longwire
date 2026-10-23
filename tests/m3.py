@@ -49,7 +49,7 @@ def main():
     L.veth(ss, "ul", None, "r_s", bridge_y="brU")
     nsh(ss, "ip link set lo up"); nsh(ss, "ip addr add 10.9.0.10/24 dev ul")
 
-    sb = L.Node("S", ss, "longwire-switchboard.hibr", ["--listen", "10.9.0.10:1877"])
+    sb = L.Node("S", ss, "longwire-switchboard.hibr", ["--registry", "none", "--listen", "10.9.0.10:1877"])
     until(lambda: os.path.exists(sb.home + "/sb/seed") and os.path.exists(sb.sock), 15)
     addr = subprocess.run([L.HIBR, "-c", f"mod load {L.MOD}; lw key address {sb.home}/sb/seed"], capture_output=True, text=True).stdout.strip()
     args = {}
