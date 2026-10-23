@@ -210,14 +210,17 @@ load cannot be reached through a relay until the load passes.
 
 ## 6. Control messages and lines
 
+A member is named by its local number *and the key id of the switchboard that number belongs to* ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)).
+Today every member shares one switchboard; a member naming another is ignored until federation.
+
 A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. The messages with a switchboard (`0x20`–`0x2f`) are in
 [SWITCHBOARD](SWITCHBOARD.md). Between two nodes:
 
 | msg | name | body |
 |---|---|---|
 | `0x01` | `LINEHELLO` | `has_line:1 ‖ line_id:8`, sent by each end when a call comes up |
-| `0x02` | `LINE` | `line_id:8 ‖ founder:32 ‖ line_key:32 ‖ admit:145 ‖ n:1 ‖ n × (number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1)`: the line, handed to a new member |
-| `0x03` | `MEMBER` | `number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1 ‖ admit:145`: a new member, announced to the others |
+| `0x02` | `LINE` | `line_id:8 ‖ founder:32 ‖ line_key:32 ‖ admit:145 ‖ n:1 ‖ n × (number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1 ‖ switchboard_key_id:32)`: the line, handed to a new member |
+| `0x03` | `MEMBER` | `number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1 ‖ switchboard_key_id:32 ‖ admit:145`: a new member, announced to the others |
 | `0x04` | `EVICT` | `line_id:8 ‖ key_id:32 ‖ time:8 ‖ evictor:32 ‖ sig:64` |
 | `0x05` | `LINEKEY` | `line_id:8 ‖ key:32`: the new line key, inside the pairwise session |
 | `0x06` | `RELAY_REQ` | `key_id:32`: please carry my packets to this member (§5) |

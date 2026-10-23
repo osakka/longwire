@@ -39,7 +39,7 @@ and on the other machine's `up` terminal:
 | Command | Does |
 |---|---|
 | `longwire up [options]` | run the node in the foreground ([options](#options-of-up)) |
-| `longwire dial NUMBER` | call a number (`447-120-933`, dashes optional; a wrong check digit is refused before anything is sent) |
+| `longwire dial NUMBER` | call a number: `447-120-933` (dashes optional) on your own switchboard, or its full number `+731042 447-120-933`, whose code must be your switchboard's today. A wrong check digit is refused before anything is sent |
 | `longwire pickup [ID]` / `longwire reject [ID]` | answer the ringing call; `ID` is the call id from the ring, needed only when several rings are waiting |
 | `longwire hangup [NUMBER]` | with no number: end every call and leave the line (or decline a ringing call); with a number: end just that call |
 | `longwire peers` | the line you are on: its members and which of them are connected (JSON) |

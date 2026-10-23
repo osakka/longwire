@@ -84,6 +84,9 @@ def main():
     check(w.get("connected") is True and w.get("path") == "direct" and w.get("line_member") is True and w.get("pinned") is True
           and w.get("address", "").startswith("lw1") and len(w.get("phrase", "").split()) == 6 and w.get("key_id") == N["b"].status()["key_id"],
           f"who shows b to a: connected, direct, pinned, on the line, with its full address and safety phrase ({out[:90]}...)")
+    mem = [l.split() for l in open(f"{L.T}/na/lw/lines").read().splitlines() if l.startswith("member ")]
+    check(len(mem) == 2 and all(len(m) == 6 and len(m[5]) == 64 and m[5] == mem[0][5] for m in mem),
+          "a's saved line names, for every member, the switchboard its number belongs to (the same one)")
     rc, out = N["a"].cmd("who", "123-456-789")
     check("not a valid number" in out, "who refuses a number with a bad check digit")
     check(bool(settled("ab")), "after a short listen, both boxes are forwarding (a box that has just joined waits 3 s)")

@@ -78,7 +78,7 @@ text today, and will get ANSI fallbacks (green, yellow, red) *(planned: M4)*. Co
 - **Monospace first.** longwire lives in terminals. Use the system monospace (`ui-monospace`, JetBrains Mono,
   DejaVu Sans Mono) for the wordmark, for numbers and in the UI.
 - **Numbers are always grouped** `447-120-933` and set in monospace, so the digits line up in columns. A full number
-  adds the switchboard's code with a plus: `+731042 447-120-933` *(planned: M3)*; on your own switchboard the code is left off.
+  adds the switchboard's code with a plus: `+731042 447-120-933`; on your own switchboard the code is left off.
 - In the hibr desktop, follow the active hibr theme (a theme is data, per hibr ADR 0028), adding only copper and the
   three status colours.
 

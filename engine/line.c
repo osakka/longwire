@@ -47,7 +47,7 @@ static lw_member *mem_find(lw_node *n, const uint8_t kid[32])
 	return 0;
 }
 
-static lw_member *mem_add(lw_node *n, const char *number, const uint8_t kid[32], const uint8_t ed[32], int role)
+static lw_member *mem_add(lw_node *n, const char *number, const uint8_t kid[32], const uint8_t ed[32], int role, const uint8_t sb[32])
 {
 	lw_member *m = mem_find(n, kid);
 
@@ -59,6 +59,7 @@ static lw_member *mem_add(lw_node *n, const char *number, const uint8_t kid[32],
 		memcpy(m->key_id, kid, 32);
 	}
 	memcpy(m->ed_pub, ed, 32);
+	memcpy(m->sb, sb, 32);
 	snprintf(m->number, sizeof m->number, "%s", number);
 	m->role = (uint8_t)role;
 	return m;
@@ -159,7 +160,7 @@ static void path_of(lw_node *n, char *out, size_t cap)
 
 static void line_save(lw_node *n)
 {
-	char path[320], hex[ADMIT_LEN * 2 + 1], kh[65], eh[65];
+	char path[320], hex[ADMIT_LEN * 2 + 1], kh[65], eh[65], sh[65];
 	uint8_t sk[32], blob[24 + 32 + 16];
 	FILE *f;
 	int i;
@@ -192,7 +193,8 @@ static void line_save(lw_node *n)
 	for (i = 0; i < n->line.nm; i++) {
 		lw_hex(kh, n->line.m[i].key_id, 32);
 		lw_hex(eh, n->line.m[i].ed_pub, 32);
-		fprintf(f, "member %s %s %s %d\n", n->line.m[i].number, kh, eh, n->line.m[i].role);
+		lw_hex(sh, n->line.m[i].sb, 32);
+		fprintf(f, "member %s %s %s %d %s\n", n->line.m[i].number, kh, eh, n->line.m[i].role, sh);
 	}
 	for (i = 0; i < n->line.nev; i++) {
 		lw_hex(kh, n->line.ev[i].key_id, 32);
@@ -217,10 +219,10 @@ static int unhexn(const char *s, uint8_t *out, size_t n)
 
 static void line_load(lw_node *n)
 {
-	char path[320], l[1024], a[400], b[200], c[200];
+	char path[320], l[1024], a[400], b[200], c[200], sbh[200];
 	uint8_t blob[24 + 32 + 16], sk[32];
 	FILE *f;
-	int have_key = 0, d;
+	int have_key = 0, d, got;
 	unsigned long long t;
 
 	path_of(n, path, sizeof path);
@@ -238,7 +240,7 @@ static void line_load(lw_node *n)
 			crypto_wipe(sk, 32);
 		} else if (sscanf(l, "admit %399s", a) == 1 && strlen(a) == ADMIT_LEN * 2)
 			unhexn(a, n->line.admit, ADMIT_LEN);
-		else if (sscanf(l, "member %9s %199s %199s %d", a, b, c, &d) == 4 && strlen(b) == 64 && strlen(c) == 64 &&
+		else if ((got = sscanf(l, "member %9s %199s %199s %d %199s", a, b, c, &d, sbh)) >= 4 && strlen(b) == 64 && strlen(c) == 64 &&
 			 n->line.nm < LINE_MAX) {
 			lw_member *m = &n->line.m[n->line.nm++];
 
@@ -247,6 +249,10 @@ static void line_load(lw_node *n)
 			unhexn(b, m->key_id, 32);
 			unhexn(c, m->ed_pub, 32);
 			m->role = (uint8_t)d;
+			if (got == 5 && strlen(sbh) == 64)
+				unhexn(sbh, m->sb, 32);
+			else
+				home_kid(n, m->sb);		/* saved before members named their switchboard */
 		} else if (sscanf(l, "evict %199s %llu", a, &t) == 2 && strlen(a) == 64 && n->line.nev < 32) {
 			unhexn(a, n->line.ev[n->line.nev].key_id, 32);
 			n->line.ev[n->line.nev++].time = t;
@@ -278,12 +284,14 @@ static void send_bye(lw_node *n, lw_peer *p, int leave)
 static void found(lw_node *n)
 {
 	lw_member *m;
+	uint8_t hk[32];
 
 	memset(&n->line, 0, sizeof n->line);
 	lw_rand(n->line.id, 8);
 	lw_rand(n->line.key, 32);
 	memcpy(n->line.founder, n->id.key_id, 32);
-	m = mem_add(n, n->number, n->id.key_id, my_ed(n), 0);
+	home_kid(n, hk);
+	m = mem_add(n, n->number, n->id.key_id, my_ed(n), 0, hk);
 	(void)m;
 	admit_make(n, n->id.key_id, 0, n->line.admit);	/* the founder admits itself */
 	n->line.have = 1;
@@ -304,7 +312,7 @@ static void member_json(lw_node *n, const char *event, const char *number)
 static void admit_peer(lw_node *n, lw_peer *p)
 {
 	uint8_t admit[ADMIT_LEN], b[8 + 32 + 32 + ADMIT_LEN + 1 + LINE_MAX * MEMBER_LEN];
-	uint8_t mb[MEMBER_LEN + ADMIT_LEN];
+	uint8_t mb[MEMBER_LEN + ADMIT_LEN], hk[32];
 	size_t o = 0;
 	int i;
 
@@ -315,7 +323,8 @@ static void admit_peer(lw_node *n, lw_peer *p)
 		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"that node was evicted from the line\"}");
 		return;
 	}
-	if (!mem_add(n, p->number, p->key_id, peer_ed_pub(p), 0)) {
+	home_kid(n, hk);
+	if (!mem_add(n, p->number, p->key_id, peer_ed_pub(p), 0, hk)) {
 		send_bye(n, p, 0);
 		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"the line is full (%d)\"}", LINE_MAX);
 		return;
@@ -332,6 +341,7 @@ static void admit_peer(lw_node *n, lw_peer *p)
 		memcpy(b + o + 9, n->line.m[i].key_id, 32);
 		memcpy(b + o + 41, n->line.m[i].ed_pub, 32);
 		b[o + 73] = n->line.m[i].role;
+		memcpy(b + o + 74, n->line.m[i].sb, 32);
 		o += MEMBER_LEN;
 	}
 	ctl_msg_send(n, p, M_LINE, b, o);
@@ -340,6 +350,7 @@ static void admit_peer(lw_node *n, lw_peer *p)
 	memcpy(mb + 9, p->key_id, 32);
 	memcpy(mb + 41, peer_ed_pub(p), 32);
 	mb[73] = 0;
+	memcpy(mb + 74, hk, 32);
 	memcpy(mb + MEMBER_LEN, admit, ADMIT_LEN);
 	for (i = 0; i < n->maxpeers; i++) {
 		lw_peer *q = &n->peers[i];
@@ -395,6 +406,7 @@ void line_call_up(lw_node *n, lw_peer *p)
 static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 {
 	size_t o = 72 + ADMIT_LEN;
+	uint8_t hk[32];
 	int nm, i;
 
 	if (len < o + 1)
@@ -404,6 +416,7 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 		return;
 	if (n->line.have)			/* already on a line: this is either ours again or a stranger's */
 		return;
+	home_kid(n, hk);
 	memset(&n->line, 0, sizeof n->line);
 	memcpy(n->line.id, pl, 8);
 	memcpy(n->line.founder, pl + 8, 32);
@@ -415,10 +428,11 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 
 		memcpy(num, e, NUMLEN);
 		num[NUMLEN] = 0;
-		mem_add(n, num, e + 9, e + 41, e[73]);
+		if (!memcmp(e + 74, hk, 32))		/* members of other switchboards arrive with federation */
+			mem_add(n, num, e + 9, e + 41, e[73], e + 74);
 	}
 	if (!mem_find(n, n->id.key_id) && n->number[0])
-		mem_add(n, n->number, n->id.key_id, my_ed(n), 0);
+		mem_add(n, n->number, n->id.key_id, my_ed(n), 0, hk);
 	n->line.have = 1;			/* provisionally, to run the admit through the same check as any other */
 	if (!mem_find(n, p->key_id) || !admit_verify(n, n->line.admit, n->id.key_id)) {
 		memset(&n->line, 0, sizeof n->line);	/* it does not hold together: not our line */
@@ -439,6 +453,7 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 static void handle_member(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 {
 	char num[NUMLEN + 1];
+	uint8_t hk[32];
 
 	if (len < MEMBER_LEN + ADMIT_LEN || !n->line.have || !mem_find(n, p->key_id))
 		return;
@@ -446,7 +461,8 @@ static void handle_member(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	num[NUMLEN] = 0;
 	if (!admit_verify(n, pl + MEMBER_LEN, pl + 9))	/* the newcomer must carry a member's signature */
 		return;
-	if (mem_find(n, pl + 9) || !mem_add(n, num, pl + 9, pl + 41, pl[73]))
+	home_kid(n, hk);
+	if (memcmp(pl + 74, hk, 32) || mem_find(n, pl + 9) || !mem_add(n, num, pl + 9, pl + 41, pl[73], pl + 74))
 		return;
 	line_save(n);
 	member_json(n, "member-joined", num);
@@ -565,10 +581,11 @@ int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 		uint64_t t = (uint64_t)time(0);
 		lw_member *m = 0;
 		lw_peer *ev;
+		char perr[160];
 		int i;
 
-		if (parse_number(cmd + 6, num))
-			return snprintf(out, cap, "{\"error\":\"not a valid number\"}\n");
+		if (parse_full(n, cmd + 6, num, perr, sizeof perr))
+			return snprintf(out, cap, "{\"error\":\"%s\"}\n", perr);
 		if (!n->line.have)
 			return snprintf(out, cap, "{\"error\":\"you are not on a line\"}\n");
 		for (i = 0; i < n->line.nm; i++)

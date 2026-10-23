@@ -48,10 +48,13 @@ relayed pair upgrades to direct once a path exists.
   [ADR 0008](adr/0008-hard-nats-are-relayed-by-line-members.md)). Tested with two members behind symmetric NATs and a
   public third: frames cross the relay, then the NATs are loosened and the pair finds its own path.
 - Hard NATs, the rest: the `ECHO` exchange and NAT-type detection, port spray, global IPv6 and NAT-PMP candidates.
-- **The number format, before anything public exists** ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md),
-  proposed): a full number is a switchboard code and a local number (`+731042 312-884-076`), carried in the wire messages, the
-  pins, the saved line and the registry from the start. Once the default public switchboard issues a number the format is
-  frozen, so this is a gate on M4.
+- **The number format, before anything public exists** ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)):
+  a full number is a switchboard code and a local number (`+731042 312-884-076`). *Built:* the derived six-digit code, full
+  numbers shown and typed everywhere, pins and line members that name their switchboard by key. *Still to build:* the
+  registry that assigns short codes (a switchboard registers with it as a node registers with a switchboard, so
+  `longwire-switchboard` gains `--registry HOST:PORT/KEY`, or `none` for a private one), and reserved codes. Once the default
+  public switchboard issues a number the format is frozen, so this is a gate on M4. The registry is a second thing hosted on
+  the project's domain, with the default public switchboard.
 - **Operator-managed lines** (last stage of M3, with its own ADR; amends [0022](adr/0022-lines-form-by-vouching.md)'s "no owner"):
   a line may name an authority key whose signed admits and evictions every member accepts, so an operator rather than a
   member decides who joins and can revoke centrally. Member vouching stays the default; the desktop pane needs to know which

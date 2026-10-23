@@ -60,7 +60,7 @@
 #define CAPS_DIRECTORY 2
 #define ADMIT_LEN 145		/* line_id 8, key_id 32, role 1, admitted_by 32, time 8, sig 64 */
 #define LINE_MAX 16
-#define MEMBER_LEN 74		/* number 9, key_id 32, ed_pub 32, role 1 */
+#define MEMBER_LEN 106		/* number 9, key_id 32, ed_pub 32, role 1, home switchboard key id 32 */
 
 typedef struct lw_cand {
 	uint8_t  ip[4];

@@ -3,6 +3,16 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: full numbers
+
+- **A full number is a switchboard code and a local number** ([ADR 0024](docs/adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)):
+  `+731042 312-884-076`. Every switchboard has a six-digit code derived from its key, with no registry and nothing to configure;
+  your own switchboard's numbers are still dialed without it. `registered` events and `status` carry the full number; `dial`, `who`,
+  `unpin`, `hangup` and `evict` take either form; another switchboard's code is refused plainly (federation is M9).
+- **Pins and line members name their switchboard by key id**, on the wire and in `known` and the saved line, so nothing
+  collides the day there are two switchboards. Older files are read as belonging to your own switchboard. Members are 32
+  bytes larger on the wire. Not yet built: the registry that assigns short codes.
+
 ## M3: caller ID and the directory
 
 - **Names are opt-in claims** ([ADR 0023](docs/adr/0023-names-are-opt-in-claims.md)): `up --name TEXT` announces a name when

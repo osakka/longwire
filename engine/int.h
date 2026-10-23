@@ -140,7 +140,7 @@ typedef struct lw_call {
 } lw_call;
 
 typedef struct lw_member {
-	uint8_t  key_id[32], ed_pub[32];
+	uint8_t  key_id[32], ed_pub[32], sb[32];
 	char     number[NUMLEN + 1];
 	uint8_t  role;
 	double   next_try;		/* the mesh maintainer's back-off */
@@ -168,6 +168,7 @@ typedef struct lw_line {
 } lw_line;
 
 typedef struct pin {
+	uint8_t sb[32];			/* the switchboard the number belongs to: a number means nothing without one */
 	char    number[NUMLEN + 1];
 	uint8_t key_id[32];
 } pin;
@@ -368,6 +369,10 @@ int  node_status_json(lw_node *n, char *o, size_t cap);
 int  node_replay(lw_node *n, char *o, size_t cap);	/* what a new event subscriber missed: our registration state */
 int  node_init(lw_node *n, char *err, size_t errn);
 void fmt_number(char out[16], const char *num9);
+void home_kid(const lw_node *n, uint8_t out[32]);			/* key id of this node's switchboard (zeros if none) */
+void sb_code(const uint8_t kid[32], char out[8]);			/* the 6-digit code every switchboard has, derived from its key */
+void full_number(const lw_node *n, const char *local, char *out, size_t cap);	/* "+731042 312-884-076" */
+int  parse_full(const lw_node *n, const char *in, char out[NUMLEN + 1], char *err, size_t errn);	/* local, or code + local */
 int  parse_number(const char *in, char out[NUMLEN + 1]);	/* 0 = ok, check digit verified */
 int  damm_ok(const char *digits, int n);
 void mint_number(char out[NUMLEN + 1]);

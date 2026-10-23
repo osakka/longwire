@@ -76,6 +76,73 @@ int parse_number(const char *in, char out[NUMLEN + 1])
 	return n == NUMLEN && damm_ok(out, NUMLEN) ? 0 : -1;
 }
 
+/* ---- full numbers: a switchboard's code, then a local number (ADR 0024) ----------------- */
+
+void home_kid(const lw_node *n, uint8_t out[32])
+{
+	const char *slash = n->cfg.switchboard[0] ? strrchr(n->cfg.switchboard, '/') : 0;
+
+	memset(out, 0, 32);
+	if (slash)
+		lw_address_parse(slash + 1, out);
+}
+
+void sb_code(const uint8_t kid[32], char out[8])
+{
+	uint8_t h[32];
+	uint32_t v;
+
+	lw_h2(h, "sbcode--", 8, kid, 32);
+	v = (uint32_t)h[0] | (uint32_t)h[1] << 8 | (uint32_t)h[2] << 16 | (uint32_t)h[3] << 24;
+	snprintf(out, 8, "%06u", 100000u + v % 900000u);
+}
+
+void full_number(const lw_node *n, const char *local, char *out, size_t cap)
+{
+	uint8_t k[32];
+	char code[8], f[16];
+
+	home_kid(n, k);
+	fmt_number(f, local);
+	if (n->cfg.switchboard[0]) {
+		sb_code(k, code);
+		snprintf(out, cap, "+%s %s", code, f);
+	} else
+		snprintf(out, cap, "%s", f);
+}
+
+/* A number as a person types it: the local part alone (our own switchboard's), or "+CODE local". */
+int parse_full(const lw_node *n, const char *in, char out[NUMLEN + 1], char *err, size_t errn)
+{
+	while (*in == ' ')
+		in++;
+	if (*in == '+') {
+		char code[8], mine[8];
+		uint8_t k[32];
+		int d = 0;
+
+		in++;
+		while (*in >= '0' && *in <= '9' && d < 7)
+			code[d++] = *in++;
+		code[d] = 0;
+		if (d < 1 || d > 6) {
+			snprintf(err, errn, "not a valid number: a code is 1 to 6 digits");
+			return -1;
+		}
+		home_kid(n, k);
+		sb_code(k, mine);
+		if (!n->cfg.switchboard[0] || strcmp(code, mine)) {
+			snprintf(err, errn, "that number is on another switchboard (+%s); calling across switchboards is planned (M9)", code);
+			return -1;
+		}
+	}
+	if (parse_number(in, out)) {
+		snprintf(err, errn, "not a valid number (9 digits with a check digit)");
+		return -1;
+	}
+	return 0;
+}
+
 /* Six words from the two key ids, the same on both screens (docs/CLI.md). */
 void phrase_of(char *out, size_t cap, const uint8_t a[32], const uint8_t b[32])
 {
@@ -287,10 +354,24 @@ static void pins_load(lw_node *n)
 	if (!(f = fopen(path, "r")))
 		return;
 	while (fgets(line, sizeof line, f)) {
-		char num[16], hex[80];
+		char t1[80], t2[80], t3[80], *num, *hex;
+		int got;
 		pin p;
 
-		if (sscanf(line, "%15s %79s", num, hex) != 2 || strlen(num) != NUMLEN || lw_address_parse(hex, p.key_id))
+		memset(&p, 0, sizeof p);
+		got = sscanf(line, "%79s %79s %79s", t1, t2, t3);
+		if (got == 3) {						/* switchboard key id, number, key id */
+			if (lw_address_parse(t1, p.sb))
+				continue;
+			num = t2;
+			hex = t3;
+		} else if (got == 2) {					/* the first format: no switchboard named */
+			home_kid(n, p.sb);
+			num = t1;
+			hex = t2;
+		} else
+			continue;
+		if (strlen(num) != NUMLEN || lw_address_parse(hex, p.key_id))
 			continue;
 		memcpy(p.number, num, NUMLEN + 1);
 		if (n->npins == n->cappins) {
@@ -302,12 +383,21 @@ static void pins_load(lw_node *n)
 	fclose(f);
 }
 
+/* Is pin i for a number on our own switchboard? (Pins for other switchboards wait for federation.) */
+static int pin_home(const lw_node *n, int i)
+{
+	uint8_t h[32];
+
+	home_kid(n, h);
+	return !memcmp(n->pins[i].sb, h, 32);
+}
+
 static int pin_check(lw_node *n, const char *num, const uint8_t kid[32])
 {
 	int i;
 
 	for (i = 0; i < n->npins; i++)
-		if (!strcmp(n->pins[i].number, num))
+		if (pin_home(n, i) && !strcmp(n->pins[i].number, num))
 			return crypto_verify32(n->pins[i].key_id, kid) ? -1 : 1;
 	return 0;
 }
@@ -325,12 +415,16 @@ static void pin_add(lw_node *n, const char *num, const uint8_t kid[32])
 	}
 	memcpy(n->pins[n->npins].number, num, NUMLEN + 1);
 	memcpy(n->pins[n->npins].key_id, kid, 32);
+	home_kid(n, n->pins[n->npins].sb);
 	n->npins++;
 	snprintf(path, sizeof path, "%s/known", n->cfg.state_dir);
 	lw_hex(hex, kid, 32);
 	if ((f = fopen(path, "a"))) {
+		char sbh[65];
+
+		lw_hex(sbh, n->pins[n->npins - 1].sb, 32);
 		chmod(path, 0600);
-		fprintf(f, "%s %s\n", num, hex);
+		fprintf(f, "%s %s %s\n", sbh, num, hex);
 		fclose(f);
 	}
 }
@@ -342,7 +436,7 @@ static int pin_remove(lw_node *n, const char *num)
 	int i, j, found = 0;
 
 	for (i = j = 0; i < n->npins; i++) {
-		if (!strcmp(n->pins[i].number, num)) {
+		if (pin_home(n, i) && !strcmp(n->pins[i].number, num)) {
 			found = 1;
 			continue;
 		}
@@ -355,8 +449,11 @@ static int pin_remove(lw_node *n, const char *num)
 	if ((f = fopen(path, "w"))) {
 		chmod(path, 0600);
 		for (i = 0; i < n->npins; i++) {
+			char sbh[65];
+
 			lw_hex(hex, n->pins[i].key_id, 32);
-			fprintf(f, "%s %s\n", n->pins[i].number, hex);
+			lw_hex(sbh, n->pins[i].sb, 32);
+			fprintf(f, "%s %s %s\n", sbh, n->pins[i].number, hex);
 		}
 		fclose(f);
 	}
@@ -677,7 +774,10 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 					char f[16];
 
 					fmt_number(f, n->number);
-					ev_emit(n, "{\"event\":\"registered\",\"number\":\"%s\"}", f);
+					char fl[40];
+
+					full_number(n, n->number, fl, sizeof fl);
+					ev_emit(n, "{\"event\":\"registered\",\"number\":\"%s\",\"full\":\"%s\"}", f, fl);
 				}
 			}
 			return;
@@ -1188,10 +1288,10 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		return snprintf(out, cap, "{\"%s\":\"asked\"}\n", dial ? "call" : "lookup");
 	}
 	if (!strncmp(line, "dial ", 5)) {
-		char num[NUMLEN + 1], f[16], err[100];
+		char num[NUMLEN + 1], f[16], err[160];
 
-		if (parse_number(line + 5, num))
-			return snprintf(out, cap, "{\"error\":\"not a valid number (9 digits with a check digit)\"}\n");
+		if (parse_full(n, line + 5, num, err, sizeof err))
+			return snprintf(out, cap, "{\"error\":\"%s\"}\n", err);
 		if (call_dial(n, num, 0, err, sizeof err))
 			return snprintf(out, cap, "{\"error\":\"%s\"}\n", err);
 		fmt_number(f, num);
@@ -1214,15 +1314,16 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		const uint8_t *kid = 0;
 		const lw_peer *p;
 		const lw_member *m = 0;
+		char perr[160];
 		int i, pinned = 0, len;
 
-		if (parse_number(line + 4, num))
-			return snprintf(out, cap, "{\"error\":\"not a valid number\"}\n");
+		if (parse_full(n, line + 4, num, perr, sizeof perr))
+			return snprintf(out, cap, "{\"error\":\"%s\"}\n", perr);
 		fmt_number(f, num);
 		if (!strcmp(num, n->number))
 			kid = n->id.key_id;
 		for (i = 0; i < n->npins && !kid; i++)
-			if (!strcmp(n->pins[i].number, num)) {
+			if (pin_home(n, i) && !strcmp(n->pins[i].number, num)) {
 				kid = n->pins[i].key_id;
 				pinned = 1;
 			}
@@ -1247,21 +1348,21 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		return len;
 	}
 	if (!strncmp(line, "unpin ", 6)) {
-		char num[NUMLEN + 1], f[16];
+		char num[NUMLEN + 1], f[16], perr[160];
 
-		if (parse_number(line + 6, num))
-			return snprintf(out, cap, "{\"error\":\"not a valid number\"}\n");
+		if (parse_full(n, line + 6, num, perr, sizeof perr))
+			return snprintf(out, cap, "{\"error\":\"%s\"}\n", perr);
 		fmt_number(f, num);
 		if (!pin_remove(n, num))
 			return snprintf(out, cap, "{\"error\":\"%s was not pinned\"}\n", f);
 		return snprintf(out, cap, "{\"unpinned\":\"%s\"}\n", f);
 	}
 	if (!strncmp(line, "hangup", 6)) {
-		char num[NUMLEN + 1] = "";
+		char num[NUMLEN + 1] = "", perr[160];
 		int i, any = 0, leave;
 
-		if (line[6] == ' ' && parse_number(line + 7, num))
-			return snprintf(out, cap, "{\"error\":\"not a valid number\"}\n");
+		if (line[6] == ' ' && parse_full(n, line + 7, num, perr, sizeof perr))
+			return snprintf(out, cap, "{\"error\":\"%s\"}\n", perr);
 		leave = !num[0] && n->line.have;		/* no number: hang up on everyone, and leave the line */
 		for (i = 0; i < n->ncalls; i++) {
 			lw_call *c = &n->calls[i];
@@ -1297,12 +1398,13 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
  * to the events: so a new subscriber is told where things stand, as the events it would have seen. */
 int node_replay(lw_node *n, char *o, size_t cap)
 {
-	char f[16];
+	char f[16], fl[40];
 	int len = 0;
 
 	if (n->registered) {
 		fmt_number(f, n->number);
-		len = snprintf(o, cap, "{\"event\":\"registered\",\"number\":\"%s\"}\n", f);
+		full_number(n, n->number, fl, sizeof fl);
+		len = snprintf(o, cap, "{\"event\":\"registered\",\"number\":\"%s\",\"full\":\"%s\"}\n", f, fl);
 	} else if (n->reg_why[0])
 		len = snprintf(o, cap, "{\"event\":\"register-refused\",\"reason\":\"%s\"}\n", n->reg_why);
 	return len + line_replay(n, o + len, cap - (size_t)len);
@@ -1310,7 +1412,7 @@ int node_replay(lw_node *n, char *o, size_t cap)
 
 int node_status_json(lw_node *n, char *o, size_t cap)
 {
-	char kid[65], ep[64], num[16] = "", sbs[24], refl[64] = "";
+	char kid[65], ep[64], num[16] = "", fullnum[40] = "", sbs[24], refl[64] = "";
 	const char *cs = "idle";
 	int len, i, any = 0;
 
@@ -1327,16 +1429,18 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 			cs = "up";
 	}
 	lw_hex(kid, n->id.key_id, 32);
-	if (n->number[0])
+	if (n->number[0]) {
 		fmt_number(num, n->number);
+		full_number(n, n->number, fullnum, sizeof fullnum);
+	}
 	snprintf(sbs, sizeof sbs, "%s", n->sb < 0 ? "none" : sbp(n) ? (n->registered ? "dial tone" : "registering") : "no switchboard");
 	if (n->have_refl)
 		snprintf(refl, sizeof refl, "%u.%u.%u.%u:%u", n->refl.ip[0], n->refl.ip[1], n->refl.ip[2], n->refl.ip[3], n->refl.port);
 	len = snprintf(o, cap,
-		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"call\":\"%s\","
+		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
 		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
-		kid, num, sbs, refl, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
+		kid, num, fullnum, sbs, refl, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,
