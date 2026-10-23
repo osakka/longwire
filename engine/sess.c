@@ -338,7 +338,11 @@ static lw_peer *peer_slot(lw_node *n)
 
 void peer_drop(lw_node *n, lw_peer *p)
 {
-	(void)n;
+	int idx = (int)(p - n->peers), i;
+
+	for (i = 0; i < MAC_SLOTS; i++)		/* whatever was learned behind this peer is no longer reachable */
+		if (n->macs[i].port == idx)
+			n->macs[i].port = -2;
 	explicit_bzero(p, sizeof *p);
 }
 

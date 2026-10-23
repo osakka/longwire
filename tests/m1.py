@@ -358,6 +358,7 @@ def main():
     check(len(ga) == N and len(gb) == N, f"{N} frames each way over the punched path (A got {len(ga)}, B got {len(gb)})")
 
     # --- hang up; pins; decline; call again -----------------------------------------
+    macs_up = A.status()["macs"]
     mkB = B.w.mark()
     A.cmd("hangup")
     e = B.w.wait("hangup", 10, after=mkB)
@@ -366,6 +367,7 @@ def main():
     B.frames.drain(); ha.sendto(frame(MB, MA, b"x" * 50), f"{T}/A/p")
     check(B.frames.drain() == [], "after hangup nothing crosses")
     check(A.status()["call"] == "idle" and B.status()["call"] == "idle", "both nodes are idle again")
+    check(macs_up >= 2 and A.status()["macs"] == 1, f"hanging up forgets the addresses learned behind that peer (MAC table {macs_up} -> {A.status()['macs']}: only A's own remains)")
 
     mkA, mkB = A.w.mark(), B.w.mark()
     A.cmd("dial", rb["number"])
@@ -391,6 +393,24 @@ def main():
     check(ring3 is not None and ring3["known"] is False, "after unpin, B treats the next call from A as a first call")
     B.cmd("reject"); A.w.wait("call-failed", 10, after=mkA); time.sleep(0.3)
     check(sb.status()["calls_ringing"] == 0, "the switchboard keeps no call once it has made the introduction")
+
+    # --- the other end dies mid-call: the call must not stay "up" for ever ---------------
+    mkA, mkB = A.w.mark(), B.w.mark()
+    A.cmd("dial", rb["number"])
+    B.w.wait("ring", 10, after=mkB); B.cmd("pickup")
+    check(bool(A.w.wait("connected", 20, after=mkA) and B.w.wait("connected", 20, after=mkB)), "a fourth call connects")
+    mkA = A.w.mark()
+    ns_b = os.readlink(f"/proc/{nsB.pid}/ns/net")
+    for pid in subprocess.run(["pgrep", "-x", "lw-worker"], capture_output=True, text=True).stdout.split():
+        try:
+            if os.readlink(f"/proc/{pid}/ns/net") == ns_b:         # the workers living in site B's namespace
+                os.kill(int(pid), 9)
+        except OSError:
+            pass
+    lost = A.w.wait("call-lost", 60, after=mkA)
+    check(lost is not None and lost["number"] == rb["number"] and lost["we_called"] is True,
+          f"B's worker is killed mid-call: A reports it ({lost and lost['reason']})")
+    check(A.status()["call"] == "idle" and not A.status()["peers"], "...and A is idle, with no peer left behind")
 
     time.sleep(max(0, 38 - A.status()["uptime"]))          # let the switchboard session rekey several times (--rekey 8)
     regs, rks = A.status()["registrations"], A.status()["sb_rekeys"]

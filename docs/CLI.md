@@ -41,7 +41,7 @@ lines (M3).
 
 **Events.** Everything the worker does is an event, one JSON object per line on `/dev/longwire/events` (or `lw`'s
 control socket, `watch`): `registered`, `register-refused`, `ring` (with `from`, `phrase`, `known`), `connected`
-(with `number`, `path`, `ep`, `phrase`), `call-failed` (with a plain-language `reason`), `hangup` (`by`: `us` or
+(with `number`, `path`, `ep`, `phrase`), `call-failed` (with a plain-language `reason`), `call-lost` (a call that was up lost its other end; the script decides whether to dial again), `hangup` (`by`: `us` or
 `them`), and `key-changed`. The node script turns them into sentences; the desktop will turn them into dialogs.
 
 ## Commands

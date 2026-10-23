@@ -677,6 +677,25 @@ void node_timers(lw_node *n)
 			call_end(n);
 		}
 		break;
+	case CALL_UP:
+		if (c->peer >= 0 && !n->peers[c->peer].cur.valid) {
+			/* The session is gone (the dead-peer timer, or keys past their limit) and nothing has replaced it
+			 * for a grace period: the other end has died or the path has. Say so; the script decides whether
+			 * to dial again. */
+			if (!c->lost_t)
+				c->lost_t = n->now;
+			else if (n->now - c->lost_t > 2.0 * n->keepalive) {
+				char f[16];
+
+				fmt_number(f, c->number);
+				ev_emit(n, "{\"event\":\"call-lost\",\"number\":\"%s\",\"we_called\":%s,\"reason\":\"no answer from the other end\"}",
+					f, c->we_caller ? "true" : "false");
+				peer_drop(n, &n->peers[c->peer]);
+				call_end(n);
+			}
+		} else
+			c->lost_t = 0;
+		break;
 	case CALL_PUNCH:
 	case CALL_SETUP:
 		if (c->peer >= 0 && n->peers[c->peer].cur.valid) {

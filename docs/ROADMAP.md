@@ -34,11 +34,6 @@ Not done, and said plainly:
 - **Numbers are never released**, `LOOKUP`/`who`, per-source HELLO limit, and the 10-minute rekey for switchboard
   sessions are not built.
 - The callee of a call whose caller drops it on a key mismatch waits out the 8 s punch timeout instead of being told.
-- **A call has no exit from "up" except `hangup`.** If the peer dies, the dead-peer timer invalidates the session but no
-  event fires, status keeps saying `call: up`, and the caller keeps retrying the handshake to the last address. The
-  design says "torn down and re-dialed"; that isn't built.
-- **A dropped peer leaves its MAC-table entries behind,** so for up to 300 s frames for those addresses are dropped
-  instead of flooded. One call at a time hides it; it matters with party lines (M3).
 - One call at a time, IPv4 only, and the real tap port is still untested here (no `/dev/net/tun`).
 - `make check` needs unprivileged user namespaces (`unshare -Urn`), which some distributions restrict (Ubuntu 24.04+).
 - Script nits: the switchboard script spends a token before the engine confirms the reply, and its rate-limit counters

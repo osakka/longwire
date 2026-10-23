@@ -51,6 +51,7 @@ announce() {
 	connected)    echo "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"
 	              echo "   safety phrase: ${e[phrase]}" ;;
 	call-failed)  echo "✗  call failed: ${e[reason]}" ;;
+	call-lost)    echo "✗  lost the call to ${e[number]}: ${e[reason]}" ;;
 	hangup)       echo "·  ${e[number]} hung up (${e[by]})" ;;
 	key-changed)  echo "⚠  KEY CHANGED for ${e[number]}: ${e[action]}" ;;
 	esac

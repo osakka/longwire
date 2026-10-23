@@ -96,7 +96,7 @@ typedef struct lw_call {
 	uint8_t  bundle[LW_BUNDLE];	/* the other end's, from RING or GO */
 	lw_cand  pc[MAXCANDS];
 	int      npc;
-	double   deadline, start_at, next_punch;
+	double   deadline, start_at, next_punch, lost_t;
 	int      have_verified;
 	struct sockaddr_in verified;
 } lw_call;
