@@ -29,6 +29,7 @@ check: all lint
 	sh tests/m2.sh
 	sh tests/m3.sh
 	sh tests/m3b.sh
+	sh tests/crossed.sh
 	python3 -I tests/docs.py
 
 clean:

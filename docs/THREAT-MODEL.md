@@ -58,8 +58,8 @@ Cookies are keyed by address and port, so two nodes behind one NAT address each 
 
 - **Two strict NATs connect only through a relay,** a member of the line with a public address. A line with no such
   member splits at that pair and says so. Port spray and NAT-type detection *(planned: M3)*.
-- **A crossed rekey can stall a link** until the dead-peer timer fires (76 s at the default keepalive). It is rare
-  by construction, and the tie-break that removes it *(planned: M3)*.
+- **A crossed rekey might stall a link** until the dead-peer timer fires (76 s at the default keepalive). It is rare
+  by construction and has not been reproduced; a crossed first handshake is tested and heals.
 - **The handshake composition has had no formal analysis or external review,** and the vendored crypto has not been
   checked against known-answer vectors *(planned: M8)*.
 - **VLAN-tagged traffic through a splice box is neither handled nor tested** *(planned)*, the underlay is IPv4 only

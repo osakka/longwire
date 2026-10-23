@@ -48,7 +48,7 @@ relayed pair upgrades to direct once a path exists.
   public third: frames cross the relay, then the NATs are loosened and the pair finds its own path.
 - Hard NATs, the rest: the `ECHO` exchange and NAT-type detection, port spray, global IPv6 and NAT-PMP candidates.
 - IPv6: the underlay, and neighbour-discovery suppression
-- Smaller things: a tie-break for a crossed rekey; a longer rekey for switchboard sessions; a warning when two DHCP servers share a line; `LOOKUP` and `longwire who`, dialing a full address, number
+- Smaller things: a longer rekey for switchboard sessions; a warning when two DHCP servers share a line; `LOOKUP` and `longwire who`, dialing a full address, number
   release after a year unused; `longwire key export` and `import`
 
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install longwire`,

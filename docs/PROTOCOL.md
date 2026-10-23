@@ -111,8 +111,10 @@ larger `tai64n`), so a retransmission is never mistaken for a replay.
 **Who initiates?** The dialer makes the first handshake. After that the session's initiator rekeys at `REKEY_AFTER`
 and the other end 10 seconds later if nothing has come, which makes a crossed rekey rare. A responder never sends
 `DATA` on a new session until it has received the first `DATA` from that session's initiator; that first packet is the
-key confirmation. If both ends do start at once, each can end up on a different session and the link stalls until the
-dead-peer timer fires; the tie-break (the session whose initiator has the lower key id wins) *(planned: M3)*.
+key confirmation. If both ends start at once, as when each is told the other's address, the link still comes up and keeps
+rekeying (`tests/crossed.sh` delays every datagram to make that certain). A crossed *rekey* of a live session has not been
+reproduced; if it does stall a link, the dead-peer timer ends it, and a tie-break (the session whose initiator has the lower
+key id wins) is the fix to reach for. Our first attempt at one made the crossed-start case worse and was dropped.
 
 Sessions with a switchboard use the same intervals as any other; a longer one, to keep a large switchboard's
 handshake rate low, *(planned: M3)*.

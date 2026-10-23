@@ -17,6 +17,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
   out of a relay never moves a peer's address; `NODE_STATUS` gains `relay` and each peer's `path`; the packet dispatcher
   became a function of its own. `FRAME_SINGLE` went from 1432 to 1428 so a wrapped full frame still fits a PPPoE link.
 - **Per-source `HELLO` limit:** 2 a second (burst 4) from any one address, on top of the global 20 a second.
+- **Crossed handshakes:** `tests/crossed.sh` starts both ends at once behind a delaying proxy; the link comes up and keeps
+  rekeying. A lower-key-id tie-break was tried and dropped: it made that case worse, and no stall could be reproduced.
 - **Tests:** `tests/m3b.sh`: two members behind symmetric NATs and a public third; frames (and full-size, fragmented ones)
   cross the relay, the NATs are loosened, the pair goes direct, then the relay is shut down and the pair carries on. The
   NAT simulator moved to `tests/lwnat.py`.
