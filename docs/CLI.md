@@ -68,7 +68,7 @@ and on the other machine's `up` terminal:
 | `--switchboard HOST:PORT/KEY` | the switchboard to register with; `KEY` is its full address (`lw1…`) or 64 hex digits. Required until a default public switchboard is in the script ([ADR 0014](adr/0014-a-default-public-switchboard.md)) |
 | `--token T` | the registration token, for a switchboard that requires one |
 | `--name TEXT` | announce this name (32 bytes of text) to the nodes you call, via a switchboard that carries names. Default: none ([ADR 0023](adr/0023-names-are-opt-in-claims.md)) |
-| `--listed` | list that name and your number in the switchboard's directory so others can find you by name or full address. Default: not listed |
+| `--listed` | list that name and your number in the switchboard's directory so others can find you by name or full address; the name is yours alone from then on. Default: not listed |
 | `--answer ask\|known\|auto\|never` | the [answer policy](#answer-policy); default `ask` |
 | `--splice NIC` | attach to a LAN: frames go straight on that NIC. Needs `CAP_NET_RAW` once (`longwire setup splice NIC`) |
 | `--site-key FILE` | the secret shared by every splice box on this LAN segment, 64 hex digits. On a line the boxes derive it themselves from the line key; this is for two boxes that are not on one, and overrides the derived key ([ARCHITECTURE §4](ARCHITECTURE.md#4-two-boxes-on-one-segment-site-groups)) |

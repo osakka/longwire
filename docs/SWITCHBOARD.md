@@ -70,7 +70,7 @@ there is. A ring that nobody answers is dropped after 65 seconds with `REJECTED`
 **Policy is a script's decision.** With `--policy script` the worker emits an event, and waits up to 2 seconds for the
 script's verdict before refusing:
 
-- `register`: a key it has not seen before wants a number (`id`, `key_id`, `ip`, `token`). The script answers
+- `register`: a key it has not seen before wants a number (`id`, `key_id`, `ip`, `token`, and the `name` it announced and whether it is `listed`). The script answers
   `lw sb reply ID accept [NUMBER]` or `lw sb reply ID refuse REASON...`.
 - `dial`: a registered node rings another (`id`, `from`, `to`, `ip`). The script answers `lw sb reply ID accept` or
   `lw sb reply ID refuse`.
@@ -84,7 +84,7 @@ answers with this policy:
 | `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when used. A spent or unknown token: `a valid token is needed to register here` |
 | `--per-ip-hour N` | 20 | registrations per source address per hour |
 | `--rings-per-minute N` | 6 | rings per callee per minute |
-| `--state DIR` | `~/.longwire/switchboard` | the seed, the control socket, `numbers.log` |
+| `--state DIR` | `~/.longwire/switchboard` | the seed, the control socket, `numbers.log`, `names.log` |
 | `--max-nodes N` | 1024 | how many node sessions the worker holds at once |
 | `--caller-id on\|off` | on | carry the name a caller announced on its rings; off drops names |
 | `--directory on\|off` | on | answer lookups for nodes that listed themselves; off answers none |
@@ -105,7 +105,7 @@ number release *(planned: M3)*, and a longer rekey interval for switchboard sess
 | that a number is online, and the public IP:port it connects from | any frame, any traffic volume after `GO`, or how long a call lasts |
 | who rings whom, and when (until `GO`, then it forgets) | MAC or IP addresses inside the line |
 | bundles (public keys) and the numbers they hold | seeds, session keys, call contents |
-| a name, in memory only, for each node that gave one, and whether it asked to be listed | a name for a node that gave none: nothing is ever invented or written to `numbers.log` |
+| a name for each node that gave one, whether it asked to be listed, and (in `names.log`) which key holds each listed name | a name for a node that gave none: nothing is ever invented |
 
 ## How tiny
 

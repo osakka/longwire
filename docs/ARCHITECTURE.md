@@ -231,4 +231,5 @@ connection stays open and carries events. Keys never cross the control socket.
 | `lines` | the line this node is on: its id, founder, line key (sealed under the seed), the node's own admit, the members, and the evictions |
 | `ctl` | the control socket |
 | `switchboard/numbers.log` | on a switchboard: every number issued, with its key id and bundle |
+| `switchboard/names.log` | on a switchboard: which key holds each listed name (append-only, the last line for a key wins) |
 | `switchboard/seed`, `switchboard/ctl` | the switchboard's own identity and control socket |

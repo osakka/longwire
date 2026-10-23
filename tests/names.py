@@ -118,6 +118,31 @@ def main():
     rc, out = E.cmd("dial", addr["D"])
     check(rc != 0 and "no directory" in out, f"...and a full address cannot be dialed there: {out!r}")
 
+    # --- a listed name is bound to its key, like a number ----------------------------------
+    def refused(name, *extra, port):
+        n = node(f"G{port}", port, a1, 1877, "--answer", "auto", "--name", name, *extra)
+        e = n.w.wait("register-refused", 15)
+        n.cmd("down")
+        return e and e["reason"]
+    why = refused(weird.upper(), "--listed", port=4010)
+    check(why is not None and "listed by another node" in why, f"a second node cannot list a listed name, even in other case: {why!r}")
+    why = refused(weird, port=4011)
+    check(why is not None and "listed by another node" in why, f"nor announce it without listing: {why!r}")
+    n = node("G4012", 4012, a1, 1877, "--answer", "auto", "--name", "Free To Use", "--listed")
+    check(until(lambda: n.status()["number"], 15) is not None, "a name nobody has listed is simply available")
+    n.cmd("down")
+
+    S1.stop()
+    time.sleep(1)
+    S1b = Node("S1", ns, "longwire-switchboard.hibr", ["--listen", "127.0.0.1:1877"])
+    until(lambda: os.path.exists(S1b.sock), 15)
+    why = refused(weird, "--listed", port=4013)
+    check(why is not None and "listed by another node" in why, f"the binding survived a restart of the switchboard: {why!r}")
+    mkb = B.w.mark()
+    rc, out = B.cmd("who", "laptop")
+    check(until(lambda: json.loads(B.cmd("who", "laptop")[1].splitlines()[-1])["results"] != [], 40, 3) is not None,
+          "and the owner, back after the restart, is in the directory again under the same name")
+
     # --- a bad name never reaches the wire -----------------------------------------
     os.makedirs(f"{T}/F/lw", exist_ok=True)
     F = Node("F", ns, "longwire.hibr", ["up", "--switchboard", f"127.0.0.1:1877/{a1}", "--sock-port", f"{T}/F/p:{T}/F/h",
@@ -127,7 +152,7 @@ def main():
 
     for n in (A, B, C, D, E):
         n.cmd("down")
-    for sb in (S1, S2):
+    for sb in (S1b, S2):
         subprocess.run([HIBR, "-c", f"mod load {MOD}; lw stop --sock {sb.sock}"], capture_output=True)
 
 

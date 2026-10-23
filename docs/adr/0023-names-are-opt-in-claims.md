@@ -22,16 +22,23 @@ Both are optional at both ends, and the switchboard verifies nothing.
 - **Caller ID** is the name the switchboard holds for the caller, added to `RING`. The callee's `ring` event carries it,
   and the node says it as a claim: *says it is "…"*. The number and the safety phrase stay the proof.
 - **Directory:** `LOOKUP` by key id (which makes a full address `lw1…` dialable) or by name (at most 8 results,
-  each with number and key id, so the safety phrase still does the proving). Only listed nodes are found. Names are not
-  unique and nothing makes them so.
+  each with number and key id, so the safety phrase still does the proving). Only listed nodes are found.
+- **A listed name is unique, like a number.** The switchboard binds it to the first key that lists it and refuses anyone
+  else, whether they list it or only announce it ("that name is listed by another node"), so a listing cannot be
+  impersonated. Names compare without regard to ASCII case and byte for byte beyond that (no Unicode folding). The binding
+  is registry data, kept in `names.log` beside `numbers.log` and so it survives a restart; it is released when its owner
+  registers with a different name or without listing. A name that nobody has listed is a plain claim and may be shared.
 - A name is at most 32 bytes of UTF-8 with no control characters; a registration carrying a bad one is refused, not
-  truncated. Names are held in memory only and re-sent when a node registers, so they are never written to the registry.
+  truncated. The names themselves are re-sent whenever a node registers; only the binding of a listed name to its key is written down.
 - `DIAL` and `RING` carry their optional parts as tagged trailers (`tag ‖ len ‖ bytes`), replacing the single untagged
   admit, so another optional part is one more tag and not another guess at the end of a packet.
 
+*Amended after review:* the first version let several nodes use one name, on the model of a phone book. That is wrong for
+an operator-grade service, where the namespace belongs to the operator; a listed name is now treated as a number is.
+
 ## Consequences
 
-The switchboard now holds names it is given (in memory, only for nodes that chose to give one), which
+The switchboard now holds the names it is given (only from nodes that chose to give one) and the bindings of listed ones, which
 [SWITCHBOARD](../SWITCHBOARD.md) and the [threat model](../THREAT-MODEL.md) say. A malicious switchboard can hand out
 a wrong name or key for a lookup; a first call to a looked-up key is still a first call, with a safety phrase to read
 out. A private switchboard can run with both switches off. The default for the node is the conservative one and can be
