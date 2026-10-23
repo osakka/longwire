@@ -1,0 +1,116 @@
+#!/usr/bin/env hibr
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# longwire -- the node (component 2). It starts the engine through the
+# module's `lw` builtin, then runs the node's brain: it reads the worker's
+# events and applies the answer policy. The desktop pane (M4) reads the same
+# events. See docs/CLI.md.
+
+LW_DIR=${LW_DIR:-$HOME/.longwire}
+LW_SEED=${LW_SEED:-$LW_DIR/seed}
+export LW_SOCK=${LW_SOCK:-$LW_DIR/ctl}
+
+# Load the engine module: an explicit path when one is set (the privileged
+# splice service sets it), the module search otherwise.
+mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire: the longwire module is not installed" >&2; exit 1; }
+
+# lw reports failures in $ERRMSG; say them the way a command would.
+run() {
+	"$@" || { echo "longwire: ${ERRMSG:-failed}" >&2; exit 1; }
+}
+
+usage() {
+	cat <<EOF
+usage: longwire <command>
+
+  up [--switchboard HOST:PORT/KEY] [--answer ask|known|auto|never] [--token T]
+     [--jack TAP | --sock-port LOCAL:PEER] [--listen [ADDR:]PORT]
+     [--peer BUNDLEFILE[@HOST:PORT]]...      run this node (foreground: a service or hold runs this)
+  dial NUMBER                                 call a number
+  pickup | reject                             answer the ringing call
+  hangup                                      end the call
+  unpin NUMBER                                forget a number's key: the next call from it is a first call again
+  status                                      what the node is doing (JSON)
+  down                                        stop the node
+  id | address | bundle                       your key id, full address (lw1...), public bundle
+
+--answer: ask (default) rings and waits for 'longwire pickup'; known picks up numbers
+you have called before and asks about the rest; auto picks up anyone; never refuses.
+EOF
+}
+
+# A sentence for each event, the way a person wants to read it.
+announce() {
+	local ev=$1
+	case $ev in
+	registered)   echo "☎  your number ${e[number]} — dial tone" ;;
+	register-refused) echo "✗  the switchboard refused to register you: ${e[reason]}" ;;
+	ring)         echo "☎  ${e[from]} is calling"
+	              echo "   safety phrase: ${e[phrase]}"
+	              [ "${e[known]}" = true ] || echo "   first call from this number" ;;
+	connected)    echo "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"
+	              echo "   safety phrase: ${e[phrase]}" ;;
+	call-failed)  echo "✗  call failed: ${e[reason]}" ;;
+	hangup)       echo "·  ${e[number]} hung up (${e[by]})" ;;
+	key-changed)  echo "⚠  KEY CHANGED for ${e[number]}: ${e[action]}" ;;
+	esac
+}
+
+# The answer policy: decide what a ring means.
+on_ring() {
+	local policy=$1
+	case $policy in
+	auto)  lw pickup > /dev/null ;;
+	never) lw reject > /dev/null ;;
+	known) if [ "${e[known]}" = true ]; then lw pickup > /dev/null; else echo "   run: longwire pickup | longwire reject (60 s)"; fi ;;
+	*)     echo "   run: longwire pickup | longwire reject (60 s)" ;;
+	esac
+}
+
+cmd_up() {
+	local answer=ask line
+	local args=()
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--answer) answer=$2; shift 2 ;;
+		*) args+=("$1"); shift ;;
+		esac
+	done
+	case $answer in ask|known|auto|never) ;; *) echo "longwire: --answer wants ask, known, auto or never" >&2; exit 2 ;; esac
+	run lw start --seed "$LW_SEED" --sock "$LW_SOCK" --state "$LW_DIR" "${args[@]}" > /dev/null
+	trap 'lw stop > /dev/null 2>&1; exit 0' TERM INT
+	exec 5</dev/longwire/events || exit 1
+	while read -r -u 5 line; do
+		json parse e "$line"
+		case ${e[event]} in
+		ring) announce ring; on_ring "$answer" ;;
+		watching) ;;
+		*) announce "${e[event]}" ;;
+		esac
+	done
+}
+
+mkdir -p "$LW_DIR" && chmod 700 "$LW_DIR"
+
+cmd=${1:-}
+[ $# -gt 0 ] && shift
+
+case $cmd in
+up)      cmd_up "$@" ;;
+dial)    [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw dial "$1" ;;
+pickup)  run lw pickup ;;
+reject)  run lw reject ;;
+hangup)  run lw hangup ;;
+unpin)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw unpin "$1" ;;
+status)  run lw status ;;
+down)    run lw stop ;;
+id)      run lw key new "$LW_SEED" > /dev/null; run lw key id "$LW_SEED" ;;
+address) run lw key new "$LW_SEED" > /dev/null; run lw key address "$LW_SEED" ;;
+bundle)  run lw key new "$LW_SEED" > /dev/null; run lw key bundle "$LW_SEED" ;;
+help|-h|--help|"") usage ;;
+*)
+	echo "longwire: unknown command '$cmd'" >&2
+	usage >&2
+	exit 2
+	;;
+esac

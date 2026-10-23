@@ -1,0 +1,161 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Control socket: one text line in, one JSON object out, or `watch` to keep
+ * the connection and receive events as JSON lines. Mode 0600, peer uid
+ * checked. Keys never cross it. */
+#define _GNU_SOURCE
+#include <errno.h>
+#include <poll.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include "int.h"
+
+int ctl_open(lw_node *n, char *err, size_t errn)
+{
+	struct sockaddr_un a;
+	mode_t old;
+	int fd;
+
+	if (!n->cfg.ctl_path[0]) {
+		n->ctl_fd = -1;
+		return 0;
+	}
+	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+	memset(&a, 0, sizeof a);
+	a.sun_family = AF_UNIX;
+	snprintf(a.sun_path, sizeof a.sun_path, "%s", n->cfg.ctl_path);
+	if (fd >= 0 && connect(fd, (struct sockaddr *)&a, sizeof a) == 0) {	/* somebody answers */
+		snprintf(err, errn, "a node is already running (%s); `longwire down` first", a.sun_path);
+		close(fd);
+		return -1;
+	}
+	if (fd >= 0) {			/* a stale socket file from a dead node */
+		close(fd);
+		fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+	}
+	unlink(a.sun_path);
+	old = umask(0177);
+	if (fd < 0 || bind(fd, (struct sockaddr *)&a, sizeof a) < 0 || listen(fd, 8) < 0) {
+		umask(old);
+		snprintf(err, errn, "control socket %s: %s", a.sun_path, strerror(errno));
+		if (fd >= 0)
+			close(fd);
+		return -1;
+	}
+	umask(old);
+	n->ctl_fd = fd;
+	{
+		int i;
+
+		for (i = 0; i < MAXSUBS; i++)
+			n->subs[i] = -1;
+	}
+	return 0;
+}
+
+void ev_emit(lw_node *n, const char *fmt, ...)
+{
+	char b[4096];
+	va_list ap;
+	int l, i;
+
+	va_start(ap, fmt);
+	l = vsnprintf(b, sizeof b - 1, fmt, ap);
+	va_end(ap);
+	if (l <= 0)
+		return;
+	if (l > (int)sizeof b - 2)
+		l = (int)sizeof b - 2;
+	b[l++] = '\n';
+	for (i = 0; i < MAXSUBS; i++) {
+		if (n->subs[i] < 0)
+			continue;
+		if (send(n->subs[i], b, (size_t)l, MSG_DONTWAIT | MSG_NOSIGNAL) < 0 && errno != EAGAIN) {
+			close(n->subs[i]);
+			n->subs[i] = -1;
+		}
+	}
+}
+
+void ctl_subs_reap(lw_node *n)
+{
+	char tmp[64];
+	int i;
+
+	for (i = 0; i < MAXSUBS; i++) {
+		ssize_t r;
+
+		if (n->subs[i] < 0)
+			continue;
+		r = recv(n->subs[i], tmp, sizeof tmp, MSG_DONTWAIT);
+		if (r == 0 || (r < 0 && errno != EAGAIN && errno != EINTR)) {
+			close(n->subs[i]);
+			n->subs[i] = -1;
+		}
+	}
+}
+
+void ctl_accept(lw_node *n)
+{
+	struct ucred cr;
+	socklen_t cl = sizeof cr;
+	char line[300], out[8192];
+	struct pollfd pf;
+	int c = accept4(n->ctl_fd, 0, 0, SOCK_CLOEXEC), len, i;
+	ssize_t r;
+
+	if (c < 0)
+		return;
+	if (getsockopt(c, SOL_SOCKET, SO_PEERCRED, &cr, &cl) < 0 || cr.uid != geteuid()) {
+		close(c);
+		return;
+	}
+	pf.fd = c;
+	pf.events = POLLIN;
+	if (poll(&pf, 1, 200) <= 0 || (r = read(c, line, sizeof line - 1)) <= 0) {
+		close(c);
+		return;
+	}
+	line[r] = 0;
+	while (r > 0 && (line[r - 1] == '\n' || line[r - 1] == '\r'))
+		line[--r] = 0;
+	if (!strcmp(line, "watch")) {
+		for (i = 0; i < MAXSUBS; i++)
+			if (n->subs[i] < 0)
+				break;
+		if (i == MAXSUBS) {
+			close(c);
+			return;
+		}
+		n->subs[i] = c;
+		len = snprintf(out, sizeof out, "{\"event\":\"watching\",\"role\":\"%s\"}\n", n->role ? "switchboard" : "node");
+		(void)!write(c, out, (size_t)len);
+		return;				/* the connection stays open */
+	}
+	if (!strcmp(line, "status"))
+		len = n->role ? board_status_json(n, out, sizeof out) : node_status_json(n, out, sizeof out);
+	else if (!strcmp(line, "stop")) {
+		n->stop = 1;
+		len = snprintf(out, sizeof out, "{\"node\":\"stopping\"}\n");
+	} else
+		len = n->role ? board_cmd(n, line, out, sizeof out) : node_cmd(n, line, out, sizeof out);
+	(void)!write(c, out, (size_t)len);
+	close(c);
+}
+
+void ctl_close(lw_node *n)
+{
+	int i;
+
+	for (i = 0; i < MAXSUBS; i++)
+		if (n->subs[i] >= 0)
+			close(n->subs[i]);
+	if (n->ctl_fd >= 0) {
+		close(n->ctl_fd);
+		unlink(n->cfg.ctl_path);
+	}
+}

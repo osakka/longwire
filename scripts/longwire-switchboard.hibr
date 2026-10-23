@@ -1,0 +1,103 @@
+#!/usr/bin/env hibr
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# longwire-switchboard -- the switchboard (component 1). The module's C worker
+# runs the mechanism (sessions, presence, introductions); this script is the
+# policy: who may register, and whose call may ring. See docs/SWITCHBOARD.md.
+#
+#   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
+#                        [--per-ip-hour N] [--rings-per-minute N]
+#
+# --tokens FILE   registration needs a token: one per line, "TOKEN" or
+#                 "TOKEN NUMBER" (that token claims that number). A token is
+#                 spent when it is used. Without it, registration is open.
+
+SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
+export LW_SOCK=${LW_SOCK:-$SB_DIR/ctl}
+listen=0.0.0.0:1877
+tokens=
+per_ip_hour=20
+rings_per_min=6
+
+mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
+
+while [ $# -gt 0 ]; do
+	case $1 in
+	--listen) listen=$2 ;;
+	--tokens) tokens=$2 ;;
+	--state) SB_DIR=$2 ;;
+	--per-ip-hour) per_ip_hour=$2 ;;
+	--rings-per-minute) rings_per_min=$2 ;;
+	-h|--help) sed -n '5,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+	*) echo "longwire-switchboard: unknown option $1" >&2; exit 2 ;;
+	esac
+	shift 2 2>/dev/null || shift
+done
+
+mkdir -p "$SB_DIR" && chmod 700 "$SB_DIR"
+declare -A seen    # counters, keyed by what they count and the hour or minute
+
+# Take a token out of the file: prints the reserved number, if it has one.
+# Fails when the token isn't there.
+spend_token() {
+	local want=$1 tok num found=1 out=
+	while read -r tok num; do
+		[ -n "$tok" ] || continue
+		if [ "$tok" = "$want" ] && [ $found -ne 0 ]; then
+			found=0
+			[ -n "$num" ] && echo "$num"
+		else
+			out="$out$tok${num:+ $num}
+"
+		fi
+	done < "$tokens"
+	[ $found -eq 0 ] && printf '%s' "$out" > "$tokens"
+	return $found
+}
+
+on_register() {
+	local now=$(date +%s) k n num
+	k="reg:${e[ip]%:*}:$((now / 3600))"
+	n=$(( ${seen[$k]:-0} + 1 )); seen[$k]=$n
+	if [ $n -gt $per_ip_hour ]; then
+		lw sb reply "${e[id]}" refuse "too many registrations from this address" > /dev/null; return
+	fi
+	if [ -n "$tokens" ]; then
+		if num=$(spend_token "${e[token]}"); then
+			lw sb reply "${e[id]}" accept $num > /dev/null
+		else
+			lw sb reply "${e[id]}" refuse "a valid token is needed to register here" > /dev/null
+		fi
+		return
+	fi
+	lw sb reply "${e[id]}" accept > /dev/null
+}
+
+on_dial() {
+	local now=$(date +%s) k n
+	k="ring:${e[to]}:$((now / 60))"
+	n=$(( ${seen[$k]:-0} + 1 )); seen[$k]=$n
+	if [ $n -gt $rings_per_min ]; then
+		lw sb reply "${e[id]}" refuse > /dev/null
+	else
+		lw sb reply "${e[id]}" accept > /dev/null
+	fi
+}
+
+run() { "$@" || { echo "longwire-switchboard: ${ERRMSG:-failed}" >&2; exit 1; }; }
+
+run lw key new "$SB_DIR/seed" > /dev/null
+run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script > /dev/null
+addr=$(lw key address "$SB_DIR/seed")
+echo "switchboard  $addr   (give this full address to your nodes)"
+echo "listening    udp $listen    tokens: ${tokens:-open registration}"
+trap 'lw stop > /dev/null 2>&1; exit 0' TERM INT
+
+exec 5</dev/longwire/events || exit 1
+while read -r -u 5 line; do
+	json parse e "$line"
+	case ${e[event]} in
+	register) on_register ;;
+	dial) on_dial ;;
+	esac
+done

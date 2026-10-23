@@ -1,0 +1,516 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * The switchboard worker (docs/SWITCHBOARD.md): numbers, presence, call
+ * introductions. It never sees a frame and forgets a call the moment it has
+ * sent GO. Decisions that are policy (may this key register? may this call
+ * ring?) go to the script as events when --policy script is on. */
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include "int.h"
+
+#define PRESENT 80.0			/* a node is online if it was heard this recently */
+#define MAXPEND 32
+#define MAXCALLS 32
+
+typedef struct reg {
+	char    number[NUMLEN + 1];
+	uint8_t bundle[LW_BUNDLE], key_id[32];
+	double  seen;
+} reg;
+
+typedef struct bcall {
+	int      used;
+	uint8_t  id[8], caller[32], callee[32];
+	lw_cand  cc[MAXCANDS];
+	int      ncc;
+	double   deadline;
+} bcall;
+
+enum { P_REG, P_DIAL };
+
+typedef struct pend {
+	int      used, kind, id;
+	uint8_t  key[32], callee[32];	/* key = who asked */
+	lw_cand  cc[MAXCANDS];
+	int      ncc;
+	double   deadline;
+} pend;
+
+struct board {
+	reg   *regs;
+	int    n, cap, next_id;
+	bcall  calls[MAXCALLS];
+	pend   pend[MAXPEND];
+	char   log[320];
+};
+
+static reg *reg_by_key(struct board *b, const uint8_t k[32])
+{
+	int i;
+
+	for (i = 0; i < b->n; i++)
+		if (!crypto_verify32(b->regs[i].key_id, k))
+			return &b->regs[i];
+	return 0;
+}
+
+static reg *reg_by_number(struct board *b, const char *num)
+{
+	int i;
+
+	for (i = 0; i < b->n; i++)
+		if (!strcmp(b->regs[i].number, num))
+			return &b->regs[i];
+	return 0;
+}
+
+static int cands_read(const uint8_t *p, size_t len, lw_cand *c, int *nc)
+{
+	int i, k;
+
+	if (len < 1)
+		return -1;
+	k = p[0];
+	if (k > MAXCANDS - 1 || len < 1 + (size_t)k * 7)	/* one slot is kept for the observed address */
+		return -1;
+	for (i = 0; i < k; i++)
+		cand_get(p + 1 + i * 7, &c[i]);
+	*nc = k;
+	return 1 + k * 7;
+}
+
+static int cands_write(uint8_t *p, const lw_cand *c, int nc)
+{
+	int i, o = 1;
+
+	p[0] = (uint8_t)nc;
+	for (i = 0; i < nc; i++)
+		o += cand_put(p + o, &c[i]);
+	return o;
+}
+
+static void observed(const lw_peer *p, lw_cand *c)
+{
+	const struct sockaddr_in *a = (const void *)&p->ep;
+
+	memcpy(c->ip, &a->sin_addr, 4);
+	c->port = ntohs(a->sin_port);
+	c->type = CAND_REFL;
+}
+
+static int online(lw_node *n, const reg *r)
+{
+	lw_peer *p = peer_by_key(n, r->key_id);
+
+	return p && p->cur.valid && n->now - r->seen < PRESENT;
+}
+
+int board_open(lw_node *n, char *err, size_t errn)
+{
+	struct board *b = calloc(1, sizeof *b);
+	char path[330], line[LW_BUNDLE * 2 + 120];
+	FILE *f;
+
+	if (!b) {
+		snprintf(err, errn, "out of memory");
+		return -1;
+	}
+	n->bd = b;
+	b->next_id = 1;
+	snprintf(b->log, sizeof b->log, "%s/numbers.log", n->cfg.state_dir);
+	snprintf(path, sizeof path, "%s", b->log);
+	if ((f = fopen(path, "r"))) {
+		while (fgets(line, sizeof line, f)) {
+			char num[16], kh[80], *bh;
+			reg r;
+			unsigned i;
+
+			if (sscanf(line, "%15s %79s", num, kh) != 2 || strlen(num) != NUMLEN || !(bh = strrchr(line, ' ')))
+				continue;
+			bh++;
+			if (strlen(bh) < LW_BUNDLE * 2)
+				continue;
+			memset(&r, 0, sizeof r);
+			memcpy(r.number, num, NUMLEN + 1);
+			for (i = 0; i < LW_BUNDLE; i++) {
+				unsigned v;
+
+				if (sscanf(bh + 2 * i, "%2x", &v) != 1)
+					break;
+				r.bundle[i] = (uint8_t)v;
+			}
+			if (i != LW_BUNDLE || r.bundle[0] != 1)
+				continue;
+			lw_h(r.key_id, r.bundle, LW_BUNDLE);
+			if (b->n == b->cap) {
+				b->cap = b->cap ? b->cap * 2 : 64;
+				b->regs = realloc(b->regs, (size_t)b->cap * sizeof *b->regs);
+			}
+			b->regs[b->n++] = r;
+		}
+		fclose(f);
+	}
+	return 0;
+}
+
+static void persist(struct board *b, const reg *r)
+{
+	FILE *f = fopen(b->log, "a");
+	char *hex;
+	char kh[65];
+
+	if (!f)
+		return;
+	chmod(b->log, 0600);
+	hex = malloc(LW_BUNDLE * 2 + 1);
+	lw_hex(hex, r->bundle, LW_BUNDLE);
+	lw_hex(kh, r->key_id, 32);
+	fprintf(f, "%s %s %s\n", r->number, kh, hex);
+	free(hex);
+	fclose(f);
+}
+
+static void send_number(lw_node *n, lw_peer *p, const reg *r)
+{
+	uint8_t b[NUMLEN + 6];
+	lw_cand c;
+
+	memcpy(b, r->number, NUMLEN);
+	observed(p, &c);
+	memcpy(b + NUMLEN, c.ip, 4);
+	put16(b + NUMLEN + 4, c.port);
+	ctl_msg_send(n, p, M_NUMBER, b, sizeof b);
+}
+
+static void refuse(lw_node *n, lw_peer *p, const char *why)
+{
+	ctl_msg_send(n, p, M_REFUSED, (const uint8_t *)why, strlen(why));
+}
+
+static void do_register(lw_node *n, lw_peer *p, const char *reserved)
+{
+	struct board *b = n->bd;
+	reg r;
+	int tries;
+
+	memset(&r, 0, sizeof r);
+	memcpy(r.bundle, p->bundle, LW_BUNDLE);
+	memcpy(r.key_id, p->key_id, 32);
+	if (reserved && strlen(reserved) == NUMLEN && damm_ok(reserved, NUMLEN) && !reg_by_number(b, reserved))
+		memcpy(r.number, reserved, NUMLEN + 1);
+	else
+		for (tries = 0; tries < 20; tries++) {
+			mint_number(r.number);
+			if (!reg_by_number(b, r.number))
+				break;
+		}
+	if (reg_by_number(b, r.number)) {
+		refuse(n, p, "no number available");
+		return;
+	}
+	r.seen = n->now;
+	if (b->n == b->cap) {
+		b->cap = b->cap ? b->cap * 2 : 64;
+		b->regs = realloc(b->regs, (size_t)b->cap * sizeof *b->regs);
+	}
+	b->regs[b->n++] = r;
+	persist(b, &r);
+	send_number(n, p, &r);
+}
+
+static void rejected(lw_node *n, const uint8_t key[32], const uint8_t id[8], int why)
+{
+	lw_peer *p = peer_by_key(n, key);
+	uint8_t b[9];
+
+	if (!p || !p->cur.valid)
+		return;
+	if (id)
+		memcpy(b, id, 8);
+	else
+		memset(b, 0, 8);
+	b[8] = (uint8_t)why;
+	ctl_msg_send(n, p, M_REJECTED, b, 9);
+}
+
+static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t callee_key[32], lw_cand *cc, int ncc)
+{
+	struct board *b = n->bd;
+	reg *cr = reg_by_key(b, caller_key), *ce = reg_by_key(b, callee_key);
+	lw_peer *cp = peer_by_key(n, caller_key), *ep = peer_by_key(n, callee_key);
+	bcall *c = 0;
+	uint8_t m[8 + NUMLEN + LW_BUNDLE + 1 + MAXCANDS * 7];
+	int i, o;
+
+	if (!cr || !ce || !cp || !ep || !online(n, ce)) {
+		rejected(n, caller_key, 0, R_OFFLINE);
+		return;
+	}
+	for (i = 0; i < MAXCALLS; i++)
+		if (!b->calls[i].used) {
+			c = &b->calls[i];
+			break;
+		}
+	if (!c) {
+		rejected(n, caller_key, 0, R_BUSY);
+		return;
+	}
+	memset(c, 0, sizeof *c);
+	c->used = 1;
+	lw_rand(c->id, 8);
+	memcpy(c->caller, caller_key, 32);
+	memcpy(c->callee, callee_key, 32);
+	memcpy(c->cc, cc, (size_t)ncc * sizeof *cc);
+	c->ncc = ncc;
+	observed(cp, &c->cc[c->ncc++]);			/* what we see is the best candidate there is */
+	c->deadline = n->now + 65.0;
+	memcpy(m, c->id, 8);
+	memcpy(m + 8, cr->number, NUMLEN);
+	memcpy(m + 8 + NUMLEN, cr->bundle, LW_BUNDLE);
+	o = 8 + NUMLEN + LW_BUNDLE;
+	o += cands_write(m + o, c->cc, c->ncc);
+	ctl_msg_send(n, ep, M_RING, m, (size_t)o);
+}
+
+static pend *pend_new(struct board *b, int kind)
+{
+	int i;
+
+	for (i = 0; i < MAXPEND; i++)
+		if (!b->pend[i].used) {
+			memset(&b->pend[i], 0, sizeof b->pend[i]);
+			b->pend[i].used = 1;
+			b->pend[i].kind = kind;
+			b->pend[i].id = b->next_id++;
+			return &b->pend[i];
+		}
+	return 0;
+}
+
+void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len)
+{
+	struct board *b = n->bd;
+	reg *r = reg_by_key(b, p->key_id);
+	char ep[64];
+
+	addr_str(&p->ep, ep, sizeof ep);
+	switch (msg) {
+	case M_REGISTER:
+		if (len < 1 || (size_t)pl[0] + 1 > len)
+			return;
+		if (r) {				/* the same key always gets the same number */
+			r->seen = n->now;
+			send_number(n, p, r);
+			return;
+		}
+		if (n->cfg.policy_script) {
+			pend *q = pend_new(b, P_REG);
+			char kh[65], tok[65];
+
+			if (!q) {
+				refuse(n, p, "switchboard busy");
+				return;
+			}
+			memcpy(q->key, p->key_id, 32);
+			q->deadline = n->now + 2.0;
+			lw_hex(kh, p->key_id, 32);
+			snprintf(tok, sizeof tok, "%.*s", (int)pl[0] > 63 ? 63 : (int)pl[0], (const char *)pl + 1);
+			ev_emit(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"token\":\"%s\"}", q->id, kh, ep, tok);
+		} else
+			do_register(n, p, 0);
+		return;
+	case M_HEARTBEAT:
+		if (!r)
+			return;
+		r->seen = n->now;
+		{
+			uint8_t a[6];
+			lw_cand c;
+
+			observed(p, &c);
+			memcpy(a, c.ip, 4);
+			put16(a + 4, c.port);
+			ctl_msg_send(n, p, M_HBACK, a, 6);
+		}
+		return;
+	case M_DIAL: {
+		lw_cand cc[MAXCANDS];
+		int nc = 0;
+		char num[NUMLEN + 1];
+		reg *ce;
+
+		if (!r || len < NUMLEN + 1)
+			return;
+		r->seen = n->now;
+		memcpy(num, pl, NUMLEN);
+		num[NUMLEN] = 0;
+		if (cands_read(pl + NUMLEN, len - NUMLEN, cc, &nc) < 0)
+			return;
+		if (!(ce = reg_by_number(b, num))) {
+			rejected(n, p->key_id, 0, R_UNKNOWN);
+			return;
+		}
+		if (ce == r) {
+			rejected(n, p->key_id, 0, R_SELF);
+			return;
+		}
+		if (!online(n, ce)) {
+			rejected(n, p->key_id, 0, R_OFFLINE);
+			return;
+		}
+		if (n->cfg.policy_script) {
+			pend *q = pend_new(b, P_DIAL);
+			char f1[16], f2[16];
+
+			if (!q) {
+				rejected(n, p->key_id, 0, R_BUSY);
+				return;
+			}
+			memcpy(q->key, p->key_id, 32);
+			memcpy(q->callee, ce->key_id, 32);
+			memcpy(q->cc, cc, (size_t)nc * sizeof *cc);
+			q->ncc = nc;
+			q->deadline = n->now + 2.0;
+			fmt_number(f1, r->number);
+			fmt_number(f2, ce->number);
+			ev_emit(n, "{\"event\":\"dial\",\"id\":%d,\"from\":\"%s\",\"to\":\"%s\",\"ip\":\"%s\"}", q->id, f1, f2, ep);
+		} else
+			route_dial(n, p->key_id, ce->key_id, cc, nc);
+		return;
+	}
+	case M_ANSWER: {
+		bcall *c = 0;
+		lw_cand cc[MAXCANDS];
+		int nc = 0, i, o;
+		reg *cr, *ce;
+		lw_peer *callerp, *calleep = p;
+		uint8_t m[8 + 1 + 2 + NUMLEN + 32 + LW_BUNDLE + 1 + MAXCANDS * 7], tok[32];
+
+		if (len < 9)
+			return;
+		for (i = 0; i < MAXCALLS; i++)
+			if (b->calls[i].used && !memcmp(b->calls[i].id, pl, 8) && !crypto_verify32(b->calls[i].callee, p->key_id))
+				c = &b->calls[i];
+		if (!c)
+			return;
+		if (pl[8] != V_ACCEPT) {
+			rejected(n, c->caller, c->id, pl[8] == V_BUSY ? R_BUSY : R_DECLINED);
+			c->used = 0;
+			return;
+		}
+		if (cands_read(pl + 9, len - 9, cc, &nc) < 0)
+			return;
+		observed(p, &cc[nc++]);
+		cr = reg_by_key(b, c->caller);
+		ce = reg_by_key(b, c->callee);
+		callerp = peer_by_key(n, c->caller);
+		if (!cr || !ce || !callerp || !callerp->cur.valid) {
+			c->used = 0;
+			return;
+		}
+		lw_rand(tok, 32);
+		/* to the caller: the callee's number, bundle and candidates; the caller initiates */
+		memcpy(m, c->id, 8);
+		m[8] = 1;
+		put16(m + 9, 150);
+		memcpy(m + 11, ce->number, NUMLEN);
+		memcpy(m + 11 + NUMLEN, tok, 32);
+		memcpy(m + 11 + NUMLEN + 32, ce->bundle, LW_BUNDLE);
+		o = 11 + NUMLEN + 32 + LW_BUNDLE;
+		o += cands_write(m + o, cc, nc);
+		ctl_msg_send(n, callerp, M_GO, m, (size_t)o);
+		/* to the callee: the caller's */
+		m[8] = 0;
+		memcpy(m + 11, cr->number, NUMLEN);
+		memcpy(m + 11 + NUMLEN + 32, cr->bundle, LW_BUNDLE);
+		o = 11 + NUMLEN + 32 + LW_BUNDLE;
+		o += cands_write(m + o, c->cc, c->ncc);
+		ctl_msg_send(n, calleep, M_GO, m, (size_t)o);
+		memset(c, 0, sizeof *c);		/* and the call is forgotten: nothing keeps who called whom */
+		return;
+	}
+	}
+}
+
+void board_timers(lw_node *n)
+{
+	struct board *b = n->bd;
+	int i;
+
+	for (i = 0; i < MAXCALLS; i++)
+		if (b->calls[i].used && n->now > b->calls[i].deadline) {
+			rejected(n, b->calls[i].caller, b->calls[i].id, R_TIMEOUT);
+			memset(&b->calls[i], 0, sizeof b->calls[i]);
+		}
+	for (i = 0; i < MAXPEND; i++) {
+		pend *q = &b->pend[i];
+
+		if (!q->used || n->now < q->deadline)
+			continue;			/* the script did not answer in time: refuse */
+		if (q->kind == P_REG) {
+			lw_peer *p = peer_by_key(n, q->key);
+
+			if (p && p->cur.valid)
+				refuse(n, p, "no decision from the switchboard policy");
+		} else
+			rejected(n, q->key, 0, R_POLICY);
+		q->used = 0;
+	}
+}
+
+/* reply ID accept [NUMBER]   |   reply ID refuse [REASON...] */
+int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
+{
+	struct board *b = n->bd;
+	int id, i;
+	char verdict[16] = "", arg[80] = "";
+
+	if (sscanf(line, "reply %d %15s %79[^\n]", &id, verdict, arg) < 2)
+		return snprintf(out, cap, "{\"error\":\"unknown request\"}\n");
+	for (i = 0; i < MAXPEND; i++) {
+		pend *q = &b->pend[i];
+
+		if (!q->used || q->id != id)
+			continue;
+		q->used = 0;
+		if (q->kind == P_REG) {
+			lw_peer *p = peer_by_key(n, q->key);
+
+			if (!p || !p->cur.valid)
+				return snprintf(out, cap, "{\"error\":\"the node has gone\"}\n");
+			if (!strcmp(verdict, "accept"))
+				do_register(n, p, arg[0] ? arg : 0);
+			else
+				refuse(n, p, arg[0] ? arg : "registration refused");
+		} else if (!strcmp(verdict, "accept"))
+			route_dial(n, q->key, q->callee, q->cc, q->ncc);
+		else
+			rejected(n, q->key, 0, R_POLICY);
+		return snprintf(out, cap, "{\"ok\":true}\n");
+	}
+	return snprintf(out, cap, "{\"error\":\"no such pending request (timed out?)\"}\n");
+}
+
+int board_status_json(lw_node *n, char *o, size_t cap)
+{
+	struct board *b = n->bd;
+	char kid[65], addr[60];
+	int i, online_n = 0, calls = 0;
+
+	for (i = 0; i < b->n; i++)
+		if (online(n, &b->regs[i]))
+			online_n++;
+	for (i = 0; i < MAXCALLS; i++)
+		calls += b->calls[i].used;
+	lw_hex(kid, n->id.key_id, 32);
+	lw_address(addr, n->id.key_id);
+	return snprintf(o, cap,
+		"{\"node\":\"switchboard\",\"key_id\":\"%s\",\"address\":\"%s\",\"uptime\":%d,\"numbers\":%d,\"online\":%d,"
+		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu}\n",
+		kid, addr, (int)(n->now - n->started), b->n, online_n, calls,
+		n->cfg.policy_script ? "script" : "open", (unsigned long long)n->drop_garbage);
+}

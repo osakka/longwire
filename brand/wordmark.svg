@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" width="300" height="64" role="img" aria-label="longwire">
+  <title>longwire</title>
+  <style>
+    .wire { fill: none; stroke: #C0632B; stroke-width: 4; stroke-linecap: round; }
+    .node { fill: #C0632B; }
+    .pulse { fill: #2FB67C; }
+    .pole { stroke: #121417; stroke-width: 4; stroke-linecap: round; }
+    .word { fill: #121417; font: 600 38px ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", Menlo, monospace; letter-spacing: -0.5px; }
+    @media (prefers-color-scheme: dark) { .pole { stroke: #F3EEE4; } .word { fill: #F3EEE4; } }
+  </style>
+  <line class="pole" x1="10" y1="18" x2="10" y2="54"/>
+  <line class="pole" x1="54" y1="18" x2="54" y2="54"/>
+  <path class="wire" d="M10 20 C 24 40, 40 40, 54 20"/>
+  <circle class="node" cx="10" cy="20" r="5"/>
+  <circle class="node" cx="54" cy="20" r="5"/>
+  <circle class="pulse" cx="32" cy="35" r="3.2"/>
+  <text class="word" x="72" y="46">longwire</text>
+</svg>
