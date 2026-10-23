@@ -33,7 +33,7 @@ but a switchboard has never seen a node that is registering for the first time. 
 bundle: `0x08 ‖ 0x02 ‖ bundle`. A switchboard holds an offered bundle in a cache of 16 (the oldest is recycled) for
 10 seconds, and admits a node only if the handshake that follows names a key it was offered, so the handshake cannot be
 used to make it remember arbitrary keys. A request is 10 bytes and the answer about 1.25 KB, so a node answers at
-most 20 `HELLO` requests a second *in total* (a per-source limit *(planned: M3)*).
+most 20 `HELLO` requests a second *in total*, and 2 a second (burst 4) from any one source address.
 
 ## 2. Data packets
 

@@ -226,6 +226,7 @@ struct lw_node {
 	int      subs[MAXSUBS];
 	struct board *bd;
 	double   hello_tokens, hello_t;
+	struct { struct sockaddr_storage a; socklen_t l; double tok, t; } hello_src[16];	/* a budget for each asker, too */
 	double   hs_tokens, hs_t;	/* handshake budget: past half spent, the node is under load and wants cookies */
 	uint64_t hs_shed, cookies_sent, cookies_got, hs_nocookie, hs_badmac2;
 	int      cookie_ok;		/* the INIT being consumed carried valid cookie MACs on every fragment */

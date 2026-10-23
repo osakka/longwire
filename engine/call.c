@@ -216,6 +216,31 @@ void hello_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 		n->hello_t = n->now;
 		if (n->hello_tokens < 1.0 || memcmp(pkt + 2, n->id.key_id, 8))
 			return;
+		{						/* 2/s, burst 4, for each source: one host cannot use up everyone's share */
+			int k, free_k = 0;
+
+			for (k = 0; k < 16; k++) {
+				if (n->hello_src[k].l == sl && !memcmp(&n->hello_src[k].a, src, sl))
+					break;
+				if (n->hello_src[k].t < n->hello_src[free_k].t)
+					free_k = k;
+			}
+			if (k == 16) {			/* new asker: take the stalest slot */
+				k = free_k;
+				memset(&n->hello_src[k], 0, sizeof n->hello_src[k]);
+				memcpy(&n->hello_src[k].a, src, sl);
+				n->hello_src[k].l = sl;
+				n->hello_src[k].tok = 4.0;
+			} else {
+				n->hello_src[k].tok += (n->now - n->hello_src[k].t) * 2.0;
+				if (n->hello_src[k].tok > 4.0)
+					n->hello_src[k].tok = 4.0;
+			}
+			n->hello_src[k].t = n->now;
+			if (n->hello_src[k].tok < 1.0)
+				return;
+			n->hello_src[k].tok -= 1.0;
+		}
 		n->hello_tokens -= 1.0;
 		b[0] = T_HELLO;
 		b[1] = 1;

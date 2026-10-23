@@ -16,6 +16,7 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 - **Behind it:** every datagram to a peer now goes through one function that knows the peer's path; a datagram that came
   out of a relay never moves a peer's address; `NODE_STATUS` gains `relay` and each peer's `path`; the packet dispatcher
   became a function of its own. `FRAME_SINGLE` went from 1432 to 1428 so a wrapped full frame still fits a PPPoE link.
+- **Per-source `HELLO` limit:** 2 a second (burst 4) from any one address, on top of the global 20 a second.
 - **Tests:** `tests/m3b.sh`: two members behind symmetric NATs and a public third; frames (and full-size, fragmented ones)
   cross the relay, the NATs are loosened, the pair goes direct, then the relay is shut down and the pair carries on. The
   NAT simulator moved to `tests/lwnat.py`.

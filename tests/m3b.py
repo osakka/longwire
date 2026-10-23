@@ -75,6 +75,16 @@ def main():
     check(A.status()["reflexive"].startswith("192.0.2.101:") and B.status()["reflexive"].startswith("192.0.2.10:"),
           "A is behind a NAT, B has a public address")
 
+    # --- one host cannot drain a node's HELLO budget ------------------------------------
+    kid8 = bytes.fromhex(B.status()["key_id"])[:8]
+    us = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); us.bind(("192.0.2.1", 0)); us.settimeout(0.3)
+    for _ in range(60): us.sendto(b"\x08\x00" + kid8, ("192.0.2.10", 4002))
+    got = 0
+    try:
+        while True: us.recv(2000); got += 1
+    except socket.timeout: pass
+    check(1 <= got <= 8, f"60 bundle requests from one source get {got} answers (budget 2/s, burst 4)")
+
     # --- the line: B founds it, A and C join through B ------------------------------
     mkA, mkB, mkC = A.w.mark(), B.w.mark(), C.w.mark()
     A.cmd("dial", nb)
