@@ -31,7 +31,7 @@ typedef struct bcall {
 	int      used;
 	uint8_t  id[8], caller[32], callee[32];
 	lw_cand  cc[MAXCANDS];
-	int      ncc;
+	int      ncc, strict, callee_strict;	/* strict: the caller said its NAT makes a mapping per destination */
 	uint8_t  admit[ADMIT_LEN];	/* the caller's admit to a line, carried untouched: the switchboard does not know lines */
 	int      alen;
 	double   deadline;
@@ -43,7 +43,7 @@ typedef struct pend {
 	int      used, kind, id;
 	uint8_t  key[32], callee[32];	/* key = who asked */
 	lw_cand  cc[MAXCANDS];
-	int      ncc;
+	int      ncc, strict;
 	uint8_t  admit[ADMIT_LEN];
 	int      alen;
 	char     name[LW_NAME_MAX + 1];	/* (a registration) */
@@ -374,13 +374,14 @@ static void sweep(lw_node *n)
 			i++;
 }
 
-static int cands_read(const uint8_t *p, size_t len, lw_cand *c, int *nc)
+static int cands_read(const uint8_t *p, size_t len, lw_cand *c, int *nc, int *strict)
 {
 	int i, k, o = 1, w, known;
 
 	if (len < 1)
 		return -1;
-	k = p[0];
+	k = p[0] & ~CANDS_STRICT;
+	*strict = p[0] & CANDS_STRICT ? 1 : 0;
 	if (k > MAXCANDS - 1)
 		return -1;
 	*nc = 0;
@@ -393,11 +394,11 @@ static int cands_read(const uint8_t *p, size_t len, lw_cand *c, int *nc)
 	return o;
 }
 
-static int cands_write(uint8_t *p, const lw_cand *c, int nc)
+static int cands_write(uint8_t *p, const lw_cand *c, int nc, int strict)
 {
 	int i, o = 1;
 
-	p[0] = (uint8_t)nc;
+	p[0] = (uint8_t)nc | (strict ? CANDS_STRICT : 0);
 	for (i = 0; i < nc; i++)
 		o += cand_put(p + o, &c[i]);
 	return o;
@@ -660,7 +661,7 @@ static void rejected(lw_node *n, const uint8_t key[32], const uint8_t id[8], int
 	ctl_msg_send(n, p, M_REJECTED, b, sizeof b);
 }
 
-static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t callee_key[32], lw_cand *cc, int ncc,
+static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t callee_key[32], lw_cand *cc, int ncc, int strict,
 		       const uint8_t *admit, int alen)
 {
 	struct board *b = n->bd;
@@ -690,13 +691,14 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 	memcpy(c->callee, callee_key, 32);
 	memcpy(c->cc, cc, (size_t)ncc * sizeof *cc);
 	c->ncc = ncc;
+	c->strict = strict;
 	observed(cp, &c->cc[c->ncc++]);			/* what we see is the best candidate there is */
 	c->deadline = n->now + 65.0;
 	memcpy(m, c->id, 8);
 	memcpy(m + 8, cr->number, NUMLEN);
 	memcpy(m + 8 + NUMLEN, cr->bundle, LW_BUNDLE);
 	o = 8 + NUMLEN + LW_BUNDLE;
-	o += cands_write(m + o, c->cc, c->ncc);
+	o += cands_write(m + o, c->cc, c->ncc, c->strict);
 	if (alen == ADMIT_LEN)				/* handed on exactly as it came */
 		o += tlv_put(m + o, TAG_ADMIT, admit, ADMIT_LEN);
 	if (cr->name[0] && !n->cfg.no_caller_id)
@@ -882,7 +884,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 	}
 	case M_DIAL: {
 		lw_cand cc[MAXCANDS];
-		int nc = 0, cn, alen = 0;
+		int nc = 0, cn, alen = 0, strict = 0;
 		char num[NUMLEN + 1];
 		const uint8_t *admit = 0;
 		reg *ce;
@@ -892,7 +894,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		heard(n, r);
 		memcpy(num, pl, NUMLEN);
 		num[NUMLEN] = 0;
-		if ((cn = cands_read(pl + NUMLEN, len - NUMLEN, cc, &nc)) < 0)
+		if ((cn = cands_read(pl + NUMLEN, len - NUMLEN, cc, &nc, &strict)) < 0)
 			return;
 		{
 			size_t al;
@@ -926,6 +928,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			memcpy(q->callee, ce->key_id, 32);
 			memcpy(q->cc, cc, (size_t)nc * sizeof *cc);
 			q->ncc = nc;
+			q->strict = strict;
 			if (alen) {
 				memcpy(q->admit, admit, ADMIT_LEN);
 				q->alen = alen;
@@ -935,7 +938,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			fmt_number(f2, ce->number);
 			ev_emit(n, "{\"event\":\"dial\",\"id\":%d,\"from\":\"%s\",\"to\":\"%s\",\"ip\":\"%s\"}", q->id, f1, f2, ep);
 		} else
-			route_dial(n, p->key_id, ce->key_id, cc, nc, admit, alen);
+			route_dial(n, p->key_id, ce->key_id, cc, nc, strict, admit, alen);
 		return;
 	}
 	case M_ANSWER: {
@@ -958,7 +961,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			c->used = 0;
 			return;
 		}
-		if (cands_read(pl + 9, len - 9, cc, &nc) < 0)
+		if (cands_read(pl + 9, len - 9, cc, &nc, &c->callee_strict) < 0)
 			return;
 		observed(p, &cc[nc++]);
 		cr = reg_by_key(b, c->caller);
@@ -977,14 +980,14 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		memcpy(m + 11 + NUMLEN, tok, 32);
 		memcpy(m + 11 + NUMLEN + 32, ce->bundle, LW_BUNDLE);
 		o = 11 + NUMLEN + 32 + LW_BUNDLE;
-		o += cands_write(m + o, cc, nc);
+		o += cands_write(m + o, cc, nc, c->callee_strict);
 		ctl_msg_send(n, callerp, M_GO, m, (size_t)o);
 		/* to the callee: the caller's */
 		m[8] = 0;
 		memcpy(m + 11, cr->number, NUMLEN);
 		memcpy(m + 11 + NUMLEN + 32, cr->bundle, LW_BUNDLE);
 		o = 11 + NUMLEN + 32 + LW_BUNDLE;
-		o += cands_write(m + o, c->cc, c->ncc);
+		o += cands_write(m + o, c->cc, c->ncc, c->strict);
 		ctl_msg_send(n, calleep, M_GO, m, (size_t)o);
 		memset(c, 0, sizeof *c);		/* and the call is forgotten: nothing keeps who called whom */
 		return;
@@ -1060,7 +1063,7 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			else
 				refuse(n, p, arg[0] ? arg : "registration refused");
 		} else if (!strcmp(verdict, "accept"))
-			route_dial(n, q->key, q->callee, q->cc, q->ncc, q->admit, q->alen);
+			route_dial(n, q->key, q->callee, q->cc, q->ncc, q->strict, q->admit, q->alen);
 		else
 			rejected(n, q->key, 0, R_POLICY, num_of(b, q->callee));
 		return snprintf(out, cap, "{\"ok\":true}\n");

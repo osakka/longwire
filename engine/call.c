@@ -210,6 +210,8 @@ static int gather(lw_node *n, lw_cand *out, int max)
 	struct ifaddrs *ifa, *i;
 	int c = 0;
 
+	if (max > MAXCANDS - 1)			/* the switchboard adds the address it sees us at */
+		max = MAXCANDS - 1;
 	if (getifaddrs(&ifa))
 		return 0;
 	for (i = ifa; i && c < max - 1; i = i->ifa_next) {
@@ -241,24 +243,26 @@ static int gather(lw_node *n, lw_cand *out, int max)
 	return c;
 }
 
-static int cands_put(uint8_t *p, const lw_cand *c, int nc)
+static int cands_put(lw_node *n, uint8_t *p, const lw_cand *c, int nc)
 {
 	int i, o = 1;
 
-	p[0] = (uint8_t)nc;
+	p[0] = (uint8_t)nc | (n->nat == 2 ? CANDS_STRICT : 0);	/* the other end decides who sprays and who probes */
 	for (i = 0; i < nc; i++)
 		o += cand_put(p + o, &c[i]);
 	return o;
 }
 
 /* returns bytes consumed, or -1; entries of a kind we do not know are skipped */
-static int cands_get(const uint8_t *p, size_t len, lw_cand *c, int *nc)
+static int cands_get(const uint8_t *p, size_t len, lw_cand *c, int *nc, int *strict)
 {
 	int i, k, o = 1, w, known;
 
 	if (len < 1)
 		return -1;
-	k = p[0];
+	k = p[0] & ~CANDS_STRICT;
+	if (strict)
+		*strict = p[0] & CANDS_STRICT ? 1 : 0;
 	if (k > MAXCANDS)
 		return -1;
 	*nc = 0;
@@ -280,7 +284,7 @@ void hello_request(lw_node *n, lw_peer *p)
 	b[0] = T_HELLO;
 	b[1] = 0;
 	memcpy(b + 2, p->key_id, 8);
-	sendto(n->udp, b, sizeof b, 0, (struct sockaddr *)&p->ep, p->eplen);
+	sendto(peer_fd(n, p), b, sizeof b, 0, (struct sockaddr *)&p->ep, p->eplen);
 }
 
 void hello_offer(lw_node *n, const struct sockaddr *dst, socklen_t dl)
@@ -338,7 +342,7 @@ void hello_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 		b[0] = T_HELLO;
 		b[1] = 1;
 		memcpy(b + 2, n->id.bundle, LW_BUNDLE);
-		sendto(n->udp, b, sizeof b, 0, src, sl);
+		sendto(n->rx_fd, b, sizeof b, 0, src, sl);
 	} else if (pkt[1] == 1 && len == 2 + LW_BUNDLE && pkt[2] == 0x01) {	/* a bundle: believe it only if it hashes to the key id we hold */
 		lw_h(kid, pkt + 2, LW_BUNDLE);
 		for (i = 0; i < n->maxpeers; i++) {
@@ -636,7 +640,7 @@ static void send_answer(lw_node *n, lw_call *c, int verdict)
 	memcpy(b, c->id, 8);
 	b[8] = (uint8_t)verdict;
 	nc = verdict == V_ACCEPT ? gather(n, cc, MAXCANDS) : 0;
-	ctl_msg_send(n, s, M_ANSWER, b, 9 + (size_t)cands_put(b + 9, cc, nc));
+	ctl_msg_send(n, s, M_ANSWER, b, 9 + (size_t)cands_put(n, b + 9, cc, nc));
 }
 
 /* Start a call: the interactive kind a person asked for, or a mesh call to a fellow member. */
@@ -677,11 +681,19 @@ int call_dial(lw_node *n, const char *num, int auto_, char *err, size_t errn)
 	c->deadline = n->now + 65.0;			/* outlast the callee's 60 s of ringing */
 	memcpy(b, num, NUMLEN);
 	nc = gather(n, cc, MAXCANDS);
-	o = NUMLEN + (size_t)cands_put(b + NUMLEN, cc, nc);
+	o = NUMLEN + (size_t)cands_put(n, b + NUMLEN, cc, nc);
 	if (line_admit_for(n, admit))			/* present our admit: a member we dial will not ask about us */
 		o += (size_t)tlv_put(b + o, TAG_ADMIT, admit, ADMIT_LEN);
 	ctl_msg_send(n, s, M_DIAL, b, o);
 	return 0;
+}
+
+void punch_pkt(lw_node *n, const lw_call *c, uint8_t pk[33])
+{
+	pk[0] = T_PUNCH;
+	memcpy(pk + 1, c->id, 8);
+	memcpy(pk + 9, n->id.key_id, 8);
+	crypto_blake2b_keyed(pk + 17, 16, c->token, 32, pk, 17);
 }
 
 static void punch_send(lw_node *n, lw_call *c)
@@ -689,10 +701,7 @@ static void punch_send(lw_node *n, lw_call *c)
 	uint8_t pk[33];
 	int i;
 
-	pk[0] = T_PUNCH;
-	memcpy(pk + 1, c->id, 8);
-	memcpy(pk + 9, n->id.key_id, 8);
-	crypto_blake2b_keyed(pk + 17, 16, c->token, 32, pk, 17);
+	punch_pkt(n, c, pk);
 	for (i = 0; i < c->npc; i++) {
 		struct sockaddr_in a;
 
@@ -703,7 +712,7 @@ static void punch_send(lw_node *n, lw_call *c)
 		sendto(n->udp, pk, sizeof pk, 0, (struct sockaddr *)&a, sizeof a);
 	}
 	if (c->have_verified)		/* answer from where it really came from */
-		sendto(n->udp, pk, sizeof pk, 0, (struct sockaddr *)&c->verified, sizeof c->verified);
+		sendto(c->peer >= 0 ? peer_fd(n, &n->peers[c->peer]) : n->udp, pk, sizeof pk, 0, (struct sockaddr *)&c->verified, sizeof c->verified);
 }
 
 /* ECHO (docs/PROTOCOL.md section 4). A switchboard answers on its second port with the address it sees the asker at; a node
@@ -788,6 +797,8 @@ void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 	}
 	memcpy(&p->ep, src, sl);
 	p->eplen = sl;
+	if (n->rx_fd != n->udp && spray_is(n, n->rx_fd))	/* found by a probe on one of the sprayed sockets: keep that one */
+		spray_adopt(n, p);
 	punch_send(n, c);			/* open the way back at once */
 	if (c->we_caller) {			/* the caller makes the handshake */
 		p->dial = 1;
@@ -979,7 +990,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			memcpy(num, pl + 8, NUMLEN);
 			num[NUMLEN] = 0;
 			memcpy(reply, pl, 8);
-			if ((cn = cands_get(pl + base, len - base, cc, &nc)) < 0)
+			if ((cn = cands_get(pl + base, len - base, cc, &nc, 0)) < 0)
 				return;
 			{
 				size_t al;
@@ -1056,7 +1067,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			return;
 		}
 		case M_GO: {
-			int nc = 0, role, delay;
+			int nc = 0, role, delay, gostrict = 0;
 			char num[NUMLEN + 1], f[16];
 			uint8_t kid[32];
 			lw_cand cc[MAXCANDS];
@@ -1077,7 +1088,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			}
 			if (c->state != CALL_OUT && c->state != CALL_RINGING)
 				return;
-			if (cands_get(pl + o + LW_BUNDLE, len - o - LW_BUNDLE, cc, &nc) < 0)
+			if (cands_get(pl + o + LW_BUNDLE, len - o - LW_BUNDLE, cc, &nc, &gostrict) < 0)
 				return;
 			lw_h(kid, pl + o, LW_BUNDLE);
 			fmt_number(f, num);
@@ -1102,12 +1113,15 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			memcpy(c->token, pl + 11 + NUMLEN, 32);
 			memcpy(c->pc, cc, sizeof cc);
 			c->npc = nc;
+			c->peer_strict = gostrict;
 			c->peer = (int)(q - n->peers);
 			c->we_caller = role == 1;
 			c->state = CALL_PUNCH;
 			c->start_at = n->now + delay / 1000.0;
 			c->next_punch = c->start_at;
 			c->deadline = c->start_at + 8.0;
+			if ((n->nat == 2) != c->peer_strict)	/* one end is strict and the other is not: there is a way, and it takes longer */
+				c->deadline = c->start_at + 17.0;
 			c->have_verified = 0;
 			return;
 		}
@@ -1181,7 +1195,7 @@ void registration_timers(lw_node *n)
 			lw_cand cc[MAXCANDS];
 			int nc = gather(n, cc, MAXCANDS);
 
-			ctl_msg_send(n, s, M_HEARTBEAT, b, (size_t)cands_put(b, cc, nc));
+			ctl_msg_send(n, s, M_HEARTBEAT, b, (size_t)cands_put(n, b, cc, nc));
 			n->next_hb = n->now + n->keepalive;
 		} else if (n->registered && !n->role && n->have_refl && n->now >= n->next_echo) {
 			if (n->echo_tries >= 4) {		/* no answer: the switchboard has no second port, or a firewall hides it */
@@ -1199,6 +1213,7 @@ void node_timers(lw_node *n)
 
 	registration_timers(n);
 	pmp_timers(n);
+	spray_reap(n);
 	if (n->look.active && n->now - n->look.t > 5.0) {
 		n->look.active = 0;
 		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"the directory did not answer\"}");
@@ -1266,6 +1281,8 @@ void node_timers(lw_node *n)
 				punch_send(n, c);
 				c->next_punch = n->now + 0.1;
 			}
+			if (c->state == CALL_PUNCH)
+				spray_step(n, c);
 			if (n->now > c->deadline) {
 				char f[16];
 
@@ -1275,6 +1292,7 @@ void node_timers(lw_node *n)
 						n->nat == 2 ? "this network's NAT is strict: it makes a new mapping for every destination" : "both sides behind strict NAT?");
 				if (c->peer >= 0 && !n->peers[c->peer].relayed)
 					peer_drop(n, &n->peers[c->peer]);
+				spray_close(n);
 				call_end(c);
 			}
 			break;

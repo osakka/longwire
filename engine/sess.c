@@ -355,6 +355,8 @@ void peer_drop(lw_node *n, lw_peer *p)
 	int idx = (int)(p - n->peers), i;
 
 	free(p->fr);
+	if (p->sfd)
+		close(p->sfd);
 	relay_peer_gone(n, idx);
 
 	for (i = 0; i < MAC_SLOTS; i++)		/* whatever was learned behind this peer is no longer reachable */

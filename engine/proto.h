@@ -52,6 +52,8 @@
 #define CAND_HOST 1
 #define CAND_REFL 2
 #define CAND_MAPPED 3		/* a port the home router agreed to keep open (NAT-PMP) */
+#define CANDS_STRICT 0x80	/* in a candidate list's count byte: the sender is behind a NAT that makes a new mapping per destination */
+#define SPRAY_N 256		/* sockets a strict node opens to be found by a probe (docs/PROTOCOL.md section 4) */
 #define MAXCANDS 8
 #define NUMLEN 9
 #define TAG_ADMIT  1		/* optional parts of DIAL, RING and REGISTER: tag(1) len(1) bytes */

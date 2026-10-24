@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: port spray
+
+- **A strict NAT against an easy one now connects directly.** The candidate list carries a marker saying the sender
+  is strict; the strict end opens 256 sockets and sends from each to the other end, the easy end probes random ports of
+  the strict end's address at 100 a second, and the socket a probe lands on becomes that peer's own. Two strict
+  NATs still go through a relay. Tested with a cone and a symmetric NAT model, calling from each end in turn, with 100
+  frames each way after (`tests/m1.sh`, `sym` mode, which used to expect the call to fail).
+
 ## M3: operator-managed lines
 
 - **A line may have an operator** ([ADR 0026](docs/adr/0026-a-line-may-have-an-operator.md)). The founder names an

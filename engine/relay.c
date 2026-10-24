@@ -65,7 +65,7 @@ void peer_out(lw_node *n, lw_peer *p, const uint8_t *buf, size_t len)
 	lw_peer *r;
 
 	if (!p->relayed) {
-		sendto(n->udp, buf, len, 0, (struct sockaddr *)&p->ep, p->eplen);
+		sendto(peer_fd(n, p), buf, len, 0, (struct sockaddr *)&p->ep, p->eplen);
 		return;
 	}
 	if (p->probe_len && n->now < p->probe_until)
@@ -78,7 +78,7 @@ void peer_out(lw_node *n, lw_peer *p, const uint8_t *buf, size_t len)
 	w[2] = (uint8_t)(p->via_route >> 8);
 	w[3] = (uint8_t)(p->via_route >> 16);
 	memcpy(w + 4, buf, len);
-	sendto(n->udp, w, 4 + len, 0, (struct sockaddr *)&r->ep, r->eplen);
+	sendto(peer_fd(n, r), w, 4 + len, 0, (struct sockaddr *)&r->ep, r->eplen);
 }
 
 /* An authenticated datagram came from the other end itself: whatever path it had, it has this one now. */
@@ -189,7 +189,7 @@ void relay_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 		w[1] = (uint8_t)r->remote_id;
 		w[2] = (uint8_t)(r->remote_id >> 8);
 		w[3] = (uint8_t)(r->remote_id >> 16);
-		sendto(n->udp, w, len, 0, (struct sockaddr *)&to->ep, to->eplen);
+		sendto(peer_fd(n, to), w, len, 0, (struct sockaddr *)&to->ep, to->eplen);
 		n->relay_fwd++;
 		return;
 	}

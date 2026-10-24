@@ -196,6 +196,7 @@ engine/                      plain C99: never includes hibr.h, so the Android ap
   site.c                     site groups: probes, election, standby, takeover
   line.c                     lines: members, admits, eviction, persistence, the mesh maintainer
   relay.c                    relaying: the route table, wrapped datagrams, relay requests, path upgrade
+  spray.c                    port spray: a strict NAT end opens many sockets, the easy end probes, the socket that is hit becomes that peer's
   pmp.c                      NAT-PMP: ask the home router to keep a port open, offered as a candidate
   port.c                     local ports: splice, jack, sock, none
   caps.c                     clears every capability set once the port is open

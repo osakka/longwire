@@ -13,5 +13,6 @@
 #include "caps.c"
 #include "ctl.c"
 #include "call.c"
+#include "spray.c"
 #include "board.c"
 #include "node.c"

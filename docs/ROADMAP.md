@@ -49,7 +49,7 @@ relayed pair upgrades to direct once a path exists.
   public third: frames cross the relay, then the NATs are loosened and the pair finds its own path.
 - *Built:* NAT-PMP, offered as one more candidate (`mapped` in status, `--nat-pmp off`).
 - *Built:* the `ECHO` exchange and NAT-type detection (`nat` in status, a plainer message when a call fails).
-- Hard NATs, the rest: port spray (it needs a peer to send from more than one socket), global IPv6 candidates.
+- *Built:* port spray: a strict NAT against an easy one connects directly (a strict end opens 256 sockets and the easy end probes; the socket that is hit becomes that peer's). Two strict NATs still need a relay.
 - **The number format, before anything public exists** ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)):
   a full number is a switchboard code and a local number (`+0731042 312-884-076`). *Built:* the derived code (a `0` and six digits), full
   numbers shown and typed everywhere, pins and line members that name their switchboard by key. *Registry built:* a switchboard registers with

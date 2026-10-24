@@ -113,9 +113,12 @@ larger `tai64n`), so a retransmission is never mistaken for a replay.
 and the other end 10 seconds later if nothing has come, which makes a crossed rekey rare. A responder never sends
 `DATA` on a new session until it has received the first `DATA` from that session's initiator; that first packet is the
 key confirmation. If both ends start at once, as when each is told the other's address, the link still comes up and keeps
-rekeying (`tests/crossed.sh` delays every datagram to make that certain). A crossed *rekey* of a live session has not been
+rekeying (`tests/crossed.sh` delays every datagram to make that likely). It is not certain: when both ends are given
+each other's address and start together, about one start in three leaves each end on a session the other has forgotten, and
+frames are dropped until the dead-peer timer or the next rekey replaces it. A call has one dialer, so it never does this;
+give only one end the other's address to avoid it. A crossed *rekey* of a live session has not been
 reproduced; if it does stall a link, the dead-peer timer ends it, and a tie-break (the session whose initiator has the lower
-key id wins) is the fix to reach for. Our first attempt at one made the crossed-start case worse and was dropped.
+key id wins) is the fix to reach for. Two attempts at one have made the crossed-start case worse and been dropped: keeping the answering session after finishing one's own leaves both ends believing they are the responder, and neither rekeys on time.
 
 Sessions with a switchboard use the same intervals as any other; a longer one, to keep a large switchboard's
 handshake rate low, *(planned: M3)*.
@@ -136,7 +139,10 @@ The switchboard adds the address it sees each side at to the list it passes on.
 
 On the wire a list is a count, then entries of `len:1 ‖ type:1 ‖ port:2 ‖ address:len-3` (an IPv4 entry is 8 bytes
 with `len` 7). A reader skips an entry whose length or type it does not know, so an address family added later
-does not break the entries around it ([ADR 0025](adr/0025-every-candidate-carries-its-own-length.md)).
+does not break the entries around it ([ADR 0025](adr/0025-every-candidate-carries-its-own-length.md)). The top bit of the
+count byte says the sender is behind a **strict** NAT (one that makes a new mapping for every destination); the switchboard
+carries it from `DIAL` to `RING` and from `ANSWER` to `GO`, and each end uses it to decide who sprays and who probes
+(below). It costs no bytes, which matters: a `RING` with a bundle and an admit is already near one datagram.
 
 **PUNCH.** The switchboard's `GO` message carries a start delay (150 ms), not a clock time, so no clock agreement is
 needed: each side starts that long after `GO` arrives (the round trips to the switchboard differ by milliseconds, and
@@ -175,11 +181,16 @@ The full design is a ladder, each rung tried when the one before fails:
   the NAT is endpoint-independent (EIM, "easy"); if it differs, endpoint-dependent (EDM, "hard"). The node reports it
   as `nat` (`easy`, `strict` or `unknown`) in its status, measures again every ten minutes, and says so when a call
   fails because of it. A switchboard behind a firewall must let the second port through, or nodes show `unknown`.
-- **SPRAY** (one EIM side, one EDM side). The hard side opens 256 extra sockets, each sending to the easy side's
-  reflexive address, which creates 256 mappings on its NAT. The easy side probes random ports on the hard side's
-  public IP at 100 pps. The chance of a hit after *n* probes is `1 − (1 − 256/64512)ⁿ`, about **98% at 1,024
-  probes**, in roughly 10 seconds. Spraying isn't attempted when *both* sides are EDM, because the odds are
-  hopeless, so that case goes straight to relay.
+- **SPRAY** *(built)* (one EIM side, one EDM side). The sender's NAT type travels in the candidate list (the count byte's top bit above), so each end knows the other's. Two seconds after `GO` starts the ordinary punch, if no `PUNCH` has
+  come back: the strict end opens 256 extra sockets, each sending a `PUNCH` to the easy end's reflexive (and mapped)
+  address, which creates 256 mappings on its NAT; the easy end sends `PUNCH` at 100 packets a second to random ports
+  (1024–65535) of the strict end's public IP. A probe that lands on one of the mappings reaches that socket; the strict
+  end verifies it as it would any `PUNCH` and answers from that socket, which makes it the strict end's own socket for
+  this peer (the other 255 are closed): everything it sends to that peer afterwards, handshake and data, leaves from it,
+  and it is polled alongside the node's own. The chance of a hit after *n* probes is `1 − (1 − 256/64512)ⁿ`, about **98%
+  at 1,024 probes**, in roughly 10 seconds. The window is 14 s; the call fails at 17 s after `GO`, as it does without
+  spray. Spraying isn't attempted when *both* sides are strict, because the odds are hopeless, so that case goes straight
+  to relay.
 - **Path upgrade** *(built)*. A relayed pair keeps trying for a direct path, by an ordinary call through the switchboard
   every 60 s, doubling to 10 min (`--direct-retry`). When the punch lands, each end sends copies of its session traffic to
   the punched address as well as through the relay; the first authenticated datagram that arrives from the other end

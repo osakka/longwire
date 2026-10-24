@@ -88,6 +88,7 @@ typedef struct lw_peer {
 	double   rev_next;		/* when to tell this peer again what the operator has revoked (0: not on the line) */
 	int      lh_sent, lh_got, lh_has, linked;	/* the line handshake with this peer */
 	uint8_t  lh_id[8];
+	int      sfd;			/* a socket of its own, if a path was found by spraying (0: the node's) */
 	uint64_t rx_frames, tx_frames, rx_bytes, tx_bytes;
 	uint64_t rekeys, drop_auth, drop_replay;
 } lw_peer;
@@ -135,6 +136,9 @@ typedef struct lw_call {
 	uint8_t  bundle[LW_BUNDLE];	/* the other end's, from RING or GO */
 	lw_cand  pc[MAXCANDS];
 	int      npc;
+	int      peer_strict;		/* the other end said its NAT makes a mapping per destination */
+	int      sprayed;
+	double   probe_last, probe_credit;
 	double   deadline, start_at, next_punch, lost_t;
 	int      have_verified;
 	struct sockaddr_in verified;
@@ -216,6 +220,8 @@ struct lw_node {
 	uint8_t  sb_caps;		/* what the switchboard offers: CAPS_* */
 	struct { int active, kind; uint8_t key[32]; double t; } look;	/* a lookup in flight: dialing a full address waits on it */
 	lw_route routes[64];
+	int      rx_fd;			/* the socket the datagram being handled came in on: replies go out the same way */
+	int      spray_fd[SPRAY_N], nspray;
 	int      rx_relayed;		/* the datagram being handled came out of a relay: it says nothing about the peer's address */
 	pin     *pins;
 	int      npins, cappins;
@@ -348,6 +354,14 @@ int  relay_offered(lw_node *n);
 int  relay_live(const lw_node *n);							/* is this node reachable directly from the internet */
 
 /* sw.c */
+/* spray.c */
+int  peer_fd(const lw_node *n, const lw_peer *p);
+void spray_close(lw_node *n);
+void spray_reap(lw_node *n);
+int  spray_is(const lw_node *n, int fd);
+void spray_adopt(lw_node *n, lw_peer *p);
+void spray_step(lw_node *n, lw_call *c);
+void punch_pkt(lw_node *n, const lw_call *c, uint8_t pk[33]);
 void sw_from_local(lw_node *n, const uint8_t *f, size_t len);
 void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len);
 int  sw_count(const lw_node *n);

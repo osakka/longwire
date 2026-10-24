@@ -271,6 +271,7 @@ def main_sym():
         return Node(name, ns, "longwire.hibr", ["up", "--switchboard", f"192.0.2.10:1877/{addr}", "--sock-port", f"{T}/{name}/p:{T}/{name}/h",
                     "--listen", f"{ip}:{port}", "--answer", answer, "--keepalive", "5"])
     A, B = node("A", nsA, "10.0.1.2", 4001, "auto"), node("B", nsB, "10.0.2.2", 4002, "auto")
+    A.frames, B.frames = Collector(f"{T}/A/h"), Collector(f"{T}/B/h")
     def registered(n, timeout=20):
         end = time.time() + timeout
         while time.time() < end:
@@ -290,6 +291,34 @@ def main_sym():
         return "unknown"
     na, nb = nat_of(A), nat_of(B)
     check((na, nb) == ("strict" if a_mode == "sym" else "easy", "strict"), f"each node measures its own NAT with ECHO: A {na}, B {nb}")
+    def shut():
+        for n in (A, B):
+            n.cmd("down")
+        subprocess.run([HIBR, "-c", f"mod load {MOD}; lw stop --sock {sb.sock}"], capture_output=True)
+    if MODE == "sym":
+        # one end strict, one easy: the strict end sprays sockets, the easy end probes (docs/PROTOCOL.md section 4)
+        MA, MB = bytes.fromhex("020000000a01"), bytes.fromhex("020000000b01")
+        ha = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM); hb = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        for who, label, target in ((A, "the easy end dials", rb), (B, "the strict end dials", ra)):
+            mkA, mkB = A.w.mark(), B.w.mark()
+            t0 = time.time()
+            who.cmd("dial", target["number"])
+            ca, cb = A.w.wait("connected", 40, after=mkA), B.w.wait("connected", 40, after=mkB)
+            check(ca is not None and cb is not None, f"{label}: both ends connect directly through a strict NAT ({time.time() - t0:.1f} s)")
+            if ca and cb:
+                check(ca["path"] == "direct" and cb["path"] == "direct" and ca["phrase"] == cb["phrase"], "...direct, with the same safety phrase on both screens")
+                check(ca["ep"].startswith("192.0.2.102:"), f"...A talks to B's public address: {ca['ep']}")
+            A.frames.drain(); B.frames.drain()
+            N = 100
+            for i in range(N):
+                ha.sendto(frame(MB, MA, struct.pack(">I", i) + os.urandom(300)), f"{T}/A/p")
+                hb.sendto(frame(MA, MB, struct.pack(">I", i) + os.urandom(300)), f"{T}/B/p")
+                if i % 10 == 9: time.sleep(0.03)
+            ga, gb = A.frames.drain(), B.frames.drain()
+            check(len(ga) >= N - 2 and len(gb) >= N - 2, f"...{N} frames each way (A got {len(ga)}, B got {len(gb)})")
+            A.cmd("hangup"); time.sleep(1.5); B.cmd("hangup"); time.sleep(1)
+        shut()
+        return
     mkA, mkB = A.w.mark(), B.w.mark()
     A.cmd("dial", rb["number"])
     ea, eb = A.w.wait("call-failed", 25, after=mkA), B.w.wait("call-failed", 25, after=mkB)

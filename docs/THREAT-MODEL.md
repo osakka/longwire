@@ -66,9 +66,9 @@ Cookies are keyed by address and port, so two nodes behind one NAT address each 
 ## Known gaps today
 
 - **Two strict NATs connect only through a relay,** a member of the line with a public address. A line with no such
-  member splits at that pair and says so. A node can see its own NAT type (`nat` in status); port spray *(planned: M3)* would connect some of these pairs directly.
+  member splits at that pair and says so. A node can see its own NAT type (`nat` in status); a strict NAT against an easy one is connected directly by port spray (the strict end opens 256 sockets and the other end probes random ports at 100 a second for about a quarter of a minute: a burst of traffic at a stranger's public address, only while a call between the two is being set up and only toward the address the switchboard gave).
 - **A crossed rekey might stall a link** until the dead-peer timer fires (76 s at the default keepalive). It is rare
-  by construction and has not been reproduced; a crossed first handshake is tested and heals.
+  by construction and has not been reproduced; a crossed first handshake between two statically configured peers that both dial leaves a stale pair about one start in three, until the dead-peer timer (see PROTOCOL §3); a call never does this.
 - **The handshake composition has had no formal analysis or external review,** and the vendored crypto has not been
   checked against known-answer vectors *(planned: M8)*.
 - **VLAN-tagged traffic through a splice box is neither handled nor tested** *(planned)*, the underlay is IPv4 only

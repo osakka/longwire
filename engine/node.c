@@ -243,7 +243,8 @@ void node_dispatch(lw_node *n, const uint8_t *buf, size_t r, const struct sockad
 
 int lw_node_serve(lw_node *n)
 {
-	struct pollfd pf[4];
+	struct pollfd *pf = malloc((size_t)(4 + SPRAY_N + n->maxpeers) * sizeof *pf);
+	int nf, k;
 	uint8_t buf[2048];
 	static uint8_t big[65600];		/* a NIC may hand us a 64 KB coalesced frame */
 	struct sockaddr_storage ss;
@@ -251,6 +252,7 @@ int lw_node_serve(lw_node *n)
 	ssize_t r;
 	int i;
 
+	n->rx_fd = n->udp;
 	close_inherited(n);
 	mlock(&n->id, sizeof n->id);		/* locks don't survive fork(); failure (rlimit) is not fatal */
 	signal(SIGTERM, on_term);
@@ -261,10 +263,32 @@ int lw_node_serve(lw_node *n)
 		pf[1].fd = n->port_fd;
 		pf[2].fd = n->ctl_fd;
 		pf[3].fd = n->udp2;			/* a negative descriptor is ignored by poll */
-		pf[0].events = pf[1].events = pf[2].events = pf[3].events = POLLIN;
-		if (poll(pf, 4, 100) < 0 && errno != EINTR)
+		nf = 4;
+		for (k = 0; k < n->nspray && nf < 4 + SPRAY_N; k++)	/* sockets opened to be found (spray.c) */
+			pf[nf++].fd = n->spray_fd[k];
+		for (k = 0; k < n->maxpeers && nf < 4 + SPRAY_N + 256; k++)
+			if (n->peers[k].used && n->peers[k].sfd)
+				pf[nf++].fd = n->peers[k].sfd;
+		for (k = 0; k < nf; k++)
+			pf[k].events = POLLIN;
+		if (poll(pf, (nfds_t)nf, 100) < 0 && errno != EINTR)
 			break;
 		n->now = lw_now();
+		for (k = 4; k < nf; k++)
+			if (pf[k].revents & POLLIN) {
+				int fd = pf[k].fd;
+
+				n->rx_fd = fd;
+				for (i = 0; i < 64; i++) {
+					sl = sizeof ss;
+					r = recvfrom(fd, buf, sizeof buf, 0, (struct sockaddr *)&ss, &sl);
+					if (r < 1)
+						break;
+					n->rx_pkts++;
+					node_dispatch(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
+				}
+				n->rx_fd = n->udp;
+			}
 		if (pf[0].revents & POLLIN)
 			for (i = 0; i < 256; i++) {
 				sl = sizeof ss;
