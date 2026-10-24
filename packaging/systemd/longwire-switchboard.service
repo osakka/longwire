@@ -1,0 +1,36 @@
+# longwire switchboard: the rendezvous that lets nodes find each other, then steps out of the way.
+# Configure /etc/longwire/switchboard.conf with one line, for example
+#     ARGS="--listen 1877 --registry none"
+# then   systemctl enable --now longwire-switchboard
+# The script comes from the catalogue, for the machine:  sudo catalogue --system install longwire-switchboard
+[Unit]
+Description=longwire switchboard
+Documentation=file:///usr/share/doc/longwire/SWITCHBOARD.md
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/longwire/switchboard.conf
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/longwire/switchboard.conf
+Environment=HOME=/var/lib/longwire-switchboard
+Environment=SB_DIR=/var/lib/longwire-switchboard
+Environment=LONGWIRE_MOD=/usr/lib/hibr/longwire.so
+ExecStart=/usr/bin/longwire-switchboard $ARGS
+DynamicUser=yes
+StateDirectory=longwire-switchboard
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

@@ -6,6 +6,10 @@
 # events and applies the answer policy. The desktop pane (M4) reads the same
 # events. See docs/CLI.md.
 
+# What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.3.0
+# modules: longwire
+
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
 export LW_SOCK=${LW_SOCK:-$LW_DIR/ctl}

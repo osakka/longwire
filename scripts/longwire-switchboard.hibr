@@ -23,6 +23,10 @@
 # --issue-codes   this switchboard IS a registry: it gives codes to switchboards that register with it
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
+# What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.3.0
+# modules: longwire
+
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
 listen=1877
 tokens=

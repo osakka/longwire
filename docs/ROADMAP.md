@@ -68,12 +68,14 @@ relayed pair upgrades to direct once a path exists.
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install longwire`,
 and then dial and pick up entirely from the hibr desktop.
 - control-panel/lines.hibr: the Network pane's Lines section, the ring dialog with the safety phrase, the menu-bar ☎
-- The module as signed deb, rpm, pacman and Homebrew packages; both scripts in hibr's catalogue; the launchers and the
-  systemd unit; the default public switchboard and the project's registry live
+- *Built:* the module as a deb, an rpm and a pacman package (`make packages`, `tests/pkg.sh`), the launchers, and the two
+  systemd services ([ADR 0028](adr/0028-one-deb-and-the-others-from-it.md)); the scripts declare their catalogue headers.
+- Signed package repositories and both scripts published in hibr's catalogue *(planned: M4)*; Homebrew *(planned: M5)*; the
+  default public switchboard and the project's registry live
 - `longwire` with no arguments, `longwire watch`, a tabular `status`, automatic choice of attach mode
 
 **M5: No privilege, more Unix.** Done when a user with no sudo anywhere joins a line with `longwire shell`.
-- `longwire shell` (user namespaces); FreeBSD and OpenBSD tap and BPF splice; macOS BPF splice; documented invocations
+- A Homebrew formula, once the module builds on macOS; `longwire shell` (user namespaces); FreeBSD and OpenBSD tap and BPF splice; macOS BPF splice; documented invocations
   for init systems other than systemd
 
 **M6: Pocket.** Done when a phone on mobile data gets a lease from the home router and prints to the home printer.

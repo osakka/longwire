@@ -522,5 +522,9 @@ static void lw_fin(sh *s)
 	hibr_unscheme(s, "longwire");
 }
 
+#ifndef LW_VERSION
+#define LW_VERSION "0.3.0"
+#endif
+
 const hibr_bi lw_bi[] = { { "lw", m_lw, "longwire engine: start, stop, status, dial, pickup, key, sb" }, HIBR_BI_END };
-HIBR_MODULE("longwire", "0.2", "longwire L2 mesh VPN engine", lw_bi, lw_ini, lw_fin);
+HIBR_MODULE("longwire", LW_VERSION, "longwire L2 mesh VPN engine", lw_bi, lw_ini, lw_fin);

@@ -6,6 +6,9 @@
 override CC = tcc
 HIBR_SRC ?= ../hibr
 B     = build
+VERSION := $(shell cat VERSION)
+PREFIX ?= /usr/local
+DESTDIR ?=
 
 VENDOR = vendor/monocypher/monocypher.c vendor/monocypher/monocypher-ed25519.c \
 	 $(filter-out vendor/mlkem768/compat.h,$(wildcard vendor/mlkem768/*.c))
@@ -13,7 +16,7 @@ VENDOR = vendor/monocypher/monocypher.c vendor/monocypher/monocypher-ed25519.c \
 all: $(B)/longwire.so
 
 $(B)/longwire.so: module/longwire.c engine/*.c engine/*.h $(VENDOR) | $(B)
-	$(CC) -shared -fPIC -I$(HIBR_SRC)/include -Ivendor/mlkem768 -o $@ module/longwire.c engine/all.c $(VENDOR)
+	$(CC) -shared -fPIC -DLW_VERSION='"$(VERSION)"' -I$(HIBR_SRC)/include -Ivendor/mlkem768 -o $@ module/longwire.c engine/all.c $(VENDOR)
 
 # TCC's own warnings, as errors, on everything we wrote (the vendored code is upstream's).
 lint:
@@ -39,9 +42,28 @@ check: all lint
 	sh tests/operator.sh
 	sh tests/ipv6.sh
 	sh tests/start.sh
+	sh tests/pkg.sh
 	python3 -I tests/docs.py
+
+# The module goes where hibr looks for modules; the two launchers and the services go where a package puts them. The
+# scripts are not installed: they come from the catalogue (docs/adr/0028).
+install: all
+	install -d $(DESTDIR)$(PREFIX)/lib/hibr $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/lib/systemd/system \
+		$(DESTDIR)$(PREFIX)/share/doc/longwire
+	install -m 755 $(B)/longwire.so $(DESTDIR)$(PREFIX)/lib/hibr/longwire.so
+	install -m 755 packaging/launcher.sh $(DESTDIR)$(PREFIX)/bin/longwire
+	install -m 755 packaging/launcher.sh $(DESTDIR)$(PREFIX)/bin/longwire-switchboard
+	install -m 644 packaging/systemd/longwire-switchboard.service packaging/systemd/longwire@.service \
+		$(DESTDIR)$(PREFIX)/lib/systemd/system/
+	install -m 644 README.md COPYING CHANGELOG.md docs/*.md $(DESTDIR)$(PREFIX)/share/doc/longwire/
+
+# Packages, into build/pkg: the deb first, and the rpm and the pacman package from the deb's own files.
+packages: all
+	sh packaging/deb/build-deb.sh $(B)/pkg
+	sh packaging/rpm/build-rpm.sh $(B)/pkg/longwire_$(VERSION)-1_$$(dpkg --print-architecture).deb $(B)/pkg
+	sh packaging/arch/build-pkg.sh $(B)/pkg/longwire_$(VERSION)-1_$$(dpkg --print-architecture).deb $(B)/pkg
 
 clean:
 	rm -rf $(B)
 
-.PHONY: all lint check clean
+.PHONY: all lint check clean install packages

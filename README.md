@@ -17,8 +17,9 @@ $ longwire dial 312-884-076
    safety phrase: gopher daisy castle cactus island flint
 ```
 
-The examples write `longwire`. Until the launcher is packaged *(planned: M4)* that is `hibr scripts/longwire.hibr` with
-`LONGWIRE_MOD` pointing at the built module ([BUILD](docs/BUILD.md)).
+The examples write `longwire`. Install the package (`apt install longwire`, or the rpm or pacman package: `make packages`),
+then `catalogue install longwire`; or run `hibr scripts/longwire.hibr` with `LONGWIRE_MOD` pointing at the built module
+([BUILD](docs/BUILD.md)).
 
 ## What it is
 

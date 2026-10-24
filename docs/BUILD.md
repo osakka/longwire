@@ -36,36 +36,47 @@ compiled *separately from* `hibr.h`, which is what keeps it free of hibr: its he
 hibr's headers. The Makefile says `override CC = tcc`, so naming a different compiler on the command line changes nothing; there are no
 optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is part of `make check`.
 
-## How it will ship *(planned: M4)*
+## How it ships
 
 | Component | Source | Ships as | Lands in |
 |---|---|---|---|
-| 3. module | `module/longwire.c` + `engine/*.c` + `vendor/*` | **deb, rpm, pacman, Homebrew** package `longwire` (depends on `hibr`) | `$PREFIX/lib/hibr/longwire.so` |
+| 3. module | `module/longwire.c` + `engine/*.c` + `vendor/*` | **deb, rpm, pacman** package `longwire` (depends on `hibr`) | `/usr/lib/hibr/longwire.so` |
 | 2. node | `scripts/longwire.hibr` (+ `control-panel/lines.hibr` as a `# part:`) *(planned: M4)* | **hibr catalogue** app `longwire` | `~/.config/hibr/apps/`, or `/var/lib/hibr` with `--system` |
 | 1. switchboard | `scripts/longwire-switchboard.hibr` | **hibr catalogue** app `longwire-switchboard` | the same |
-| launchers + unit | `packaging/bin/longwire`, `packaging/bin/longwire-switchboard`, `packaging/systemd/longwire@.service` *(planned: M4)* | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
+| launchers + services | `packaging/launcher.sh` (twice), `packaging/systemd/` | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
 
 ```
-sudo apt install longwire                       # a laptop: the module (or dnf / pacman / brew)
+sudo apt install longwire                       # a laptop: the module and the launchers (or dnf / pacman)
 catalogue install longwire                      # the node script, from hibr's catalogue
 longwire up --switchboard …
 
 sudo apt install longwire                       # a site box
-sudo catalogue --system install longwire        # a root-owned script for the privileged service
-longwire setup splice eth0                      # prints the unit; install and enable it
+sudo catalogue --system install longwire        # a root-owned script for the service
+echo 'ARGS="--switchboard HOST:PORT/KEY --answer known"' | sudo tee /etc/longwire/eth0.conf
+sudo systemctl enable --now longwire@eth0       # the node, splicing eth0
 ```
 
-`packaging/` will mirror hibr's own (`deb/`, `rpm/`, `arch/`, `homebrew/`, each with a build and a publish script),
-publishing to signed repositories the same way, one key for all of them. The reasoning is in
-[ADR 0013](adr/0013-packages-for-the-module-the-catalogue-for-the-scripts.md).
+`make packages` builds all three into `build/pkg`: the deb first (`packaging/deb/build-deb.sh`, from `make install` into a
+staging directory), then the rpm and the pacman package from the deb's own files (`packaging/rpm/build-rpm.sh`,
+`packaging/arch/build-pkg.sh`), so they cannot differ in what they hold. It needs `dpkg-deb`, `fakeroot`, `rpmbuild` and
+`makepkg`, and no root; the module itself is built with TCC. `tests/pkg.sh` builds them and checks them. A package depends on
+the hibr it was built against, and its version is `VERSION`. The reasoning is in
+[ADR 0013](adr/0013-packages-for-the-module-the-catalogue-for-the-scripts.md) and
+[ADR 0028](adr/0028-one-deb-and-the-others-from-it.md). Signed repositories to install from, and a Homebrew formula, are
+*(planned: M5)*; the formula waits for macOS.
 
-The scripts will declare what they need in their headers, so the catalogue checks before it fetches:
+**The services.** `longwire-switchboard.service` runs a switchboard: put `ARGS="--listen 1877 --registry none"` (or your
+registry) in `/etc/longwire/switchboard.conf` and enable it. `longwire@NIC.service` runs a spliced site node on `NIC` with the
+arguments in `/etc/longwire/NIC.conf`; it holds `CAP_NET_RAW` and nothing else. Both run as a transient user with a state
+directory of their own (`/var/lib/longwire-switchboard`, `/var/lib/longwire`: the identity lives there), and both start the
+launchers, so the scripts must have been installed for the machine with `catalogue --system`.
+
+The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 1.0
-# part: control-panel/lines.hibr
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.3.0
 # modules: longwire
-# abi: 16
+# part: control-panel/lines.hibr   (when the pane exists)
 ```
 
 **Loading the module.** Scripts use `mod load "${LONGWIRE_MOD:-longwire}"`: an explicit path when `LONGWIRE_MOD` is

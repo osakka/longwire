@@ -1,0 +1,36 @@
+# longwire site node, splicing the LAN on the NIC named after the @:  systemctl enable --now longwire@eth0
+# Configure /etc/longwire/eth0.conf with one line, for example
+#     ARGS="--switchboard HOST:PORT/KEY --answer known"
+# The script comes from the catalogue, for the machine:  sudo catalogue --system install longwire
+# CAP_NET_RAW opens the packet socket and is the only privilege; `lw start` clears every capability the moment it is open.
+[Unit]
+Description=longwire site node (splice on %I)
+Documentation=file:///usr/share/doc/longwire/CLI.md
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/longwire/%i.conf
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/longwire/%i.conf
+Environment=HOME=/var/lib/longwire
+Environment=LONGWIRE_MOD=/usr/lib/hibr/longwire.so
+ExecStart=/usr/bin/longwire up --splice %i $ARGS
+DynamicUser=yes
+StateDirectory=longwire
+StateDirectoryMode=0700
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_PACKET
+
+[Install]
+WantedBy=multi-user.target

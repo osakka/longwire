@@ -3,6 +3,18 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M4: packages
+
+- **The module as a deb, an rpm and a pacman package** (`make packages`; [ADR 0028](docs/adr/0028-one-deb-and-the-others-from-it.md)).
+  The deb is built first and the other two are made from its files, so they hold the same bytes; each depends on the hibr
+  it was built against. They carry the module, two launchers that find the scripts the catalogue installed, two systemd
+  services (`longwire-switchboard`, and `longwire@NIC` for a spliced site, with `CAP_NET_RAW` only), and the
+  documentation; the scripts come from the catalogue and declare their `app` and `# modules:` headers. `make install`
+  installs the same layout; `VERSION` is the one version. `tests/pkg.sh` builds all three and checks their contents,
+  dependencies, that the module in them loads and that the launcher runs a script. Not done: signed repositories to install
+  from, publishing the scripts to the catalogue, Homebrew (it waits for macOS), and a package tried on a machine that is not
+  this one.
+
 ## M3: the documentation review, and a limit on guessing numbers
 
 - **A fresh read of the documentation against the code** found about twenty places where the prose was stale or wrong
