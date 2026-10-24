@@ -134,6 +134,10 @@ Every call tries the **direct** path. The switchboard is involved only until a p
 
 The switchboard adds the address it sees each side at to the list it passes on.
 
+On the wire a list is a count, then entries of `len:1 ‖ type:1 ‖ port:2 ‖ address:len-3` (an IPv4 entry is 8 bytes
+with `len` 7). A reader skips an entry whose length or type it does not know, so an address family added later
+does not break the entries around it ([ADR 0025](adr/0025-every-candidate-carries-its-own-length.md)).
+
 **PUNCH.** The switchboard's `GO` message carries a start delay (150 ms), not a clock time, so no clock agreement is
 needed: each side starts that long after `GO` arrives (the round trips to the switchboard differ by milliseconds, and
 the punching repeats). Each side sends a `PUNCH` to every candidate at 10 packets a second, for up to 8 seconds:

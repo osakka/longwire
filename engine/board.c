@@ -376,17 +376,21 @@ static void sweep(lw_node *n)
 
 static int cands_read(const uint8_t *p, size_t len, lw_cand *c, int *nc)
 {
-	int i, k;
+	int i, k, o = 1, w, known;
 
 	if (len < 1)
 		return -1;
 	k = p[0];
-	if (k > MAXCANDS - 1 || len < 1 + (size_t)k * 7)	/* one slot is kept for the observed address */
+	if (k > MAXCANDS - 1)
 		return -1;
-	for (i = 0; i < k; i++)
-		cand_get(p + 1 + i * 7, &c[i]);
-	*nc = k;
-	return 1 + k * 7;
+	*nc = 0;
+	for (i = 0; i < k; i++) {
+		if ((w = cand_get(p + o, len - o, &c[*nc], &known)) < 0)
+			return -1;
+		o += w;
+		*nc += known;
+	}
+	return o;
 }
 
 static int cands_write(uint8_t *p, const lw_cand *c, int nc)
@@ -663,7 +667,7 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 	reg *cr = reg_by_key(b, caller_key), *ce = reg_by_key(b, callee_key);
 	lw_peer *cp = peer_by_key(n, caller_key), *ep = peer_by_key(n, callee_key);
 	bcall *c = 0;
-	uint8_t m[8 + NUMLEN + LW_BUNDLE + 1 + MAXCANDS * 7 + 2 + ADMIT_LEN + 2 + LW_NAME_MAX];
+	uint8_t m[8 + NUMLEN + LW_BUNDLE + 1 + MAXCANDS * CANDWIRE + 2 + ADMIT_LEN + 2 + LW_NAME_MAX];
 	int i, o;
 
 	if (!cr || !ce || !cp || !ep || !online(n, ce)) {
@@ -940,7 +944,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		int nc = 0, i, o;
 		reg *cr, *ce;
 		lw_peer *callerp, *calleep = p;
-		uint8_t m[8 + 1 + 2 + NUMLEN + 32 + LW_BUNDLE + 1 + MAXCANDS * 7], tok[32];
+		uint8_t m[8 + 1 + 2 + NUMLEN + 32 + LW_BUNDLE + 1 + MAXCANDS * CANDWIRE], tok[32];
 
 		if (len < 9)
 			return;

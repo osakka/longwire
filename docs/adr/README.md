@@ -32,6 +32,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0021](0021-tcc-is-the-compiler-without-exception.md) | TCC is the compiler, without exception | accepted |
 | [0022](0022-lines-form-by-vouching.md) | Lines form by vouching; the founder admits itself; an evicted key stays out | accepted |
 | [0024](0024-a-full-number-is-a-switchboard-code-and-a-local-number.md) | A full number is a switchboard code and a local number | accepted |
+| [0025](0025-every-candidate-carries-its-own-length.md) | Every candidate carries its own length | accepted |
 | [0023](0023-names-are-opt-in-claims.md) | Names are opt-in claims: a node chooses to announce one, a switchboard chooses to carry it | accepted |
 
 ---

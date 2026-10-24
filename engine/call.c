@@ -251,20 +251,24 @@ static int cands_put(uint8_t *p, const lw_cand *c, int nc)
 	return o;
 }
 
-/* returns bytes consumed, or -1 */
+/* returns bytes consumed, or -1; entries of a kind we do not know are skipped */
 static int cands_get(const uint8_t *p, size_t len, lw_cand *c, int *nc)
 {
-	int i, k;
+	int i, k, o = 1, w, known;
 
 	if (len < 1)
 		return -1;
 	k = p[0];
-	if (k > MAXCANDS || len < 1 + (size_t)k * 7)
+	if (k > MAXCANDS)
 		return -1;
-	for (i = 0; i < k; i++)
-		cand_get(p + 1 + i * 7, &c[i]);
-	*nc = k;
-	return 1 + k * 7;
+	*nc = 0;
+	for (i = 0; i < k; i++) {
+		if ((w = cand_get(p + o, len - o, &c[*nc], &known)) < 0)
+			return -1;
+		o += w;
+		*nc += known;
+	}
+	return o;
 }
 
 /* ---- HELLO: fetch a bundle when only a key id is known ----------------------- */
@@ -623,7 +627,7 @@ static int interactive(lw_node *n)
 static void send_answer(lw_node *n, lw_call *c, int verdict)
 {
 	lw_peer *s = sbp(n);
-	uint8_t b[8 + 1 + 1 + MAXCANDS * 7];
+	uint8_t b[8 + 1 + 1 + MAXCANDS * CANDWIRE];
 	lw_cand cc[MAXCANDS];
 	int nc;
 
@@ -639,7 +643,7 @@ static void send_answer(lw_node *n, lw_call *c, int verdict)
 int call_dial(lw_node *n, const char *num, int auto_, char *err, size_t errn)
 {
 	lw_peer *s = sbp(n);
-	uint8_t b[NUMLEN + 1 + MAXCANDS * 7 + 2 + ADMIT_LEN];
+	uint8_t b[NUMLEN + 1 + MAXCANDS * CANDWIRE + 2 + ADMIT_LEN];
 	lw_cand cc[MAXCANDS];
 	uint8_t admit[ADMIT_LEN];
 	lw_call *c;
@@ -1170,7 +1174,7 @@ void registration_timers(lw_node *n)
 			ctl_msg_send(n, s, M_REGISTER, b, o);
 			n->next_reg = n->now + 2.0;
 		} else if (n->registered && !n->role && n->now >= n->next_hb) {
-			uint8_t b[1 + MAXCANDS * 7];
+			uint8_t b[1 + MAXCANDS * CANDWIRE];
 			lw_cand cc[MAXCANDS];
 			int nc = gather(n, cc, MAXCANDS);
 

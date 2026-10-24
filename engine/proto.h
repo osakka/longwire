@@ -77,19 +77,33 @@ static inline unsigned get16(const uint8_t *p) { return (unsigned)p[0] << 8 | p[
 static inline void put32(uint8_t *p, uint32_t v) { put16(p, v >> 16); put16(p + 2, v & 0xffff); }
 static inline uint32_t get32(const uint8_t *p) { return (uint32_t)get16(p) << 16 | get16(p + 2); }
 
+/* A candidate on the wire is len(1) type(1) port(2) address(len-3). The length makes every entry skippable, so a
+ * reader meets an address family it does not know (IPv6, later) without losing the entries after it. */
+#define CANDWIRE 20		/* the largest entry: a 16-byte address */
+
 static inline int cand_put(uint8_t *p, const lw_cand *c)
 {
-	memcpy(p, c->ip, 4);
-	put16(p + 4, c->port);
-	p[6] = c->type;
-	return 7;
+	p[0] = 7;
+	p[1] = c->type;
+	put16(p + 2, c->port);
+	memcpy(p + 4, c->ip, 4);
+	return 8;
 }
 
-static inline void cand_get(const uint8_t *p, lw_cand *c)
+/* returns the bytes the entry takes, or -1 if it is cut short; *known says whether it was understood */
+static inline int cand_get(const uint8_t *p, size_t avail, lw_cand *c, int *known)
 {
-	memcpy(c->ip, p, 4);
-	c->port = (uint16_t)get16(p + 4);
-	c->type = p[6];
+	size_t l;
+
+	if (avail < 1 || avail < (l = (size_t)p[0] + 1))
+		return -1;
+	*known = l == 8 && p[1] >= CAND_HOST && p[1] <= CAND_MAPPED;
+	if (*known) {
+		c->type = p[1];
+		c->port = (uint16_t)get16(p + 2);
+		memcpy(c->ip, p + 4, 4);
+	}
+	return (int)l;
 }
 
 #endif

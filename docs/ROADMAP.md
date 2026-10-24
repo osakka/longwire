@@ -62,7 +62,8 @@ relayed pair upgrades to direct once a path exists.
   a line may name an authority key whose signed admits and evictions every member accepts, so an operator rather than a
   member decides who joins and can revoke centrally. Member vouching stays the default; the desktop pane needs to know which
   kind of line it is looking at.
-- IPv6: the underlay, and neighbour-discovery suppression
+- *Built:* candidates that carry their own length ([ADR 0025](adr/0025-every-candidate-carries-its-own-length.md)), so IPv6 can be added without a format change.
+- IPv6, the last item of M3: the underlay, v6 candidates, and neighbour-discovery suppression
 - *Built:* a longer rekey for switchboard sessions (`--sb-rekey`, 600 s).
 - *Built:* the warning when two DHCP servers share a line (`dhcp-conflict`).
 - *Built:* number release after a year unheard, then held back for a year (`--release-after`). *Built:* `longwire key export` and `import`

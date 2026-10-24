@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: self-describing candidates
+
+- **Each candidate carries its length** (`len type port address`), so a reader can skip an address family it does
+  not know. This is the one IPv6 change that had to come before a public switchboard exists
+  ([ADR 0025](docs/adr/0025-every-candidate-carries-its-own-length.md)). IPv6 itself stays last in M3.
+
 ## M3: NAT-PMP
 
 - **A mapped address as a candidate.** A node asks its default gateway for a mapping of its UDP port (NAT-PMP, RFC 6886),
