@@ -120,12 +120,49 @@ static void admit_make(lw_node *n, const uint8_t kid[32], int role, uint8_t out[
 	lw_sign(&n->id, out, 81, out + 81);
 }
 
+/* The operator signs on a machine that runs no node: the same bytes as a member's admit or eviction, with the
+ * operator's public key in the signer field. */
+void lw_operator_pub(const lw_id *op, uint8_t out[32])
+{
+	memcpy(out, op->bundle + ED_OFF, 32);
+}
+
+void lw_operator_admit(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], uint8_t out[ADMIT_LEN])
+{
+	memcpy(out, line_id, 8);
+	memcpy(out + 8, kid, 32);
+	out[40] = 0;
+	lw_operator_pub(op, out + 41);
+	put64(out + 73, (uint64_t)time(0));
+	lw_sign(op, out, 81, out + 81);
+}
+
+void lw_operator_evict(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], uint8_t out[EVICT_LEN])
+{
+	uint8_t msg[8 + 32 + 8 + 5];
+
+	memcpy(out, line_id, 8);
+	memcpy(out + 8, kid, 32);
+	put64(out + 40, (uint64_t)time(0));
+	lw_operator_pub(op, out + 48);
+	memcpy(msg, out, 48);
+	memcpy(msg + 48, "evict", 5);
+	lw_sign(op, msg, sizeof msg, out + 80);
+}
+
 /* Is `a` a valid admit, for the node with key id `kid`, to the line this node holds? */
 static int admit_verify(lw_node *n, const uint8_t *a, const uint8_t kid[32])
 {
 	const lw_member *by;
 
 	if (!n->line.have || memcmp(a, n->line.id, 8) || memcmp(a + 8, kid, 32))
+		return 0;
+	if (n->line.managed && !memcmp(a + 41, n->line.authority, 32)) {	/* the operator's word: no member needed */
+		if (!lw_verify(n->line.authority, a, 81, a + 81))
+			return 0;
+		return get64(a + 73) > evicted_at(n, kid);
+	}
+	if (n->line.managed && memcmp(a + 41, n->line.founder, 32))		/* a managed line takes no one else's */
 		return 0;
 	if (!(by = mem_find(n, a + 41)))		/* the signer must be a member we have on record, connected or not */
 		return 0;
@@ -145,6 +182,10 @@ int line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32]
 
 int line_admit_for(lw_node *n, uint8_t out[ADMIT_LEN])
 {
+	if (!n->line.have && n->cfg.has_admit) {	/* not on a line yet: what the operator gave us */
+		memcpy(out, n->cfg.admit, ADMIT_LEN);
+		return ADMIT_LEN;
+	}
 	if (!n->line.have)
 		return 0;
 	memcpy(out, n->line.admit, ADMIT_LEN);
@@ -190,6 +231,16 @@ static void line_save(lw_node *n)
 	}
 	lw_hex(hex, n->line.admit, ADMIT_LEN);
 	fprintf(f, "admit %s\n", hex);
+	if (n->line.managed) {
+		lw_hex(kh, n->line.authority, 32);
+		fprintf(f, "authority %s\n", kh);
+		for (i = 0; i < n->line.nrev; i++) {
+			char rh[EVICT_LEN * 2 + 1];
+
+			lw_hex(rh, n->line.rev[i], EVICT_LEN);
+			fprintf(f, "revoke %s\n", rh);
+		}
+	}
 	for (i = 0; i < n->line.nm; i++) {
 		lw_hex(kh, n->line.m[i].key_id, 32);
 		lw_hex(eh, n->line.m[i].ed_pub, 32);
@@ -234,6 +285,11 @@ static void line_load(lw_node *n)
 			unhexn(a, n->line.id, 8);
 		else if (sscanf(l, "founder %199s", a) == 1)
 			unhexn(a, n->line.founder, 32);
+		else if (sscanf(l, "authority %199s", a) == 1 && strlen(a) == 64) {
+			unhexn(a, n->line.authority, 32);
+			n->line.managed = 1;
+		} else if (sscanf(l, "revoke %399s", a) == 1 && strlen(a) == EVICT_LEN * 2 && n->line.nrev < 32)
+			unhexn(a, n->line.rev[n->line.nrev++], EVICT_LEN);
 		else if (sscanf(l, "key %399s", a) == 1 && strlen(a) == sizeof blob * 2 && !unhexn(a, blob, sizeof blob)) {
 			crypto_blake2b_keyed(sk, 32, n->id.seed, 32, (const uint8_t *)"longwire lines v1", 17);
 			have_key = !crypto_aead_unlock(n->line.key, blob + 24 + 32, sk, blob, 0, 0, blob + 24, 32);
@@ -290,6 +346,10 @@ static void found(lw_node *n)
 	lw_rand(n->line.id, 8);
 	lw_rand(n->line.key, 32);
 	memcpy(n->line.founder, n->id.key_id, 32);
+	if (n->cfg.has_authority) {
+		memcpy(n->line.authority, n->cfg.authority, 32);
+		n->line.managed = 1;
+	}
 	home_kid(n, hk);
 	m = mem_add(n, n->number, n->id.key_id, my_ed(n), 0, hk);
 	(void)m;
@@ -311,7 +371,7 @@ static void member_json(lw_node *n, const char *event, const char *number)
 /* Vouch for the node at the other end of `p`: record it, admit it, tell it the line, tell the members. */
 static void admit_peer(lw_node *n, lw_peer *p)
 {
-	uint8_t admit[ADMIT_LEN], b[8 + 32 + 32 + ADMIT_LEN + 1 + LINE_MAX * MEMBER_LEN];
+	uint8_t admit[ADMIT_LEN], b[8 + 32 + 32 + 32 + ADMIT_LEN + 1 + LINE_MAX * MEMBER_LEN];
 	uint8_t mb[MEMBER_LEN + ADMIT_LEN], hk[32];
 	size_t o = 0;
 	int i;
@@ -323,18 +383,27 @@ static void admit_peer(lw_node *n, lw_peer *p)
 		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"that node was evicted from the line\"}");
 		return;
 	}
+	if (n->line.managed) {			/* the operator decides: we only check what the caller brought */
+		if (!line_presented(n, p->number, admit) || !admit_verify(n, admit, p->key_id)) {
+			send_bye(n, p, 0);
+			ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"this line is managed: ask its operator for an admit\"}");
+			return;
+		}
+	}
 	home_kid(n, hk);
 	if (!mem_add(n, p->number, p->key_id, peer_ed_pub(p), 0, hk)) {
 		send_bye(n, p, 0);
 		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"the line is full (%d)\"}", LINE_MAX);
 		return;
 	}
-	admit_make(n, p->key_id, 0, admit);
+	if (!n->line.managed)
+		admit_make(n, p->key_id, 0, admit);
 	memcpy(b, n->line.id, 8);
 	memcpy(b + 8, n->line.founder, 32);
 	memcpy(b + 40, n->line.key, 32);
-	memcpy(b + 72, admit, ADMIT_LEN);
-	o = 72 + ADMIT_LEN;
+	memcpy(b + 72, n->line.authority, 32);
+	memcpy(b + 104, admit, ADMIT_LEN);
+	o = 104 + ADMIT_LEN;
 	b[o++] = (uint8_t)n->line.nm;
 	for (i = 0; i < n->line.nm; i++) {
 		memcpy(b + o, n->line.m[i].number, NUMLEN);
@@ -360,6 +429,19 @@ static void admit_peer(lw_node *n, lw_peer *p)
 	}
 	line_save(n);
 	member_json(n, "member-joined", p->number);
+}
+
+/* The admit a caller put in its dial, kept with the call. */
+int line_presented(lw_node *n, const char *number, uint8_t out[ADMIT_LEN])
+{
+	int i;
+
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state != CALL_IDLE && n->calls[i].has_admit && !strcmp(n->calls[i].number, number)) {
+			memcpy(out, n->calls[i].admit, ADMIT_LEN);
+			return 1;
+		}
+	return 0;
 }
 
 static void decide(lw_node *n, lw_peer *p)
@@ -393,6 +475,7 @@ void line_call_up(lw_node *n, lw_peer *p)
 {
 	uint8_t b[9];
 
+	p->rev_next = n->now + 2.0;		/* a new session: tell it what the operator revoked, once it is listening */
 	if (!n->registered || p->lh_sent)
 		return;
 	b[0] = (uint8_t)n->line.have;
@@ -405,8 +488,8 @@ void line_call_up(lw_node *n, lw_peer *p)
 
 static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 {
-	size_t o = 72 + ADMIT_LEN;
-	uint8_t hk[32];
+	size_t o = 104 + ADMIT_LEN;
+	uint8_t hk[32], none[32] = {0};
 	int nm, i;
 
 	if (len < o + 1)
@@ -421,7 +504,9 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	memcpy(n->line.id, pl, 8);
 	memcpy(n->line.founder, pl + 8, 32);
 	memcpy(n->line.key, pl + 40, 32);
-	memcpy(n->line.admit, pl + 72, ADMIT_LEN);
+	memcpy(n->line.authority, pl + 72, 32);
+	n->line.managed = memcmp(none, pl + 72, 32) != 0;
+	memcpy(n->line.admit, pl + 104, ADMIT_LEN);
 	for (i = 0; i < nm; i++) {
 		const uint8_t *e = pl + o + (size_t)i * MEMBER_LEN;
 		char num[NUMLEN + 1];
@@ -517,6 +602,17 @@ static void apply_evict(lw_node *n, const uint8_t kid[32], uint64_t t)
 		member_json(n, "member-evicted", num);
 }
 
+static void store_revoke(lw_node *n, const uint8_t *b)
+{
+	int i;
+
+	for (i = 0; i < n->line.nrev; i++)
+		if (!memcmp(n->line.rev[i], b, 48))
+			return;
+	i = n->line.nrev < 32 ? n->line.nrev++ : 0;
+	memcpy(n->line.rev[i], b, EVICT_LEN);
+}
+
 static void handle_evict(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 {
 	uint8_t msg[8 + 32 + 8 + 5];
@@ -524,11 +620,15 @@ static void handle_evict(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 
 	if (len < 8 + 32 + 8 + 32 + 64 || !n->line.have || memcmp(pl, n->line.id, 8))
 		return;
-	if (memcmp(pl + 48, p->key_id, 32) || !(ev = mem_find(n, p->key_id)))	/* from a member, in person */
+	if (!(ev = mem_find(n, p->key_id)))
 		return;
 	memcpy(msg, pl, 48);
 	memcpy(msg + 48, "evict", 5);
-	if (!lw_verify(ev->ed_pub, msg, sizeof msg, pl + 80))
+	if (n->line.managed) {			/* only the operator's word, and any member may carry it */
+		if (memcmp(pl + 48, n->line.authority, 32) || !lw_verify(n->line.authority, msg, sizeof msg, pl + 80))
+			return;
+		store_revoke(n, pl);
+	} else if (memcmp(pl + 48, p->key_id, 32) || !lw_verify(ev->ed_pub, msg, sizeof msg, pl + 80))	/* from a member, in person */
 		return;
 	apply_evict(n, pl + 8, get64(pl + 40));
 }
@@ -573,14 +673,66 @@ void line_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 
 /* ---- commands ------------------------------------------------------------------ */
 
+/* Take `kid` off the line: tell every member (the evicted one too), forget it, and give everyone left a new line key. */
+static void evict_now(lw_node *n, const uint8_t kid[32], uint64_t t, const uint8_t *blob, const char *num)
+{
+	uint8_t b[40], nk[32];
+	lw_peer *ev = peer_by_key(n, kid);
+	int i;
+
+	for (i = 0; i < n->maxpeers; i++)
+		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid)
+			ctl_msg_send(n, &n->peers[i], M_EVICT, blob, EVICT_LEN);
+	mem_remove(n, kid);
+	record_eviction(n, kid, t);
+	lw_rand(nk, 32);
+	memcpy(n->line.prev_key, n->line.key, 32);
+	memcpy(n->line.key, nk, 32);
+	n->line.key_t = n->now;
+	memcpy(b, n->line.id, 8);
+	memcpy(b + 8, nk, 32);
+	for (i = 0; i < n->maxpeers; i++)
+		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid && &n->peers[i] != ev)
+			ctl_msg_send(n, &n->peers[i], M_LINEKEY, b, 40);
+	if (ev)
+		call_drop_peer(n, ev, "evicted from the line");
+	line_save(n);
+	site_derive(n);
+	if (num[0])
+		member_json(n, "member-evicted", num);
+}
+
 int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 {
+	if (!strncmp(cmd, "revoke ", 7)) {		/* the operator's signed eviction, carried by this member */
+		uint8_t b[EVICT_LEN], msg[53];
+		const lw_member *m;
+		char num[NUMLEN + 1] = "";
+
+		if (!n->line.have || !n->line.managed)
+			return snprintf(out, cap, "{\"error\":\"this node is not on a line with an operator\"}\n");
+		if (strlen(cmd + 7) != EVICT_LEN * 2 || unhexn(cmd + 7, b, EVICT_LEN))
+			return snprintf(out, cap, "{\"error\":\"that is not an eviction\"}\n");
+		memcpy(msg, b, 48);
+		memcpy(msg + 48, "evict", 5);
+		if (memcmp(b, n->line.id, 8) || memcmp(b + 48, n->line.authority, 32) ||
+		    !lw_verify(n->line.authority, msg, sizeof msg, b + 80))
+			return snprintf(out, cap, "{\"error\":\"that eviction is not signed by this line's operator\"}\n");
+		store_revoke(n, b);
+		if (!memcmp(b + 8, n->id.key_id, 32)) {
+			apply_evict(n, b + 8, get64(b + 40));	/* it is about us */
+			return snprintf(out, cap, "{\"revoked\":\"you\"}\n");
+		}
+		if ((m = mem_find(n, b + 8)))
+			snprintf(num, sizeof num, "%s", m->number);
+		evict_now(n, b + 8, get64(b + 40), b, num);
+		return snprintf(out, cap, "{\"revoked\":\"%s\"}\n", num[0] ? "member" : "not a member");
+	}
 	if (!strncmp(cmd, "evict ", 6)) {
 		char num[NUMLEN + 1], f[16];
-		uint8_t b[8 + 32 + 8 + 32 + 64], sigmsg[8 + 32 + 8 + 5], kid[32], nk[32];
+		uint8_t b[EVICT_LEN], sigmsg[8 + 32 + 8 + 5], kid[32];
 		uint64_t t = (uint64_t)time(0);
 		lw_member *m = 0;
-		lw_peer *ev;
 		char perr[160];
 		int i;
 
@@ -588,6 +740,8 @@ int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 			return snprintf(out, cap, "{\"error\":\"%s\"}\n", perr);
 		if (!n->line.have)
 			return snprintf(out, cap, "{\"error\":\"you are not on a line\"}\n");
+		if (n->line.managed)
+			return snprintf(out, cap, "{\"error\":\"this line has an operator: only the operator evicts (longwire revoke)\"}\n");
 		for (i = 0; i < n->line.nm; i++)
 			if (!strcmp(n->line.m[i].number, num))
 				m = &n->line.m[i];
@@ -604,26 +758,7 @@ int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 		memcpy(sigmsg, b, 48);
 		memcpy(sigmsg + 48, "evict", 5);
 		lw_sign(&n->id, sigmsg, sizeof sigmsg, b + 80);
-		ev = peer_by_key(n, kid);
-		for (i = 0; i < n->maxpeers; i++)		/* tell every member, the evicted one too */
-			if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid)
-				ctl_msg_send(n, &n->peers[i], M_EVICT, b, sizeof b);
-		mem_remove(n, kid);
-		record_eviction(n, kid, t);
-		lw_rand(nk, 32);				/* a new line key, to everyone who is left */
-		memcpy(n->line.prev_key, n->line.key, 32);
-		memcpy(n->line.key, nk, 32);
-		n->line.key_t = n->now;
-		memcpy(b, n->line.id, 8);
-		memcpy(b + 8, nk, 32);
-		for (i = 0; i < n->maxpeers; i++)
-			if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid && &n->peers[i] != ev)
-				ctl_msg_send(n, &n->peers[i], M_LINEKEY, b, 40);
-		if (ev)
-			call_drop_peer(n, ev, "evicted from the line");
-		line_save(n);
-		site_derive(n);
-		member_json(n, "member-evicted", num);
+		evict_now(n, kid, t, b, num);
 		return snprintf(out, cap, "{\"evicted\":\"%s\"}\n", f);
 	}
 	if (!strcmp(cmd, "peers"))
@@ -637,6 +772,19 @@ void line_timers(lw_node *n)
 {
 	int i, up = 0, need = 0;
 
+	if (!n->line.have && n->cfg.has_authority && n->registered && n->number[0])
+		found(n);			/* a managed line exists from the start: the operator needs its id to sign for */
+	if (n->line.have && n->line.managed && n->line.nrev)
+		for (i = 0; i < n->maxpeers; i++) {	/* tell whoever links to us what the operator has revoked */
+			lw_peer *q = &n->peers[i];
+			int k;
+
+			if (!q->used || q->is_sb || !q->linked || !q->cur.valid || !q->rev_next || n->now < q->rev_next)
+				continue;
+			for (k = 0; k < n->line.nrev; k++)	/* datagrams are not acknowledged: say it again now and then */
+				ctl_msg_send(n, q, M_EVICT, n->line.rev[k], EVICT_LEN);
+			q->rev_next = n->now + 30.0;
+		}
 	if (!n->line.have || !n->registered || n->now - n->line.tick < 1.0)
 		return;
 	n->line.tick = n->now;
@@ -688,8 +836,14 @@ int line_value(lw_node *n, char *o, size_t cap)
 	if (!n->line.have)
 		return snprintf(o, cap, "null");
 	lw_hex(hx, n->line.id, 8);
-	len = snprintf(o, cap, "{\"id\":\"%.6s\",\"founder\":%s,\"members\":[", hx,
-		       memcmp(n->line.founder, n->id.key_id, 32) ? "false" : "true");
+	{
+		char ah[65] = "";
+
+		if (n->line.managed)
+			lw_hex(ah, n->line.authority, 32);
+		len = snprintf(o, cap, "{\"id\":\"%.6s\",\"id_full\":\"%s\",\"managed\":%s,\"authority\":\"%s\",\"founder\":%s,\"members\":[",
+			       hx, hx, n->line.managed ? "true" : "false", ah, memcmp(n->line.founder, n->id.key_id, 32) ? "false" : "true");
+	}
 	for (i = 0; i < n->line.nm && len < (int)cap - 200; i++) {
 		lw_member *m = &n->line.m[i];
 		lw_peer *q = peer_by_key(n, m->key_id);

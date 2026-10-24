@@ -43,7 +43,10 @@ and on the other machine's `up` terminal:
 | `longwire pickup [ID]` / `longwire reject [ID]` | answer the ringing call; `ID` is the call id from the ring, needed only when several rings are waiting |
 | `longwire hangup [NUMBER]` | with no number: end every call and leave the line (or decline a ringing call); with a number: end just that call |
 | `longwire peers` | the line you are on: its members and which of them are connected (JSON) |
-| `longwire evict NUMBER` | remove a member from the line for good, and change the line key |
+| `longwire evict NUMBER` | remove a member from the line for good, and change the line key. On a line with an operator only the operator evicts: use `revoke` |
+| `longwire revoke EVICTION` | carry the operator's signed eviction (hex, or a file holding it) to the line; every member applies it and the line key changes |
+| `longwire operator new FILE`, `operator authority FILE` | make an operator's key (the file is its seed: keep it offline), or show its public key |
+| `longwire operator admit FILE LINEID NODE`, `operator evict FILE LINEID NODE` | sign an admit or an eviction for `NODE` (its `lw1…` address or key id) on the line `LINEID` (the 16 hex digits of `id_full` in the founder's status). Print it; it needs no running node |
 | `longwire unpin NUMBER` | forget a number's key: the next call from it is a first call again |
 | `longwire status` | what the node is doing, as JSON ([fields](#status)) |
 | `longwire down` | stop the node |
@@ -76,6 +79,8 @@ and on the other machine's `up` terminal:
 | `--sock-port LOCAL:PEER` | frames as datagrams on a Unix socket: for tests |
 | `--listen [ADDR:]PORT` | the UDP address to listen on (default: any port) |
 | `--peer BUNDLE[@HOST:PORT]` | a peer known by its bundle file; with an address the node dials it, without it waits. Used without a switchboard |
+| `--authority KEY` | found a line run by the operator whose public key this is: the line exists at once and only the operator's admits and evictions count ([ADR 0026](adr/0026-a-line-may-have-an-operator.md)) |
+| `--admit ADMIT` | the operator's admit for this node (hex, or a file), presented when it calls a member of an operator's line |
 | `--relay yes\|no\|auto` | relay for members of your line: `auto` (default) only when this node has a public address |
 | `--nat-pmp on\|off` | ask the home router (NAT-PMP) to keep a port open for this node and offer it as an address (default on) |
 | `--direct-retry S` | how often a relayed peer tries for a direct path (60, doubling to 600) |
@@ -117,7 +122,7 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 | `nat` | what the switchboard's second port says of your NAT: `easy` (one mapping for every destination, so a direct path is likely), `strict` (a new mapping per destination: only a relay is certain) or `unknown` (not measured yet, or the second port is blocked) |
 | `call` | one word for all your calls: `dialing` or `ringing` (a person's call is waiting), else `connecting`, `up` or `idle` |
 | `calls` | each call: `call` (its id), `number`, `state` (`dialing`, `ringing`, `punching`, `connecting`, `up`), `we_called`, `mesh` (a call a line's mesh made by itself) |
-| `line` | `null`, or the line you are on: `id`, `founder` (you founded it), `members` (each with `number`, `key_id` and `state`: `you`, `up` or `down`), `up`, `partial` |
+| `line` | `null`, or the line you are on: `id` (six hex digits, for people), `id_full` (all sixteen: what the operator signs for), `managed` (it has an operator) and `authority` (the operator's public key, or empty), `founder` (you founded it), `members` (each with `number`, `key_id` and `state`: `you`, `up` or `down`), `up`, `partial` |
 | `uptime`, `port` | seconds since start; the attach mode and its argument |
 | `macs`, `local_rx`, `local_tx`, `flood` | the switch: addresses known, frames read from and written to the LAN, frames flooded |
 | `drop_garbage`, `drop_noroute`, `drop_flood`, `drop_standby`, `drop_oversize` | frames dropped: unparseable; split horizon; over the flood budget; while standby; oversize and not TCP |
@@ -152,9 +157,10 @@ verb works from any hibr process, through the worker's control socket (`~/.longw
 | `lw start [options]` | open the port, clear every capability set, then fork the engine worker, which inherits the empty sets (see the note below) |
 | `lw stop` | end the worker |
 | `lw dial NUM`, `lw pickup [ID]`, `lw reject [ID]`, `lw hangup [NUM]`, `lw unpin NUM` | calls and pins |
-| `lw evict NUM`, `lw peers` | the line: remove a member (and change the key); list the members |
+| `lw evict NUM`, `lw revoke HEX`, `lw peers` | the line: remove a member (and change the key); carry the operator's eviction; list the members |
 | `lw status` | the JSON above, also in `$RET` |
 | `lw key new\|id\|address\|bundle\|export\|import SEEDFILE` | create or read an identity |
+| `lw key authority SEEDFILE`, `lw key admit\|evict SEEDFILE LINEID KEYID` | an operator's public key; a signed admit or eviction (hex) |
 | `lw plan N` | the N-th assigned switchboard code of the numbering plan, counting from 0 (for operators and tests) |
 | `lw sb start [options]`, `lw sb reply ID accept\|refuse [ARG...]` | the switchboard worker, and the script's decisions |
 | `lw who NUM` | what this node knows of a number (JSON) |

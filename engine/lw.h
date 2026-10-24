@@ -47,6 +47,10 @@ typedef struct lw_cfg {
 	int  role;			/* 0 node, 1 switchboard */
 	char switchboard[256];		/* "host:port/KEYID" (64 hex or lw1...), nodes only */
 	char state_dir[256];		/* pins ("known"), switchboard registry */
+	uint8_t authority[32];		/* found a line managed by this operator key (all zero: an ordinary line) */
+	int  has_authority;
+	uint8_t admit[145];		/* an operator-signed admit to present before this node is on any line */
+	int  has_admit;
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	int  cand_loopback;		/* offer 127.x as a candidate: tests and same-host use */
 	int  policy_script;		/* switchboard: wait for the script's verdicts */
@@ -69,6 +73,9 @@ typedef struct lw_node lw_node;
 /* base32 of a key id: the "full number" (lw1...), docs/CRYPTO.md §2 */
 void lw_address(char out[60], const uint8_t key_id[32]);
 void lw_nth_code(unsigned long k, char out[10]);			/* the k-th assigned switchboard code of the plan (ADR 0024) */
+void lw_operator_admit(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], uint8_t out[145]);
+void lw_operator_evict(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], uint8_t out[144]);
+void lw_operator_pub(const lw_id *op, uint8_t out[32]);
 int  lw_address_parse(const char *s, uint8_t key_id[32]);	/* lw1... or 64 hex; 0 = ok */
 
 /* identity */

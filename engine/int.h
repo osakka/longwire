@@ -85,6 +85,7 @@ typedef struct lw_peer {
 	int      direct_tries;
 	uint8_t  via_kid[32];		/* the relay's key id: its peer slot may have been reused */
 	double   probe_next, lost_t;
+	double   rev_next;		/* when to tell this peer again what the operator has revoked (0: not on the line) */
 	int      lh_sent, lh_got, lh_has, linked;	/* the line handshake with this peer */
 	uint8_t  lh_id[8];
 	uint64_t rx_frames, tx_frames, rx_bytes, tx_bytes;
@@ -157,6 +158,10 @@ typedef struct lw_line {
 	int      have;
 	uint8_t  id[8], founder[32], key[32], prev_key[32];
 	double   key_t;			/* when the key last changed: the grace window for the old one */
+	uint8_t  authority[32];		/* the operator's public key; all zero on a line members run among themselves */
+	int      managed;
+	uint8_t  rev[32][EVICT_LEN];	/* the operator's evictions, as signed */
+	int      nrev;
 	uint8_t  admit[ADMIT_LEN];	/* this node's own */
 	lw_member m[LINE_MAX];
 	int      nm;
@@ -405,6 +410,7 @@ int  line_have(const lw_node *n);
 int  line_admit_for(lw_node *n, uint8_t out[ADMIT_LEN]);	/* our own admit, to present when dialing; 0 if none */
 int  line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32]);
 int  line_evicted(lw_node *n, const uint8_t kid[32]);
+int  line_presented(lw_node *n, const char *number, uint8_t out[ADMIT_LEN]);	/* the admit that number's call carried */
 void line_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len);
 void line_call_up(lw_node *n, lw_peer *p);
 void line_timers(lw_node *n);

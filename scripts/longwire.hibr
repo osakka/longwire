@@ -24,6 +24,7 @@ usage() {
 usage: longwire <command>
 
   up [--switchboard HOST:PORT/KEY] [--answer ask|known|auto|never] [--token T] [--name TEXT] [--listed]
+     [--authority OPERATORKEY | --admit ADMIT]   found a line run by an operator, or join one with the operator's admit
      [--splice NIC [--site-key FILE] | --jack TAP | --sock-port LOCAL:PEER] [--listen [ADDR:]PORT]
      [--peer BUNDLEFILE[@HOST:PORT]]...      run this node (foreground: a service or hold runs this)
   dial NUMBER|lw1...                          call a number, or a full address (needs the switchboard's directory)
@@ -39,6 +40,9 @@ usage: longwire <command>
   down                                        stop the node
   setup splice NIC | setup jack [TAP]         print the one-time privileged step for that attach mode
   key export | import                         the identity as 33 words, and back (import reads them on stdin)
+  revoke EVICTION                             carry the operator's signed eviction (hex, or a file) to the line
+  operator new|authority FILE                 an operator's key: make one; show its public key
+  operator admit|evict FILE LINEID NODE       sign an admit or an eviction for NODE (lw1... or key id) on that line
   id | address | bundle                       your key id, full address (lw1...), public bundle
 
 --answer: ask (default) rings and waits for 'longwire pickup'; known picks up numbers
@@ -107,6 +111,7 @@ cmd_up() {
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--answer) answer=$2; shift 2 ;;
+		--admit) local ad=$2; [ -r "$ad" ] && read -r ad < "$2"; args+=(--admit "$ad"); shift 2 ;;	# a file, or the hex itself
 		*) args+=("$1"); shift ;;
 		esac
 	done
@@ -222,6 +227,15 @@ key)
 	export) [ -r "$LW_SEED" ] || { echo "longwire: no identity yet" >&2; exit 1; }; run lw key export "$LW_SEED" ;;
 	import) run lw key import "$LW_SEED" > /dev/null; say "identity restored: your number comes back when you ring the switchboard" ;;
 	*) echo "usage: longwire key export | import   (import reads the words on standard input)" >&2; exit 2 ;;
+	esac ;;
+revoke)  [ $# -eq 1 ] || { usage >&2; exit 2; }; ev=$1; [ -r "$ev" ] && read -r ev < "$1"; run lw revoke "$ev" ;;
+operator)
+	op=${2:-}
+	case "${1:-}" in
+	new)       [ $# -eq 2 ] || { usage >&2; exit 2; }; run lw key new "$op" > /dev/null; run lw key authority "$op" ;;
+	authority) [ $# -eq 2 ] || { usage >&2; exit 2; }; run lw key authority "$op" ;;
+	admit|evict) [ $# -eq 4 ] || { usage >&2; exit 2; }; run lw key "$1" "$op" "$3" "$4" ;;
+	*) usage >&2; exit 2 ;;
 	esac ;;
 bundle)  run lw key new "$LW_SEED" > /dev/null; run lw key bundle "$LW_SEED" ;;
 help|-h|--help|"") usage ;;

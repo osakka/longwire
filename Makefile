@@ -36,6 +36,7 @@ check: all lint
 	sh tests/dhcp.sh
 	sh tests/release.sh
 	sh tests/pmp.sh
+	sh tests/operator.sh
 	python3 -I tests/docs.py
 
 clean:

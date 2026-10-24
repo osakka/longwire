@@ -90,6 +90,58 @@ static int usage(sh *s)
 	return HIBR_FAIL;
 }
 
+static int unhex(const char *h, uint8_t *out, size_t n)
+{
+	size_t i;
+
+	for (i = 0; i < n; i++) {
+		unsigned v;
+
+		if (sscanf(h + 2 * i, "%2x", &v) != 1)
+			return -1;
+		out[i] = (uint8_t)v;
+	}
+	return 0;
+}
+
+/* The operator signs on a machine that runs no node: `key authority|admit|evict OPERATORSEED [LINEID KEYID]`. */
+static int do_operator(sh *s, int ac, char **av)
+{
+	lw_id *op = calloc(1, sizeof *op);
+	uint8_t line[8], kid[32], blob[145], pub[32];
+	char hex[2 * 145 + 1];
+	int rc = HIBR_FAIL, ad = !strcmp(av[2], "admit");
+
+	if (lw_id_load(op, av[3], 0)) {
+		hibr_fail(s, "lw key: cannot read the operator's seed");
+		goto out;
+	}
+	if (!strcmp(av[2], "authority")) {
+		lw_operator_pub(op, pub);
+		lw_hex(hex, pub, 32);
+	} else {
+		if (ac < 6 || strlen(av[4]) != 16 || unhex(av[4], line, 8) || lw_address_parse(av[5], kid)) {
+			hibr_fail(s, "usage: lw key admit|evict OPERATORSEED LINEID(16 hex) KEYID(hex or lw1...)");
+			goto out;
+		}
+		if (ad) {
+			lw_operator_admit(op, line, kid, blob);
+			lw_hex(hex, blob, 145);
+		} else {
+			lw_operator_evict(op, line, kid, blob);
+			lw_hex(hex, blob, 144);
+		}
+	}
+	hibr_ret(s, hex);
+	if (!s->bind)
+		printf("%s\n", hex);
+	rc = HIBR_OK;
+out:
+	explicit_bzero(op, sizeof *op);
+	free(op);
+	return rc;
+}
+
 static int do_key(sh *s, int ac, char **av)
 {
 	lw_id *id = calloc(1, sizeof *id);
@@ -97,6 +149,11 @@ static int do_key(sh *s, int ac, char **av)
 	char addr[60];
 	int rc = HIBR_FAIL;
 
+	if (ac >= 4 && (!strcmp(av[2], "authority") || !strcmp(av[2], "admit") || !strcmp(av[2], "evict"))) {
+		free(id);
+		free(hex);
+		return do_operator(s, ac, av);
+	}
 	if (ac >= 4 && !strcmp(av[2], "export")) {	/* the words go to the terminal only, never into a variable */
 		char words[600];
 
@@ -142,7 +199,7 @@ static int do_key(sh *s, int ac, char **av)
 		goto out;
 	}
 	if (ac < 4 || (strcmp(av[2], "id") && strcmp(av[2], "bundle") && strcmp(av[2], "new") && strcmp(av[2], "address"))) {
-		hibr_fail(s, "usage: lw key new|id|address|bundle|export|import SEEDFILE");
+		hibr_fail(s, "usage: lw key new|id|address|bundle|export|import|authority|admit|evict SEEDFILE");
 		goto out;
 	}
 	if (lw_id_load(id, av[3], !strcmp(av[2], "new"))) {
@@ -249,7 +306,19 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->maxpeers = atoi(v);
 		else if (!strcmp(a, "--release-after") && role)
 			c->release_after = atol(v);
-		else if (!strcmp(a, "--sb-rekey"))
+		else if (!strcmp(a, "--authority") && !role) {
+			if (strlen(v) != 64 || unhex(v, c->authority, 32)) {
+				hibr_fail(s, "lw start: --authority wants the operator's public key (64 hex digits)");
+				goto out;
+			}
+			c->has_authority = 1;
+		} else if (!strcmp(a, "--admit") && !role) {
+			if (strlen(v) != 2 * sizeof c->admit || unhex(v, c->admit, sizeof c->admit)) {
+				hibr_fail(s, "lw start: --admit wants an admit from the operator (290 hex digits)");
+				goto out;
+			}
+			c->has_admit = 1;
+		} else if (!strcmp(a, "--sb-rekey"))
 			c->sb_rekey = atoi(v);
 		else if (!strcmp(a, "--rekey"))
 			c->rekey_after = atoi(v);
@@ -347,7 +416,7 @@ out:
 
 int m_lw(sh *s, int ac, char **av)
 {
-	char sock[256], req[300];
+	char sock[256], req[400];
 	int i;
 
 	if (ac < 2)
@@ -380,7 +449,7 @@ int m_lw(sh *s, int ac, char **av)
 		return ask(s, sock, "status\n", 0);
 	if (!strcmp(av[1], "stop"))
 		return ask(s, sock, "stop\n", 0);
-	if ((!strcmp(av[1], "dial") || !strcmp(av[1], "unpin") || !strcmp(av[1], "who") || !strcmp(av[1], "lookup") || !strcmp(av[1], "evict")) && ac >= 3) {
+	if ((!strcmp(av[1], "dial") || !strcmp(av[1], "unpin") || !strcmp(av[1], "who") || !strcmp(av[1], "lookup") || !strcmp(av[1], "evict") || !strcmp(av[1], "revoke")) && ac >= 3) {
 		snprintf(req, sizeof req, "%s %s\n", av[1], av[2]);
 		return ask(s, sock, req, 1);
 	}

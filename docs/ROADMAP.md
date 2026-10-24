@@ -58,10 +58,7 @@ relayed pair upgrades to direct once a path exists.
   *Waiting on the domain:* the project's own registry, which the default public switchboard will use. Once the default
   public switchboard issues a number the format is frozen, so this is a gate on M4. The registry is a second thing hosted on
   the project's domain, with the default public switchboard.
-- **Operator-managed lines** (last stage of M3, with its own ADR; amends [0022](adr/0022-lines-form-by-vouching.md)'s "no owner"):
-  a line may name an authority key whose signed admits and evictions every member accepts, so an operator rather than a
-  member decides who joins and can revoke centrally. Member vouching stays the default; the desktop pane needs to know which
-  kind of line it is looking at.
+- *Built:* operator-managed lines ([ADR 0026](adr/0026-a-line-may-have-an-operator.md), amends [0022](adr/0022-lines-form-by-vouching.md)): a line may name an authority key whose signed admits and evictions every member accepts. Member vouching stays the default; status says `managed`.
 - *Built:* candidates that carry their own length ([ADR 0025](adr/0025-every-candidate-carries-its-own-length.md)), so IPv6 can be added without a format change.
 - IPv6, the last item of M3: the underlay, v6 candidates, and neighbour-discovery suppression
 - *Built:* a longer rekey for switchboard sessions (`--sb-rekey`, 600 s).

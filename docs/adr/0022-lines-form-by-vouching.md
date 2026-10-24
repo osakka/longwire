@@ -1,6 +1,6 @@
 # 0022 — Lines form by vouching; the founder admits itself; an evicted key stays out
 
-Status: accepted
+Status: accepted; amended by [0026](0026-a-line-may-have-an-operator.md) (a line may have an operator)
 
 ## Context
 

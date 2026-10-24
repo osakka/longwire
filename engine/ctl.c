@@ -103,7 +103,7 @@ void ctl_accept(lw_node *n)
 {
 	struct ucred cr;
 	socklen_t cl = sizeof cr;
-	char line[300], out[8192];
+	char line[400], out[8192];
 	struct pollfd pf;
 	int c = accept4(n->ctl_fd, 0, 0, SOCK_CLOEXEC), len, i;
 	ssize_t r;

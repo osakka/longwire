@@ -1031,6 +1031,9 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				}
 			}
 			c->admitted = admitted;
+			c->has_admit = admit != 0;	/* the hub of a managed line passes it on, as the operator signed it */
+			if (admit)
+				memcpy(c->admit, admit, ADMIT_LEN);
 			c->auto_ = admitted;
 			memcpy(c->id, pl, 8);
 			memcpy(c->number, num, NUMLEN + 1);

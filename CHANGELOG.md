@@ -3,6 +3,16 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: operator-managed lines
+
+- **A line may have an operator** ([ADR 0026](docs/adr/0026-a-line-may-have-an-operator.md)). The founder names an
+  authority key (`up --authority`); from then on only that key's admits and evictions count. A newcomer brings the
+  operator's admit (`up --admit`), `longwire revoke` carries an eviction, and `longwire operator` signs both on a
+  machine that runs no node. Members keep the operator's evictions and tell each member they link to, so a node that
+  was offline still hears. Status gains `managed`, `authority` and `id_full`. Tested in `tests/operator.sh`: join with
+  an admit, refused without one or with another key's, a member's own evict refused, an eviction carried by a member,
+  and a founder that was offline hearing of it on its return.
+
 ## M3: `longwire answer`
 
 - **Change the answer policy while the node runs.** `longwire answer known` (or `ask`, `auto`, `never`); with no

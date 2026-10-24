@@ -229,9 +229,9 @@ A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. The messages 
 | msg | name | body |
 |---|---|---|
 | `0x01` | `LINEHELLO` | `has_line:1 ‖ line_id:8`, sent by each end when a call comes up |
-| `0x02` | `LINE` | `line_id:8 ‖ founder:32 ‖ line_key:32 ‖ admit:145 ‖ n:1 ‖ n × (number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1 ‖ switchboard_key_id:32)`: the line, handed to a new member |
+| `0x02` | `LINE` | `line_id:8 ‖ founder:32 ‖ line_key:32 ‖ authority:32 ‖ admit:145 ‖ n:1 ‖ n × (number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1 ‖ switchboard_key_id:32)`: the line, handed to a new member. `authority` is the operator's public key, or all zero for a line run by its members |
 | `0x03` | `MEMBER` | `number:9 ‖ key_id:32 ‖ ed_pub:32 ‖ role:1 ‖ switchboard_key_id:32 ‖ admit:145`: a new member, announced to the others |
-| `0x04` | `EVICT` | `line_id:8 ‖ key_id:32 ‖ time:8 ‖ evictor:32 ‖ sig:64` |
+| `0x04` | `EVICT` | `line_id:8 ‖ key_id:32 ‖ time:8 ‖ evictor:32 ‖ sig:64`; on a line with an operator `evictor` is the operator's public key |
 | `0x05` | `LINEKEY` | `line_id:8 ‖ key:32`: the new line key, inside the pairwise session |
 | `0x06` | `RELAY_REQ` | `key_id:32`: please carry my packets to this member (§5) |
 | `0x07` | `RELAY_OK` | `role:1 ‖ key_id:32 ‖ route:3 ‖ bundle:1249` (§5) |
@@ -287,3 +287,13 @@ back. The evictor also draws a new line key and sends `LINEKEY` to the remaining
 longer forge probes; a site accepts probes under the previous key for a short grace period so a rotation doesn't flap
 a site's boxes. Any member can evict any other: a line is a cable into everyone's LAN, and its members trust each other
 to that extent ([THREAT-MODEL](THREAT-MODEL.md)).
+
+**A line with an operator** ([ADR 0026](adr/0026-a-line-may-have-an-operator.md)). The founder names an Ed25519 public key
+(`up --authority`) and founds the line at once. From then on an admit is valid only if that key signed it (its public key
+is in the admit's signer field) or it is the founder's own, and a member's admit is not. A newcomer brings its admit
+(`up --admit`) in the `DIAL`; the member it calls checks the admit it was *given* and passes that one on in `LINE` and
+`MEMBER`; it signs nothing. An `EVICT` is valid only with the operator's signature, whichever member carries it
+(`longwire revoke`); a member's own `evict` is refused. Every member keeps the operator's signed evictions and sends them
+to each member it links to, two seconds after the link comes up and every 30 seconds after, since datagrams are not
+acknowledged: a member that was offline hears of a revocation from whoever it meets first. The operator's seed signs on
+a machine that runs no node: `lw key authority|admit|evict` print the public key, an admit or an eviction.
