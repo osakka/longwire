@@ -69,6 +69,13 @@ void sess_set_keys(lw_sess *s, int we_init, const uint8_t ck0[32], uint32_t rx_i
 	crypto_wipe(k, 32);
 }
 
+/* A switchboard session carries only control messages, and a switchboard holds thousands of them: its sessions
+ * rekey every --sb-rekey seconds (600 by default), on both ends. Peers of a node keep the plain interval. */
+static double rekey_of(const lw_node *n, const lw_peer *p)
+{
+	return n->role || p->is_sb ? n->sb_rekey : n->rekey_after;
+}
+
 static void nonce_of(uint8_t nonce[12], uint64_t ctr)
 {
 	memset(nonce, 0, 4);
@@ -83,7 +90,7 @@ int sess_send(lw_node *n, lw_peer *p, uint8_t kind, const uint8_t *body, size_t 
 
 	if (!s->valid || len > FRAME_MAX || !p->eplen)
 		return -1;
-	if (s->ctr_send >= ((uint64_t)1 << 60) || n->now - s->born > n->rekey_after * REJECT_FACTOR) {
+	if (s->ctr_send >= ((uint64_t)1 << 60) || n->now - s->born > rekey_of(n, p) * REJECT_FACTOR) {
 		explicit_bzero(s, sizeof *s);		/* past its hard limit: erase the keys */
 		return -1;
 	}
@@ -270,7 +277,7 @@ void sess_timers(lw_node *n)
 			double sent = p->last_tx > c->born ? p->last_tx : c->born;
 
 			age = n->now - c->born;
-			if (n->now - heard > 3.0 * n->keepalive + 1 || age > n->rekey_after * REJECT_FACTOR)
+			if (n->now - heard > 3.0 * n->keepalive + 1 || age > rekey_of(n, p) * REJECT_FACTOR)
 				explicit_bzero(c, sizeof *c);	/* dead peer, or keys past their hard limit: erase them */
 			else if (n->now - sent >= n->keepalive)
 				sess_send(n, p, K_KEEPALIVE, 0, 0);
@@ -290,7 +297,7 @@ void sess_timers(lw_node *n)
 			if (p->dial && p->eplen && n->now - p->last_hs_try >= 1.0)
 				hs_start(n, p);
 		} else {
-			double due = c->we_init ? n->rekey_after : n->rekey_after + 10.0;
+			double due = c->we_init ? rekey_of(n, p) : rekey_of(n, p) + 10.0;
 
 			if (p->eplen && n->now - c->born >= due && n->now - p->last_hs_try >= 1.0)
 				hs_start(n, p);

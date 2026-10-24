@@ -191,6 +191,7 @@ struct lw_node {
 	uint64_t rx_pkts, drop_garbage, drop_noroute, flood, local_tx, local_rx;
 	double   now, started;
 	int      rekey_after, keepalive, mtu;
+	int      sb_rekey;			/* rekey interval of a switchboard session, on both ends (default 600) */
 	int      role;			/* 0 node, 1 switchboard */
 	/* node */
 	int      sb;			/* peer index of our switchboard, -1 none */
@@ -215,6 +216,8 @@ struct lw_node {
 	int      npins, cappins;
 	uint16_t udp_port;
 	/* M2: the switch's extras and the site group */
+	struct { uint32_t ip; double t, said; } dhcp[4];	/* servers whose offers were seen lately (ARCHITECTURE section 3) */
+	uint64_t dhcp_conflicts;
 	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize;
 	uint16_t frag_id;
 	struct { uint32_t ip; uint8_t mac[6]; double t; } arp[256];

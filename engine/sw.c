@@ -295,6 +295,61 @@ static void arp_learn(lw_node *n, const uint8_t *f, size_t len)
 	n->arp[i].t = n->now;
 }
 
+/* Two DHCP servers on one line hand out clashing leases. Offers pass through the switch, so watch them: a second
+ * server's offer within ten minutes of the first's is reported, at most once in ten minutes per server. */
+static void dhcp_watch(lw_node *n, const uint8_t *f, size_t len)
+{
+	size_t ip, o;
+	uint32_t src;
+	int i, slot = -1, other = -1;
+
+	if (len < 14 + 20 + 8 + 240 + 4 || get16(f + 12) != 0x0800 || (f[14] >> 4) != 4 || f[14 + 9] != 17)
+		return;
+	ip = 14 + (size_t)(f[14] & 15) * 4;
+	if (ip + 8 + 241 > len || get16(f + ip) != 67 || get16(f + ip + 2) != 68 || f[ip + 8] != 2)
+		return;
+	for (o = ip + 8 + 240; o + 2 < len && f[o] != 255;) {		/* options: find 53, must be an offer */
+		if (f[o] == 0) {
+			o++;
+			continue;
+		}
+		if (o + 2 + f[o + 1] > len)
+			return;
+		if (f[o] == 53)
+			break;
+		o += 2 + f[o + 1];
+	}
+	if (o + 2 >= len || f[o] != 53 || f[o + 1] != 1 || f[o + 2] != 2)
+		return;
+	src = ip_of(f + 14 + 12);
+	if (!src)
+		return;
+	for (i = 0; i < 4; i++) {
+		if (n->dhcp[i].ip == src)
+			slot = i;
+		else if (n->dhcp[i].ip && n->now - n->dhcp[i].t < 600)
+			other = i;
+	}
+	if (slot < 0)
+		for (i = 0; i < 4 && slot < 0; i++)
+			if (!n->dhcp[i].ip || n->now - n->dhcp[i].t >= 600)
+				slot = i;
+	if (slot < 0)
+		slot = 0;
+	if (n->dhcp[slot].ip != src)
+		n->dhcp[slot].said = 0;
+	n->dhcp[slot].ip = src;
+	n->dhcp[slot].t = n->now;
+	if (other >= 0 && n->now - n->dhcp[slot].said >= 600) {
+		n->dhcp[slot].said = n->now;
+		n->dhcp_conflicts++;
+		ev_emit(n, "{\"event\":\"dhcp-conflict\",\"servers\":[\"%u.%u.%u.%u\",\"%u.%u.%u.%u\"]}",
+			(unsigned)(src >> 24), (unsigned)(src >> 16 & 255), (unsigned)(src >> 8 & 255), (unsigned)(src & 255),
+			(unsigned)(n->dhcp[other].ip >> 24), (unsigned)(n->dhcp[other].ip >> 16 & 255),
+			(unsigned)(n->dhcp[other].ip >> 8 & 255), (unsigned)(n->dhcp[other].ip & 255));
+	}
+}
+
 /* A local host asks who has an address we know lives across the line: say so
  * from here, and the question never crosses the WAN. */
 static int arp_suppress(lw_node *n, const uint8_t *f, size_t len)
@@ -495,6 +550,7 @@ void sw_from_local(lw_node *n, const uint8_t *in, size_t len)
 	mss_clamp(f, len);
 	learn(n, f + 6, -1);
 	arp_learn(n, f, len);
+	dhcp_watch(n, f, len);
 	if (arp_suppress(n, f, len))
 		return;
 	if (!(f[0] & 1) && (e = mac_find(n, f, 0))) {
@@ -521,6 +577,7 @@ void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len)
 	}
 	learn(n, f + 6, pi);
 	arp_learn(n, f, len);
+	dhcp_watch(n, f, len);
 	if (!(f[0] & 1) && (e = mac_find(n, f, 0)) && e->port >= 0) {
 		n->drop_noroute++;		/* split horizon: the sender reached that peer itself */
 		return;

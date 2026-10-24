@@ -79,6 +79,7 @@ and on the other machine's `up` terminal:
 | `--relay yes\|no\|auto` | relay for members of your line: `auto` (default) only when this node has a public address |
 | `--direct-retry S` | how often a relayed peer tries for a direct path (60, doubling to 600) |
 | `--keepalive S`, `--rekey S` | keepalive interval (25) and rekey interval (120), in seconds |
+| `--sb-rekey S` | the rekey interval of a switchboard session (600), the same on the node and the switchboard: a switchboard holds thousands of sessions, and they carry only control messages |
 | `--cand-loopback` | offer 127.x as a call candidate: tests, and two nodes on one host |
 | `--seed FILE`, `--sock PATH`, `--state DIR` | where the identity, control socket and pins live (default `~/.longwire/`) |
 | `--maxpeers N` | how many peers to hold (default 16) |
@@ -117,7 +118,7 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 | `uptime`, `port` | seconds since start; the attach mode and its argument |
 | `macs`, `local_rx`, `local_tx`, `flood` | the switch: addresses known, frames read from and written to the LAN, frames flooded |
 | `drop_garbage`, `drop_noroute`, `drop_flood`, `drop_standby`, `drop_oversize` | frames dropped: unparseable; split horizon; over the flood budget; while standby; oversize and not TCP |
-| `frames_split`, `frames_joined`, `resegmented`, `arp_answered` | frames sent as two datagrams and rejoined; coalesced TCP frames cut down; ARP requests answered locally |
+| `frames_split`, `frames_joined`, `resegmented`, `arp_answered`, `dhcp_conflicts` | frames sent as two datagrams and rejoined; coalesced TCP frames cut down; ARP requests answered locally; times a second DHCP server was seen |
 | `site`, `site_members`, `site_synced` | `alone`, `standby` or `active`; other live boxes heard; remote hosts shared by the active box |
 | `hs_shed`, `hs_nocookie`, `hs_badmac2`, `cookies_sent`, `cookies_got` | handshake load: shed by the per-source limit; refused for a missing or wrong cookie; cookies handed out and received |
 | `registrations`, `sb_rekeys` | `NUMBER` replies received; rekeys of the switchboard session |
@@ -131,7 +132,7 @@ tabular view *(planned: M4)*.
 **Events.** Everything the worker does is an event, one JSON object per line on `/dev/longwire/events`: `registered`,
 `register-refused` (with `reason`), `code-assigned` (a switchboard was given its short code by the registry), `ring` (with `from`, a name that is empty if none was announced, `phrase`, `known`, `admit`), `found` (the directory's answer: the query, whether there is a directory, whether you were told to slow down, and the results), `connected` (with `number`, `path`, `ep`,
 `phrase`; a relayed one says so in its path field and names the relay in a via field), `path` (a relayed peer found a direct path: `number`, `path`, `ep`), `call-failed` (with a plain-language `reason`), `call-lost` (a call that was up lost its other end; the
-script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `key-changed` (a number answered with a
+script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `dhcp-conflict` (two DHCP servers offered on the line, with both addresses), `key-changed` (a number answered with a
 different key than before), `site` (a splice box became `active` or `standby`), and for lines `line-joined` (with `line`,
 `members`), `member-joined`, `member-left` and `member-evicted` (each with `number`), `evicted` (you were put off the
 line), `line-partial` (with `members` and `up`: the mesh is still incomplete 30 seconds after joining) and

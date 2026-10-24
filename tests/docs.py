@@ -150,7 +150,7 @@ for c in sorted(cmds - doc_cmds):
 
 # ---------------------------------------------------------------- events
 engine = code("engine/*.c")
-node_events = set(re.findall(r'\\"event\\":\\"([a-z-]+)\\"', code("engine/call.c", "engine/site.c", "engine/line.c")))
+node_events = set(re.findall(r'\\"event\\":\\"([a-z-]+)\\"', code("engine/call.c", "engine/site.c", "engine/line.c", "engine/sw.c")))
 node_events |= set(re.findall(r'member_json\(n, "([a-z-]+)"', read("engine/line.c")))   # names passed to a helper
 sb_events = set(re.findall(r'\\"event\\":\\"([a-z-]+)\\"', code("engine/board.c")))
 m = re.search(r"\*\*Events\.\*\*(.*?)\n\n", cli, re.S)

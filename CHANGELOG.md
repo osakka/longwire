@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: smaller things
+
+- **A longer rekey for switchboard sessions** (`--sb-rekey`, 600 s), the same on the node and the switchboard.
+- **A warning when two DHCP servers share a line:** the switch reads the offers that pass and emits `dhcp-conflict`
+  once, with both addresses. Tested by `tests/dhcp.sh`.
+
 ## M3: the identity as words
 
 - **`longwire key export` and `longwire key import`.** The seed as 33 words from the safety-phrase list (one per byte, then a

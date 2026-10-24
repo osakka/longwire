@@ -77,6 +77,7 @@ announce() {
 	call-lost)        say "✗  lost the call to ${e[number]}: ${e[reason]}" ;;
 	site)             say "·  this box is now ${e[role]} for its LAN segment (${e[members]} on it)" ;;
 	hangup)           say "·  ${e[number]} hung up (${e[by]})" ;;
+	dhcp-conflict)    say "⚠  two DHCP servers answer on this line (${e[servers]}): clients may get clashing leases" ;;
 	key-changed)      say "⚠  KEY CHANGED for ${e[number]}: ${e[action]}" ;;
 	esac
 }

@@ -123,8 +123,8 @@ refuse at the first fragment, before it buffers anything. Details, sizes and lim
 
 | Key | Lifetime |
 |---|---|
-| seed | forever. Your identity; writing it out as 24 words *(planned: M3)* |
-| transport keys | `--rekey` (default 120 s) until the next handshake; hard limit 1.5 × that, or 2⁶⁰ packets |
+| seed | forever. Your identity; `longwire key export` writes it out as 33 words |
+| transport keys | `--rekey` (default 120 s; 600 s for a switchboard session, `--sb-rekey`) until the next handshake; hard limit 1.5 × that, or 2⁶⁰ packets |
 | line key | until a member is evicted, then rotated; it derives the site secret and never encrypts data |
 | call token | one call setup, under 10 s |
 | cookie secret | rotated every 120 s |

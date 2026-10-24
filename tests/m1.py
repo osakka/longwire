@@ -76,7 +76,7 @@ def main():
         os.makedirs(f"{T}/{name}/lw", exist_ok=True)
         n = Node(name, ns, "longwire.hibr",
                  ["up", "--switchboard", f"192.0.2.10:1877/{addr}", "--sock-port", f"{T}/{name}/p:{T}/{name}/h",
-                  "--listen", f"{ip}:{port}", "--answer", answer, "--token", token, "--keepalive", "5", "--rekey", "8", *extra])
+                  "--listen", f"{ip}:{port}", "--answer", answer, "--token", token, "--keepalive", "5", "--rekey", "8", "--sb-rekey", "8", *extra])
         n.frames = Collector(f"{T}/{name}/h")
         return n
     # D's pin store already claims E's (reserved) number belongs to some other key

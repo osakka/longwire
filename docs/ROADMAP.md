@@ -61,7 +61,9 @@ relayed pair upgrades to direct once a path exists.
   member decides who joins and can revoke centrally. Member vouching stays the default; the desktop pane needs to know which
   kind of line it is looking at.
 - IPv6: the underlay, and neighbour-discovery suppression
-- Smaller things: a longer rekey for switchboard sessions; a warning when two DHCP servers share a line;  number
+- *Built:* a longer rekey for switchboard sessions (`--sb-rekey`, 600 s).
+- *Built:* the warning when two DHCP servers share a line (`dhcp-conflict`).
+- Smaller things: number
   release after a year unused. *Built:* `longwire key export` and `import`
 
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install longwire`,

@@ -84,8 +84,9 @@ Bridging L2 over the internet carries the LAN's chatter. longwire trims it witho
   announcements (sender address 0, or sender = target) always cross. IPv6 neighbour discovery *(planned: M3)*.
 - **Flood budget.** Frames flooded to a peer are limited to 1000 a second after a burst of 200, per peer. A
   broadcast storm costs the WAN almost nothing; a unicast frame to a known address is never limited.
-- **DHCP stays honest.** DHCP is not filtered: a line has one subnet and normally one DHCP server. A warning when two
-  sites each run one *(planned: M3)*.
+- **DHCP stays honest.** DHCP is not filtered: a line has one subnet and normally one DHCP server. The switch watches the DHCP offers
+  that pass through it, and when two different servers have offered within ten minutes it says so once (the
+  `dhcp-conflict` event, and the `dhcp_conflicts` count in status). It warns and changes nothing.
 
 ## 4. Two boxes on one segment: site groups
 

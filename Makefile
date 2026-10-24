@@ -33,6 +33,7 @@ check: all lint
 	sh tests/names.sh
 	sh tests/registry.sh
 	sh tests/key.sh
+	sh tests/dhcp.sh
 	python3 -I tests/docs.py
 
 clean:

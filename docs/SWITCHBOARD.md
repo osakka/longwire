@@ -109,7 +109,7 @@ whom: the registry on disk (`numbers.log`) holds numbers and keys, never calls.
 
 Everything the switchboard does not do yet is marked where it is described and listed under its milestone in the
 [ROADMAP](ROADMAP.md): NAT-type detection (`ECHO`) *(planned: M3)*,
-number release *(planned: M3)*, and a longer rekey interval for switchboard sessions *(planned: M3)*.
+and number release *(planned: M3)*.
 
 ## What it sees
 
@@ -126,7 +126,7 @@ number release *(planned: M3)*, and a longer rekey interval for switchboard sess
   append-only file, `numbers.log`, that is read when the worker starts. A live session costs about the size of one
   peer slot (roughly 10 KB); the worker holds **1,024** by default (`--max-nodes`), and when the table is full it
   recycles the stalest slot that has no session.
-- **Work:** one handshake per node every 2 minutes (the default rekey), one heartbeat every `--keepalive` seconds,
+- **Work:** one handshake per node every 10 minutes (`--sb-rekey`), one heartbeat every `--keepalive` seconds,
   plus calls. The handshake budget is **2,000/s** against 50/s for an ordinary node, and cookies are asked for only
   once more than half of it is spent ([PROTOCOL §3](PROTOCOL.md#3-sessions-and-timers)), so in normal operation no node
   pays the extra round trip. A handshake costs a few milliseconds of CPU under TCC (about 5 ms for both ends together, [CRYPTO §6](CRYPTO.md#6-measured)), most of it on the responder.

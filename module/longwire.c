@@ -245,6 +245,8 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->policy_script = !strcmp(v, "script");
 		else if (!strcmp(a, "--maxpeers"))
 			c->maxpeers = atoi(v);
+		else if (!strcmp(a, "--sb-rekey"))
+			c->sb_rekey = atoi(v);
 		else if (!strcmp(a, "--rekey"))
 			c->rekey_after = atoi(v);
 		else if (!strcmp(a, "--relay")) {

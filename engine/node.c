@@ -74,6 +74,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 	n->cfg = *cfg;
 	n->udp = n->port_fd = n->ctl_fd = -1;
 	n->rekey_after = cfg->rekey_after > 0 ? cfg->rekey_after : 120;
+	n->sb_rekey = cfg->sb_rekey > 0 ? cfg->sb_rekey : 600;
 	n->keepalive = cfg->keepalive > 0 ? cfg->keepalive : 25;
 	if (n->cfg.direct_retry <= 0)
 		n->cfg.direct_retry = 60;

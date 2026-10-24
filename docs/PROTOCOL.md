@@ -71,6 +71,7 @@ Only an authenticated packet can move an endpoint.
 |---|---|---|
 | `KEEPALIVE` | `--keepalive`, default 25 s | if nothing has been *sent* for that long, send a keepalive (holds NAT mappings open) |
 | `REKEY_AFTER` | `--rekey`, default 120 s | the session's initiator starts a new handshake; the other end starts one 10 s later if none has come. The old keys keep working until the new ones are confirmed |
+| `SB_REKEY` | `--sb-rekey`, default 600 s | `REKEY_AFTER` for a session with a switchboard, on both ends (`REJECT_AFTER` scales with it) |
 | `REJECT_AFTER` | 1.5 × `REKEY_AFTER` (180 s), or 2⁶⁰ packets | keys are erased, and nothing is sent or accepted under them |
 | `HS_RETRY` | 1, 2, 4, 8, then every 8 s | handshake retransmission; each retry is a fresh handshake |
 | `DEAD` | 3 × `KEEPALIVE` + 1 s with nothing received | the session is dropped. The dialer starts a new handshake at once, and a node on a call reports `call-lost` if nothing replaces the session within 2 × `KEEPALIVE` |

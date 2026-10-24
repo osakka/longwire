@@ -38,6 +38,7 @@ typedef struct lw_cfg {
 	char port_arg[256];		/* NIC name | tap name | "mypath:peerpath" */
 	char listen[64];		/* "port" or "addr:port" */
 	int  rekey_after;		/* seconds, default 120 */
+	int  sb_rekey;			/* seconds, default 600: the rekey interval of switchboard sessions */
 	int  keepalive;			/* seconds, default 25 */
 	int  mtu;			/* port MTU, default 1400 */
 	int  npeers;
