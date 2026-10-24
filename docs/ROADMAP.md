@@ -63,8 +63,7 @@ relayed pair upgrades to direct once a path exists.
 - IPv6: the underlay, and neighbour-discovery suppression
 - *Built:* a longer rekey for switchboard sessions (`--sb-rekey`, 600 s).
 - *Built:* the warning when two DHCP servers share a line (`dhcp-conflict`).
-- Smaller things: number
-  release after a year unused. *Built:* `longwire key export` and `import`
+- *Built:* number release after a year unheard, then held back for a year (`--release-after`). *Built:* `longwire key export` and `import`
 
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install longwire`,
 and then dial and pick up entirely from the hibr desktop.
@@ -96,7 +95,7 @@ from a killed primary under a load of 10,000 simulated nodes, every node is back
 lost or issued twice, and the operator can see all of it on a dashboard without reading a log. M8 makes the product
 trustworthy; M9 makes the *switchboard* something a third party can run as a service. What is true today is the baseline:
 
-- *Today:* one process, one registry file, about a hundred million possible local numbers, never released; 1,024 sessions by
+- *Today:* one process, one registry file, about a hundred million possible local numbers, released after a year unheard; 1,024 sessions by
   default; a status call and a script log for visibility; no failover; the switchboard's address is pinned by every node,
   so its key cannot be changed without re-pointing them.
 
@@ -122,8 +121,7 @@ agree to connect calls between them. Redundancy comes first; federation builds o
   switchboard introduces the two nodes through the two switchboards; the data path is still direct, as it is today.
 
 *Number space and lifecycle* (builds on number release, M3)
-- Numbers released after a year unused, then held back for another year before reuse so a stale pin cannot meet a stranger;
-  a warning when the space is half used. Names (ADR 0023) get the same life cycle.
+- A warning when the space is half used. Names (ADR 0023) get the same life cycle.
 
 *Scale*
 - More than a thousand sessions per worker (tens of thousands): a smaller peer slot for a node that only registers, one

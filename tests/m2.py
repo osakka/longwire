@@ -115,6 +115,7 @@ def main():
         stdout=subprocess.PIPE, text=True)
     L.procs.append(srv)
     time.sleep(0.5)
+    print(f"   (host {L.quiet_machine() * 100:.0f}% idle before the TCP transfer)", flush=True)
     s0 = SA.status()["frames_split"] + SB.status()["frames_split"]
     r0 = tcp_stats(a1)
     t0 = time.time()

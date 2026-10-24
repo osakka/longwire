@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include "int.h"
@@ -20,6 +21,7 @@ typedef struct reg {
 	char    number[NUMLEN + 1];
 	uint8_t bundle[LW_BUNDLE], key_id[32];
 	double  seen;
+	long    wall, wall_logged;		/* unix time last heard, and the last time that was written to the log */
 	char    name[LW_NAME_MAX + 1];		/* in memory only: sent again whenever the node registers */
 	int     listed;
 	double  look_tok, look_t;		/* a budget for directory lookups */
@@ -59,7 +61,16 @@ struct codeent {				/* the registry's book: which switchboard key holds which co
 	char    code[10];
 };
 
+struct held {				/* a released number: kept back for as long as it was unused, so a stale pin cannot meet a stranger */
+	char    number[NUMLEN + 1];
+	uint8_t bundle[LW_BUNDLE], key_id[32];
+	long    released;
+};
+
 struct board {
+	struct held *held;
+	int    nheld, capheld;
+	double sweep_at;
 	struct codeent *codes;
 	int    ncodes, capcodes, seq;		/* seq: how many codes have been handed out in order (not counting the reserved 1) */
 	char   clog[320];
@@ -260,6 +271,109 @@ static reg *reg_by_number(struct board *b, const char *num)
 	return 0;
 }
 
+static struct held *held_by_number(struct board *b, const char *num)
+{
+	int i;
+
+	for (i = 0; i < b->nheld; i++)
+		if (!strcmp(b->held[i].number, num))
+			return &b->held[i];
+	return 0;
+}
+
+static struct held *held_by_key(struct board *b, const uint8_t k[32])
+{
+	int i;
+
+	for (i = 0; i < b->nheld; i++)
+		if (!crypto_verify32(b->held[i].key_id, k))
+			return &b->held[i];
+	return 0;
+}
+
+static void held_drop(struct board *b, struct held *h)
+{
+	*h = b->held[--b->nheld];
+}
+
+static void held_add(struct board *b, const reg *r, long when)
+{
+	struct held *h;
+
+	if (b->nheld == b->capheld) {
+		b->capheld = b->capheld ? b->capheld * 2 : 16;
+		b->held = realloc(b->held, (size_t)b->capheld * sizeof *b->held);
+	}
+	h = &b->held[b->nheld++];
+	memcpy(h->number, r->number, sizeof h->number);
+	memcpy(h->bundle, r->bundle, LW_BUNDLE);
+	memcpy(h->key_id, r->key_id, 32);
+	h->released = when;
+}
+
+/* The seconds a number may go unheard before it is released, and for which it is then held back (docs/SWITCHBOARD.md). */
+static long release_after(const lw_node *n)
+{
+	return n->cfg.release_after > 0 ? n->cfg.release_after : 365L * 86400;
+}
+
+static void log_line(struct board *b, const char *fmt, const char *num, long when, const char *extra)
+{
+	FILE *f = fopen(b->log, "a");
+
+	if (!f)
+		return;
+	chmod(b->log, 0600);
+	fprintf(f, fmt, num, when, extra);
+	fclose(f);
+}
+
+/* A node was heard: remember when, in the log at most once in a while (a tenth of the release time, an hour at most). */
+static void heard(lw_node *n, reg *r)
+{
+	struct board *b = n->bd;
+	long w = (long)time(0), gap = release_after(n) / 10;
+
+	r->seen = n->now;
+	r->wall = w;
+	if (gap > 3600)
+		gap = 3600;
+	if (gap < 1)
+		gap = 1;
+	if (w - r->wall_logged >= gap) {
+		r->wall_logged = w;
+		log_line(b, "seen %s %ld%s\n", r->number, w, "");
+	}
+}
+
+/* Release numbers unheard for a year, and forget those that have been held back for another. */
+static void sweep(lw_node *n)
+{
+	struct board *b = n->bd;
+	long w = (long)time(0), ra = release_after(n);
+	int i;
+
+	for (i = 0; i < b->n;) {
+		reg *r = &b->regs[i];
+
+		if (w - r->wall > ra) {
+			char kh[65];
+
+			lw_hex(kh, r->key_id, 32);
+			log_line(b, "released %s %ld %s\n", r->number, w, kh);
+			held_add(b, r, w);
+			ev_emit(n, "{\"event\":\"number-released\",\"number\":\"%s\"}", r->number);
+			*r = b->regs[--b->n];
+		} else
+			i++;
+	}
+	for (i = 0; i < b->nheld;)
+		if (w - b->held[i].released > ra)
+			held_drop(b, &b->held[i]);
+		else
+			i++;
+}
+
 static int cands_read(const uint8_t *p, size_t len, lw_cand *c, int *nc)
 {
 	int i, k;
@@ -363,6 +477,22 @@ int board_open(lw_node *n, char *err, size_t errn)
 			reg r;
 			unsigned i;
 
+			if (!strncmp(line, "seen ", 5) || !strncmp(line, "released ", 9)) {	/* later lines about a number above */
+				char what[16], khex[80] = "";
+				long when;
+				reg *q;
+				int m = sscanf(line, "%15s %15s %ld %79s", what, num, &when, khex);
+
+				if (m < 3 || !(q = reg_by_number(b, num)))
+					continue;
+				if (what[0] == 's') {
+					q->wall = q->wall_logged = when;
+				} else {
+					held_add(b, q, when);
+					*q = b->regs[--b->n];
+				}
+				continue;
+			}
 			if (sscanf(line, "%15s %79s", num, kh) != 2 || strlen(num) != NUMLEN || !(bh = strrchr(line, ' ')))
 				continue;
 			bh++;
@@ -380,6 +510,13 @@ int board_open(lw_node *n, char *err, size_t errn)
 			if (i != LW_BUNDLE || r.bundle[0] != 1)
 				continue;
 			lw_h(r.key_id, r.bundle, LW_BUNDLE);
+			r.wall = (long)time(0);		/* no record of when it was heard: counts from now */
+			{
+				struct held *h = held_by_number(b, r.number);
+
+				if (h)				/* its owner came back while it was held */
+					held_drop(b, h);
+			}
 			if (b->n == b->cap) {
 				b->cap = b->cap ? b->cap * 2 : 64;
 				b->regs = realloc(b->regs, (size_t)b->cap * sizeof *b->regs);
@@ -447,21 +584,26 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 	struct board *b = n->bd;
 	reg r;
 	const char *why;
+	struct held *h;
 	int tries;
 
 	memset(&r, 0, sizeof r);
 	memcpy(r.bundle, p->bundle, LW_BUNDLE);
 	memcpy(r.key_id, p->key_id, 32);
 	if (reserved) {				/* a token reserved this number: it is theirs, or the answer is no */
-		if (strlen(reserved) != NUMLEN || !damm_ok(reserved, NUMLEN) || reg_by_number(b, reserved)) {
+		if (strlen(reserved) != NUMLEN || !damm_ok(reserved, NUMLEN) || reg_by_number(b, reserved) ||
+		    ((h = held_by_number(b, reserved)) && crypto_verify32(h->key_id, p->key_id))) {
 			refuse(n, p, "the number reserved for this token is not available");
 			return;
 		}
 		memcpy(r.number, reserved, NUMLEN + 1);
+	} else if ((h = held_by_key(b, p->key_id))) {	/* released while away, and now back: the same number, if still held */
+		memcpy(r.number, h->number, sizeof r.number);
+		held_drop(b, h);
 	} else
 		for (tries = 0; tries < 20; tries++) {
 			mint_number(r.number);
-			if (!reg_by_number(b, r.number))
+			if (!reg_by_number(b, r.number) && !held_by_number(b, r.number))
 				break;
 		}
 	if (reg_by_number(b, r.number)) {
@@ -472,7 +614,10 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 		refuse(n, p, why);
 		return;
 	}
+	if ((h = held_by_number(b, r.number)))		/* the same key, restored (a stranger was refused or skipped above) */
+		held_drop(b, h);
 	r.seen = n->now;
+	r.wall = r.wall_logged = (long)time(0);
 	snprintf(r.name, sizeof r.name, "%s", name);
 	r.listed = listed;
 	if (b->n == b->cap) {
@@ -636,7 +781,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		if (r) {				/* the same key always gets the same number */
 			snprintf(r->name, sizeof r->name, "%s", nm_);
 			r->listed = listed_;
-			r->seen = n->now;
+			heard(n, r);
 			send_number(n, p, r, n->home_code);
 			return;
 		}
@@ -667,7 +812,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 	case M_HEARTBEAT:
 		if (!r)
 			return;
-		r->seen = n->now;
+		heard(n, r);
 		{
 			uint8_t a[6];
 			lw_cand c;
@@ -740,7 +885,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 
 		if (!r || len < NUMLEN + 1)
 			return;
-		r->seen = n->now;
+		heard(n, r);
 		memcpy(num, pl, NUMLEN);
 		num[NUMLEN] = 0;
 		if ((cn = cands_read(pl + NUMLEN, len - NUMLEN, cc, &nc)) < 0)
@@ -849,6 +994,12 @@ void board_timers(lw_node *n)
 	int i;
 
 	registration_timers(n);			/* with the registry of codes, if we have one */
+	if (n->now >= b->sweep_at) {
+		long iv = release_after(n) / 10;
+
+		b->sweep_at = n->now + (iv < 1 ? 1 : iv > 3600 ? 3600 : iv);
+		sweep(n);
+	}
 
 	for (i = 0; i < MAXCALLS; i++)
 		if (b->calls[i].used && n->now > b->calls[i].deadline) {

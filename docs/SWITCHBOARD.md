@@ -32,9 +32,12 @@ connected, the switchboard can go away and the call stays up.
 - **Tokens (optional).** A private switchboard can require an invite token to register (`--tokens FILE`). A token
   can carry a reserved number, so only the key that presents that token can have that number; the token is spent
   when it is used.
-- **Never released.** A number, once issued, is kept for good. Releasing one that has been unused for a year *(planned:
-  M3)* needs the time it was last seen to be stored, which the registry doesn't do yet. A re-issued number would show
-  up on every node that pinned the old key as `key-changed`, and the call would be refused.
+- **Released after a year unheard, then held.** The registry keeps the time each number was last heard (a `seen` line in
+  `numbers.log`, at most once an hour per node). A number unheard for `--release-after` (a year) is released: it stops
+  ringing and the switchboard emits `number-released`. It is then **held back** for as long again, and no stranger can
+  be given it in that time, so a pin somewhere cannot meet a different key by surprise. If its own key comes back
+  while it is held, it gets the same number. After the hold the number can be minted again; a node that pinned the old
+  key then sees `key-changed` and the call is refused. Names stay bound to their keys through all of this.
 - **The full number** (`lw1…`, 55 characters) is the key id in base32. A switchboard is given by it
   (`--switchboard host:port/lw1…`; 64 hex digits also work). Dialing a full address instead of a number
   works when the switchboard has a directory and the node is listed in it ([ADR 0023](adr/0023-names-are-opt-in-claims.md)).
@@ -91,6 +94,7 @@ answers with this policy:
 | `--registry HOST:PORT/KEY\|none` | required | the registry of switchboard codes, which gives this switchboard its short code. `none` for a private switchboard, which keeps its derived code. Required until the project's registry is running |
 | `--issue-codes` | off | this switchboard is a registry: switchboards register with it for a code (`codes.log` in `--state` holds who has which) |
 | `--public-switchboard KEY` | none | on a registry: the switchboard (`lw1…` or hex) that is given the code `+1` |
+| `--release-after TIME` | 365d | how long a number may go unheard before it is released, and held back after (`365d`, `12h`, `90s`; a bare number is days) |
 | `--codes-per-ip-day N` | 2 | on a registry: codes asked for per source address per day. The count is kept in memory, so a restart of the registry resets it |
 | `--caller-id on\|off` | on | carry the name a caller announced on its rings; off drops names |
 | `--directory on\|off` | on | answer lookups for nodes that listed themselves; off answers none |
@@ -108,8 +112,7 @@ refuses to issue codes.
 whom: the registry on disk (`numbers.log`) holds numbers and keys, never calls.
 
 Everything the switchboard does not do yet is marked where it is described and listed under its milestone in the
-[ROADMAP](ROADMAP.md): NAT-type detection (`ECHO`) *(planned: M3)*,
-and number release *(planned: M3)*.
+[ROADMAP](ROADMAP.md): NAT-type detection (`ECHO`) *(planned: M3)*.
 
 ## What it sees
 

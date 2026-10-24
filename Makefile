@@ -34,6 +34,7 @@ check: all lint
 	sh tests/registry.sh
 	sh tests/key.sh
 	sh tests/dhcp.sh
+	sh tests/release.sh
 	python3 -I tests/docs.py
 
 clean:

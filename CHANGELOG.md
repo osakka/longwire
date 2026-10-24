@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: number release
+
+- **A number unheard for a year is released, then held back for another** (`--release-after`, default `365d`): the
+  registry stores when each number was last heard, nobody else can be given a held number, and its own key coming home
+  gets it back. Tested with a release time of 8 seconds by `tests/release.sh`, across a restart of the switchboard.
+
 ## M3: smaller things
 
 - **A longer rekey for switchboard sessions** (`--sb-rekey`, 600 s), the same on the node and the switchboard.

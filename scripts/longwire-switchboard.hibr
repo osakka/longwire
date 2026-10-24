@@ -8,6 +8,7 @@
 #   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
 #                        [--per-ip-hour N] [--rings-per-minute N] [--max-nodes N]
 #                        [--caller-id on|off] [--directory on|off]
+#                        [--release-after TIME]
 #                        --registry HOST:PORT/KEY|none [--issue-codes [--public-switchboard KEY]] [--codes-per-ip-day N]
 #
 # --tokens FILE   registration needs a token: one per line, "TOKEN" or
@@ -17,6 +18,8 @@
 #                 a node only appears in either if it asked to).
 # --registry      the registry of switchboard codes, which gives this switchboard its short code (+1, +20, ...); "none"
 #                 for a private switchboard, which keeps its derived code (+0...). Required.
+# --release-after TIME   a number unheard for that long is released, then held back for as long again (default 365d;
+#                 days, or a suffix s, m, h or d). Its owner coming back in that time gets the same number.
 # --issue-codes   this switchboard IS a registry: it gives codes to switchboards that register with it
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
@@ -32,6 +35,7 @@ registry=
 issue_codes=
 public_sb=
 codes_per_ip_day=2
+release_after=365d
 
 mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
 
@@ -47,6 +51,7 @@ while [ $# -gt 0 ]; do
 	--issue-codes) issue_codes=1; shift; continue ;;
 	--public-switchboard) public_sb=$2 ;;
 	--codes-per-ip-day) codes_per_ip_day=$2 ;;
+	--release-after) release_after=$2 ;;
 	--caller-id) caller_id=$2 ;;
 	--directory) directory=$2 ;;
 	-h|--help) sed -n '4,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -123,8 +128,17 @@ on_dial() {
 
 run() { "$@" || { echo "longwire-switchboard: ${ERRMSG:-failed}" >&2; exit 1; }; }
 
+case "$release_after" in
+*s) release_secs=${release_after%s} ;;
+*m) release_secs=$(( ${release_after%m} * 60 )) ;;
+*h) release_secs=$(( ${release_after%h} * 3600 )) ;;
+*d) release_secs=$(( ${release_after%d} * 86400 )) ;;
+*[!0-9]*) echo "longwire-switchboard: --release-after wants a time like 365d, 12h or 90s" >&2; exit 2 ;;
+*) release_secs=$(( release_after * 86400 )) ;;
+esac
+
 run lw key new "$SB_DIR/seed" > /dev/null
-run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} > /dev/null
+run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" --release-after "$release_secs" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} > /dev/null
 addr=$(lw key address "$SB_DIR/seed")
 echo "switchboard  $addr   (give this full address to your nodes)"
 echo "listening    udp $listen    tokens: ${tokens:-open registration}"

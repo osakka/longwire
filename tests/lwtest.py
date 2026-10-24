@@ -35,6 +35,20 @@ def finish(label):
     sys.exit(1 if fails else 0)
 
 
+def quiet_machine(idle=0.6, timeout=90):
+    """Timing-sensitive checks measure the machine as much as the code. Wait (up to `timeout` s) until the host is at
+    least `idle` idle over a second, so a busy neighbour does not read as packet loss. Returns the idle fraction seen."""
+    def cpu():
+        v = [int(x) for x in open("/proc/stat").readline().split()[1:]]
+        return v[3] + v[4], sum(v)
+    end, f = time.time() + timeout, 0.0
+    while True:
+        i0, t0 = cpu(); time.sleep(1); i1, t1 = cpu()
+        f = (i1 - i0) / max(1, t1 - t0)
+        if f >= idle or time.time() > end:
+            return f
+
+
 def sh(cmd):
     subprocess.run(shlex.split(cmd), check=True)
 
