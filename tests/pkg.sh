@@ -9,7 +9,7 @@ HIBR=${HIBR:-../hibr/build/hibr}
 VER=$(cat VERSION)
 fails=0
 check() { if [ "$1" = 0 ]; then echo "ok   $2"; else echo "FAIL $2"; fails=$((fails + 1)); fi; }
-for t in dpkg-deb rpmbuild rpm makepkg bsdtar fakeroot; do
+for t in dpkg-deb rpmbuild rpm rpm2cpio cpio makepkg bsdtar zstd fakeroot objdump; do
 	command -v $t > /dev/null || { echo "skip: $t is not installed, so the packages cannot be built here"; exit 0; }
 done
 
@@ -32,18 +32,22 @@ for f in usr/bin/longwire usr/bin/longwire-switchboard usr/lib/hibr/longwire.so 
 	[ -e "$T/deb/$f" ] && [ -e "$T/rpm/$f" ] && [ -e "$T/arch/$f" ]; check $? "all three hold $f"
 done
 ! find "$T/deb" "$T/rpm" "$T/arch" -name '*.hibr' | grep -q .; check $? "none holds a script: those come from the catalogue"
+for d in deb rpm arch; do (cd "$T/$d" && find usr/bin usr/lib -type f | sort | xargs sha256sum) > "$T/files.$d"; done
+cmp -s "$T/files.deb" "$T/files.rpm" && cmp -s "$T/files.deb" "$T/files.arch"; check $? "the commands, module and services are byte-identical in all three, and nothing else is in them"
+for d in deb rpm arch; do (cd "$T/$d" && find usr -type f -perm /022 | grep -v . ); done > "$T/writable"; [ ! -s "$T/writable" ]; check $? "nothing in any of them is writable by group or other"
 a=$(sha256sum < "$T/deb/usr/lib/hibr/longwire.so"); b=$(sha256sum < "$T/rpm/usr/lib/hibr/longwire.so"); c=$(sha256sum < "$T/arch/usr/lib/hibr/longwire.so")
 [ "$a" = "$b" ] && [ "$b" = "$c" ]; check $? "the module is the same file in all three"
 cmp -s "$T/deb/usr/bin/longwire" packaging/launcher.sh && cmp -s "$T/deb/usr/bin/longwire-switchboard" packaging/launcher.sh; check $? "the two launchers are the launcher"
 
 # --- what they say they need: the oldest hibr the suite has been run against (HIBR_MIN), and the version they carry
 hv=$(cat HIBR_MIN)
+HSRC=${HIBR_SRC:-../hibr}
 dpkg-deb -f "$DEB" Depends | grep -q "hibr (>= $hv)"; check $? "the deb depends on hibr $hv or newer"
-[ "$(printf "%s\n%s\n" "$hv" "$(sed -n 's/^#define HIBR_VER "\(.*\)"/\1/p' ../hibr/include/hibr.h)" | sort -V | head -1)" = "$hv" ]; check $? "...and that is no newer than the hibr the module is built against"
+[ "$(printf "%s\n%s\n" "$hv" "$(sed -n 's/^#define HIBR_VER "\(.*\)"/\1/p' "$HSRC/include/hibr.h")" | sort -V | head -1)" = "$hv" ]; check $? "...and that is no newer than the hibr the module is built against"
 rpm -qp --requires "$RPM" 2> /dev/null | grep -q "hibr >= $hv"; check $? "the rpm requires it too"
 bsdtar -xOf "$ARC" .PKGINFO 2> /dev/null | grep -q "depend = hibr>=$hv"; check $? "and so does the pacman package"
 ! rpm -qp --provides "$RPM" 2> /dev/null | grep -q '\.so'; check $? "the rpm provides no library names (it is a module, not a library)"
-grep -aq "$VER" "$T/deb/usr/lib/hibr/longwire.so"; check $? "the module carries the version $VER"
+strings -a "$T/deb/usr/lib/hibr/longwire.so" | grep -qx "$VER"; check $? "the module carries the version $VER"
 
 # --- the module in the package loads and works
 $HIBR -c "mod load $T/deb/usr/lib/hibr/longwire.so; lw key new $T/seed; lw key id $T/seed" > "$T/id" 2>&1
@@ -72,7 +76,12 @@ out=$(HOME="$T/home2" XDG_CONFIG_HOME="$T/none" LONGWIRE_SCRIPTS="$PWD/scripts" 
 
 if command -v systemd-analyze > /dev/null; then
 	mkdir -p "$T/units"
-	systemd-analyze verify --man=no "$T/deb/usr/lib/systemd/system/longwire-switchboard.service" 2> "$T/sd.log" || true
-	! grep -qi "unknown\|invalid\|bad\|failed to parse" "$T/sd.log"; check $? "systemd reads the switchboard service without complaint"
+	cp "$T/deb/usr/lib/systemd/system/"*.service "$T/units/"
+	for u in longwire-switchboard.service longwire@.service; do
+		systemd-analyze verify --man=no "$T/units/$u" 2> "$T/sd.log"; rc=$?
+		! grep -qi "unknown\|invalid\|unit file .* is\|failed to parse\|bad " "$T/sd.log"; check $? "systemd reads $u without complaint (rc $rc)"
+	done
+	grep -q "AF_NETLINK" "$T/deb/usr/lib/systemd/system/longwire@.service" && grep -q "AF_NETLINK" "$T/deb/usr/lib/systemd/system/longwire-switchboard.service"; check $? "both services allow AF_NETLINK, which listing interface addresses needs"
+	grep -q "StateDirectory=longwire/%i" "$T/deb/usr/lib/systemd/system/longwire@.service"; check $? "each node instance has a state directory of its own"
 fi
 [ $fails -eq 0 ] && echo "packages: all ok" || { echo "FAILED: $fails"; exit 1; }

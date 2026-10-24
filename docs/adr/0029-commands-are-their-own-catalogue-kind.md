@@ -33,6 +33,14 @@ Scripts that are commands are published under a tenth kind, **`cli`**, and insta
 
 ## Consequences
 
+- **`HIBR_MIN` rises with it.** The packages depend on hibr 0.99.265, which runs the module and passes the whole suite but
+  cannot install a `cli` entry. When a release carries the kind, `HIBR_MIN` becomes that release, because from then on a
+  package that tells you to `catalogue install cli/…` is only true of a hibr that can.
+- **Trust.** The services run the installed script unattended, with a packet socket. The catalogue treats a `cli` script as it
+  treats an application (an unverifiable catalogue is a warning), so a machine's operator should read it first with
+  `catalogue show cli/NAME`; whether a command should be refused from an unsigned catalogue, as a module is, is hibr's to decide.
+  The services read the script only from the machine's scope (`LONGWIRE_SCRIPTS=/var/lib/hibr/cli`), never from their own
+  writable home.
 - The bundles are published when a hibr release has the kind (a client without it lists them and cannot install them), and the
   packages are published with them: they say `catalogue install cli/longwire cli/longwire-switchboard`, which works from
   then on *(planned: M4)*.

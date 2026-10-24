@@ -39,6 +39,7 @@ make -s HIBR_SRC="$HIBR_SRC" > /dev/null
 make -s HIBR_SRC="$HIBR_SRC" PREFIX=/usr DESTDIR="$STAGE" install > /dev/null
 
 glibc=$(objdump -T "$STAGE/usr/lib/hibr/longwire.so" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
+[ -n "$glibc" ] || { echo "build-deb: cannot read the glibc symbol versions of the module (is objdump installed?)" >&2; exit 1; }
 size=$(du -sk "$STAGE/usr" | cut -f1)
 
 install -d "$STAGE/usr/share/doc/longwire"
@@ -52,7 +53,7 @@ Version: $VER-$REV
 Architecture: $ARCH
 Maintainer: osakka <osakka@gmail.com>
 Installed-Size: $size
-Depends: libc6 (>= ${glibc:-2.34}), hibr (>= $HMIN)
+Depends: libc6 (>= $glibc), hibr (>= $HMIN)
 Recommends: ca-certificates
 Section: net
 Priority: optional

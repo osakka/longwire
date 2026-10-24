@@ -2,6 +2,8 @@
 # Configure /etc/longwire/eth0.conf with one line, for example
 #     ARGS="--switchboard HOST:PORT/KEY --answer known"
 # The script comes from the catalogue, for the machine:  sudo catalogue --system install cli/longwire
+# AF_NETLINK is for listing the interface addresses (candidates); each instance has a state directory of its own, so two NICs
+# are two identities. The script is read from the machine's scope only: this service's own writable home is never searched.
 # CAP_NET_RAW opens the packet socket and is the only privilege; `lw start` clears every capability the moment it is open.
 [Unit]
 Description=longwire site node (splice on %I)
@@ -13,15 +15,16 @@ ConditionPathExists=/etc/longwire/%i.conf
 [Service]
 Type=simple
 EnvironmentFile=/etc/longwire/%i.conf
-Environment=HOME=/var/lib/longwire
+Environment=HOME=/var/lib/longwire/%i
+Environment=LONGWIRE_SCRIPTS=/var/lib/hibr/cli
 Environment=LONGWIRE_MOD=/usr/lib/hibr/longwire.so
 ExecStart=/usr/bin/longwire up --splice %i $ARGS
 DynamicUser=yes
-StateDirectory=longwire
+StateDirectory=longwire/%i
 StateDirectoryMode=0700
 AmbientCapabilities=CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_RAW
-Restart=always
+Restart=on-failure
 RestartSec=2
 NoNewPrivileges=yes
 ProtectSystem=strict
@@ -30,7 +33,7 @@ PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_PACKET
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_PACKET AF_NETLINK
 
 [Install]
 WantedBy=multi-user.target

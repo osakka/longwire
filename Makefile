@@ -15,7 +15,7 @@ VENDOR = vendor/monocypher/monocypher.c vendor/monocypher/monocypher-ed25519.c \
 
 all: $(B)/longwire.so
 
-$(B)/longwire.so: module/longwire.c engine/*.c engine/*.h $(VENDOR) | $(B)
+$(B)/longwire.so: module/longwire.c engine/*.c engine/*.h $(VENDOR) VERSION | $(B)
 	$(CC) -shared -fPIC -DLW_VERSION='"$(VERSION)"' -I$(HIBR_SRC)/include -Ivendor/mlkem768 -o $@ module/longwire.c engine/all.c $(VENDOR)
 
 # TCC's own warnings, as errors, on everything we wrote (the vendored code is upstream's).
@@ -53,15 +53,16 @@ install: all
 	install -m 755 $(B)/longwire.so $(DESTDIR)$(PREFIX)/lib/hibr/longwire.so
 	install -m 755 packaging/launcher.sh $(DESTDIR)$(PREFIX)/bin/longwire
 	install -m 755 packaging/launcher.sh $(DESTDIR)$(PREFIX)/bin/longwire-switchboard
-	install -m 644 packaging/systemd/longwire-switchboard.service packaging/systemd/longwire@.service \
-		$(DESTDIR)$(PREFIX)/lib/systemd/system/
+	for u in longwire-switchboard.service longwire@.service; do \
+		sed -e 's|/usr/bin/|$(PREFIX)/bin/|g' -e 's|/usr/lib/hibr/|$(PREFIX)/lib/hibr/|g' packaging/systemd/$$u \
+			> $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u && chmod 644 $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u; done
 	install -m 644 README.md COPYING CHANGELOG.md docs/*.md $(DESTDIR)$(PREFIX)/share/doc/longwire/
 
 # Packages, into build/pkg: the deb first, and the rpm and the pacman package from the deb's own files.
 packages: all
 	sh packaging/deb/build-deb.sh $(B)/pkg
-	sh packaging/rpm/build-rpm.sh $(B)/pkg/longwire_$(VERSION)-1_$$(dpkg --print-architecture).deb $(B)/pkg
-	sh packaging/arch/build-pkg.sh $(B)/pkg/longwire_$(VERSION)-1_$$(dpkg --print-architecture).deb $(B)/pkg
+	sh packaging/rpm/build-rpm.sh $(B)/pkg/longwire_$(VERSION)-$(or $(DEB_REVISION),1)_$$(dpkg --print-architecture).deb $(B)/pkg
+	sh packaging/arch/build-pkg.sh $(B)/pkg/longwire_$(VERSION)-$(or $(DEB_REVISION),1)_$$(dpkg --print-architecture).deb $(B)/pkg
 
 clean:
 	rm -rf $(B)

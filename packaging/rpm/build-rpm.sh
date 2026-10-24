@@ -70,6 +70,7 @@ echo "longwire: (add --system as root to install them for the whole machine and 
 /usr/lib/hibr/longwire.so
 /usr/lib/systemd/system/longwire-switchboard.service
 /usr/lib/systemd/system/longwire@.service
+%dir /usr/share/doc/longwire
 %license /usr/share/doc/longwire/COPYING
 %doc /usr/share/doc/longwire/*.md
 /usr/share/doc/longwire/changelog.gz

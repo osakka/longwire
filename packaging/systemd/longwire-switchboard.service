@@ -14,6 +14,7 @@ ConditionPathExists=/etc/longwire/switchboard.conf
 Type=simple
 EnvironmentFile=/etc/longwire/switchboard.conf
 Environment=HOME=/var/lib/longwire-switchboard
+Environment=LONGWIRE_SCRIPTS=/var/lib/hibr/cli
 Environment=SB_DIR=/var/lib/longwire-switchboard
 Environment=LONGWIRE_MOD=/usr/lib/hibr/longwire.so
 ExecStart=/usr/bin/longwire-switchboard $ARGS
@@ -29,7 +30,7 @@ PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 CapabilityBoundingSet=
 
 [Install]
