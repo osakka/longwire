@@ -40,7 +40,7 @@ for n in "AB":
     s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM); s.bind(f"{T}/{n}host"); hosts[n] = s
 
 lw("start --seed", f"{T}/seedA --sock {T}/ctlA --listen 127.0.0.1:41101 --sock-port {T}/Aport:{T}/Ahost --peer {T}/bundleB@127.0.0.1:41102")
-lw("start --seed", f"{T}/seedB --sock {T}/ctlB --listen 127.0.0.1:41102 --sock-port {T}/Bport:{T}/Bhost --peer {T}/bundleA")
+lw("start --seed", f"{T}/seedB --sock {T}/ctlB --listen 127.0.0.1:41102 --sock-port {T}/Bport:{T}/Bhost --peer {T}/bundleA@127.0.0.1:41101")
 end = time.time() + 15
 while time.time() < end:
     try:

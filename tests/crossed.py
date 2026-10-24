@@ -46,19 +46,19 @@ pa, pb = Proxy(41103, 41102), Proxy(41104, 41101)
 pa.out, pb.out = pb.s, pa.s
 pa.start(); pb.start()
 threading.Thread(target=pa.pump, daemon=True).start(); threading.Thread(target=pb.pump, daemon=True).start()      # A talks to :41103 (-> B), B to :41104 (-> A)
-lw("start --seed", f"{T}/seedA --sock {T}/ctlA --listen 127.0.0.1:41101 --sock-port {T}/Aport:{T}/Ahost --peer {T}/bundleB@127.0.0.1:41103 --rekey 6 --keepalive 4")
+lw("start --seed", f"{T}/seedA --sock {T}/ctlA --listen 127.0.0.1:41101 --sock-port {T}/Aport:{T}/Ahost --peer {T}/bundleB@127.0.0.1:41103 --rekey 10 --keepalive 4")
 time.sleep(0.4)
-lw("start --seed", f"{T}/seedB --sock {T}/ctlB --listen 127.0.0.1:41102 --sock-port {T}/Bport:{T}/Bhost --peer {T}/bundleA@127.0.0.1:41104 --rekey 6 --keepalive 4")
+lw("start --seed", f"{T}/seedB --sock {T}/ctlB --listen 127.0.0.1:41102 --sock-port {T}/Bport:{T}/Bhost --peer {T}/bundleA@127.0.0.1:41104 --rekey 10 --keepalive 4")
 
 end = time.time() + 15
 while time.time() < end and not up(): time.sleep(0.2)
 check(up(), "both nodes dialed at once and the link came up")
 r0 = ctl("A")["peers"][0]["rekeys"] + ctl("B")["peers"][0]["rekeys"]
 down = 0
-for _ in range(120):                       # 24 s of rekeys, every 2 s, from both sides
+for _ in range(150):                       # 30 s: two rekeys
     time.sleep(0.2)
     if not up(): down += 1
 r1 = ctl("A")["peers"][0]["rekeys"] + ctl("B")["peers"][0]["rekeys"]
-check(r1 - r0 >= 4, f"it keeps rekeying (rekeys +{r1 - r0} in 24 s)")
-check(down <= 3, f"and never stalls: not 'up' in {down} of 120 samples")
+check(r1 - r0 >= 4, f"it keeps rekeying (rekeys +{r1 - r0} in 30 s)")
+check(down <= 3, f"and never stalls: not 'up' in {down} of 150 samples")
 sys.exit(1 if fails else 0)

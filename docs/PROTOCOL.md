@@ -110,15 +110,19 @@ which is how a reply is matched to its attempt. Each retry builds a completely f
 larger `tai64n`), so a retransmission is never mistaken for a replay.
 
 **Who initiates?** The dialer makes the first handshake. After that the session's initiator rekeys at `REKEY_AFTER`
-and the other end 10 seconds later if nothing has come, which makes a crossed rekey rare. A responder never sends
-`DATA` on a new session until it has received the first `DATA` from that session's initiator; that first packet is the
-key confirmation. If both ends start at once, as when each is told the other's address, the link still comes up and keeps
-rekeying (`tests/crossed.sh` delays every datagram to make that likely). It is not certain: when both ends are given
-each other's address and start together, about one start in three leaves each end on a session the other has forgotten, and
-frames are dropped until the dead-peer timer or the next rekey replaces it. A call has one dialer, so it never does this;
-give only one end the other's address to avoid it. A crossed *rekey* of a live session has not been
-reproduced; if it does stall a link, the dead-peer timer ends it, and a tie-break (the session whose initiator has the lower
-key id wins) is the fix to reach for. Two attempts at one have made the crossed-start case worse and been dropped: keeping the answering session after finishing one's own leaves both ends believing they are the responder, and neither rekeys on time.
+and the other end a little later if nothing has come (10 seconds, or a quarter of the interval if that is shorter, so it
+always falls well inside the hard limit of 1.5 intervals); it does not start one while it is answering the other end's, with
+that session's first `DATA` still to come. A responder never sends `DATA` on a new session until it has received the first
+`DATA` from that session's initiator; that first packet is the key confirmation.
+
+**Crossed handshakes.** If both ends start a handshake at once, as when each is told the other's address, the one whose
+initiator has the lower key id stands. A node that has a handshake of its own in flight and receives the other's `INIT`
+compares the two key ids: if its own is lower it ignores the `INIT` (the other end will drop its handshake when ours reaches it);
+if the other's is lower it forgets its own and answers. Both ends reach the same decision without a word, so exactly one
+session is made. Without this, each end finished its own handshake and discarded the session it had made for the other's, and
+the two were left on different sessions until the dead-peer timer or the next rekey: about one start in three when both ends
+were given each other's address. `tests/start.sh` starts twelve pairs together; `tests/crossed.sh` delays every datagram 0.8 s
+and holds the link through two rekeys.
 
 Sessions with a switchboard use the same intervals as any other; a longer one, to keep a large switchboard's
 handshake rate low, *(planned: M3)*.

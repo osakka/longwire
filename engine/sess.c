@@ -297,9 +297,12 @@ void sess_timers(lw_node *n)
 			if (p->dial && p->eplen && n->now - p->last_hs_try >= 1.0)
 				hs_start(n, p);
 		} else {
-			double due = c->we_init ? rekey_of(n, p) : rekey_of(n, p) + 10.0;
+			double slack = rekey_of(n, p) / 4.0 < 10.0 ? rekey_of(n, p) / 4.0 : 10.0;	/* well inside the hard limit, even at a short interval */
+			double due = c->we_init ? rekey_of(n, p) : rekey_of(n, p) + slack;
 
-			if (p->eplen && n->now - c->born >= due && n->now - p->last_hs_try >= 1.0)
+			int answering = p->next.valid && n->now - p->next.born < 5.0;	/* the peer is rekeying us: its first data is on the way */
+
+			if (p->eplen && !answering && n->now - c->born >= due && n->now - p->last_hs_try >= 1.0)
 				hs_start(n, p);
 		}
 	}

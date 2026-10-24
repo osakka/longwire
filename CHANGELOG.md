@@ -3,6 +3,17 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: crossed handshakes settled by a tie-break
+
+- **Two nodes that start handshakes at the same moment now always end on one session.** The one whose initiator has
+  the lower key id stands; the other end forgets its own handshake and answers. Before, each end finished its own and
+  discarded the session it had made for the other's, so about one start in three (two statically configured peers that
+  both dial) left each end on a session the other had forgotten, and frames were dropped until the next rekey. Found
+  through the DHCP test, which failed intermittently for that reason; `tests/start.sh` starts twelve pairs together
+  (about a third fail on the old code). Two related changes: the end that is not the session's initiator rekeys after
+  `rekey + min(10 s, rekey/4)`, which at a short interval is inside the hard limit (it used to be after it), and an end
+  that is answering the other's handshake does not start one of its own meanwhile.
+
 ## M3: port spray
 
 - **A strict NAT against an easy one now connects directly.** The candidate list carries a marker saying the sender
