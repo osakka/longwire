@@ -51,6 +51,7 @@
 
 #define CAND_HOST 1
 #define CAND_REFL 2
+#define CAND_MAPPED 3		/* a port the home router agreed to keep open (NAT-PMP) */
 #define MAXCANDS 8
 #define NUMLEN 9
 #define TAG_ADMIT  1		/* optional parts of DIAL, RING and REGISTER: tag(1) len(1) bytes */
@@ -73,6 +74,8 @@ typedef struct lw_cand {
 
 static inline void put16(uint8_t *p, unsigned v) { p[0] = (uint8_t)(v >> 8); p[1] = (uint8_t)v; }
 static inline unsigned get16(const uint8_t *p) { return (unsigned)p[0] << 8 | p[1]; }
+static inline void put32(uint8_t *p, uint32_t v) { put16(p, v >> 16); put16(p + 2, v & 0xffff); }
+static inline uint32_t get32(const uint8_t *p) { return (uint32_t)get16(p) << 16 | get16(p + 2); }
 
 static inline int cand_put(uint8_t *p, const lw_cand *c)
 {

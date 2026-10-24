@@ -47,6 +47,7 @@ typedef struct lw_cfg {
 	int  role;			/* 0 node, 1 switchboard */
 	char switchboard[256];		/* "host:port/KEYID" (64 hex or lw1...), nodes only */
 	char state_dir[256];		/* pins ("known"), switchboard registry */
+	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	int  cand_loopback;		/* offer 127.x as a candidate: tests and same-host use */
 	int  policy_script;		/* switchboard: wait for the script's verdicts */
 	int  maxpeers;			/* default 16 (switchboard: 1024) */

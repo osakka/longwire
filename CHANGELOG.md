@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: NAT-PMP
+
+- **A mapped address as a candidate.** A node asks its default gateway for a mapping of its UDP port (NAT-PMP, RFC 6886),
+  shows it as `mapped` in status, and offers it to the other side. `--nat-pmp off` turns it off. Tested against a fake
+  gateway in `tests/pmp.sh`; no real router has been tried.
+
 ## M3: NAT-type detection
 
 - **`ECHO`.** A switchboard answers on its port plus one with the address it sees; a node compares the two and reports

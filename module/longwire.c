@@ -235,6 +235,8 @@ static int do_start(sh *s, int ac, char **av, int role)
 			snprintf(c->registry, sizeof c->registry, "%s", v);
 		else if (!strcmp(a, "--public-switchboard") && role)
 			snprintf(c->public_switchboard, sizeof c->public_switchboard, "%s", v);
+		else if (!strcmp(a, "--nat-pmp") && !role)
+			c->no_nat_pmp = !strcmp(v, "off");
 		else if (!strcmp(a, "--caller-id") && role)
 			c->no_caller_id = !strcmp(v, "off");
 		else if (!strcmp(a, "--directory") && role)

@@ -130,6 +130,7 @@ Every call tries the **direct** path. The switchboard is involved only until a p
 |---|---|
 | host | each local IPv4 address that is up (not loopback, not link-local; loopback only with `--cand-loopback`), with our UDP port. Finds a peer on the same LAN |
 | reflexive | the address the switchboard observed the node at, learned from `NUMBER` and `HBACK` |
+| mapped | the public address and port the home router agreed to keep for our UDP port, by NAT-PMP (RFC 6886): the node asks the default gateway (UDP 5351) for its public address and for a mapping of its own port for an hour, and renews halfway. Best effort: three tries, then again in half an hour. Type 3 on the wire |
 
 The switchboard adds the address it sees each side at to the list it passes on.
 
@@ -162,7 +163,7 @@ The full design is a ladder, each rung tried when the one before fails:
                             RELAY ◄─────────────────────┘ ─── retry DIRECT every 60 s → 10 min
 ```
 
-- **More candidates:** global IPv6, a NAT-PMP / PCP mapping, and relay candidates (public members of the line that
+- **More candidates:** global IPv6 *(planned: M3)*, PCP, and relay candidates (public members of the line that
   offer relaying).
 - **Mapping type** *(built)*. A switchboard also listens on its port plus one. A node sends that port an `ECHO`
   (`0x07 ‖ nonce:8`, padded to 40 bytes) and gets back `0x07 ‖ nonce:8 ‖ ip:4 ‖ port:2`, the address it was seen at.

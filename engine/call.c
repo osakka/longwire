@@ -232,6 +232,12 @@ static int gather(lw_node *n, lw_cand *out, int max)
 	freeifaddrs(ifa);
 	if (n->have_refl && c < max)
 		out[c++] = n->refl;
+	if (n->pmp.port && n->pmp.have_ip && c < max) {
+		memcpy(out[c].ip, n->pmp.ip, 4);
+		out[c].port = n->pmp.port;
+		out[c].type = CAND_MAPPED;
+		c++;
+	}
 	return c;
 }
 
@@ -1185,6 +1191,7 @@ void node_timers(lw_node *n)
 	int i;
 
 	registration_timers(n);
+	pmp_timers(n);
 	if (n->look.active && n->now - n->look.t > 5.0) {
 		n->look.active = 0;
 		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"the directory did not answer\"}");
@@ -1521,7 +1528,7 @@ int node_replay(lw_node *n, char *o, size_t cap)
 
 int node_status_json(lw_node *n, char *o, size_t cap)
 {
-	char codes_json[48] = "", kid[65], ep[64], num[16] = "", fullnum[40] = "", sbs[24], refl[64] = "";
+	char codes_json[48] = "", kid[65], ep[64], num[16] = "", fullnum[40] = "", sbs[24], refl[64] = "", mapped[64];
 	const char *cs = "idle";
 	int len, i, any = 0;
 
@@ -1549,13 +1556,16 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		snprintf(codes_json, sizeof codes_json, "%s%s%s\"%s\"", n->home_code[0] ? "\"" : "", n->home_code, n->home_code[0] ? "\"," : "", dc);
 	}
 	snprintf(sbs, sizeof sbs, "%s", n->sb < 0 ? "none" : sbp(n) ? (n->registered ? "dial tone" : "registering") : "no switchboard");
+	mapped[0] = 0;
+	if (n->pmp.port && n->pmp.have_ip)
+		snprintf(mapped, sizeof mapped, "%u.%u.%u.%u:%u", n->pmp.ip[0], n->pmp.ip[1], n->pmp.ip[2], n->pmp.ip[3], n->pmp.port);
 	if (n->have_refl)
 		snprintf(refl, sizeof refl, "%u.%u.%u.%u:%u", n->refl.ip[0], n->refl.ip[1], n->refl.ip[2], n->refl.ip[3], n->refl.port);
 	len = snprintf(o, cap,
-		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"call\":\"%s\","
+		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"mapped\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
 		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
-		kid, num, fullnum, sbs, refl, n->nat == 1 ? "easy" : n->nat == 2 ? "strict" : "unknown", cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
+		kid, num, fullnum, sbs, refl, n->nat == 1 ? "easy" : n->nat == 2 ? "strict" : "unknown", mapped, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,

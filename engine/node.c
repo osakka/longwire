@@ -223,6 +223,8 @@ void node_dispatch(lw_node *n, const uint8_t *buf, size_t r, const struct sockad
 {
 	if (buf[0] == T_DATA)
 		sess_input(n, buf, r, ss, sl);
+	else if (buf[0] == 0)			/* NAT-PMP has version 0 */
+		pmp_input(n, buf, r, ss, sl);
 	else if (buf[0] == T_COOKIE)
 		cookie_input(n, buf, r, ss, sl);
 	else if (buf[0] == T_PUNCH)

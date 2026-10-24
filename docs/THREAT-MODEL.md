@@ -44,6 +44,13 @@ What longwire defends against, what it does not, and what is still open. Designe
 - **Out of scope for v1:** hiding *that* two sites talk (traffic analysis, padding, cover traffic), anonymity, and
   resisting a compromised endpoint OS.
 
+## Port mapping
+
+A node asks its default gateway for a port mapping (NAT-PMP). Someone on the same LAN can answer in the gateway's
+place and make the node offer a wrong address; the cost is a failed attempt, because every path still ends in the
+authenticated handshake. A mapping also makes the node reachable by anyone who learns the address, which is what the
+handshake's costs and cookies are for. `--nat-pmp off` turns it off.
+
 ## Handshake floods
 
 Every handshake costs a KEM decapsulation, so each node keeps a budget (50 a second; 2000 on a switchboard). Past half

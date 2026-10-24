@@ -8,6 +8,7 @@
 #include "site.c"
 #include "line.c"
 #include "relay.c"
+#include "pmp.c"
 #include "port.c"
 #include "caps.c"
 #include "ctl.c"
