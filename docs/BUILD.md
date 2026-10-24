@@ -11,7 +11,7 @@ exceptions ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)). Anyt
 make                                   # tcc, about a second: build/longwire.so, against ../hibr/include/hibr.h
 export LONGWIRE_MOD=$PWD/build/longwire.so
 
-hibr scripts/longwire-switchboard.hibr --listen 0.0.0.0:1877     # on the switchboard host
+hibr scripts/longwire-switchboard.hibr --listen 1877     # on the switchboard host
 hibr scripts/longwire.hibr up --switchboard HOST:1877/lw1… --splice eth0       # on a node
 ```
 

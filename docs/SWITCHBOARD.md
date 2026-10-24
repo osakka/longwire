@@ -85,7 +85,7 @@ answers with this policy:
 
 | Option | Default | Does |
 |---|---|---|
-| `--listen ADDR:PORT` | `0.0.0.0:1877` | where to listen (UDP). It also listens on the next port up (1878) to answer `ECHO`, so a node can tell what kind of NAT it is behind; let both through a firewall, and leave the next port free when running several on one host |
+| `--listen PORT\|ADDR:PORT\|[ADDR]:PORT` | `1877` | where to listen (UDP): a bare port is IPv4 and IPv6 on any address, `ADDR:PORT` IPv4 only, `[ADDR]:PORT` IPv6 only, and a comma separates several ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)). It also listens on the next port up (1878) to answer `ECHO`, so a node can tell what kind of NAT it is behind; let both through a firewall, and leave the next port free when running several on one host |
 | `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when used. A spent or unknown token: `a valid token is needed to register here` |
 | `--per-ip-hour N` | 20 | registrations per source address per hour |
 | `--rings-per-minute N` | 6 | rings per callee per minute |
@@ -140,9 +140,9 @@ Everything the switchboard does not do yet is marked where it is described and l
 ## Running one
 
 ```
-$ longwire-switchboard --listen 0.0.0.0:1877
+$ longwire-switchboard --listen 1877
 switchboard  lw1q7m…k2a   (give this full address to your nodes)
-listening    udp 0.0.0.0:1877    tokens: open registration
+listening    udp 1877    tokens: open registration
 ```
 
 It needs hibr and the module, runs as an ordinary user, needs no capabilities (1877 is above 1024), and keeps

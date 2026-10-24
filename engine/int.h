@@ -141,7 +141,8 @@ typedef struct lw_call {
 	double   probe_last, probe_credit;
 	double   deadline, start_at, next_punch, lost_t;
 	int      have_verified;
-	struct sockaddr_in verified;
+	struct sockaddr_storage verified;
+	socklen_t verified_len;
 } lw_call;
 
 typedef struct lw_member {
@@ -232,6 +233,8 @@ struct lw_node {
 		uint16_t port;			/* the external port the router gave us, 0 for none */
 		double   next, expire;
 	} pmp;
+	int      udp6;
+	uint16_t udp6_port;	/* the IPv6 socket, if there is one: -1 otherwise */
 	int      udp2;			/* a switchboard's second port (udp_port + 1): answers ECHO, so a node can tell its NAT's mapping type */
 	int      nat;			/* 0 not measured, 1 easy (same mapping toward both ports), 2 strict (a new mapping per destination) */
 	uint8_t  echo_nonce[8];
@@ -243,6 +246,7 @@ struct lw_node {
 	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize;
 	uint16_t frag_id;
 	struct { uint32_t ip; uint8_t mac[6]; double t; } arp[256];
+	struct { uint8_t ip[16]; uint8_t mac[6]; double t; } nd[256];	/* IPv6 neighbours learned from neighbour discovery */
 	int      splice;			/* the local port is a NIC on a LAN segment */
 	uint8_t  nic_mac[6];
 	uint8_t  site_key[32], site_key_prev[32];
@@ -356,6 +360,9 @@ int  relay_live(const lw_node *n);							/* is this node reachable directly from
 /* sw.c */
 /* spray.c */
 int  peer_fd(const lw_node *n, const lw_peer *p);
+int  ufd(const lw_node *n, int family);			/* the socket that reaches an address of this family */
+void cand_sa(const lw_cand *c, struct sockaddr_storage *ss, socklen_t *sl);
+void sa_cand(const struct sockaddr *sa, lw_cand *c);
 void spray_close(lw_node *n);
 void spray_reap(lw_node *n);
 int  spray_is(const lw_node *n, int fd);

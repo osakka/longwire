@@ -77,7 +77,7 @@ and on the other machine's `up` terminal:
 | `--site-key FILE` | the secret shared by every splice box on this LAN segment, 64 hex digits. On a line the boxes derive it themselves from the line key; this is for two boxes that are not on one, and overrides the derived key ([ARCHITECTURE §4](ARCHITECTURE.md#4-two-boxes-on-one-segment-site-groups)) |
 | `--jack TAP` | attach a tap device you own (`longwire setup jack`) |
 | `--sock-port LOCAL:PEER` | frames as datagrams on a Unix socket: for tests |
-| `--listen [ADDR:]PORT` | the UDP address to listen on (default: any port) |
+| `--listen [ADDR:]PORT` | the UDP address to listen on (default: any port, IPv4 and IPv6). `[ADDR]:PORT` is IPv6, a comma separates several: `127.0.0.1:4001,[::1]:4001`. A bare port, or none, is both families on any address ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)) |
 | `--peer BUNDLE[@HOST:PORT]` | a peer known by its bundle file; with an address the node dials it, without it waits. Used without a switchboard |
 | `--authority KEY` | found a line run by the operator whose public key this is: the line exists at once and only the operator's admits and evictions count ([ADR 0026](adr/0026-a-line-may-have-an-operator.md)) |
 | `--admit ADMIT` | the operator's admit for this node (hex, or a file), presented when it calls a member of an operator's line |
@@ -126,7 +126,7 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 | `uptime`, `port` | seconds since start; the attach mode and its argument |
 | `macs`, `local_rx`, `local_tx`, `flood` | the switch: addresses known, frames read from and written to the LAN, frames flooded |
 | `drop_garbage`, `drop_noroute`, `drop_flood`, `drop_standby`, `drop_oversize` | frames dropped: unparseable; split horizon; over the flood budget; while standby; oversize and not TCP |
-| `frames_split`, `frames_joined`, `resegmented`, `arp_answered`, `dhcp_conflicts` | frames sent as two datagrams and rejoined; coalesced TCP frames cut down; ARP requests answered locally; times a second DHCP server was seen |
+| `frames_split`, `frames_joined`, `resegmented`, `arp_answered`, `dhcp_conflicts` | frames sent as two datagrams and rejoined; coalesced TCP frames cut down; ARP requests and IPv6 neighbour solicitations answered locally; times a second DHCP server was seen |
 | `site`, `site_members`, `site_synced` | `alone`, `standby` or `active`; other live boxes heard; remote hosts shared by the active box |
 | `hs_shed`, `hs_nocookie`, `hs_badmac2`, `cookies_sent`, `cookies_got` | handshake load: shed by the per-source limit; refused for a missing or wrong cookie; cookies handed out and received |
 | `registrations`, `sb_rekeys` | `NUMBER` replies received; rekeys of the switchboard session |

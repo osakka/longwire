@@ -188,15 +188,25 @@ static void secret_rotate(lw_node *n)
 /* The cookie for a source address under the current (which=0) or previous secret. */
 static int cookie_for(lw_node *n, const struct sockaddr *src, socklen_t sl, int which, uint8_t out[16])
 {
-	const struct sockaddr_in *a = (const void *)src;
-	uint8_t b[6];
+	uint8_t b[18];
+	size_t bl;
 
-	if (src->sa_family != AF_INET || sl < sizeof *a)
+	if (src->sa_family == AF_INET && sl >= sizeof(struct sockaddr_in)) {
+		const struct sockaddr_in *a = (const void *)src;
+
+		memcpy(b, &a->sin_addr, 4);
+		memcpy(b + 4, &a->sin_port, 2);
+		bl = 6;
+	} else if (src->sa_family == AF_INET6 && sl >= sizeof(struct sockaddr_in6)) {
+		const struct sockaddr_in6 *a = (const void *)src;
+
+		memcpy(b, &a->sin6_addr, 16);
+		memcpy(b + 16, &a->sin6_port, 2);
+		bl = 18;
+	} else
 		return 0;
 	secret_rotate(n);
-	memcpy(b, &a->sin_addr, 4);
-	memcpy(b + 4, &a->sin_port, 2);
-	crypto_blake2b_keyed(out, 16, n->csecret[which], 32, b, 6);
+	crypto_blake2b_keyed(out, 16, n->csecret[which], 32, b, bl);
 	return 1;
 }
 
@@ -218,9 +228,18 @@ static int cookie_valid(lw_node *n, const struct sockaddr *src, socklen_t sl, co
 /* A cookie holder under load is still limited, per source address: burst 8, 2 a second. */
 static int src_ok(lw_node *n, const struct sockaddr *src)
 {
-	const struct sockaddr_in *a = (const void *)src;
-	uint32_t ip = a->sin_addr.s_addr;
-	int i = (int)((ip * 2654435761u) >> 26) & 63;
+	uint32_t ip;
+	int i;
+
+	if (src->sa_family == AF_INET6) {		/* a whole /64 is one source: a host can have as many addresses as it likes */
+		const struct sockaddr_in6 *a6 = (const void *)src;
+		uint32_t w[2];
+
+		memcpy(w, &a6->sin6_addr, 8);
+		ip = w[0] ^ (w[1] * 2246822519u) ^ 1u;
+	} else
+		ip = ((const struct sockaddr_in *)(const void *)src)->sin_addr.s_addr;
+	i = (int)((ip * 2654435761u) >> 26) & 63;
 
 	if (n->srcl[i].ip != ip) {
 		n->srcl[i].ip = ip;

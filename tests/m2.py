@@ -160,6 +160,22 @@ def main():
     n1 = SA.status()["arp_answered"]
     check(got == 2 and n1 > n0, f"after a1 forgets b1, sa answers its ARP request itself (arp_answered {n0} -> {n1}); it never crosses the line")
 
+    # --- IPv6 neighbour discovery is answered locally, too ------------------------------------------
+    for h in (a1, b1):                          # the hosts have IPv6 off to keep the counters quiet: on, for this check only
+        nsrun(h, ["sh", "-c", "echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6; echo 0 > /proc/sys/net/ipv6/conf/eth0/disable_ipv6"])
+    nsh(a1, "ip -6 addr add fd01::1/64 dev eth0 nodad"); nsh(b1, "ip -6 addr add fd01::2/64 dev eth0 nodad")
+    time.sleep(1)
+    got, _ = ping(a1, "fd01::2", 3)
+    check(got == 3, f"ping6 from a host on LAN A to a host on LAN B: {got}/3 replies (neighbour discovery crossed the line first)")
+    n0 = SA.status()["arp_answered"]
+    nsh(a1, "ip -6 neigh flush dev eth0")
+    got, _ = ping(a1, "fd01::2", 2)
+    n1 = SA.status()["arp_answered"]
+    check(got == 2 and n1 > n0, f"after a1 forgets b1, sa answers its neighbour solicitation itself (answered {n0} -> {n1})")
+    for h in (a1, b1):
+        nsrun(h, ["sh", "-c", "echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6"])
+    time.sleep(0.5)
+
     # --- a broadcast storm is held to a budget ----------------------------------------------------
     rcv = subprocess.Popen(["nsenter", "-t", str(b1.pid), "-n", "python3", "-I", "-c",
         "import socket,time\ns=socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.htons(3));s.bind(('eth0',0));s.settimeout(0.3)\n"

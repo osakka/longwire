@@ -70,9 +70,10 @@
 #define MEMBER_LEN 106		/* number 9, key_id 32, ed_pub 32, role 1, home switchboard key id 32 */
 
 typedef struct lw_cand {
-	uint8_t  ip[4];
+	uint8_t  ip[16];	/* 4 bytes used when fam is 4 */
 	uint16_t port;		/* host order */
 	uint8_t  type;
+	uint8_t  fam;		/* 4 or 6 */
 } lw_cand;
 
 static inline void put16(uint8_t *p, unsigned v) { p[0] = (uint8_t)(v >> 8); p[1] = (uint8_t)v; }
@@ -81,16 +82,18 @@ static inline void put32(uint8_t *p, uint32_t v) { put16(p, v >> 16); put16(p + 
 static inline uint32_t get32(const uint8_t *p) { return (uint32_t)get16(p) << 16 | get16(p + 2); }
 
 /* A candidate on the wire is len(1) type(1) port(2) address(len-3). The length makes every entry skippable, so a
- * reader meets an address family it does not know (IPv6, later) without losing the entries after it. */
+ * reader meets an address family it does not know without losing the entries after it. IPv4 is 7, IPv6 is 19. */
 #define CANDWIRE 20		/* the largest entry: a 16-byte address */
 
 static inline int cand_put(uint8_t *p, const lw_cand *c)
 {
-	p[0] = 7;
+	int al = c->fam == 6 ? 16 : 4;
+
+	p[0] = (uint8_t)(3 + al);
 	p[1] = c->type;
 	put16(p + 2, c->port);
-	memcpy(p + 4, c->ip, 4);
-	return 8;
+	memcpy(p + 4, c->ip, (size_t)al);
+	return 4 + al;
 }
 
 /* returns the bytes the entry takes, or -1 if it is cut short; *known says whether it was understood */
@@ -100,11 +103,13 @@ static inline int cand_get(const uint8_t *p, size_t avail, lw_cand *c, int *know
 
 	if (avail < 1 || avail < (l = (size_t)p[0] + 1))
 		return -1;
-	*known = l == 8 && p[1] >= CAND_HOST && p[1] <= CAND_MAPPED;
+	*known = (l == 8 || l == 20) && p[1] >= CAND_HOST && p[1] <= CAND_MAPPED;
 	if (*known) {
+		memset(c, 0, sizeof *c);
 		c->type = p[1];
 		c->port = (uint16_t)get16(p + 2);
-		memcpy(c->ip, p + 4, 4);
+		c->fam = l == 8 ? 4 : 6;
+		memcpy(c->ip, p + 4, l - 4);
 	}
 	return (int)l;
 }

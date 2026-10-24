@@ -384,6 +384,114 @@ static int arp_suppress(lw_node *n, const uint8_t *f, size_t len)
 	return 1;
 }
 
+/* ---- Neighbour discovery: ARP's IPv6 counterpart ----------------------------------- */
+
+/* The ICMPv6 header of a neighbour solicitation (135) or advertisement (136), or 0. Hop limit 255 is how ND says it came
+ * from the link. Layout: Ethernet 14, IPv6 40, ICMPv6 at 54: type, code, checksum, flags 4, target 16, options. */
+#define ND_OFF 54
+static int nd_type(const uint8_t *f, size_t len)
+{
+	if (len < ND_OFF + 24 || get16(f + 12) != 0x86dd || (f[14] >> 4) != 6 || f[20] != 58 || f[21] != 255)
+		return 0;
+	if ((f[ND_OFF] != 135 && f[ND_OFF] != 136) || f[ND_OFF + 1] != 0)
+		return 0;
+	return f[ND_OFF];
+}
+
+/* The link-layer address option of the given kind (1 source, 2 target), if the message has one. */
+static const uint8_t *nd_lladdr(const uint8_t *f, size_t len, int kind)
+{
+	size_t o = ND_OFF + 24;
+
+	while (o + 8 <= len) {
+		if (f[o + 1] == 0)
+			return 0;
+		if (f[o] == kind && f[o + 1] == 1)
+			return f + o + 2;
+		o += (size_t)f[o + 1] * 8;
+	}
+	return 0;
+}
+
+static int nd_slot(const uint8_t ip[16])
+{
+	uint32_t w;
+
+	memcpy(&w, ip + 12, 4);
+	return (int)((w * 2654435761u) >> 24) & 255;
+}
+
+static void nd_learn(lw_node *n, const uint8_t *f, size_t len)
+{
+	static const uint8_t none[16] = {0};
+	const uint8_t *ip, *mac;
+	int t = nd_type(f, len), i;
+
+	if (!t)
+		return;
+	if (t == 135) {				/* the asker says who it is: its address and where it sits */
+		ip = f + 22;
+		mac = nd_lladdr(f, len, 1);
+	} else {				/* an advertisement says whose the target is */
+		ip = f + ND_OFF + 8;
+		mac = nd_lladdr(f, len, 2);
+	}
+	if (!mac)
+		mac = f + 6;
+	if (!memcmp(ip, none, 16) || ip[0] == 0xff)
+		return;
+	i = nd_slot(ip);
+	memcpy(n->nd[i].ip, ip, 16);
+	memcpy(n->nd[i].mac, mac, 6);
+	n->nd[i].t = n->now;
+}
+
+/* A solicitation for a host across the line is answered here, as ARP is, instead of crossing as a flood. */
+static int nd_suppress(lw_node *n, const uint8_t *f, size_t len)
+{
+	static const uint8_t none[16] = {0};
+	uint8_t r[14 + 40 + 32];
+	const uint8_t *tgt = f + ND_OFF + 8;
+	unsigned sum;
+	mac_ent *e;
+	int i;
+
+	if (nd_type(f, len) != 135 || !memcmp(f + 22, none, 16))	/* duplicate address detection must cross */
+		return 0;
+	i = nd_slot(tgt);
+	if (memcmp(n->nd[i].ip, tgt, 16) || n->now - n->nd[i].t > ARP_AGE)
+		return 0;
+	if (!(e = mac_find(n, n->nd[i].mac, 0)) || e->port < 0)	/* only for hosts that are really remote */
+		return 0;
+	memcpy(r, f + 6, 6);
+	memcpy(r + 6, n->nd[i].mac, 6);
+	put16(r + 12, 0x86dd);
+	r[14] = 0x60;
+	r[15] = r[16] = r[17] = 0;
+	put16(r + 18, 32);
+	r[20] = 58;
+	r[21] = 255;
+	memcpy(r + 22, tgt, 16);		/* from the target, to the asker */
+	memcpy(r + 38, f + 22, 16);
+	r[ND_OFF] = 136;
+	r[ND_OFF + 1] = 0;
+	r[ND_OFF + 2] = r[ND_OFF + 3] = 0;
+	r[ND_OFF + 4] = 0x60;			/* solicited, override */
+	r[ND_OFF + 5] = r[ND_OFF + 6] = r[ND_OFF + 7] = 0;
+	memcpy(r + ND_OFF + 8, tgt, 16);
+	r[ND_OFF + 24] = 2;			/* target link-layer address */
+	r[ND_OFF + 25] = 1;
+	memcpy(r + ND_OFF + 26, n->nd[i].mac, 6);
+	sum = lw_sum16(r + 22, 32, 0) + 32 + 58;
+	sum = lw_sum16(r + ND_OFF, 32, sum);
+	while (sum >> 16)
+		sum = (sum & 0xffff) + (sum >> 16);
+	put16(r + ND_OFF + 2, ~sum & 0xffff);
+	port_write(n, r, sizeof r);
+	n->arp_answered++;
+	return 1;
+}
+
 int sw_remote_macs(lw_node *n, uint8_t out[][6], int max)
 {
 	int i, c = 0;
@@ -550,8 +658,9 @@ void sw_from_local(lw_node *n, const uint8_t *in, size_t len)
 	mss_clamp(f, len);
 	learn(n, f + 6, -1);
 	arp_learn(n, f, len);
+	nd_learn(n, f, len);
 	dhcp_watch(n, f, len);
-	if (arp_suppress(n, f, len))
+	if (arp_suppress(n, f, len) || nd_suppress(n, f, len))
 		return;
 	if (!(f[0] & 1) && (e = mac_find(n, f, 0))) {
 		if (e->port == -1)
@@ -577,6 +686,7 @@ void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len)
 	}
 	learn(n, f + 6, pi);
 	arp_learn(n, f, len);
+	nd_learn(n, f, len);
 	dhcp_watch(n, f, len);
 	if (!(f[0] & 1) && (e = mac_find(n, f, 0)) && e->port >= 0) {
 		n->drop_noroute++;		/* split horizon: the sender reached that peer itself */

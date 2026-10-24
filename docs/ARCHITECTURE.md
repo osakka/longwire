@@ -78,10 +78,11 @@ Splice details (Linux):
 
 Bridging L2 over the internet carries the LAN's chatter. longwire trims it without breaking anything:
 
-- **ARP suppression (IPv4).** Each node keeps an IP→MAC cache learned from ARP packets crossing the switch. When a
+- **ARP suppression, and its IPv6 twin.** Each node keeps an IP→MAC cache learned from ARP packets crossing the switch. When a
   local host asks who has an address the cache knows to be across the line (the MAC is learned behind a peer, and the
   entry is under 120 s old), the node answers the request itself and the question never crosses the WAN. Probes and
-  announcements (sender address 0, or sender = target) always cross. IPv6 neighbour discovery *(planned: M3)*.
+  announcements (sender address 0, or sender = target) always cross. IPv6 neighbour solicitations are answered the same way
+  (the cache is learned from solicitations and advertisements, and duplicate-address detection always crosses).
 - **Flood budget.** Frames flooded to a peer are limited to 1000 a second after a burst of 200, per peer. A
   broadcast storm costs the WAN almost nothing; a unicast frame to a known address is never limited.
 - **DHCP stays honest.** DHCP is not filtered: a line has one subnet and normally one DHCP server. The switch watches the DHCP offers
@@ -133,7 +134,8 @@ battery appreciates. Sites are **trunks**, a full mesh.
 ## 6. Packet sizes
 
 Overhead per data packet: IP (20) + UDP (8) + longwire header (12) + payload kind (1) + Poly1305 tag (16) = 57 bytes
-over IPv4. The underlay is IPv4 only for now; IPv6 *(planned: M3)*.
+over IPv4 (a further 20 over IPv6). The underlay is both: a node holds an IPv4 and an IPv6 socket
+([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)).
 
 | Situation | Handling |
 |---|---|

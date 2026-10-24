@@ -173,34 +173,92 @@ void phrase_of(char *out, size_t cap, const uint8_t a[32], const uint8_t b[32])
 
 void addr_str(const struct sockaddr_storage *ss, char *out, size_t n)
 {
-	const struct sockaddr_in *a = (const void *)ss;
-	const uint8_t *b = (const uint8_t *)&a->sin_addr;
-	const uint8_t *pt = (const uint8_t *)&a->sin_port;
+	char h[INET6_ADDRSTRLEN];
 
-	if (ss->ss_family != AF_INET) {
+	if (ss->ss_family == AF_INET) {
+		const struct sockaddr_in *a = (const void *)ss;
+
+		inet_ntop(AF_INET, &a->sin_addr, h, sizeof h);
+		snprintf(out, n, "%s:%u", h, (unsigned)ntohs(a->sin_port));
+	} else if (ss->ss_family == AF_INET6) {
+		const struct sockaddr_in6 *a = (const void *)ss;
+
+		inet_ntop(AF_INET6, &a->sin6_addr, h, sizeof h);
+		snprintf(out, n, "[%s]:%u", h, (unsigned)ntohs(a->sin6_port));
+	} else
 		snprintf(out, n, "-");
-		return;
-	}
-	snprintf(out, n, "%u.%u.%u.%u:%u", b[0], b[1], b[2], b[3], (unsigned)(pt[0] << 8 | pt[1]));
 }
 
+/* HOST:PORT or [IPV6]:PORT. A name with both kinds of address resolves to the IPv4 one. */
 int lw_resolve(const char *hp, struct sockaddr_storage *ss, socklen_t *sl)
 {
 	char host[96], *c = strrchr(hp, ':');
-	struct addrinfo hint, *res;
+	struct addrinfo hint, *res, *r, *pick = 0;
+	size_t hl;
 
-	if (!c || c == hp || (size_t)(c - hp) >= sizeof host)
+	if (!c || c == hp)
 		return -1;
-	snprintf(host, sizeof host, "%.*s", (int)(c - hp), hp);
+	hp += hp[0] == '[';
+	hl = (size_t)(c - hp) - (c[-1] == ']');
+	if (hl >= sizeof host)
+		return -1;
+	snprintf(host, sizeof host, "%.*s", (int)hl, hp);
 	memset(&hint, 0, sizeof hint);
-	hint.ai_family = AF_INET;
+	hint.ai_family = AF_UNSPEC;
 	hint.ai_socktype = SOCK_DGRAM;
 	if (getaddrinfo(host, c + 1, &hint, &res))
 		return -1;
-	memcpy(ss, res->ai_addr, res->ai_addrlen);
-	*sl = res->ai_addrlen;
+	for (r = res; r; r = r->ai_next)
+		if (r->ai_family == AF_INET || (r->ai_family == AF_INET6 && !pick))
+			if (!pick || pick->ai_family != AF_INET)
+				pick = r;
+	if (!pick) {
+		freeaddrinfo(res);
+		return -1;
+	}
+	memcpy(ss, pick->ai_addr, pick->ai_addrlen);
+	*sl = pick->ai_addrlen;
 	freeaddrinfo(res);
 	return 0;
+}
+
+void cand_sa(const lw_cand *c, struct sockaddr_storage *ss, socklen_t *sl)
+{
+	memset(ss, 0, sizeof *ss);
+	if (c->fam == 6) {
+		struct sockaddr_in6 *a = (void *)ss;
+
+		a->sin6_family = AF_INET6;
+		memcpy(&a->sin6_addr, c->ip, 16);
+		a->sin6_port = htons(c->port);
+		*sl = sizeof *a;
+	} else {
+		struct sockaddr_in *a = (void *)ss;
+
+		a->sin_family = AF_INET;
+		memcpy(&a->sin_addr, c->ip, 4);
+		a->sin_port = htons(c->port);
+		*sl = sizeof *a;
+	}
+}
+
+/* The address a socket address names, as a candidate (its type is the caller's to set). */
+void sa_cand(const struct sockaddr *sa, lw_cand *c)
+{
+	memset(c, 0, sizeof *c);
+	if (sa->sa_family == AF_INET6) {
+		const struct sockaddr_in6 *a = (const void *)sa;
+
+		c->fam = 6;
+		memcpy(c->ip, &a->sin6_addr, 16);
+		c->port = ntohs(a->sin6_port);
+	} else {
+		const struct sockaddr_in *a = (const void *)sa;
+
+		c->fam = 4;
+		memcpy(c->ip, &a->sin_addr, 4);
+		c->port = ntohs(a->sin_port);
+	}
 }
 
 /* ---- candidates: where the other side may reach us --------------------------- */
@@ -218,7 +276,21 @@ static int gather(lw_node *n, lw_cand *out, int max)
 		const struct sockaddr_in *a;
 		const uint8_t *ip;
 
-		if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET || !(i->ifa_flags & IFF_UP))
+		if (i->ifa_addr && i->ifa_addr->sa_family == AF_INET6 && (i->ifa_flags & IFF_UP) && n->udp6 >= 0) {
+			const struct sockaddr_in6 *a6 = (const void *)i->ifa_addr;
+
+			if (IN6_IS_ADDR_LINKLOCAL(&a6->sin6_addr) || IN6_IS_ADDR_MULTICAST(&a6->sin6_addr) ||
+			    ((i->ifa_flags & IFF_LOOPBACK) && !n->cfg.cand_loopback))
+				continue;
+			memset(&out[c], 0, sizeof out[c]);
+			memcpy(out[c].ip, &a6->sin6_addr, 16);
+			out[c].port = n->udp6_port;
+			out[c].type = CAND_HOST;
+			out[c].fam = 6;
+			c++;
+			continue;
+		}
+		if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET || !(i->ifa_flags & IFF_UP) || n->udp < 0)
 			continue;
 		if ((i->ifa_flags & IFF_LOOPBACK) && !n->cfg.cand_loopback)
 			continue;
@@ -226,18 +298,22 @@ static int gather(lw_node *n, lw_cand *out, int max)
 		ip = (const uint8_t *)&a->sin_addr;
 		if (ip[0] == 169 && ip[1] == 254)
 			continue;
+		memset(&out[c], 0, sizeof out[c]);
 		memcpy(out[c].ip, ip, 4);
 		out[c].port = n->udp_port;
 		out[c].type = CAND_HOST;
+		out[c].fam = 4;
 		c++;
 	}
 	freeifaddrs(ifa);
 	if (n->have_refl && c < max)
 		out[c++] = n->refl;
 	if (n->pmp.port && n->pmp.have_ip && c < max) {
+		memset(&out[c], 0, sizeof out[c]);
 		memcpy(out[c].ip, n->pmp.ip, 4);
 		out[c].port = n->pmp.port;
 		out[c].type = CAND_MAPPED;
+		out[c].fam = 4;
 		c++;
 	}
 	return c;
@@ -294,7 +370,7 @@ void hello_offer(lw_node *n, const struct sockaddr *dst, socklen_t dl)
 	b[0] = T_HELLO;
 	b[1] = 2;
 	memcpy(b + 2, n->id.bundle, LW_BUNDLE);
-	sendto(n->udp, b, sizeof b, 0, dst, dl);
+	sendto(ufd(n, dst->sa_family), b, sizeof b, 0, dst, dl);
 }
 
 void hello_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
@@ -703,16 +779,14 @@ static void punch_send(lw_node *n, lw_call *c)
 
 	punch_pkt(n, c, pk);
 	for (i = 0; i < c->npc; i++) {
-		struct sockaddr_in a;
+		struct sockaddr_storage a;
+		socklen_t al;
 
-		memset(&a, 0, sizeof a);
-		a.sin_family = AF_INET;
-		memcpy(&a.sin_addr, c->pc[i].ip, 4);
-		a.sin_port = htons(c->pc[i].port);
-		sendto(n->udp, pk, sizeof pk, 0, (struct sockaddr *)&a, sizeof a);
+		cand_sa(&c->pc[i], &a, &al);
+		sendto(ufd(n, a.ss_family), pk, sizeof pk, 0, (struct sockaddr *)&a, al);
 	}
 	if (c->have_verified)		/* answer from where it really came from */
-		sendto(c->peer >= 0 ? peer_fd(n, &n->peers[c->peer]) : n->udp, pk, sizeof pk, 0, (struct sockaddr *)&c->verified, sizeof c->verified);
+		sendto(c->peer >= 0 ? peer_fd(n, &n->peers[c->peer]) : ufd(n, c->verified.ss_family), pk, sizeof pk, 0, (struct sockaddr *)&c->verified, c->verified_len);
 }
 
 /* ECHO (docs/PROTOCOL.md section 4). A switchboard answers on its second port with the address it sees the asker at; a node
@@ -747,7 +821,7 @@ void echo_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 	const struct sockaddr_in *a = (const struct sockaddr_in *)src;
 
 	if (n->role || len != 15 || !s || !n->have_refl || !n->echo_tries || memcmp(pkt + 1, n->echo_nonce, 8) ||
-	    sl != sizeof *a || a->sin_addr.s_addr != ((struct sockaddr_in *)&s->ep)->sin_addr.s_addr)
+	    sl != sizeof *a || s->ep.ss_family != AF_INET || a->sin_addr.s_addr != ((struct sockaddr_in *)&s->ep)->sin_addr.s_addr)
 		return;
 	n->nat = (!memcmp(pkt + 9, n->refl.ip, 4) && get16(pkt + 13) == n->refl.port) ? 1 : 2;
 	n->echo_tries = 0;
@@ -759,6 +833,8 @@ static void echo_ask(lw_node *n, lw_peer *s)
 	uint8_t q[40] = { T_ECHO };
 	struct sockaddr_in a;
 
+	if (s->ep.ss_family != AF_INET || n->udp < 0)
+		return;				/* ECHO is IPv4 only */
 	lw_rand(n->echo_nonce, 8);
 	memcpy(q + 1, n->echo_nonce, 8);
 	memcpy(&a, &s->ep, sizeof a);
@@ -774,7 +850,7 @@ void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 	uint8_t mac[16];
 	lw_peer *p;
 
-	if (len != 33 || sl != sizeof c->verified || !(c = call_by_id(n, pkt + 1)) || c->state != CALL_PUNCH || c->peer < 0)
+	if (len != 33 || sl > sizeof c->verified || !(c = call_by_id(n, pkt + 1)) || c->state != CALL_PUNCH || c->peer < 0)
 		return;
 	crypto_blake2b_keyed(mac, 16, c->token, 32, pkt, 17);
 	if (crypto_verify16(mac, pkt + 17))
@@ -785,6 +861,7 @@ void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 	if (c->have_verified)
 		return;
 	memcpy(&c->verified, src, sl);
+	c->verified_len = sl;
 	c->have_verified = 1;
 	if (p->relayed) {			/* a try for a better path: the session is up, so just aim some copies at this address */
 		memcpy(&p->probe_ep, src, sl);
@@ -860,7 +937,8 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				memcpy(n->refl.ip, pl + NUMLEN, 4);
 				n->refl.port = (uint16_t)get16(pl + NUMLEN + 4);
 				n->refl.type = CAND_REFL;
-				n->have_refl = 1;
+				n->refl.fam = 4;
+				n->have_refl = n->refl.port != 0;	/* a switchboard reached over IPv6 has nothing to say of our IPv4 address */
 				n->registered = 1;
 				n->reg_why[0] = 0;
 				n->reg_born = p->cur.born;
@@ -963,7 +1041,8 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				memcpy(n->refl.ip, pl, 4);
 				n->refl.port = (uint16_t)get16(pl + 4);
 				n->refl.type = CAND_REFL;
-				n->have_refl = 1;
+				n->refl.fam = 4;
+				n->have_refl = n->refl.port != 0;
 			}
 			return;
 		case M_REFUSED: {

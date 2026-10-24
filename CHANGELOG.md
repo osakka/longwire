@@ -3,6 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: IPv6
+
+- **Nodes and switchboards speak IPv6** ([ADR 0027](docs/adr/0027-ipv6-is-a-second-socket.md)): a second socket beside the
+  IPv4 one, global IPv6 addresses as host candidates, `--listen` as a list (`[::1]:4001`, a bare port for both), a
+  switchboard that may be reached over either, and a global IPv6 address counted as public for relaying. The switch answers
+  IPv6 neighbour solicitations for hosts across the line, as it does ARP. Tested (`tests/ipv6.sh`): everything over IPv6
+  only, and two nodes that reach the switchboard over IPv4 but each other only over IPv6, with 100 frames each way;
+  `tests/m2.sh` pings across two LANs by IPv6 and sees the local answer. Not tested: a real IPv6 network.
+
 ## M3: crossed handshakes settled by a tie-break
 
 - **Two nodes that start handshakes at the same moment now always end on one session.** The one whose initiator has

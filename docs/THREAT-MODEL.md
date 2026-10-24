@@ -63,6 +63,10 @@ attacker with a *real* address can fetch a cookie, and is then limited to 2 hand
 (burst 8); and someone who can see the cookie reply on the path can replay it from the same address, as in WireGuard.
 Cookies are keyed by address and port, so two nodes behind one NAT address each get their own.
 
+A node with a global IPv6 address has no NAT in front of it: its UDP port is reachable from anywhere, so a stranger can send
+it handshake attempts as they could a public IPv4 address. The protections are the same (mac1 and cookies under load, a
+per-source budget by /64), and a firewall may close the port ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)).
+
 ## Known gaps today
 
 - **Two strict NATs connect only through a relay,** a member of the line with a public address. A line with no such
@@ -71,8 +75,8 @@ Cookies are keyed by address and port, so two nodes behind one NAT address each 
   by construction and has not been reproduced; a crossed first handshake is settled by a key-id tie-break and tested (`tests/start.sh`, `tests/crossed.sh`).
 - **The handshake composition has had no formal analysis or external review,** and the vendored crypto has not been
   checked against known-answer vectors *(planned: M8)*.
-- **VLAN-tagged traffic through a splice box is neither handled nor tested** *(planned)*, the underlay is IPv4 only
-  *(planned: M3)*, and the jack port is untested.
+- **VLAN-tagged traffic through a splice box is neither handled nor tested** *(planned)*, and the jack port is untested.
+  IPv6 has been tested only on loopback and between namespaces, not on a real network.
 
 ## Hardening in the code
 

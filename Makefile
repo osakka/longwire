@@ -37,6 +37,7 @@ check: all lint
 	sh tests/release.sh
 	sh tests/pmp.sh
 	sh tests/operator.sh
+	sh tests/ipv6.sh
 	sh tests/start.sh
 	python3 -I tests/docs.py
 

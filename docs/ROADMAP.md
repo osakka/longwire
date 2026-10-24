@@ -60,7 +60,7 @@ relayed pair upgrades to direct once a path exists.
   the project's domain, with the default public switchboard.
 - *Built:* operator-managed lines ([ADR 0026](adr/0026-a-line-may-have-an-operator.md), amends [0022](adr/0022-lines-form-by-vouching.md)): a line may name an authority key whose signed admits and evictions every member accepts. Member vouching stays the default; status says `managed`.
 - *Built:* candidates that carry their own length ([ADR 0025](adr/0025-every-candidate-carries-its-own-length.md)), so IPv6 can be added without a format change.
-- IPv6, the last item of M3: the underlay, v6 candidates, and neighbour-discovery suppression
+- *Built:* IPv6: the underlay, v6 candidates, and neighbour-discovery suppression ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md))
 - *Built:* a longer rekey for switchboard sessions (`--sb-rekey`, 600 s).
 - *Built:* the warning when two DHCP servers share a line (`dhcp-conflict`).
 - *Built:* number release after a year unheard, then held back for a year (`--release-after`). *Built:* `longwire key export` and `import`

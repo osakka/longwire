@@ -1,6 +1,6 @@
 # Protocol
 
-All traffic is UDP, on a single socket, over IPv4 for now; IPv6 *(planned: M3)*. There are no TCP fallbacks and no ports
+All traffic is UDP, over IPv4 and IPv6 (a node holds a socket of each, [ADR 0027](adr/0027-ipv6-is-a-second-socket.md)). There are no TCP fallbacks and no ports
 to forward. This document covers framing, sessions, NAT traversal, and the designs for relaying and party lines.
 Cryptographic derivations are in [CRYPTO](CRYPTO.md), and the switchboard's messages are in
 [SWITCHBOARD](SWITCHBOARD.md). Designed-but-unbuilt parts carry `*(planned: M3)*`.
@@ -135,7 +135,7 @@ Every call tries the **direct** path. The switchboard is involved only until a p
 
 | Candidate | Source |
 |---|---|
-| host | each local IPv4 address that is up (not loopback, not link-local; loopback only with `--cand-loopback`), with our UDP port. Finds a peer on the same LAN |
+| host | each local address that is up (not loopback, not link-local; loopback only with `--cand-loopback`), IPv4 or IPv6, with our UDP port of that family. Finds a peer on the same LAN, and, for a global IPv6 address, a peer anywhere with no punching at all |
 | reflexive | the address the switchboard observed the node at, learned from `NUMBER` and `HBACK` |
 | mapped | the public address and port the home router agreed to keep for our UDP port, by NAT-PMP (RFC 6886): the node asks the default gateway (UDP 5351) for its public address and for a mapping of its own port for an hour, and renews halfway. Best effort: three tries, then again in half an hour. Type 3 on the wire |
 
@@ -177,7 +177,8 @@ The full design is a ladder, each rung tried when the one before fails:
                             RELAY ◄─────────────────────┘ ─── retry DIRECT every 60 s → 10 min
 ```
 
-- **More candidates:** global IPv6 *(planned: M3)*, PCP, and relay candidates (public members of the line that
+- **IPv6** *(built)*: a node holds a second socket for it ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)); a global address is a host candidate and a path between two such nodes needs no punching. The switchboard may be reached over either family; one reached over IPv6 sends zero in the IPv4 address field of `NUMBER` and `HBACK`.
+- **More candidates:** PCP, and relay candidates (public members of the line that
   offer relaying).
 - **Mapping type** *(built)*. A switchboard also listens on its port plus one. A node sends that port an `ECHO`
   (`0x07 ‖ nonce:8`, padded to 40 bytes) and gets back `0x07 ‖ nonce:8 ‖ ip:4 ‖ port:2`, the address it was seen at.

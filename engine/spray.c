@@ -9,9 +9,14 @@
 #define SPRAY_AFTER 2.0			/* the ordinary punch gets this long alone */
 #define SPRAY_FOR 14.0
 
+int ufd(const lw_node *n, int family)
+{
+	return family == AF_INET6 ? n->udp6 : n->udp;
+}
+
 int peer_fd(const lw_node *n, const lw_peer *p)
 {
-	return p && p->sfd ? p->sfd : n->udp;
+	return p && p->sfd ? p->sfd : ufd(n, p ? p->ep.ss_family : AF_INET);
 }
 
 void spray_close(lw_node *n)
@@ -47,7 +52,7 @@ void spray_adopt(lw_node *n, lw_peer *p)
 
 static int far_cand(const lw_cand *c)
 {
-	return c->type == CAND_REFL || c->type == CAND_MAPPED;
+	return c->fam == 4 && (c->type == CAND_REFL || c->type == CAND_MAPPED);	/* spray is for IPv4 NATs */
 }
 
 static void spray_open(lw_node *n, lw_call *c)

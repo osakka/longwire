@@ -29,12 +29,20 @@ int node_public(lw_node *n)
 	struct ifaddrs *ifa, *i;
 	int pub = 0;
 
-	if (!n->have_refl || getifaddrs(&ifa))
+	if (getifaddrs(&ifa))
 		return 0;
 	for (i = ifa; i && !pub; i = i->ifa_next) {
 		const struct sockaddr_in *a;
 
-		if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET || (i->ifa_flags & IFF_LOOPBACK))
+		if (!i->ifa_addr || (i->ifa_flags & IFF_LOOPBACK))
+			continue;
+		if (i->ifa_addr->sa_family == AF_INET6 && n->udp6 >= 0) {	/* a global IPv6 address is reachable as it stands */
+			const struct sockaddr_in6 *a6 = (const void *)i->ifa_addr;
+
+			pub = (a6->sin6_addr.s6_addr[0] & 0xe0) == 0x20;
+			continue;
+		}
+		if (i->ifa_addr->sa_family != AF_INET || !n->have_refl)
 			continue;
 		a = (const void *)i->ifa_addr;
 		pub = !memcmp(&a->sin_addr, n->refl.ip, 4);
@@ -69,7 +77,7 @@ void peer_out(lw_node *n, lw_peer *p, const uint8_t *buf, size_t len)
 		return;
 	}
 	if (p->probe_len && n->now < p->probe_until)
-		sendto(n->udp, buf, len, 0, (struct sockaddr *)&p->probe_ep, p->probe_len);
+		sendto(ufd(n, p->probe_ep.ss_family), buf, len, 0, (struct sockaddr *)&p->probe_ep, p->probe_len);
 	r = &n->peers[p->via_peer];
 	if (!r->used || memcmp(r->key_id, p->via_kid, 32) || len > sizeof w - 4)
 		return;

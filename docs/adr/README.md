@@ -35,6 +35,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0024](0024-a-full-number-is-a-switchboard-code-and-a-local-number.md) | A full number is a switchboard code and a local number | accepted |
 | [0025](0025-every-candidate-carries-its-own-length.md) | Every candidate carries its own length | accepted |
 | [0026](0026-a-line-may-have-an-operator.md) | A line may have an operator | accepted |
+| [0027](0027-ipv6-is-a-second-socket.md) | IPv6 is a second socket, not a dual-stack one | accepted |
 
 ---
 

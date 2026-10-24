@@ -24,7 +24,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
-listen=0.0.0.0:1877
+listen=1877
 tokens=
 per_ip_hour=20
 rings_per_min=6

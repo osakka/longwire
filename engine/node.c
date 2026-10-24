@@ -59,11 +59,99 @@ static int load_bundle(uint8_t *out, const char *path, char *err, size_t errn)
 	return 0;
 }
 
+/* --listen is a list: "ADDR:PORT" (IPv4), "[ADDR]:PORT" (IPv6), or a bare "PORT", which is both families on any address.
+ * Several may be given, separated by commas. */
+static int open_one(int family, const struct sockaddr *sa, socklen_t sl, int *fd, uint16_t *port)
+{
+	struct sockaddr_storage bound;
+	socklen_t bl = sizeof bound;
+	int one = 1;
+
+	*fd = socket(family, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+	if (*fd < 0)
+		return -1;
+	if (family == AF_INET6)
+		setsockopt(*fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof one);
+	if (bind(*fd, sa, sl) < 0) {
+		close(*fd);
+		*fd = -1;
+		return -1;
+	}
+	if (getsockname(*fd, (struct sockaddr *)&bound, &bl) == 0)
+		*port = ntohs(bound.ss_family == AF_INET6 ? ((struct sockaddr_in6 *)&bound)->sin6_port : ((struct sockaddr_in *)&bound)->sin_port);
+	return 0;
+}
+
+static int bind_listen(lw_node *n, const char *spec, char *err, size_t errn)
+{
+	char list[256], *item, *save = 0;
+	int any = 0;
+
+	snprintf(list, sizeof list, "%s", spec);
+	for (item = strtok_r(list, ",", &save); item; item = strtok_r(0, ",", &save)) {
+		char *colon = strrchr(item, ':');
+		int bare = strchr(item, ':') == 0;
+
+		if (item[0] == '[' && colon) {		/* IPv6 */
+			struct sockaddr_in6 a6;
+			char h[64];
+
+			memset(&a6, 0, sizeof a6);
+			a6.sin6_family = AF_INET6;
+			snprintf(h, sizeof h, "%.*s", (int)(colon - item) - 2, item + 1);
+			if (inet_pton(AF_INET6, h, &a6.sin6_addr) != 1) {
+				snprintf(err, errn, "bad listen address %s", item);
+				return -1;
+			}
+			a6.sin6_port = htons((uint16_t)atoi(colon + 1));
+			if (open_one(AF_INET6, (struct sockaddr *)&a6, sizeof a6, &n->udp6, &n->udp6_port)) {
+				snprintf(err, errn, "udp %s: %s", item, strerror(errno));
+				return -1;
+			}
+		} else {
+			struct sockaddr_in a4;
+			unsigned port = (unsigned)atoi(colon ? colon + 1 : item);
+
+			memset(&a4, 0, sizeof a4);
+			a4.sin_family = AF_INET;
+			if (colon) {
+				char h[64];
+
+				snprintf(h, sizeof h, "%.*s", (int)(colon - item), item);
+				if (inet_pton(AF_INET, h, &a4.sin_addr) != 1) {
+					snprintf(err, errn, "bad listen address %s", item);
+					return -1;
+				}
+			}
+			a4.sin_port = htons((uint16_t)port);
+			if (open_one(AF_INET, (struct sockaddr *)&a4, sizeof a4, &n->udp, &n->udp_port)) {
+				snprintf(err, errn, "udp %s: %s", item, strerror(errno));
+				return -1;
+			}
+			if (bare) {			/* a bare port is both families: IPv6 follows the port IPv4 got, if it can */
+				struct sockaddr_in6 a6;
+
+				memset(&a6, 0, sizeof a6);
+				a6.sin6_family = AF_INET6;
+				a6.sin6_port = htons(n->udp_port);
+				if (open_one(AF_INET6, (struct sockaddr *)&a6, sizeof a6, &n->udp6, &n->udp6_port)) {
+					a6.sin6_port = 0;
+					open_one(AF_INET6, (struct sockaddr *)&a6, sizeof a6, &n->udp6, &n->udp6_port);	/* best effort */
+				}
+			}
+		}
+		any = 1;
+	}
+	if (!any) {
+		snprintf(err, errn, "empty --listen");
+		return -1;
+	}
+	return 0;
+}
+
 lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 {
 	lw_node *n = calloc(1, sizeof *n);
-	struct sockaddr_in la;
-	char *colon;
 	int i;
 	uint8_t b[LW_BUNDLE];
 
@@ -72,7 +160,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 		return 0;
 	}
 	n->cfg = *cfg;
-	n->udp = n->udp2 = n->port_fd = n->ctl_fd = -1;
+	n->udp = n->udp2 = n->udp6 = n->port_fd = n->ctl_fd = -1;
 	n->rekey_after = cfg->rekey_after > 0 ? cfg->rekey_after : 120;
 	n->sb_rekey = cfg->sb_rekey > 0 ? cfg->sb_rekey : 600;
 	n->keepalive = cfg->keepalive > 0 ? cfg->keepalive : 25;
@@ -126,43 +214,32 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 			p->dial = 1;
 		}
 	}
-	memset(&la, 0, sizeof la);
-	la.sin_family = AF_INET;
-	colon = strrchr(cfg->listen, ':');
-	if (colon) {
-		char h[64];
+	if (bind_listen(n, cfg->listen, err, errn))
+		goto fail;
+	{	/* bursts of full-size frames: ask for room (the kernel clamps to rmem_max) */
+		int buf = 4 << 20, k;
 
-		snprintf(h, sizeof h, "%.*s", (int)(colon - cfg->listen), cfg->listen);
-		if (inet_pton(AF_INET, h, &la.sin_addr) != 1) {
-			snprintf(err, errn, "bad listen address %s", cfg->listen);
-			goto fail;
+		for (k = 0; k < 2; k++) {
+			int fd = k ? n->udp6 : n->udp;
+
+			if (fd >= 0) {
+				setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &buf, sizeof buf);
+				setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &buf, sizeof buf);
+			}
 		}
 	}
-	la.sin_port = htons((uint16_t)atoi(colon ? colon + 1 : cfg->listen));
-	n->udp = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-	if (n->udp < 0 || bind(n->udp, (struct sockaddr *)&la, sizeof la) < 0) {
-		snprintf(err, errn, "udp %s: %s", cfg->listen, strerror(errno));
-		goto fail;
-	}
-	{	/* bursts of full-size frames: ask for room (the kernel clamps to rmem_max) */
-		int buf = 4 << 20;
+	if (n->role && n->udp >= 0 && n->udp_port < 65535) {	/* ECHO's port; the switchboard works without it if it cannot be had */
+		struct sockaddr_in la;
+		socklen_t ll = sizeof la;
 
-		setsockopt(n->udp, SOL_SOCKET, SO_RCVBUF, &buf, sizeof buf);
-		setsockopt(n->udp, SOL_SOCKET, SO_SNDBUF, &buf, sizeof buf);
-	}
-	{
-		struct sockaddr_in bound;
-		socklen_t bl = sizeof bound;
-
-		if (getsockname(n->udp, (struct sockaddr *)&bound, &bl) == 0)
-			n->udp_port = ntohs(bound.sin_port);
-	}
-	if (n->role && n->udp_port < 65535) {		/* ECHO's port; the switchboard works without it if it cannot be had */
-		la.sin_port = htons((uint16_t)(n->udp_port + 1));
-		n->udp2 = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-		if (n->udp2 >= 0 && bind(n->udp2, (struct sockaddr *)&la, sizeof la) < 0) {
-			close(n->udp2);
-			n->udp2 = -1;
+		memset(&la, 0, sizeof la);
+		if (getsockname(n->udp, (struct sockaddr *)&la, &ll) == 0) {
+			la.sin_port = htons((uint16_t)(n->udp_port + 1));
+			n->udp2 = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+			if (n->udp2 >= 0 && bind(n->udp2, (struct sockaddr *)&la, sizeof la) < 0) {
+				close(n->udp2);
+				n->udp2 = -1;
+			}
 		}
 	}
 	if (port_open(n, err, errn) || ctl_open(n, err, errn))
@@ -184,6 +261,8 @@ void lw_node_release(lw_node *n)
 		close(n->udp);
 	if (n->udp2 >= 0)
 		close(n->udp2);
+	if (n->udp6 >= 0)
+		close(n->udp6);
 	if (n->port_fd >= 0)
 		close(n->port_fd);
 	if (n->ctl_fd >= 0)
@@ -206,13 +285,13 @@ static void close_inherited(const lw_node *n)
 
 	if (!d) {
 		for (fd = 3; fd < max && fd < 65536; fd++)
-			if (fd != n->udp && fd != n->udp2 && fd != n->port_fd && fd != n->ctl_fd)
+			if (fd != n->udp && fd != n->udp2 && fd != n->udp6 && fd != n->port_fd && fd != n->ctl_fd)
 				close(fd);
 		return;
 	}
 	while ((e = readdir(d))) {
 		fd = atoi(e->d_name);
-		if (fd > 2 && fd != dfd && fd != n->udp && fd != n->udp2 && fd != n->port_fd && fd != n->ctl_fd)
+		if (fd > 2 && fd != dfd && fd != n->udp && fd != n->udp2 && fd != n->udp6 && fd != n->port_fd && fd != n->ctl_fd)
 			close(fd);
 	}
 	closedir(d);
@@ -243,7 +322,7 @@ void node_dispatch(lw_node *n, const uint8_t *buf, size_t r, const struct sockad
 
 int lw_node_serve(lw_node *n)
 {
-	struct pollfd *pf = malloc((size_t)(4 + SPRAY_N + n->maxpeers) * sizeof *pf);
+	struct pollfd *pf = malloc((size_t)(5 + SPRAY_N + n->maxpeers) * sizeof *pf);
 	int nf, k;
 	uint8_t buf[2048];
 	static uint8_t big[65600];		/* a NIC may hand us a 64 KB coalesced frame */
@@ -252,7 +331,7 @@ int lw_node_serve(lw_node *n)
 	ssize_t r;
 	int i;
 
-	n->rx_fd = n->udp;
+	n->rx_fd = n->udp >= 0 ? n->udp : n->udp6;
 	close_inherited(n);
 	mlock(&n->id, sizeof n->id);		/* locks don't survive fork(); failure (rlimit) is not fatal */
 	signal(SIGTERM, on_term);
@@ -263,10 +342,11 @@ int lw_node_serve(lw_node *n)
 		pf[1].fd = n->port_fd;
 		pf[2].fd = n->ctl_fd;
 		pf[3].fd = n->udp2;			/* a negative descriptor is ignored by poll */
-		nf = 4;
-		for (k = 0; k < n->nspray && nf < 4 + SPRAY_N; k++)	/* sockets opened to be found (spray.c) */
+		pf[4].fd = n->udp6;
+		nf = 5;
+		for (k = 0; k < n->nspray && nf < 5 + SPRAY_N; k++)	/* sockets opened to be found (spray.c) */
 			pf[nf++].fd = n->spray_fd[k];
-		for (k = 0; k < n->maxpeers && nf < 4 + SPRAY_N + 256; k++)
+		for (k = 0; k < n->maxpeers && nf < 5 + SPRAY_N + 256; k++)
 			if (n->peers[k].used && n->peers[k].sfd)
 				pf[nf++].fd = n->peers[k].sfd;
 		for (k = 0; k < nf; k++)
@@ -287,7 +367,7 @@ int lw_node_serve(lw_node *n)
 					n->rx_pkts++;
 					node_dispatch(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
 				}
-				n->rx_fd = n->udp;
+				n->rx_fd = n->udp >= 0 ? n->udp : n->udp6;
 			}
 		if (pf[0].revents & POLLIN)
 			for (i = 0; i < 256; i++) {

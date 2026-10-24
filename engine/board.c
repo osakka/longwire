@@ -406,10 +406,7 @@ static int cands_write(uint8_t *p, const lw_cand *c, int nc, int strict)
 
 static void observed(const lw_peer *p, lw_cand *c)
 {
-	const struct sockaddr_in *a = (const void *)&p->ep;
-
-	memcpy(c->ip, &a->sin_addr, 4);
-	c->port = ntohs(a->sin_port);
+	sa_cand((const struct sockaddr *)&p->ep, c);
 	c->type = CAND_REFL;
 }
 
@@ -561,8 +558,11 @@ static void send_number(lw_node *n, lw_peer *p, const reg *r, const char *code)
 
 	memcpy(b, r->number, NUMLEN);
 	observed(p, &c);
-	memcpy(b + NUMLEN, c.ip, 4);
-	put16(b + NUMLEN + 4, c.port);
+	memset(b + NUMLEN, 0, 6);			/* a node reached over IPv6 has no IPv4 address to be told of */
+	if (c.fam == 4) {
+		memcpy(b + NUMLEN, c.ip, 4);
+		put16(b + NUMLEN + 4, c.port);
+	}
 	b[NUMLEN + 6] = (uint8_t)((n->cfg.no_caller_id ? 0 : CAPS_CALLERID) | (n->cfg.no_directory ? 0 : CAPS_DIRECTORY));
 	if (code[0])
 		o += (size_t)tlv_put(b + o, TAG_CODE, code, strlen(code));
@@ -824,8 +824,11 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			lw_cand c;
 
 			observed(p, &c);
-			memcpy(a, c.ip, 4);
-			put16(a + 4, c.port);
+			memset(a, 0, 6);
+			if (c.fam == 4) {
+				memcpy(a, c.ip, 4);
+				put16(a + 4, c.port);
+			}
 			ctl_msg_send(n, p, M_HBACK, a, 6);
 		}
 		return;
