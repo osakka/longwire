@@ -233,6 +233,7 @@ connection stays open and carries events. Keys never cross the control socket.
 |---|---|
 | `seed` | 32 bytes, mode 0600. *This is your identity and your number.* |
 | `known` | pins: switchboard key id, number, key id, one line each; written when a call comes up, edited by `longwire unpin` |
+| `answer` | the answer policy `up` was given or `longwire answer` last set; read at each ring |
 | `lines` | the line this node is on: its id, founder, line key (sealed under the seed), the node's own admit, the members, and the evictions |
 | `ctl` | the control socket |
 | `switchboard/numbers.log` | on a switchboard: every number issued, with its key id and bundle |

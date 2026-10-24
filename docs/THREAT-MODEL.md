@@ -8,7 +8,8 @@ What longwire defends against, what it does not, and what is still open. Designe
 1. **Confidentiality and integrity of every frame** on the line, against anyone on the path, both today and for a
    future quantum attacker who recorded it ([CRYPTO](CRYPTO.md)).
 2. **Admission.** Only a node that you picked up (or, with the `auto` policy, chose to pick up for anyone), or that you
-   configured with `--peer`, ever reaches your LAN.
+   configured with `--peer`, or that a member of your line has vouched for (or, on a line with an operator, that the operator has
+   admitted), ever reaches your LAN.
 3. **Identity binding.** Once you've been connected to a number, nobody can impersonate it to you. That includes the
    switchboard: the number is pinned to its key, and a different key drops the call.
 4. **Availability of the data path,** independent of the switchboard. A call that is up survives the switchboard going
@@ -37,7 +38,7 @@ What longwire defends against, what it does not, and what is still open. Designe
   have decided to trust.
 - **The first call trusts the switchboard,** exactly as the first SSH connection trusts DNS. To remove even that,
   compare the six-word **safety phrase** both sides show. A number's key is pinned once a call is up, so from then on a
-  lying switchboard cannot substitute another. Dialing a full address (`lw1…`) rather than a number *(planned: M3)*.
+  lying switchboard cannot substitute another. Dialing a full address (`lw1…`) rather than a number is supported.
 - **What the switchboard sees:** that you're online, your public address and port, which numbers ring which, and when.
   On the default public switchboard, that's its operator, the longwire project. If that metadata matters, run your
   own switchboard; it's one more script in the same install (`longwire-switchboard`). See
@@ -83,7 +84,7 @@ per-source budget by /64), and a firewall may close the port ([ADR 0027](adr/002
 - Parsers of untrusted input are few and small: handshake fragments (`engine/hs.c`), data packets (`engine/sess.c`),
   `HELLO` and `PUNCH` and the control messages (`engine/call.c`, `engine/board.c`), and the frames read from the LAN
   (`engine/sw.c`). Fuzzing them continuously *(planned: M8)*.
-- No allocation on the data path. Tables have fixed sizes: peers (16, or 1024 on a switchboard), MAC entries (8,192),
+- No allocation on the data path. Tables have fixed sizes: peers (32, or 1024 on a switchboard), MAC entries (8,192),
   handshake slots (8, one per source), and four reassembly slots per peer, created on first use.
 - Keys are handled in C only. The seed is mode 0600. `lw start` and `lw key` read it inside the module's process and
   wipe it before returning; the worker keeps its identity in memory that is `mlock`ed where the OS allows. It never

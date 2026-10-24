@@ -42,7 +42,7 @@ The switchboard now holds the names it is given (only from nodes that chose to g
 [SWITCHBOARD](../SWITCHBOARD.md) and the [threat model](../THREAT-MODEL.md) say. A malicious switchboard can hand out
 a wrong name or key for a lookup; a first call to a looked-up key is still a first call, with a safety phrase to read
 out. A private switchboard can run with both switches off. The default for the node is the conservative one and can be
-flipped in the node's config without touching the protocol.
+flipped with `--name` and `--listed` without touching the protocol.
 
 ---
 

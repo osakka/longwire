@@ -25,6 +25,7 @@ typedef struct reg {
 	char    name[LW_NAME_MAX + 1];		/* in memory only: sent again whenever the node registers */
 	int     listed;
 	double  look_tok, look_t;		/* a budget for directory lookups */
+	double  miss_tok, miss_t;		/* a budget for dials that find no one: learning which numbers exist is slow */
 } reg;
 
 typedef struct bcall {
@@ -661,6 +662,20 @@ static void rejected(lw_node *n, const uint8_t key[32], const uint8_t id[8], int
 	ctl_msg_send(n, p, M_REJECTED, b, sizeof b);
 }
 
+/* A dial to a number that is unknown or not online tells the caller something about who exists. That is allowed ten
+ * times a minute; after that the answer is the same for both, "refused by the switchboard". */
+static int miss_ok(lw_node *n, reg *r)
+{
+	r->miss_tok += (n->now - r->miss_t) / 6.0;
+	r->miss_t = n->now;
+	if (r->miss_tok > 10.0)
+		r->miss_tok = 10.0;
+	if (r->miss_tok < 1.0)
+		return 0;
+	r->miss_tok -= 1.0;
+	return 1;
+}
+
 static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t callee_key[32], lw_cand *cc, int ncc, int strict,
 		       const uint8_t *admit, int alen)
 {
@@ -908,7 +923,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 				admit = 0;
 		}
 		if (!(ce = reg_by_number(b, num))) {
-			rejected(n, p->key_id, 0, R_UNKNOWN, num);
+			rejected(n, p->key_id, 0, miss_ok(n, r) ? R_UNKNOWN : R_POLICY, num);
 			return;
 		}
 		if (ce == r) {
@@ -916,7 +931,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			return;
 		}
 		if (!online(n, ce)) {
-			rejected(n, p->key_id, 0, R_OFFLINE, num);
+			rejected(n, p->key_id, 0, miss_ok(n, r) ? R_OFFLINE : R_POLICY, num);
 			return;
 		}
 		if (n->cfg.policy_script) {

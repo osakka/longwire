@@ -24,7 +24,7 @@ As built, the relay sits entirely below sessions: the pair runs its own handshak
 wrapped datagrams by route id and sees nothing it could read or alter, and a relayed peer keeps trying for a direct path
 and drops the relay when an authenticated datagram arrives from the other end itself. Only a member with a public
 address relays by default, only for members of its own line, and never a relayed leg: a relay is one hop. If none is
-available the pair stays split and the node says so. A member that relays can be evicted like any other. Relay and path upgrade are built (M3 stage 2); the port-spray rung is not yet *(planned: M3)*.
+available the pair stays split and the node says so. A member that relays can be evicted like any other. Relay and path upgrade are built (M3 stage 2); the port-spray rung is built too ([PROTOCOL §4](../PROTOCOL.md#4-nat-traversal)).
 
 ---
 

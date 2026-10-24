@@ -6,7 +6,7 @@ Cryptographic derivations are in [CRYPTO](CRYPTO.md), and the switchboard's mess
 [SWITCHBOARD](SWITCHBOARD.md). Designed-but-unbuilt parts carry `*(planned: M3)*`.
 
 Integers on the wire are little-endian except where a field says otherwise (candidate ports, observed addresses, `GO`'s start
-delay, CTL lengths and the site probe's time are big-endian). `‖` is concatenation. Sizes are in bytes.
+delay, CTL lengths, the site probe's time and the 8-byte times in admits and evictions are big-endian). `‖` is concatenation. Sizes are in bytes.
 
 ## 1. Datagram types
 
@@ -20,7 +20,7 @@ The first byte of every datagram is its type. Anything unrecognised is dropped s
 | `0x04` | `DATA` | session AEAD | everything after the handshake |
 | `0x05` | `RELAY` | the relay's route table, then the inner packet's own authentication | a peer-to-peer datagram carried by a relay (§5) |
 | `0x06` | `PUNCH` | call token MAC | opens NAT mappings during call setup |
-| `0x07` | `ECHO` | call token MAC | asks the switchboard's second port for our reflexive address |
+| `0x07` | `ECHO` | none: the nonce is echoed, the answer comes from the switchboard's address, and it is shorter than the request | asks the switchboard's second port for our reflexive address |
 | `0x08` | `HELLO` | the requester checks `H(bundle) == key_id` | fetch a node's bundle when only its key id is known, or offer one (bootstrap) |
 
 **HELLO (bootstrapping from a key id).** The handshake needs the responder's full 1249-byte bundle before `HS_INIT`.
@@ -124,8 +124,8 @@ the two were left on different sessions until the dead-peer timer or the next re
 were given each other's address. `tests/start.sh` starts twelve pairs together; `tests/crossed.sh` delays every datagram 0.8 s
 and holds the link through two rekeys.
 
-Sessions with a switchboard use the same intervals as any other; a longer one, to keep a large switchboard's
-handshake rate low, *(planned: M3)*.
+Sessions with a switchboard rekey on a longer interval, `--sb-rekey` (default 600 s, the same on the node and the
+switchboard), to keep a large switchboard's handshake rate low; every other interval is as for any session.
 
 ## 4. NAT traversal
 
@@ -160,10 +160,11 @@ the punching repeats). Each side sends a `PUNCH` to every candidate at 10 packet
 arrives, the receiver has a working address. Both sides answer it at once (which opens their own NAT toward it).
 The caller then sends `HS_INIT` to that address. The callee keeps punching until the session is up, because its
 mapping must stay open for the caller's handshake to arrive. A call that has no session after 8 seconds fails with
-`no direct path (both sides behind strict NAT?)`, and nothing is left behind. Two strict (symmetric) NATs therefore
+`no direct path (…)`, and nothing is left behind: the reason says that this network's NAT is strict when the node has measured
+that, and otherwise asks whether both sides are behind strict NAT. (A strict NAT against an easy one gets longer, for spray.) Two strict (symmetric) NATs therefore
 fail cleanly, as the symmetric-NAT tests show (a symmetric NAT facing a cone NAT, and two symmetric NATs).
 
-### The harder rungs *(relay and path upgrade built; the rest planned: M3)*
+### The harder rungs *(relay, path upgrade and spray are built)*
 
 The full design is a ladder, each rung tried when the one before fails:
 
@@ -172,14 +173,14 @@ The full design is a ladder, each rung tried when the one before fails:
                               │ 8 s                                        │ upgrade
                               ▼                                            │ succeeds
                    one side EIM, other EDM? ──yes──► SPRAY ──ok──► HANDSHAKE
-                              │ no                      │ 10 s
+                              │ no                      │ 14 s
                               ▼                         ▼
                             RELAY ◄─────────────────────┘ ─── retry DIRECT every 60 s → 10 min
 ```
 
 - **IPv6** *(built)*: a node holds a second socket for it ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)); a global address is a host candidate and a path between two such nodes needs no punching. The switchboard may be reached over either family; one reached over IPv6 sends zero in the IPv4 address field of `NUMBER` and `HBACK`.
 - **More candidates:** PCP, and relay candidates (public members of the line that
-  offer relaying).
+  offer relaying) *(planned: M7)*.
 - **Mapping type** *(built)*. A switchboard also listens on its port plus one. A node sends that port an `ECHO`
   (`0x07 ‖ nonce:8`, padded to 40 bytes) and gets back `0x07 ‖ nonce:8 ‖ ip:4 ‖ port:2`, the address it was seen at.
   The reply is shorter than the request, so it cannot be used to amplify. If the port is the one the main port saw,
@@ -201,9 +202,9 @@ The full design is a ladder, each rung tried when the one before fails:
   the punched address as well as through the relay; the first authenticated datagram that arrives from the other end
   itself ends the relay on that side, and the other side follows on seeing it. Session keys don't change when the path does.
 
-**Optional parts.** `DIAL`, `RING` and `REGISTER` end with optional parts, each `tag:1 ‖ len:1 ‖ bytes`, read to the end of
+**Optional parts.** `DIAL`, `RING`, `REGISTER` and `NUMBER` end with optional parts, each `tag:1 ‖ len:1 ‖ bytes`, read to the end of
 the message and skipped if the tag is unknown: tag 1 is a line admit (145 bytes), 2 a name (at most 32 bytes of UTF-8, no
-control characters), 3 "listed" (no bytes). The switchboard adds the caller's name to `RING` itself, from what the caller
+control characters), 3 "listed" (no bytes), 4 "this registrant is a switchboard" (`REGISTER`, no bytes) and 5 the registry's code for it (`NUMBER`, ASCII digits). The switchboard adds the caller's name to `RING` itself, from what the caller
 registered, if it carries names.
 
 ## 5. Relay *(built, M3 stage 2)*
@@ -271,7 +272,7 @@ admit, the members, and the evictions. A node is on at most one line; at most 16
 the key stored for that member, and the `time` is later than any eviction recorded for that `key_id`. The **founder**
 admits itself (`admitted_by` = `key_id` = the founder), and members accept a self-admit only for the recorded founder, so
 every member holds an admit, the first included. An admit rides in the `DIAL` and `RING` messages as an optional
-trailing blob (`admit_len:1`, 0 or 145 then the admit); the switchboard passes it through without looking at it.
+part (tag 1, length 145, then the admit; absent when there is none); the switchboard passes it through without looking at it.
 
 **Joining.** When a call comes up, each end sends `LINEHELLO`. Then:
 

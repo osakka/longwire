@@ -77,10 +77,10 @@ reuse it later through JNI. That app will be a fourth piece *(planned: M6)*. Tod
 
 ## Status
 
-**M0, M1 and M2, and the first stage of M3, are built** and tested end to end, built with TCC and nothing else: the
+**M0, M1, M2 and M3 are built** and tested end to end, built with TCC and nothing else: the
 handshake and its cookies, the switchboard, calls through simulated NATs, splice carrying real ping, ARP, TCP and
-broadcasts between LANs that are one subnet, a second box on a segment taking over when the first is killed, and lines of
-up to 16 sites that join by number, build their own mesh with no prompt, evict a member, and heal after a restart. The jack port, real
+broadcasts between LANs that are one subnet, a second box on a segment taking over when the first is killed, lines of
+up to 16 sites that join by number (with an operator, if the line has one), build their own mesh with no prompt, evict a member, and heal after a restart, and nodes behind strict NATs, relays or IPv6. The jack port, real
 routers and real wide-area links are untested. See the [roadmap](docs/ROADMAP.md).
 
 ```

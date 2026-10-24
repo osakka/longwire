@@ -36,7 +36,7 @@ kem_coins  = BLAKE2b-512(key = seed, "longwire mlkem768 v1")       → ML-KEM.Ke
 
 bundle  = 0x01 ‖ x25519_pub(32) ‖ mlkem_pub(1184) ‖ ed25519_pub(32)        1249 bytes
 key_id  = BLAKE2b-256(bundle)                                             32 bytes
-address = "lw1" ‖ base32(key_id)                                          the "full number", 55 chars
+address = "lw1" ‖ base32(key_id)                                          the "full address", 55 chars
 ```
 
 PQClean exposes `crypto_kem_keypair_derand`, so the ML-KEM keypair is deterministic from the seed, just like the
@@ -158,7 +158,7 @@ supports the same `__asm__` barrier). The ML-KEM round trip was checked to agree
   libraries have not been checked against known-answer vectors either *(planned: M8)*; their correctness rests on
   upstream's own tests.
 - **Signatures are classical.** Admits and evictions use Ed25519. An eviction is accepted only inside a PQ-authenticated
-  session from the member that signed it, but an *admit* travels in a ring, through the switchboard, and is checked by its
+  session from the member that signed it (on a line with an operator, from any member, carrying the operator's signature), but an *admit* travels in a ring, through the switchboard, and is checked by its
   signature alone: an attacker able to forge Ed25519 could get a node let in, unprompted, to a line it was never vouched
   into. The node would still have to complete a handshake under its own key. ML-DSA signatures are a later option
   *(planned)*.

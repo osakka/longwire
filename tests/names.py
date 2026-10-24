@@ -173,6 +173,25 @@ def main():
     time.sleep(2)
     check(F.proc.poll() is not None and "--name must be" in open(f"{T}/F.log").read(), "a name with a control character stops the node from starting, with a plain message")
 
+    # --- asking which numbers exist is rationed --------------------------------------------------------
+    import random
+    t = [[0,3,1,7,5,9,8,6,4,2],[7,0,9,2,1,5,4,8,6,3],[4,2,0,6,8,7,1,3,5,9],[1,7,5,0,9,8,3,4,2,6],[6,1,2,3,0,4,5,9,7,8],
+         [3,6,7,4,2,0,9,5,8,1],[5,8,6,9,7,2,0,1,3,4],[8,9,4,5,3,6,2,0,1,7],[9,4,3,8,6,1,7,2,0,5],[2,5,8,1,4,3,6,7,9,0]]
+    def damm(rnd):
+        d = [rnd.randrange(1, 10)] + [rnd.randrange(10) for _ in range(7)]
+        x = 0
+        for v in d: x = t[x][v]
+        return "".join(map(str, d)) + str(x)
+    rnd, reasons = random.Random(5), []
+    for _ in range(16):
+        g = damm(rnd)
+        mk = C.w.mark()
+        C.cmd("dial", f"{g[:3]}-{g[3:6]}-{g[6:]}")
+        e = C.w.wait("call-failed", 8, after=mk)
+        reasons.append(e and e["reason"])
+    check(reasons[:8] == ["unknown number"] * 8, f"the first dials to numbers that do not exist are told so: {reasons[:3]}")
+    check(reasons[-1] == "refused by the switchboard", f"after ten in a minute the answer is the same whatever the number: {reasons[-3:]}")
+
     # --- the answer policy can be changed while the node runs -----------------------
     rc, out = D.cmd("answer")
     check(rc == 0 and out == "ask", f"answer shows the policy D started with: {out!r}")

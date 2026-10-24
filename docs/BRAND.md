@@ -25,7 +25,7 @@ Use these words consistently in the CLI, the docs, the hibr desktop and the Andr
 |---|---|---|
 | **line** | one bridged L2 network | tunnel, overlay, VLAN |
 | **number** | a node's dialable identity (`447-120-933`) | ID, peer ID, endpoint |
-| **full number** | the `lw1…` key address | public key, fingerprint |
+| **full address** | the `lw1…` key address | public key, fingerprint |
 | **dial** / **hang up** | connect / disconnect | connect, establish, tear down |
 | **ring** / **pick up** / **reject** | incoming request / accept / refuse | handshake request, approve |
 | **switchboard** | the rendezvous server | coordinator, controller, signalling server |

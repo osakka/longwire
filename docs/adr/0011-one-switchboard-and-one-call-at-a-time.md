@@ -8,8 +8,8 @@ Federation and multi-line nodes are large features, and neither is needed to pro
 
 ## Decision
 
-A deployment has one switchboard and numbers are local to it. A node is on at most one call, and a call is between two
-nodes.
+A deployment has one switchboard and numbers are local to it. A person is asked about one call at a time, and a call is
+between two nodes.
 
 ## Consequences
 

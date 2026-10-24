@@ -12,7 +12,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 | **M0** | First frame: handshake, sessions, switch, module, node script | built |
 | **M1** | Dial tone: switchboard, numbers, dial and ring, pins, NAT hole punching | built |
 | **M2** | Splice: one subnet over two LANs, site groups, cookies | built |
-| **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | in progress: lines and relaying built; the rest planned |
+| **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | built, apart from PCP and relay candidates *(planned: M7)*; the independent doc review is done |
 | **M4** | Desktop and distribution | planned |
 | **M5** | No privilege, more Unix | planned |
 | **M6** | Pocket: member mode, Android | planned |
@@ -22,7 +22,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 
 ## Built
 
-**M0, M1 and M2, and stage 1 of M3,** are built with TCC (and only TCC) and tested by `make check`: the hybrid handshake with
+**M0, M1, M2 and M3** are built with TCC (and only TCC) and tested by `make check`: the hybrid handshake with
 cookies, sessions, the learning switch, the hibr module and both scripts; numbers, rings, pins and hole punching through
 a userspace NAT; splice carrying real ping, ARP, TCP and broadcasts between two LANs that are one subnet, and two boxes
 on one segment with a failover, and a four-site line that builds its own mesh, evicts a member, and heals when one restarts. The test suites are described in [ADR 0019](adr/0019-the-tests-build-their-own-network.md).
@@ -69,7 +69,7 @@ relayed pair upgrades to direct once a path exists.
 and then dial and pick up entirely from the hibr desktop.
 - control-panel/lines.hibr: the Network pane's Lines section, the ring dialog with the safety phrase, the menu-bar ☎
 - The module as signed deb, rpm, pacman and Homebrew packages; both scripts in hibr's catalogue; the launchers and the
-  systemd unit; the default public switchboard live
+  systemd unit; the default public switchboard and the project's registry live
 - `longwire` with no arguments, `longwire watch`, a tabular `status`, automatic choice of attach mode
 
 **M5: No privilege, more Unix.** Done when a user with no sudo anywhere joins a line with `longwire shell`.
@@ -82,6 +82,7 @@ and then dial and pick up entirely from the hibr desktop.
   as an Android library: [ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md) leaves no other compiler to use
 
 **M7: Speed.** Done when the TCC build reaches 600 Mbit/s on x86-64.
+- PCP as a further address, and public members of a line offered as relay candidates to callers outside it
 - A `TPACKET_V3` receive ring, `recvmmsg` and `sendmmsg`, one worker per core, x86-64 assembly for ChaCha20 (arm64 once
   TCC's assembler is verified), an optional AEGIS-256 suite, real path-MTU probing, and a proper end-to-end benchmark
 

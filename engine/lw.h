@@ -54,7 +54,7 @@ typedef struct lw_cfg {
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	int  cand_loopback;		/* offer 127.x as a candidate: tests and same-host use */
 	int  policy_script;		/* switchboard: wait for the script's verdicts */
-	int  maxpeers;			/* default 16 (switchboard: 1024) */
+	int  maxpeers;			/* default 32 (switchboard: 1024) */
 	char token[64];			/* presented when registering */
 	char registry[200];		/* switchboard: HOST:PORT/KEY of the registry of switchboard codes, or "none" */
 	char public_switchboard[100];	/* registry: the key (lw1... or hex) of the switchboard that is given the code 1 */

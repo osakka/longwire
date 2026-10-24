@@ -22,7 +22,8 @@ connected, the switchboard can go away and the call stays up.
 
 - **Random, not sequential**, so numbers don't leak how many users there are or when someone joined. A registered node
   can still ask whether a number exists (the answers differ: unknown, or not online), so enumeration is slow and noisy
-  rather than impossible; a limit on that *(planned: M3)*.
+  rather than impossible: a node gets ten such answers a minute (a dial to a number that is unknown or not online), and after
+  that is told only "refused by the switchboard", whichever it was.
 - **The check digit** (Damm algorithm) catches every single-digit typo and every swap of adjacent digits; a node
   refuses such a number before anything goes on the wire.
 - **Bound to a key.** A number is the registry's record `number → bundle`. Registering again with the same key
@@ -38,7 +39,7 @@ connected, the switchboard can go away and the call stays up.
   be given it in that time, so a pin somewhere cannot meet a different key by surprise. If its own key comes back
   while it is held, it gets the same number. After the hold the number can be minted again; a node that pinned the old
   key then sees `key-changed` and the call is refused. Names stay bound to their keys through all of this.
-- **The full number** (`lw1…`, 55 characters) is the key id in base32. A switchboard is given by it
+- **The full address** (`lw1…`, 55 characters) is the key id in base32. A switchboard is given by it
   (`--switchboard host:port/lw1…`; 64 hex digits also work). Dialing a full address instead of a number
   works when the switchboard has a directory and the node is listed in it ([ADR 0023](adr/0023-names-are-opt-in-claims.md)).
 
@@ -57,11 +58,11 @@ before the handshake. Messages are `CTL` messages inside that session:
 | `NUMBER` | `0x21` | sb → node | number(9), observed address, flags (caller ID offered, directory offered), optional parts: the switchboard's assigned code. To a switchboard registering with a registry, the number is all zeros and the code is its own | the node's number, and the address the switchboard saw it at (its reflexive candidate) |
 | `HEARTBEAT` | `0x22` | node → sb | candidates | every `--keepalive` s (default 25), which also holds the NAT mapping open → `HBACK` |
 | `HBACK` | `0x23` | sb → node | observed address | refreshes the reflexive candidate |
-| `DIAL` | `0x24` | caller → sb | number, caller candidates, optional parts (admit) | the switchboard rings the callee, or answers `REJECTED`. The admit is an optional trailing blob (length byte, then 0 or 145 bytes) that the switchboard passes on untouched |
+| `DIAL` | `0x24` | caller → sb | number, caller candidates, optional parts (admit) | the switchboard rings the callee, or answers `REJECTED`. The admit is an optional part (tag 1, length 145) that the switchboard passes on untouched |
 | `RING` | `0x25` | sb → callee | call id, caller number, caller bundle, candidates, optional parts (admit, caller name) | the phone rings. The switchboard never reads the admit and does not know lines |
 | `ANSWER` | `0x26` | callee → sb | call id, accept \| reject \| busy, candidates | |
 | `GO` | `0x27` | sb → both | call id, role, delay, peer number, `call_token`, peer bundle, candidates | start punching ([PROTOCOL §4](PROTOCOL.md#4-nat-traversal)). The caller learns the callee's bundle here, so this is where pins are checked |
-| `REJECTED` | `0x28` | sb → caller | call id, reason | unknown number, not online, declined, busy, refused by policy, no answer |
+| `REJECTED` | `0x28` | sb → caller | call id, reason, callee number | unknown number, not online, declined, busy, refused by policy, no answer |
 | `LOOKUP` | `0x29` | node → sb | kind (key id or name), query | the directory ([ADR 0023](adr/0023-names-are-opt-in-claims.md)): → `FOUND` |
 | `FOUND` | `0x2a` | sb → node | status (ok, no directory, slow down), query, up to 8 × (number, key id, name) | only nodes that chose to be listed. A node may look up once a second, with a burst of 5 |
 | `REFUSED` | `0x2f` | sb → node | reason text | registration refused |
@@ -140,7 +141,7 @@ Everything the switchboard does not do yet is marked where it is described and l
 ## Running one
 
 ```
-$ longwire-switchboard --listen 1877
+$ longwire-switchboard --listen 1877 --registry none
 switchboard  lw1q7m…k2a   (give this full address to your nodes)
 listening    udp 1877    tokens: open registration
 ```

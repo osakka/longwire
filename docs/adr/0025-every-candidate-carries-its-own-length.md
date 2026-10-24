@@ -15,8 +15,8 @@ An entry is `len:1 ‖ type:1 ‖ port:2 (big-endian) ‖ address:len-3`. IPv4 e
 all); the types stay 1 host, 2 reflexive, 3 mapped. A reader skips any entry whose length or type it does not know
 and keeps the ones after it. Buffers are sized for the largest entry (a 16-byte address), `CANDWIRE`.
 
-IPv6 itself is not part of this decision. It is the last item of M3 and needs only new types and a family-neutral
-`lw_cand`; nothing on the wire changes again.
+IPv6 itself is not part of this decision, and it needed nothing more on the wire: the family is implied by the entry's
+length ([0027](0027-ipv6-is-a-second-socket.md)).
 
 ## Consequences
 

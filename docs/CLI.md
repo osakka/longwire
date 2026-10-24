@@ -88,7 +88,7 @@ and on the other machine's `up` terminal:
 | `--sb-rekey S` | the rekey interval of a switchboard session (600), the same on the node and the switchboard: a switchboard holds thousands of sessions, and they carry only control messages |
 | `--cand-loopback` | offer 127.x as a call candidate: tests, and two nodes on one host |
 | `--seed FILE`, `--sock PATH`, `--state DIR` | where the identity, control socket and pins live (default `~/.longwire/`) |
-| `--maxpeers N` | how many peers to hold (default 16) |
+| `--maxpeers N` | how many peers to hold (default 32; a switchboard 1024) |
 
 **Attaching.** Today the attach mode is always explicit (`--splice` or `--jack`). Choosing one automatically, from what
 the machine can do, *(planned: M4)*.
@@ -129,10 +129,12 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 | `frames_split`, `frames_joined`, `resegmented`, `arp_answered`, `dhcp_conflicts` | frames sent as two datagrams and rejoined; coalesced TCP frames cut down; ARP requests and IPv6 neighbour solicitations answered locally; times a second DHCP server was seen |
 | `site`, `site_members`, `site_synced` | `alone`, `standby` or `active`; other live boxes heard; remote hosts shared by the active box |
 | `hs_shed`, `hs_nocookie`, `hs_badmac2`, `cookies_sent`, `cookies_got` | handshake load: shed by the per-source limit; refused for a missing or wrong cookie; cookies handed out and received |
+| `full`, `switchboard_offers`, `switchboard_codes` | your full number (`+code number`); the switchboard keys and short codes this node has been told of |
+| `relay` | `routes`, `forwarded`, `dropped` and `offer` (whether this node offers to relay) |
 | `registrations`, `sb_rekeys` | `NUMBER` replies received; rekeys of the switchboard session |
 | `peers` | per peer: `key_id`, `number`, `state`, `path`, `ep`, `age`, `rx_frames`, `tx_frames`, `rekeys`, `drop_auth`, `drop_replay` |
 
-On a switchboard: `key_id`, `address`, `uptime`, `numbers`, `online`, `calls_ringing`, `policy`, `drop_garbage`. A
+On a switchboard: `key_id`, `address`, `uptime`, `numbers`, `online`, `calls_ringing`, `policy`, `drop_garbage`, `code` (its short code), `code_refused` (why the registry did not give it one) and `codes_issued` (a registry's count). A
 tabular view *(planned: M4)*.
 
 ## Events

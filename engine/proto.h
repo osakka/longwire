@@ -33,7 +33,7 @@
 #define M_RING     0x25		/* call_id(8) number(9) bundle ncand cands */
 #define M_ANSWER   0x26		/* call_id(8) verdict(1) ncand cands */
 #define M_GO       0x27		/* call_id(8) role(1) delay_ms(2) number(9) token(32) bundle ncand cands */
-#define M_REJECTED 0x28		/* call_id(8) reason(1) */
+#define M_REJECTED 0x28		/* call_id(8) reason(1) callee number(9) */
 #define M_LOOKUP   0x29		/* kind(1: 0 key id, 1 name) query */
 #define M_FOUND    0x2a		/* status(1: 0 ok, 1 no directory) kind(1) query_len(1) query n(1) n x (number(9) key_id(32) namelen(1) name) */
 #define M_REFUSED  0x2f		/* reason string */

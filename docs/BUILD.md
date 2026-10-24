@@ -11,7 +11,7 @@ exceptions ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)). Anyt
 make                                   # tcc, about a second: build/longwire.so, against ../hibr/include/hibr.h
 export LONGWIRE_MOD=$PWD/build/longwire.so
 
-hibr scripts/longwire-switchboard.hibr --listen 1877     # on the switchboard host
+hibr scripts/longwire-switchboard.hibr --listen 1877 --registry none     # on the switchboard host
 hibr scripts/longwire.hibr up --switchboard HOST:1877/lw1… --splice eth0       # on a node
 ```
 
@@ -25,7 +25,7 @@ make check                   # lint, then all the tests, below
 make clean
 ```
 
-`make check` runs the three end-to-end suites (`tests/m0.sh`, `tests/m1.sh`, `tests/m2.sh`) and the documentation
+`make check` runs every end-to-end suite (`tests/*.sh`, listed in the Makefile) and the documentation
 check (`tests/docs.py`). It needs hibr (built, at `../hibr/build/hibr` or `$HIBR`), python3, and **unprivileged user
 and network namespaces** (`unshare -Urn`): the tests build their own network ([ADR 0019](adr/0019-the-tests-build-their-own-network.md)).
 Distributions that restrict unprivileged user namespaces (Ubuntu 24.04 and later by default) need that relaxed to run

@@ -19,7 +19,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0008](0008-hard-nats-are-relayed-by-line-members.md) | Hard NATs are relayed by line members, never by the switchboard | accepted |
 | [0009](0009-the-first-ring-asks-and-a-key-is-pinned-once-the-call-is-up.md) | The first ring asks, and a key is pinned once the call is up | accepted |
 | [0010](0010-numbers-are-allocated-and-bound-to-keys.md) | Numbers are allocated by the switchboard and bound to keys | accepted |
-| [0011](0011-one-switchboard-and-one-call-at-a-time.md) | One switchboard per deployment, and one call at a time | accepted |
+| [0011](0011-one-switchboard-and-one-call-at-a-time.md) | One switchboard per deployment, and a person is asked about one call at a time | accepted |
 | [0012](0012-gpl-3-or-later.md) | The licence is GPL-3.0-or-later | accepted |
 | [0013](0013-packages-for-the-module-the-catalogue-for-the-scripts.md) | Packages for the module, hibr's catalogue for the scripts | accepted *(planned: M4)* |
 | [0014](0014-a-default-public-switchboard.md) | A default public switchboard, operated by the project | accepted |

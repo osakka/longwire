@@ -26,8 +26,9 @@ overlaps, no squatting, and no theft.
     and no permission: any switchboard has one from its first minute, which is what keeps the numbering open. A leading `0` is
     what marks a derived code, and no assigned code ever begins with `0`, so the two kinds are disjoint by prefix, not by
     a size limit, and stay disjoint whatever length assigned codes grow to. There are a million derived codes; with 100
-    switchboards in one world two share one with probability about 0.5%, with 1,000 about 40%. A node that meets two
-    switchboards with one derived code refuses the second and says so, rather than guess.
+    switchboards in one world two share one with probability about 0.5%, with 1,000 about 40%. A node today has one
+    switchboard, so it cannot meet two with one code; when federation lets it ([M9](../ROADMAP.md)), it must refuse the second
+    and say so, rather than guess.
   - the **assigned code**, from a registry: short and memorable, the next free one, one per switchboard key, not chosen. A
     person is shown the assigned code when there is one.
 - **The plan is prefix-free, and that is what lets it grow.** No assigned code is the beginning of another, as in the
@@ -50,7 +51,7 @@ overlaps, no squatting, and no theft.
   persisted, refused if taken. Theft is solved by the handshake (a code cannot be claimed without the key), overlap by the
   registry's uniqueness, and "automatic" is `REGISTER` and `NUMBER`. There is no second protocol. A private or air-gapped
   switchboard names no registry and keeps its derived code. The registry's own address is, like the default public switchboard,
-  not yet supplied: until it is, no switchboard is assigned a short code *(planned: M3)*. A code the registry gives is
+  not yet supplied: until it is, no switchboard is assigned a short code *(planned: M4)*. A code the registry gives is
   also announced to the switchboard's nodes in `NUMBER`, so they can show it.
 - **Trust.** A node pins its own switchboard by its full address (`lw1…`) and never takes the registry's word about it. The
   registry can lie only about *other* switchboards' codes, as a switchboard can lie on a first call, and that is covered

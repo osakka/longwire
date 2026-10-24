@@ -18,8 +18,7 @@ switchboard for nothing.
 ## Consequences
 
 The check digit catches every single-digit typo and adjacent swap before anything is sent. A number follows the 32-byte
-seed. Numbers are never released today: releasing one unused for a year needs the last-seen time stored
-*(planned: M3)*. A re-issued number would show up on every node that pinned the old key as `key-changed`.
+seed. A number unheard for a year is released and held back for another (`--release-after`, [SWITCHBOARD](../SWITCHBOARD.md)); its owner coming back in that time gets the same one. A re-issued number would show up on every node that pinned the old key as `key-changed`.
 
 ---
 

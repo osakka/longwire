@@ -3,6 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: the documentation review, and a limit on guessing numbers
+
+- **A fresh read of the documentation against the code** found about twenty places where the prose was stale or wrong
+  (an admit described as an untagged trailer, `ECHO` described as authenticated, a default of 16 peers that is 32,
+  "planned" marks on things that are built, and so on); all are corrected, and what is left of M3 is named.
+- **A node gets ten answers a minute to dials that find no one.** A dial to a number that is unknown or not online is
+  answered as such ten times a minute per node; after that the answer is "refused by the switchboard" whichever it was, so
+  guessing numbers to find who exists is slow and, past the budget, tells nothing. Tested in `tests/names.sh`.
+
 ## M3: IPv6
 
 - **Nodes and switchboards speak IPv6** ([ADR 0027](docs/adr/0027-ipv6-is-a-second-socket.md)): a second socket beside the

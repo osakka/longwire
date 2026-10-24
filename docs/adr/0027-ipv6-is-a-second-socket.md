@@ -15,8 +15,9 @@ is sent from the socket of the destination's family and a reply leaves by the so
 list: `ADDR:PORT` (IPv4), `[ADDR]:PORT` (IPv6), or a bare `PORT` for both on any address.
 
 - A candidate carries its family ([0025](0025-every-candidate-carries-its-own-length.md): 7 bytes for IPv4, 19 for IPv6).
-  Global IPv6 addresses of the node's interfaces are host candidates; there is no reflexive or mapped IPv6 candidate, because
-  there is no NAT66 to find through. The switchboard adds the address it sees a node at, of either family.
+  Global IPv6 addresses of the node's interfaces are host candidates; a node finds no reflexive or mapped IPv6 candidate of its own, because
+  there is no NAT66 to find through. The switchboard adds the address it sees a node at to the list it passes on, of either
+  family (a reflexive candidate, which for IPv6 is the same address as the host's).
 - The two old protocol facts that are IPv4 only stay so: `ECHO`, NAT-PMP and port spray work on IPv4 sockets, and a
   switchboard reached over IPv6 reports no IPv4 address to the node (the address field of `NUMBER` and `HBACK` is zero).
 - A node with a global IPv6 address is public as it stands and may offer to relay.
