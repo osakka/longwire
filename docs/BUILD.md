@@ -71,8 +71,8 @@ registry) in `/etc/longwire/switchboard.conf` and enable it. `longwire@NIC.servi
 arguments in `/etc/longwire/NIC.conf`; it holds `CAP_NET_RAW` and nothing else. Both run as a transient user with a state
 directory of their own (`/var/lib/longwire-switchboard`, `/var/lib/longwire`: the identity lives there), and both start the
 launchers, so the scripts must have been installed for the machine with `catalogue --system`. The scripts are commands, not desktop apps, so they are published under the catalogue's `cli` kind
-([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)): hibr's `catalogue` and its catalogue repository learn the kind
-first *(planned: M4)*; the change is two lines, in `packaging/catalogue/hibr-cli-kind.patch`.
+([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)). hibr's `catalogue` and `hibr-apps` have the kind; a hibr release
+that carries it, and publishing the two bundles, are *(planned: M4)*.
 
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 

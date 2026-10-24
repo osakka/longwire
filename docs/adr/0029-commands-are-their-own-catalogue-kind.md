@@ -1,6 +1,6 @@
 # 0029 — Commands are their own catalogue kind
 
-Status: accepted for longwire; the change it needs in hibr and in hibr-apps is proposed *(planned: M4)*. Amends
+Status: accepted, and built in hibr (`c5bf491`) and hibr-apps (`697f789`); in a hibr release *(planned: M4)*. Amends
 [0013](0013-packages-for-the-module-the-catalogue-for-the-scripts.md) and [0028](0028-one-deb-and-the-others-from-it.md).
 
 ## Context
@@ -20,17 +20,20 @@ Scripts that are commands are published under a tenth kind, **`cli`**, and insta
 - **They declare themselves as apps do:** an `app NAME "description" VERSION` line and `# modules:`, which mkindex reads
   for the title, version and the module the catalogue should find before it fetches.
 - **The launchers look in `cli` first**, then in the places an application would be, so a copy installed either way runs.
-- **The change in hibr is two lines**: `cli` in `CAT_KINDS` and in `CAT_KEXT` (`[cli]=.hibr`) in `programs/catalogue.hibr`,
-  with the comments that count the kinds. It is in [packaging/catalogue/hibr-cli-kind.patch](../../packaging/catalogue/hibr-cli-kind.patch)
-  against hibr as it stands. Tried on a scratch copy against a local catalogue: `catalogue install cli/longwire` placed the
-  script at `$XDG_DATA_HOME/hibr/cli/longwire.hibr` and nothing else. A current `catalogue` meeting a `cli` entry lists
-  it and refuses to install it with a plain message ("the index says kind cli, which is not one an app installs into"), so
-  publishing such an entry harms no one who has not upgraded.
-- **The change in hibr-apps** is for its `addapp` (to take a file that is not under a desktop tree, with `--kind cli`) and
-  `mkindex` (to list the kind, as "Commands"), `README.md` and its notes. They are that repository's to make.
+- **The change in hibr is two lines** (`cli` in `CAT_KINDS` and `[cli]=.hibr` in `CAT_KEXT`, in `programs/catalogue.hibr`), with
+  the Catalogue window naming the kind "Commands", the catalogue's documentation, and three checks in hibr's catalogue suite. Tried
+  first on a scratch copy against a local catalogue. A `catalogue` without it meeting a `cli` entry lists it and refuses to
+  install it with a plain message ("the index says kind cli, which is not one an app installs into"), so publishing such an
+  entry harms no one who has not upgraded.
+- **The change in hibr-apps** is `addapp --kind cli` (a command is not under a desktop tree, so the kind is said, not found),
+  `mkindex` listing the kind as "Commands", reading the licence from a script's own `# SPDX-License-Identifier:` line instead of
+  calling every entry LGPL, and an `app` line that may name a script with a dash. Tried end to end: both scripts published to a
+  scratch catalogue, the committed `catalogue` showed them signed, refused them by name while the `longwire` module was not
+  there, and installed them under `cli/` once it was.
 
 ## Consequences
 
-- Publishing to the catalogue waits for a hibr that has the kind and a hibr-apps that can publish it; the packages say
-  `catalogue install cli/longwire cli/longwire-switchboard`, which works from then on.
+- The bundles are published when a hibr release has the kind (a client without it lists them and cannot install them), and the
+  packages are published with them: they say `catalogue install cli/longwire cli/longwire-switchboard`, which works from
+  then on *(planned: M4)*.
 - Any other command-line tool written in hibr has somewhere to live that is not a menu.

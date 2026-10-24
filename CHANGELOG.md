@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M4: a catalogue kind for commands
+
+- **The scripts are commands, not desktop apps, so the catalogue has a tenth kind, `cli`** ([ADR 0029](docs/adr/0029-commands-are-their-own-catalogue-kind.md)).
+  It was added in hibr (`catalogue install cli/NAME` files a script under `$XDG_DATA_HOME/hibr/cli`, which the desktop never
+  scans; the Catalogue window calls it Commands) and in hibr-apps (`addapp --kind cli`, the licence a script declares, a dash in
+  a name). The launchers look there first. The bundles are not published yet: that waits for a hibr release with the kind.
+
 ## M4: packages
 
 - **The module as a deb, an rpm and a pacman package** (`make packages`; [ADR 0028](docs/adr/0028-one-deb-and-the-others-from-it.md)).
