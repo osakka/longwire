@@ -173,6 +173,17 @@ def main():
     time.sleep(2)
     check(F.proc.poll() is not None and "--name must be" in open(f"{T}/F.log").read(), "a name with a control character stops the node from starting, with a plain message")
 
+    # --- the answer policy can be changed while the node runs -----------------------
+    rc, out = D.cmd("answer")
+    check(rc == 0 and out == "ask", f"answer shows the policy D started with: {out!r}")
+    rc, out = D.cmd("answer", "sometimes")
+    check(rc != 0 and D.cmd("answer")[1] == "ask", "a policy that does not exist is refused and changes nothing")
+    D.cmd("hangup"); E.cmd("hangup"); time.sleep(1)
+    check(D.cmd("answer", "auto")[0] == 0 and D.cmd("answer")[1] == "auto", "answer auto is accepted")
+    mk = D.w.mark()
+    E.cmd("dial", num["D"])
+    check(D.w.wait("connected", 20, after=mk) is not None, "the next ring is picked up with no one at the keyboard")
+
     for n in (A, B, C, D, E):
         n.cmd("down")
     for sb in (S1b, S2):

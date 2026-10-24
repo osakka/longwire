@@ -54,7 +54,7 @@ and on the other machine's `up` terminal:
 | `longwire who NAME` or `who lw1…` | ask the switchboard's directory for listed nodes whose name contains the text (3 characters or more), or that hold that full address: up to 8 results, each with number, key id and name (JSON). A name is a claim, so check the safety phrase on the first call |
 | `longwire dial lw1…` | call a full address, through the directory. Fails plainly if the switchboard has none or the node is not listed |
 | `longwire who NUMBER` | what this node knows of a number (JSON): its key id and full address, whether it is pinned, on your line, connected (and by what path), and the safety phrase of a live call. It asks nobody, so a number never called, pinned or listed is "not known here" |
-| `longwire answer POLICY` | change the answer policy while running *(planned: M3)* |
+| `longwire answer [POLICY]` | show, or change, the [answer policy](#answer-policy) of the running node. It takes effect on the next ring; a call already ringing is judged by the policy it arrived under. `up` sets it again from `--answer` (default `ask`) |
 | `longwire watch` | stream events as sentences *(planned: M4)* |
 | `longwire shell NUMBER` | dial, then a shell whose only network is the line *(planned: M5)* |
 | `longwire key export`, `longwire key import` | the identity as 33 words from the safety-phrase list (32 for the seed, one of checksum), and back. `export` prints to the terminal only; `import` reads the words on standard input, checks the checksum, and refuses to overwrite an identity. The same words give the same key and so the same number. They *are* the identity: keep them like the seed file |

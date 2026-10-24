@@ -35,6 +35,7 @@ usage: longwire <command>
   who NAME|lw1...                             ask the switchboard's directory (if it has one) for listed nodes by name or full address
   unpin NUMBER                                forget a number's key: the next call from it is a first call again
   status                                      what the node is doing (JSON)
+  answer [ask|known|auto|never]               show, or change, how the running node answers rings
   down                                        stop the node
   setup splice NIC | setup jack [TAP]         print the one-time privileged step for that attach mode
   key export | import                         the identity as 33 words, and back (import reads them on stdin)
@@ -86,6 +87,8 @@ announce() {
 # policy but `never`: that is how a mesh builds without a prompt on any member.
 on_ring() {
 	local policy=$1 id=${e[call]}
+	[ -r "$LW_DIR/answer" ] && read -r policy < "$LW_DIR/answer"	# `longwire answer` may have changed it since `up`
+	case $policy in ask|known|auto|never) ;; *) policy=ask ;; esac
 	if [ "${e[admit]}" = true ] && [ "$policy" != never ]; then
 		lw pickup "$id" > /dev/null
 		return
@@ -108,6 +111,7 @@ cmd_up() {
 		esac
 	done
 	case $answer in ask|known|auto|never) ;; *) echo "longwire: --answer wants ask, known, auto or never" >&2; exit 2 ;; esac
+	echo "$answer" > "$LW_DIR/answer"
 	if lw status > /dev/null 2>&1; then
 		say "·  a node is already running: attaching to it"	# the script restarted; the worker never stopped
 	else
@@ -204,6 +208,11 @@ who)     [ $# -eq 1 ] || { usage >&2; exit 2; }
          esac ;;
 unpin)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw unpin "$1" ;;
 status)  run lw status ;;
+answer)  case "${1:-}" in
+         "") if [ -r "$LW_DIR/answer" ]; then cat "$LW_DIR/answer"; else echo ask; fi ;;
+         ask|known|auto|never) [ $# -eq 1 ] || { usage >&2; exit 2; }; echo "$1" > "$LW_DIR/answer" ;;
+         *) echo "longwire: answer wants ask, known, auto or never" >&2; exit 2 ;;
+         esac ;;
 down)    run lw stop ;;
 setup)   cmd_setup "$@" ;;
 id)      run lw key new "$LW_SEED" > /dev/null; run lw key id "$LW_SEED" ;;

@@ -3,6 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: `longwire answer`
+
+- **Change the answer policy while the node runs.** `longwire answer known` (or `ask`, `auto`, `never`); with no
+  argument it shows the current one. The running `up` reads it at each ring. Tested in `tests/names.sh`.
+
 ## M3: self-describing candidates
 
 - **Each candidate carries its length** (`len type port address`), so a reader can skip an address family it does
