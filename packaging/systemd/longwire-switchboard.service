@@ -2,7 +2,7 @@
 # Configure /etc/longwire/switchboard.conf with one line, for example
 #     ARGS="--listen 1877 --registry none"
 # then   systemctl enable --now longwire-switchboard
-# The script comes from the catalogue, for the machine:  sudo catalogue --system install longwire-switchboard
+# The script comes from the catalogue, for the machine:  sudo catalogue --system install cli/longwire-switchboard
 [Unit]
 Description=longwire switchboard
 Documentation=file:///usr/share/doc/longwire/SWITCHBOARD.md

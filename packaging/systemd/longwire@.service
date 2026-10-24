@@ -1,7 +1,7 @@
 # longwire site node, splicing the LAN on the NIC named after the @:  systemctl enable --now longwire@eth0
 # Configure /etc/longwire/eth0.conf with one line, for example
 #     ARGS="--switchboard HOST:PORT/KEY --answer known"
-# The script comes from the catalogue, for the machine:  sudo catalogue --system install longwire
+# The script comes from the catalogue, for the machine:  sudo catalogue --system install cli/longwire
 # CAP_NET_RAW opens the packet socket and is the only privilege; `lw start` clears every capability the moment it is open.
 [Unit]
 Description=longwire site node (splice on %I)

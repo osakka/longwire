@@ -9,8 +9,9 @@
 # `make install` a source install uses, and packed with dpkg-deb; nothing here needs root. The two scripts are NOT in it:
 # they come from hibr's catalogue, the one route for them (docs/adr/0028).
 #
-# The package depends on libc at the newest symbol version the module uses (read from it, not guessed) and on the hibr
-# it was built against: a module is built for one hibr module ABI, and hibr refuses one it cannot satisfy.
+# The package depends on libc at the newest symbol version the module uses (read from it, not guessed) and on hibr at
+# HIBR_MIN, the oldest release the test suite has been run against: a module is built for one hibr module ABI (16, the same
+# for all of 0.99.74 to now), and hibr refuses one it cannot satisfy.
 
 set -eu
 
@@ -27,10 +28,11 @@ mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
 STAGE=$OUT/$PKG
 HVER=$(sed -n 's/^#define HIBR_VER "\(.*\)"/\1/p' "$HIBR_SRC/include/hibr.h")
+HMIN=$(cat HIBR_MIN)
 HABI=$(sed -n 's/^#define HIBR_ABI \([0-9]*\)u*/\1/p' "$HIBR_SRC/include/hibr.h")
 
 [ -n "$HVER" ] || { echo "build-deb: no HIBR_VER in $HIBR_SRC/include/hibr.h (set HIBR_SRC)" >&2; exit 1; }
-echo "== building longwire $VER for $ARCH, against hibr $HVER (module ABI $HABI)"
+echo "== building longwire $VER for $ARCH, against hibr $HVER (module ABI $HABI), needing hibr $HMIN or newer"
 rm -rf "$STAGE"
 mkdir -p "$STAGE/DEBIAN"
 make -s HIBR_SRC="$HIBR_SRC" > /dev/null
@@ -50,11 +52,10 @@ Version: $VER-$REV
 Architecture: $ARCH
 Maintainer: osakka <osakka@gmail.com>
 Installed-Size: $size
-Depends: libc6 (>= ${glibc:-2.34}), hibr (>= $HVER)
+Depends: libc6 (>= ${glibc:-2.34}), hibr (>= $HMIN)
 Recommends: ca-certificates
 Section: net
 Priority: optional
-Homepage: https://git.home.arpa/itdlabs/longwire
 Description: layer-2 mesh VPN engine for hibr, with post-quantum handshakes
  longwire joins sites, and single machines, into one Ethernet segment over
  the Internet. You dial a number; a tiny switchboard introduces two nodes,
@@ -63,7 +64,7 @@ Description: layer-2 mesh VPN engine for hibr, with post-quantum handshakes
  .
  This package is the engine (a hibr module) and the launchers. The two
  scripts, longwire and longwire-switchboard, come from hibr's catalogue:
- \`catalogue install longwire longwire-switchboard\`.
+ \`catalogue install cli/longwire cli/longwire-switchboard\`.
 EOF
 
 cat > "$STAGE/DEBIAN/postinst" <<'EOF'
@@ -71,7 +72,7 @@ cat > "$STAGE/DEBIAN/postinst" <<'EOF'
 set -e
 if [ "$1" = configure ]; then
 	echo "longwire: the scripts come from the catalogue now:"
-	echo "longwire:   catalogue install longwire longwire-switchboard"
+	echo "longwire:   catalogue install cli/longwire cli/longwire-switchboard"
 	echo "longwire: (add --system as root to install them for the whole machine and for the services)."
 fi
 EOF

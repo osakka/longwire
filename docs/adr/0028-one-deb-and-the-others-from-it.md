@@ -16,13 +16,15 @@ services run without a login.
   packagings cannot differ in what they ship. This is how hibr's own packages are made, and the layout follows them.
 - **The package carries the module, two launchers, two services and the documentation. It carries no script.** A script
   in two places is two versions to keep in step; the catalogue is the one route and can be updated without a release.
-- **The package depends on the hibr it was built against** (`hibr >= VERSION`, read from `hibr.h`) and on libc at the
-  newest symbol version the module uses, read from the module. A module is built for one hibr module ABI, and hibr refuses
-  one it cannot satisfy, so the dependency is what makes an upgrade of hibr and a stale module visible to the package manager.
+- **The package depends on hibr at `HIBR_MIN`** (a file: the oldest release the whole test suite has been run against, found
+  by running it against the published hibr packages; 0.99.265 passes and 0.99.260 does not) and on libc at the newest
+  symbol version the module uses, read from the module. A module is built for one hibr module ABI (16, unchanged since
+  0.99.74), and hibr refuses one it cannot satisfy, so the dependency is what makes a hibr too old for the module visible to
+  the package manager. Moving `HIBR_MIN` down means running the suite against the older hibr first.
 - **The launchers** `/usr/bin/longwire` and `/usr/bin/longwire-switchboard` are one small shell file, twice. It looks for
-  `NAME.hibr` the way the catalogue places a script: the user's folder, the user's data folder, the machine's
-  (`$HIBR_SYSDIR/apps`), each with the one level of submenu folder the catalogue may use, and runs it with hibr. With none it
-  says `catalogue install NAME` and exits 127. `LONGWIRE_SCRIPTS` names a folder to look in first, for a checkout or a test.
+  `NAME.hibr` the way the catalogue places a command ([0029](0029-commands-are-their-own-catalogue-kind.md): the `cli` kind,
+  the user's folder then the machine's), then where an application would be, and runs it with hibr. With none it says
+  `catalogue install cli/NAME` and exits 127. `LONGWIRE_SCRIPTS` names a folder to look in first, for a checkout or a test.
 - **Two services**, both off until configured: `longwire-switchboard.service` (it needs `/etc/longwire/switchboard.conf`) and
   `longwire@NIC.service` for a spliced site (it needs `/etc/longwire/NIC.conf`). Each runs as a transient user
   (`DynamicUser`) with its own state directory and almost nothing else; the node holds `CAP_NET_RAW` only, which `lw start`
@@ -36,6 +38,6 @@ services run without a login.
 ## Consequences
 
 - One version number, in `VERSION`, is the package's, the module's and the scripts'.
-- A fresh install of the package alone does nothing until `catalogue install` brings the scripts; the package says so when it
+- A fresh install of the package alone does nothing until `catalogue install cli/…` brings the scripts; the package says so when it
   installs, and the launcher says so when asked.
 - Publishing to signed repositories is a separate step, with a key that is not in this repository.

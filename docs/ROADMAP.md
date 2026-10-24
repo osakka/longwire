@@ -65,12 +65,13 @@ relayed pair upgrades to direct once a path exists.
 - *Built:* the warning when two DHCP servers share a line (`dhcp-conflict`).
 - *Built:* number release after a year unheard, then held back for a year (`--release-after`). *Built:* `longwire key export` and `import`
 
-**M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install longwire`,
+**M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install cli/longwire`,
 and then dial and pick up entirely from the hibr desktop.
 - control-panel/lines.hibr: the Network pane's Lines section, the ring dialog with the safety phrase, the menu-bar ☎
 - *Built:* the module as a deb, an rpm and a pacman package (`make packages`, `tests/pkg.sh`), the launchers, and the two
   systemd services ([ADR 0028](adr/0028-one-deb-and-the-others-from-it.md)); the scripts declare their catalogue headers.
-- Signed package repositories and both scripts published in hibr's catalogue *(planned: M4)*; Homebrew *(planned: M5)*; the
+- Signed package repositories in the existing hibr repositories, and both scripts published in hibr's catalogue under a new `cli` kind
+  ([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)) *(planned: M4)*; Homebrew *(planned: M5)*; the
   default public switchboard and the project's registry live
 - `longwire` with no arguments, `longwire watch`, a tabular `status`, automatic choice of attach mode
 

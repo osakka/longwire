@@ -6,8 +6,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 ## M4: packages
 
 - **The module as a deb, an rpm and a pacman package** (`make packages`; [ADR 0028](docs/adr/0028-one-deb-and-the-others-from-it.md)).
-  The deb is built first and the other two are made from its files, so they hold the same bytes; each depends on the hibr
-  it was built against. They carry the module, two launchers that find the scripts the catalogue installed, two systemd
+  The deb is built first and the other two are made from its files, so they hold the same bytes; each depends on hibr 0.99.265 or
+  newer (the oldest published hibr the whole test suite passes against; 0.99.260 fails it). They carry the module, two launchers that find the scripts the catalogue installed, two systemd
   services (`longwire-switchboard`, and `longwire@NIC` for a spliced site, with `CAP_NET_RAW` only), and the
   documentation; the scripts come from the catalogue and declare their `app` and `# modules:` headers. `make install`
   installs the same layout; `VERSION` is the one version. `tests/pkg.sh` builds all three and checks their contents,

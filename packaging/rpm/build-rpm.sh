@@ -5,7 +5,7 @@
 #   packaging/rpm/build-rpm.sh build/pkg/longwire_<ver>-1_amd64.deb [outdir]
 #
 # The RPM holds the deb's own files, byte for byte, so the packagings cannot differ in what they ship; nothing is stripped,
-# recompressed or rebuilt. It needs hibr at the version the module was built against (the deb's own dependency).
+# recompressed or rebuilt. It needs hibr at the version the deb needs (HIBR_MIN).
 
 set -eu
 
@@ -42,7 +42,6 @@ Version:        $VER
 Release:        $REL
 Summary:        Layer-2 mesh VPN engine for hibr, with post-quantum handshakes
 License:        GPL-3.0-or-later
-URL:            https://git.home.arpa/itdlabs/longwire
 BuildArch:      $ARCH
 Requires:       hibr >= $HVER
 
@@ -54,14 +53,14 @@ the data path. The handshake is hybrid X25519 and ML-KEM-768.
 
 This package is the engine (a hibr module) and the launchers. The two scripts,
 longwire and longwire-switchboard, come from hibr's catalogue:
-catalogue install longwire longwire-switchboard
+catalogue install cli/longwire cli/longwire-switchboard
 
 %install
 cp -a $STAGE/. %{buildroot}/
 
 %post
 echo "longwire: the scripts come from the catalogue now:"
-echo "longwire:   catalogue install longwire longwire-switchboard"
+echo "longwire:   catalogue install cli/longwire cli/longwire-switchboard"
 echo "longwire: (add --system as root to install them for the whole machine and for the services)."
 
 %files

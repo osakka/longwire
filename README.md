@@ -18,7 +18,7 @@ $ longwire dial 312-884-076
 ```
 
 The examples write `longwire`. Install the package (`apt install longwire`, or the rpm or pacman package: `make packages`),
-then `catalogue install longwire`; or run `hibr scripts/longwire.hibr` with `LONGWIRE_MOD` pointing at the built module
+then `catalogue install cli/longwire`; or run `hibr scripts/longwire.hibr` with `LONGWIRE_MOD` pointing at the built module
 ([BUILD](docs/BUILD.md)).
 
 ## What it is

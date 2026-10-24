@@ -33,7 +33,7 @@ mv "$STAGE/usr/share/doc/longwire/copyright" "$STAGE/usr/share/licenses/longwire
 cat > "$TOP/longwire.install" <<'EOF'
 post_install() {
 	echo "longwire: the scripts come from the catalogue now:"
-	echo "longwire:   catalogue install longwire longwire-switchboard"
+	echo "longwire:   catalogue install cli/longwire cli/longwire-switchboard"
 	echo "longwire: (add --system as root to install them for the whole machine and for the services)."
 }
 post_upgrade() { :; }
@@ -55,7 +55,6 @@ pkgver=$VER
 pkgrel=$REL
 pkgdesc='Layer-2 mesh VPN engine for hibr, with post-quantum handshakes'
 arch=('$CARCH')
-url='https://git.home.arpa/itdlabs/longwire'
 license=('GPL-3.0-or-later')
 depends=('glibc' 'hibr>=$HVER')
 install=longwire.install
