@@ -71,6 +71,8 @@ int  lw_address_parse(const char *s, uint8_t key_id[32]);	/* lw1... or 64 hex; 0
 /* identity */
 int  lw_id_load(lw_id *id, const char *seed_path, int create);
 void lw_id_derive(lw_id *id);
+void lw_seed_words(char *out, size_t cap, const uint8_t seed[32]);	/* 33 words: 32 and a checksum */
+int  lw_seed_parse(const char *text, uint8_t seed[32]);		/* 0 ok, -1 bad words, -2 bad checksum */
 void lw_hex(char *out, const uint8_t *in, size_t n);
 /* A node: open does everything that needs privilege (sockets, port, ctl
  * socket); serve is the event loop and runs until stopped. */

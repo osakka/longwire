@@ -10,6 +10,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "int.h"
+#include "words.h"
 #include "../vendor/monocypher/monocypher-ed25519.h"
 #include "../vendor/mlkem768/kem.h"
 
@@ -116,6 +117,68 @@ int lw_id_load(lw_id *id, const char *path, int create)
 			return -1;
 	}
 	lw_id_derive(id);
+	return 0;
+}
+
+/* The seed as words (docs/CLI.md): one word per byte, then one word of checksum, so a slip is caught. */
+static uint8_t seed_check(const uint8_t seed[32])
+{
+	uint8_t h[32];
+
+	crypto_blake2b_keyed(h, 32, seed, 32, (const uint8_t *)"lwseedwords", 11);
+	return h[0];
+}
+
+void lw_seed_words(char *out, size_t cap, const uint8_t seed[32])
+{
+	size_t o = 0;
+	int i;
+
+	for (i = 0; i < 33; i++) {
+		int n = snprintf(out + o, cap - o, "%s%s", i ? (i % 11 ? " " : "\n") : "",
+				 LW_WORDS[i < 32 ? seed[i] : seed_check(seed)]);
+
+		if (n < 0 || (size_t)n >= cap - o)
+			break;
+		o += (size_t)n;
+	}
+}
+
+/* 0 = ok; -1 = a word that is not on the list, or the wrong count; -2 = the checksum does not match */
+int lw_seed_parse(const char *text, uint8_t seed[32])
+{
+	uint8_t b[33];
+	int n = 0;
+
+	while (*text) {
+		char w[24];
+		size_t l = 0;
+		int k;
+
+		while (*text == ' ' || *text == '\n' || *text == '\t' || *text == '\r')
+			text++;
+		while (*text && *text != ' ' && *text != '\n' && *text != '\t' && *text != '\r') {
+			if (l < sizeof w - 1)
+				w[l++] = (*text >= 'A' && *text <= 'Z') ? (char)(*text + 32) : *text;
+			text++;
+		}
+		if (!l)
+			break;
+		w[l] = 0;
+		for (k = 0; k < 256 && strcmp(w, LW_WORDS[k]); k++)
+			;
+		if (k == 256 || n == 33)
+			return -1;
+		b[n++] = (uint8_t)k;
+	}
+	if (n != 33)
+		return -1;
+	if (b[32] != seed_check(b)) {
+		crypto_wipe(b, sizeof b);
+		return -2;
+	}
+	memcpy(seed, b, 32);
+	crypto_wipe(b, sizeof b);
 	return 0;
 }
 

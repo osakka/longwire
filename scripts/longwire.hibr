@@ -37,6 +37,7 @@ usage: longwire <command>
   status                                      what the node is doing (JSON)
   down                                        stop the node
   setup splice NIC | setup jack [TAP]         print the one-time privileged step for that attach mode
+  key export | import                         the identity as 33 words, and back (import reads them on stdin)
   id | address | bundle                       your key id, full address (lw1...), public bundle
 
 --answer: ask (default) rings and waits for 'longwire pickup'; known picks up numbers
@@ -206,6 +207,12 @@ down)    run lw stop ;;
 setup)   cmd_setup "$@" ;;
 id)      run lw key new "$LW_SEED" > /dev/null; run lw key id "$LW_SEED" ;;
 address) run lw key new "$LW_SEED" > /dev/null; run lw key address "$LW_SEED" ;;
+key)
+	case "${1:-}" in
+	export) [ -r "$LW_SEED" ] || { echo "longwire: no identity yet" >&2; exit 1; }; run lw key export "$LW_SEED" ;;
+	import) run lw key import "$LW_SEED" > /dev/null; say "identity restored: your number comes back when you ring the switchboard" ;;
+	*) echo "usage: longwire key export | import   (import reads the words on standard input)" >&2; exit 2 ;;
+	esac ;;
 bundle)  run lw key new "$LW_SEED" > /dev/null; run lw key bundle "$LW_SEED" ;;
 help|-h|--help|"") usage ;;
 *)

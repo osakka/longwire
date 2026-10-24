@@ -62,7 +62,7 @@ relayed pair upgrades to direct once a path exists.
   kind of line it is looking at.
 - IPv6: the underlay, and neighbour-discovery suppression
 - Smaller things: a longer rekey for switchboard sessions; a warning when two DHCP servers share a line;  number
-  release after a year unused; `longwire key export` and `import`
+  release after a year unused. *Built:* `longwire key export` and `import`
 
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install longwire`,
 and then dial and pick up entirely from the hibr desktop.

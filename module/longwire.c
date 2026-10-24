@@ -97,8 +97,52 @@ static int do_key(sh *s, int ac, char **av)
 	char addr[60];
 	int rc = HIBR_FAIL;
 
+	if (ac >= 4 && !strcmp(av[2], "export")) {	/* the words go to the terminal only, never into a variable */
+		char words[600];
+
+		if (lw_id_load(id, av[3], 0)) {
+			hibr_fail(s, "lw key export: cannot read seed");
+			goto out;
+		}
+		lw_seed_words(words, sizeof words, id->seed);
+		printf("%s\n", words);
+		explicit_bzero(words, sizeof words);
+		rc = HIBR_OK;
+		goto out;
+	}
+	if (ac >= 4 && !strcmp(av[2], "import")) {	/* the words come on standard input, not on a command line */
+		char text[1024];
+		ssize_t r = read(0, text, sizeof text - 1);
+		int fd, k;
+
+		if (r <= 0) {
+			hibr_fail(s, "lw key import: give the words on standard input");
+			goto out;
+		}
+		text[r] = 0;
+		k = lw_seed_parse(text, id->seed);
+		explicit_bzero(text, sizeof text);
+		if (k) {
+			hibr_fail(s, k == -2 ? "lw key import: the checksum word does not match: a word is wrong or out of order"
+					     : "lw key import: expected 33 words from the list");
+			goto out;
+		}
+		fd = open(av[3], O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+		if (fd < 0 || write(fd, id->seed, 32) != 32) {
+			hibr_fail(s, errno == EEXIST ? "lw key import: this node already has an identity (move the seed file away first)"
+						      : "lw key import: cannot write the seed file");
+			if (fd >= 0) {
+				close(fd);
+				unlink(av[3]);
+			}
+			goto out;
+		}
+		close(fd);
+		rc = HIBR_OK;
+		goto out;
+	}
 	if (ac < 4 || (strcmp(av[2], "id") && strcmp(av[2], "bundle") && strcmp(av[2], "new") && strcmp(av[2], "address"))) {
-		hibr_fail(s, "usage: lw key new|id|address|bundle SEEDFILE");
+		hibr_fail(s, "usage: lw key new|id|address|bundle|export|import SEEDFILE");
 		goto out;
 	}
 	if (lw_id_load(id, av[3], !strcmp(av[2], "new"))) {

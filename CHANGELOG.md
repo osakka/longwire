@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: the identity as words
+
+- **`longwire key export` and `longwire key import`.** The seed as 33 words from the safety-phrase list (one per byte, then a
+  checksum word); import checks it and refuses to overwrite an identity, and the words come back as the same key and number.
+  Tested by `tests/key.sh`.
+
 ## M3: the registry of switchboard codes
 
 - **A switchboard is given its short code the way a node is given a number** ([ADR 0024](docs/adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)):

@@ -57,7 +57,7 @@ and on the other machine's `up` terminal:
 | `longwire answer POLICY` | change the answer policy while running *(planned: M3)* |
 | `longwire watch` | stream events as sentences *(planned: M4)* |
 | `longwire shell NUMBER` | dial, then a shell whose only network is the line *(planned: M5)* |
-| `longwire key export`, `longwire key import` | the seed as 24 words *(planned: M3)* |
+| `longwire key export`, `longwire key import` | the identity as 33 words from the safety-phrase list (32 for the seed, one of checksum), and back. `export` prints to the terminal only; `import` reads the words on standard input, checks the checksum, and refuses to overwrite an identity. The same words give the same key and so the same number. They *are* the identity: keep them like the seed file |
 
 ### Options of `up`
 
@@ -150,7 +150,7 @@ verb works from any hibr process, through the worker's control socket (`~/.longw
 | `lw dial NUM`, `lw pickup [ID]`, `lw reject [ID]`, `lw hangup [NUM]`, `lw unpin NUM` | calls and pins |
 | `lw evict NUM`, `lw peers` | the line: remove a member (and change the key); list the members |
 | `lw status` | the JSON above, also in `$RET` |
-| `lw key new\|id\|address\|bundle SEEDFILE` | create or read an identity |
+| `lw key new\|id\|address\|bundle\|export\|import SEEDFILE` | create or read an identity |
 | `lw plan N` | the N-th assigned switchboard code of the numbering plan, counting from 0 (for operators and tests) |
 | `lw sb start [options]`, `lw sb reply ID accept\|refuse [ARG...]` | the switchboard worker, and the script's decisions |
 | `lw who NUM` | what this node knows of a number (JSON) |

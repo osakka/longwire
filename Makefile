@@ -32,6 +32,7 @@ check: all lint
 	sh tests/crossed.sh
 	sh tests/names.sh
 	sh tests/registry.sh
+	sh tests/key.sh
 	python3 -I tests/docs.py
 
 clean:
