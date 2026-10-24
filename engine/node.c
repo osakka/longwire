@@ -72,7 +72,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 		return 0;
 	}
 	n->cfg = *cfg;
-	n->udp = n->port_fd = n->ctl_fd = -1;
+	n->udp = n->udp2 = n->port_fd = n->ctl_fd = -1;
 	n->rekey_after = cfg->rekey_after > 0 ? cfg->rekey_after : 120;
 	n->sb_rekey = cfg->sb_rekey > 0 ? cfg->sb_rekey : 600;
 	n->keepalive = cfg->keepalive > 0 ? cfg->keepalive : 25;
@@ -157,6 +157,14 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 		if (getsockname(n->udp, (struct sockaddr *)&bound, &bl) == 0)
 			n->udp_port = ntohs(bound.sin_port);
 	}
+	if (n->role && n->udp_port < 65535) {		/* ECHO's port; the switchboard works without it if it cannot be had */
+		la.sin_port = htons((uint16_t)(n->udp_port + 1));
+		n->udp2 = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+		if (n->udp2 >= 0 && bind(n->udp2, (struct sockaddr *)&la, sizeof la) < 0) {
+			close(n->udp2);
+			n->udp2 = -1;
+		}
+	}
 	if (port_open(n, err, errn) || ctl_open(n, err, errn))
 		goto fail;
 	if (n->role ? board_open(n, err, errn) : node_init(n, err, errn))
@@ -174,6 +182,8 @@ void lw_node_release(lw_node *n)
 		return;
 	if (n->udp >= 0)
 		close(n->udp);
+	if (n->udp2 >= 0)
+		close(n->udp2);
 	if (n->port_fd >= 0)
 		close(n->port_fd);
 	if (n->ctl_fd >= 0)
@@ -196,13 +206,13 @@ static void close_inherited(const lw_node *n)
 
 	if (!d) {
 		for (fd = 3; fd < max && fd < 65536; fd++)
-			if (fd != n->udp && fd != n->port_fd && fd != n->ctl_fd)
+			if (fd != n->udp && fd != n->udp2 && fd != n->port_fd && fd != n->ctl_fd)
 				close(fd);
 		return;
 	}
 	while ((e = readdir(d))) {
 		fd = atoi(e->d_name);
-		if (fd > 2 && fd != dfd && fd != n->udp && fd != n->port_fd && fd != n->ctl_fd)
+		if (fd > 2 && fd != dfd && fd != n->udp && fd != n->udp2 && fd != n->port_fd && fd != n->ctl_fd)
 			close(fd);
 	}
 	closedir(d);
@@ -217,6 +227,8 @@ void node_dispatch(lw_node *n, const uint8_t *buf, size_t r, const struct sockad
 		cookie_input(n, buf, r, ss, sl);
 	else if (buf[0] == T_PUNCH)
 		punch_input(n, buf, r, ss, sl);
+	else if (buf[0] == T_ECHO)
+		echo_input(n, buf, r, ss, sl);
 	else if (buf[0] == T_HELLO)
 		hello_input(n, buf, r, ss, sl);
 	else if (buf[0] == T_HS_INIT || buf[0] == T_HS_RESP)
@@ -229,7 +241,7 @@ void node_dispatch(lw_node *n, const uint8_t *buf, size_t r, const struct sockad
 
 int lw_node_serve(lw_node *n)
 {
-	struct pollfd pf[3];
+	struct pollfd pf[4];
 	uint8_t buf[2048];
 	static uint8_t big[65600];		/* a NIC may hand us a 64 KB coalesced frame */
 	struct sockaddr_storage ss;
@@ -246,8 +258,9 @@ int lw_node_serve(lw_node *n)
 		pf[0].fd = n->udp;
 		pf[1].fd = n->port_fd;
 		pf[2].fd = n->ctl_fd;
-		pf[0].events = pf[1].events = pf[2].events = POLLIN;
-		if (poll(pf, 3, 100) < 0 && errno != EINTR)
+		pf[3].fd = n->udp2;			/* a negative descriptor is ignored by poll */
+		pf[0].events = pf[1].events = pf[2].events = pf[3].events = POLLIN;
+		if (poll(pf, 4, 100) < 0 && errno != EINTR)
 			break;
 		n->now = lw_now();
 		if (pf[0].revents & POLLIN)
@@ -272,6 +285,8 @@ int lw_node_serve(lw_node *n)
 				} else
 					sw_from_local(n, big, (size_t)r);
 			}
+		if (pf[3].revents & POLLIN)
+			echo_serve(n);
 		if (pf[2].revents & POLLIN)
 			ctl_accept(n);
 		sess_timers(n);

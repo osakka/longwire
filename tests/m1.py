@@ -105,6 +105,7 @@ def main():
     st = sb.status()
     check(st["numbers"] == 4 and st["online"] == 4, f"switchboard counts 4 numbers, 4 online ({st['numbers']}, {st['online']})")
     sa = A.status()
+    check(sa["nat"] in ("easy", "unknown"), f"a node behind a cone NAT is never called strict ({sa['nat']})")
     check(sa["reflexive"].startswith("192.0.2.101:"), f"A learns its public address from the switchboard: {sa['reflexive']}")
     check(sa["number"] == ra["number"], "A's status shows its number")
 
@@ -280,6 +281,15 @@ def main_sym():
             time.sleep(0.2)
     ra, rb = registered(A), registered(B)
     check(bool(ra and rb), "both register (the switchboard is reachable through either NAT)")
+    def nat_of(n, timeout=15):
+        end = time.time() + timeout
+        while time.time() < end:
+            v = n.status()["nat"]
+            if v != "unknown": return v
+            time.sleep(0.3)
+        return "unknown"
+    na, nb = nat_of(A), nat_of(B)
+    check((na, nb) == ("strict" if a_mode == "sym" else "easy", "strict"), f"each node measures its own NAT with ECHO: A {na}, B {nb}")
     mkA, mkB = A.w.mark(), B.w.mark()
     A.cmd("dial", rb["number"])
     ea, eb = A.w.wait("call-failed", 25, after=mkA), B.w.wait("call-failed", 25, after=mkB)

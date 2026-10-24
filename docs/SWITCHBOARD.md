@@ -85,7 +85,7 @@ answers with this policy:
 
 | Option | Default | Does |
 |---|---|---|
-| `--listen ADDR:PORT` | `0.0.0.0:1877` | where to listen (UDP) |
+| `--listen ADDR:PORT` | `0.0.0.0:1877` | where to listen (UDP). It also listens on the next port up (1878) to answer `ECHO`, so a node can tell what kind of NAT it is behind; let both through a firewall, and leave the next port free when running several on one host |
 | `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when used. A spent or unknown token: `a valid token is needed to register here` |
 | `--per-ip-hour N` | 20 | registrations per source address per hour |
 | `--rings-per-minute N` | 6 | rings per callee per minute |
@@ -112,7 +112,7 @@ refuses to issue codes.
 whom: the registry on disk (`numbers.log`) holds numbers and keys, never calls.
 
 Everything the switchboard does not do yet is marked where it is described and listed under its milestone in the
-[ROADMAP](ROADMAP.md): NAT-type detection (`ECHO`) *(planned: M3)*.
+[ROADMAP](ROADMAP.md).
 
 ## What it sees
 

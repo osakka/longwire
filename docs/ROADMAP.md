@@ -47,7 +47,8 @@ relayed pair upgrades to direct once a path exists.
 - *Built (stage 2):* relaying through a line member and path upgrade ([PROTOCOL §5](PROTOCOL.md#5-relay-built-m3-stage-2),
   [ADR 0008](adr/0008-hard-nats-are-relayed-by-line-members.md)). Tested with two members behind symmetric NATs and a
   public third: frames cross the relay, then the NATs are loosened and the pair finds its own path.
-- Hard NATs, the rest: the `ECHO` exchange and NAT-type detection, port spray, global IPv6 and NAT-PMP candidates.
+- *Built:* the `ECHO` exchange and NAT-type detection (`nat` in status, a plainer message when a call fails).
+- Hard NATs, the rest: port spray (it needs a peer to send from more than one socket), global IPv6 and NAT-PMP candidates.
 - **The number format, before anything public exists** ([ADR 0024](adr/0024-a-full-number-is-a-switchboard-code-and-a-local-number.md)):
   a full number is a switchboard code and a local number (`+0731042 312-884-076`). *Built:* the derived code (a `0` and six digits), full
   numbers shown and typed everywhere, pins and line members that name their switchboard by key. *Registry built:* a switchboard registers with

@@ -112,6 +112,7 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 | Field | Meaning |
 |---|---|
 | `key_id`, `number`, `switchboard`, `reflexive` | your key id and number; the switchboard's state (`none`, `no switchboard`, `registering`, `dial tone`); the public address it sees you at |
+| `nat` | what the switchboard's second port says of your NAT: `easy` (one mapping for every destination, so a direct path is likely), `strict` (a new mapping per destination: only a relay is certain) or `unknown` (not measured yet, or the second port is blocked) |
 | `call` | one word for all your calls: `dialing` or `ringing` (a person's call is waiting), else `connecting`, `up` or `idle` |
 | `calls` | each call: `call` (its id), `number`, `state` (`dialing`, `ringing`, `punching`, `connecting`, `up`), `we_called`, `mesh` (a call a line's mesh made by itself) |
 | `line` | `null`, or the line you are on: `id`, `founder` (you founded it), `members` (each with `number`, `key_id` and `state`: `you`, `up` or `down`), `up`, `partial` |

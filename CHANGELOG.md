@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M3: NAT-type detection
+
+- **`ECHO`.** A switchboard answers on its port plus one with the address it sees; a node compares the two and reports
+  `nat` as `easy`, `strict` or `unknown` in its status, and says so when a call fails because of it. Tested through
+  the cone and symmetric NAT models in `tests/m1.sh`.
+
 ## M3: number release
 
 - **A number unheard for a year is released, then held back for another** (`--release-after`, default `365d`): the

@@ -696,6 +696,59 @@ static void punch_send(lw_node *n, lw_call *c)
 		sendto(n->udp, pk, sizeof pk, 0, (struct sockaddr *)&c->verified, sizeof c->verified);
 }
 
+/* ECHO (docs/PROTOCOL.md section 4). A switchboard answers on its second port with the address it sees the asker at; a node
+ * compares that with what the first port said. The same port both times means the NAT keeps one mapping however many
+ * destinations there are (easy); a different port means it makes a new one for each (strict). */
+void echo_serve(lw_node *n)
+{
+	uint8_t in[64], out[15];
+	struct sockaddr_in a;
+	socklen_t al;
+	int i;
+
+	for (i = 0; i < 64; i++) {
+		al = sizeof a;
+		ssize_t r = recvfrom(n->udp2, in, sizeof in, 0, (struct sockaddr *)&a, &al);
+
+		if (r < 0)
+			break;
+		if (r < 40 || in[0] != T_ECHO || al != sizeof a || a.sin_family != AF_INET)	/* a request is longer than its reply: no amplification */
+			continue;
+		out[0] = T_ECHO;
+		memcpy(out + 1, in + 1, 8);
+		memcpy(out + 9, &a.sin_addr, 4);
+		put16(out + 13, ntohs(a.sin_port));
+		sendto(n->udp2, out, sizeof out, 0, (struct sockaddr *)&a, sizeof a);
+	}
+}
+
+void echo_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
+{
+	lw_peer *s = sbp(n);
+	const struct sockaddr_in *a = (const struct sockaddr_in *)src;
+
+	if (n->role || len != 15 || !s || !n->have_refl || !n->echo_tries || memcmp(pkt + 1, n->echo_nonce, 8) ||
+	    sl != sizeof *a || a->sin_addr.s_addr != ((struct sockaddr_in *)&s->ep)->sin_addr.s_addr)
+		return;
+	n->nat = (!memcmp(pkt + 9, n->refl.ip, 4) && get16(pkt + 13) == n->refl.port) ? 1 : 2;
+	n->echo_tries = 0;
+	n->next_echo = n->now + 600.0;
+}
+
+static void echo_ask(lw_node *n, lw_peer *s)
+{
+	uint8_t q[40] = { T_ECHO };
+	struct sockaddr_in a;
+
+	lw_rand(n->echo_nonce, 8);
+	memcpy(q + 1, n->echo_nonce, 8);
+	memcpy(&a, &s->ep, sizeof a);
+	a.sin_port = htons((uint16_t)(ntohs(a.sin_port) + 1));
+	sendto(n->udp, q, sizeof q, 0, (struct sockaddr *)&a, sizeof a);
+	n->echo_tries++;
+	n->next_echo = n->now + 2.0;
+}
+
 void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
 {
 	lw_call *c;
@@ -1117,6 +1170,12 @@ void registration_timers(lw_node *n)
 
 			ctl_msg_send(n, s, M_HEARTBEAT, b, (size_t)cands_put(b, cc, nc));
 			n->next_hb = n->now + n->keepalive;
+		} else if (n->registered && !n->role && n->have_refl && n->now >= n->next_echo) {
+			if (n->echo_tries >= 4) {		/* no answer: the switchboard has no second port, or a firewall hides it */
+				n->echo_tries = 0;
+				n->next_echo = n->now + 600.0;
+			} else
+				echo_ask(n, s);
 		}
 	}
 }
@@ -1198,7 +1257,8 @@ void node_timers(lw_node *n)
 
 				fmt_number(f, c->number);
 				if (!c->auto_)
-					ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"no direct path (both sides behind strict NAT?)\"}", f);
+					ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"no direct path (%s)\"}", f,
+						n->nat == 2 ? "this network's NAT is strict: it makes a new mapping for every destination" : "both sides behind strict NAT?");
 				if (c->peer >= 0 && !n->peers[c->peer].relayed)
 					peer_drop(n, &n->peers[c->peer]);
 				call_end(c);
@@ -1492,10 +1552,10 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 	if (n->have_refl)
 		snprintf(refl, sizeof refl, "%u.%u.%u.%u:%u", n->refl.ip[0], n->refl.ip[1], n->refl.ip[2], n->refl.ip[3], n->refl.port);
 	len = snprintf(o, cap,
-		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"call\":\"%s\","
+		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
 		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
-		kid, num, fullnum, sbs, refl, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
+		kid, num, fullnum, sbs, refl, n->nat == 1 ? "easy" : n->nat == 2 ? "strict" : "unknown", cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,

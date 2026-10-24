@@ -20,7 +20,7 @@ The first byte of every datagram is its type. Anything unrecognised is dropped s
 | `0x04` | `DATA` | session AEAD | everything after the handshake |
 | `0x05` | `RELAY` | the relay's route table, then the inner packet's own authentication | a peer-to-peer datagram carried by a relay (§5) |
 | `0x06` | `PUNCH` | call token MAC | opens NAT mappings during call setup |
-| `0x07` | `ECHO` | call token MAC | asks the switchboard's second port for our reflexive address *(planned: M3)* |
+| `0x07` | `ECHO` | call token MAC | asks the switchboard's second port for our reflexive address |
 | `0x08` | `HELLO` | the requester checks `H(bundle) == key_id` | fetch a node's bundle when only its key id is known, or offer one (bootstrap) |
 
 **HELLO (bootstrapping from a key id).** The handshake needs the responder's full 1249-byte bundle before `HS_INIT`.
@@ -164,8 +164,12 @@ The full design is a ladder, each rung tried when the one before fails:
 
 - **More candidates:** global IPv6, a NAT-PMP / PCP mapping, and relay candidates (public members of the line that
   offer relaying).
-- **Mapping type.** If the switchboard sees the same reflexive port on both of its ports (the `ECHO` exchange), the
-  NAT is endpoint-independent (EIM, "easy"); if it sees different ports, endpoint-dependent (EDM, "hard").
+- **Mapping type** *(built)*. A switchboard also listens on its port plus one. A node sends that port an `ECHO`
+  (`0x07 ‖ nonce:8`, padded to 40 bytes) and gets back `0x07 ‖ nonce:8 ‖ ip:4 ‖ port:2`, the address it was seen at.
+  The reply is shorter than the request, so it cannot be used to amplify. If the port is the one the main port saw,
+  the NAT is endpoint-independent (EIM, "easy"); if it differs, endpoint-dependent (EDM, "hard"). The node reports it
+  as `nat` (`easy`, `strict` or `unknown`) in its status, measures again every ten minutes, and says so when a call
+  fails because of it. A switchboard behind a firewall must let the second port through, or nodes show `unknown`.
 - **SPRAY** (one EIM side, one EDM side). The hard side opens 256 extra sockets, each sending to the easy side's
   reflexive address, which creates 256 mappings on its NAT. The easy side probes random ports on the hard side's
   public IP at 100 pps. The chance of a hit after *n* probes is `1 − (1 − 256/64512)ⁿ`, about **98% at 1,024

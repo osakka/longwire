@@ -53,12 +53,12 @@ def main():
     R = switchboard("R", 1900, "none", "--issue-codes", "--public-switchboard", ax)
     ar = lw("key", "address", f"{T}/R/sb/seed")
     reg = f"127.0.0.1:1900/{ar}"
-    X = switchboard("X", 1901, reg)
-    Y = switchboard("Y", 1902, reg)
+    X = switchboard("X", 1910, reg)
+    Y = switchboard("Y", 1920, reg)
     ay = lw("key", "address", f"{T}/Y/sb/seed")
-    W = switchboard("W", 1903, reg)                       # the third from this address in a day: refused
-    V = switchboard("V", 1904, f"127.0.0.1:1902/{ay}")    # Y is not a registry
-    Z = switchboard("Z", 1905, "none")
+    W = switchboard("W", 1930, reg)                       # the third from this address in a day: refused
+    V = switchboard("V", 1940, f"127.0.0.1:1920/{ay}")    # Y is not a registry
+    Z = switchboard("Z", 1950, "none")
     az = lw("key", "address", f"{T}/Z/sb/seed")
 
     code_of = lambda sb: until(lambda: sb.status()["code"], 25)
@@ -77,8 +77,8 @@ def main():
         return Node(name, ns, "longwire.hibr",
                     ["up", "--switchboard", f"127.0.0.1:{sbport}/{sbaddr}", "--sock-port", f"{T}/{name}/p:{T}/{name}/h",
                      "--listen", f"127.0.0.1:{port}", "--cand-loopback", "--answer", "auto", "--keepalive", "5"])
-    a_ = node("a", 4101, 1901, ax); b_ = node("b", 4102, 1901, ax)
-    c_ = node("c", 4103, 1902, ay); d_ = node("d", 4104, 1905, az)
+    a_ = node("a", 4101, 1910, ax); b_ = node("b", 4102, 1910, ax)
+    c_ = node("c", 4103, 1920, ay); d_ = node("d", 4104, 1950, az)
     num = {}
     for k, n in zip("abcd", (a_, b_, c_, d_)):
         num[k] = until(lambda n=n: n.status()["number"], 25)
@@ -110,8 +110,8 @@ def main():
         sb.stop()
     R.stop(); time.sleep(1)
     R = switchboard("R", 1900, "none", "--issue-codes", "--public-switchboard", ax)
-    X = Node("X", ns, "longwire-switchboard.hibr", ["--listen", "127.0.0.1:1901", "--registry", reg])
-    Y = Node("Y", ns, "longwire-switchboard.hibr", ["--listen", "127.0.0.1:1902", "--registry", reg])
+    X = Node("X", ns, "longwire-switchboard.hibr", ["--listen", "127.0.0.1:1910", "--registry", reg])
+    Y = Node("Y", ns, "longwire-switchboard.hibr", ["--listen", "127.0.0.1:1920", "--registry", reg])
     cx, cy = code_of(X), code_of(Y)
     check(cx == "1" and cy == "20", f"after the registry and both switchboards restart, the codes are the same: +{cx}, +{cy}")
     book = open(f"{T}/R/sb/codes.log").read().split("\n")

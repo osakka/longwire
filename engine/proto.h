@@ -9,6 +9,7 @@
 #define T_COOKIE 0x03
 #define T_RELAY 0x05
 #define T_PUNCH 0x06
+#define T_ECHO 0x07		/* request: 0x07 nonce(8) padding to 40 bytes; reply: 0x07 nonce(8) ip(4) port(2) */
 #define T_HELLO 0x08
 #define K_FRAG  0x01		/* a frame too big for one datagram: id(2) part(1) total(2) bytes */
 #define K_CTL   0x10

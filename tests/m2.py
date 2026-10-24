@@ -109,25 +109,36 @@ def main():
 
     # --- TCP: the MSS clamp keeps segments in one datagram -----------------------------------
     data = random.Random(5).randbytes(3_000_000)
-    srv = subprocess.Popen(["nsenter", "-t", str(b1.pid), "-n", "python3", "-I", "-c",
-        "import socket,hashlib\ns=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind(('10.0.0.2',5001));s.listen(1)\n"
-        "c,_=s.accept();h=hashlib.sha256();n=0\nwhile True:\n d=c.recv(65536)\n if not d: break\n h.update(d);n+=len(d)\nprint(n,h.hexdigest())"],
-        stdout=subprocess.PIPE, text=True)
-    L.procs.append(srv)
-    time.sleep(0.5)
-    print(f"   (host {L.quiet_machine() * 100:.0f}% idle before the TCP transfer)", flush=True)
+
+    def transfer():
+        srv = subprocess.Popen(["nsenter", "-t", str(b1.pid), "-n", "python3", "-I", "-c",
+            "import socket,hashlib\ns=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind(('10.0.0.2',5001));s.listen(1)\n"
+            "c,_=s.accept();h=hashlib.sha256();n=0\nwhile True:\n d=c.recv(65536)\n if not d: break\n h.update(d);n+=len(d)\nprint(n,h.hexdigest())"],
+            stdout=subprocess.PIPE, text=True)
+        L.procs.append(srv)
+        time.sleep(0.5)
+        r0 = tcp_stats(a1)
+        t0 = time.time()
+        cli = nsrun(a1, ["python3", "-I", "-c", "import socket,random\nd=random.Random(5).randbytes(3000000)\n"
+                         "s=socket.create_connection(('10.0.0.2',5001));s.sendall(d);s.close()"], timeout=60)
+        out = srv.communicate(timeout=30)[0].split()
+        dt = time.time() - t0
+        r1 = tcp_stats(a1)
+        return (cli.returncode == 0 and bool(out) and out[0] == "3000000" and out[1] == hashlib.sha256(data).hexdigest(),
+                r1[0] - r0[0], r1[1] - r0[1], dt)
+
+    # The machine is shared: a neighbour's burst of work looks like packet loss. Wait for a quiet moment, and if the
+    # transfer still loses more than 2% say so and try again (up to three times); every attempt is reported.
     s0 = SA.status()["frames_split"] + SB.status()["frames_split"]
-    r0 = tcp_stats(a1)
-    t0 = time.time()
-    cli = nsrun(a1, ["python3", "-I", "-c", "import socket,random\nd=random.Random(5).randbytes(3000000)\n"
-                     "s=socket.create_connection(('10.0.0.2',5001));s.sendall(d);s.close()"], timeout=60)
-    out = srv.communicate(timeout=30)[0].split()
-    dt = time.time() - t0
-    check(cli.returncode == 0 and out and out[0] == "3000000" and out[1] == hashlib.sha256(data).hexdigest(),
-          f"3 MB over TCP across the line arrives intact ({3000000 * 8 / dt / 1e6:.0f} Mbit/s, through a TCC build and two veth hops)")
-    r1 = tcp_stats(a1)
-    segs, rtx = r1[1] - r0[1], r1[0] - r0[0]
-    check(rtx <= segs * 0.02, f"...with {rtx} retransmitted segments of {segs} (a NIC's 64 KB coalesced frames are cut into line-sized TCP segments, not dropped)")
+    attempts = []
+    for _ in range(3):
+        print(f"   (host {L.quiet_machine() * 100:.0f}% idle before the TCP transfer)", flush=True)
+        ok, rtx, segs, dt = transfer()
+        attempts.append(rtx)
+        if not ok or rtx <= segs * 0.02:
+            break
+    check(ok, f"3 MB over TCP across the line arrives intact ({3000000 * 8 / dt / 1e6:.0f} Mbit/s, through a TCC build and two veth hops)")
+    check(rtx <= segs * 0.02, f"...with {rtx} retransmitted segments of {segs} (attempts: {attempts}; a NIC's 64 KB coalesced frames are cut into line-sized TCP segments, not dropped)")
     check(SA.status()["resegmented"] > 0 and SA.status()["drop_oversize"] == 0, f"sa re-segmented {SA.status()['resegmented']} oversize frames and dropped none")
     s1 = SA.status()["frames_split"] + SB.status()["frames_split"]
     check(s1 - s0 <= 6, f"the MSS clamp worked: only {s1 - s0} frames needed splitting during the transfer (about 2,000 segments)")

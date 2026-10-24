@@ -34,7 +34,7 @@ def main():
         return sb, addr
 
     S1, a1 = switchboard("S1", 1877)
-    S2, a2 = switchboard("S2", 1878, "--caller-id", "off", "--directory", "off")
+    S2, a2 = switchboard("S2", 1880, "--caller-id", "off", "--directory", "off")
 
     def node(name, port, sbaddr, sbport, *extra):
         os.makedirs(f"{T}/{name}/lw", exist_ok=True)
@@ -45,8 +45,8 @@ def main():
     A = node("A", 4001, a1, 1877, "--answer", "auto", "--name", weird, "--listed")
     B = node("B", 4002, a1, 1877, "--answer", "ask")
     C = node("C", 4003, a1, 1877, "--answer", "auto", "--name", "Hidden Quiet", )
-    D = node("D", 4004, a2, 1878, "--answer", "ask", "--name", "Forbidden", "--listed")
-    E = node("E", 4005, a2, 1878, "--answer", "ask")
+    D = node("D", 4004, a2, 1880, "--answer", "ask", "--name", "Forbidden", "--listed")
+    E = node("E", 4005, a2, 1880, "--answer", "ask")
 
     num = {}
     for k, n in zip("ABCDE", (A, B, C, D, E)):

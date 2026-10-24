@@ -215,6 +215,11 @@ struct lw_node {
 	pin     *pins;
 	int      npins, cappins;
 	uint16_t udp_port;
+	int      udp2;			/* a switchboard's second port (udp_port + 1): answers ECHO, so a node can tell its NAT's mapping type */
+	int      nat;			/* 0 not measured, 1 easy (same mapping toward both ports), 2 strict (a new mapping per destination) */
+	uint8_t  echo_nonce[8];
+	int      echo_tries;
+	double   next_echo;
 	/* M2: the switch's extras and the site group */
 	struct { uint32_t ip; double t, said; } dhcp[4];	/* servers whose offers were seen lately (ARCHITECTURE section 3) */
 	uint64_t dhcp_conflicts;
@@ -360,6 +365,8 @@ int  lw_resolve(const char *hp, struct sockaddr_storage *ss, socklen_t *sl);
 void hello_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
 void hello_offer(lw_node *n, const struct sockaddr *dst, socklen_t dl);
 void hello_request(lw_node *n, lw_peer *p);
+void echo_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
+void echo_serve(lw_node *n);
 void punch_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
 void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len);
 void node_timers(lw_node *n);

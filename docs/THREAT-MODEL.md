@@ -58,7 +58,7 @@ Cookies are keyed by address and port, so two nodes behind one NAT address each 
 ## Known gaps today
 
 - **Two strict NATs connect only through a relay,** a member of the line with a public address. A line with no such
-  member splits at that pair and says so. Port spray and NAT-type detection *(planned: M3)*.
+  member splits at that pair and says so. A node can see its own NAT type (`nat` in status); port spray *(planned: M3)* would connect some of these pairs directly.
 - **A crossed rekey might stall a link** until the dead-peer timer fires (76 s at the default keepalive). It is rare
   by construction and has not been reproduced; a crossed first handshake is tested and heals.
 - **The handshake composition has had no formal analysis or external review,** and the vendored crypto has not been
