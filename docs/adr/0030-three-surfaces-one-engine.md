@@ -1,6 +1,6 @@
 # 0030 — Three surfaces on one engine: the command, a control panel, and a switchboard app
 
-Status: accepted; the pane is built, the switchboard application *(planned: M4)*. Supersedes the "Lines pane" of the
+Status: accepted; the pane and the switchboard application are built. Supersedes the "Lines pane" of the
 [ROADMAP](../ROADMAP.md) and amends [0029](0029-commands-are-their-own-catalogue-kind.md) (the pane is not a `# part:` of
 the command).
 
@@ -40,6 +40,19 @@ It reads the node once a second while it is drawn, and no more. A node it starts
 doing, and the menu-bar ☎ *(planned: M4)*, because a pane runs only while it is drawn and the desktop has no hook for a background watcher;
 that is a request to hibr, not something to work around here. `tests/pane.sh` drives the rows and actions against real nodes with
 the desktop's calls stubbed, and loads the file under hibr's real panel code; how it is drawn has not been seen.
+
+## What the switchboard application does today
+
+A head with the address, the short code, uptime and policy, and how full the switchboard is (online against `--max-nodes`) with two
+sparklines: nodes online, and handshake load (shed handshakes and cookies handed out). The nodes, newest first, with a lamp,
+the number, the name the node gave in quotes (a claim, and empty if it gave none), a mark for a listed node and how long since it was heard; select one
+and Edit > Copy has its number. Below it the calls: a ring is a wire with a lamp running along it, a call put through is
+a solid wire for six seconds, and one that ended says why; then it is gone, and the window keeps no list of past calls and
+writes nothing. It reads the registry a page of 24 each second, round and round, so a large switchboard fills in over a
+minute. It follows `call-ring`, `call-go` and `call-end` on `/dev/longwire/events@SOCKET`, drained without blocking the
+frame. It cannot reach a switchboard that runs as a service under another user and says so, naming the unit. No token
+management: the app cannot know the `--tokens` file, so it is left to the command. `tests/sw.sh` drives it against a real
+switchboard and records what it draws as text; how that looks on a real desktop has not been seen.
 
 ## Consequences
 

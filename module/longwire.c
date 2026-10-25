@@ -491,18 +491,22 @@ int m_lw(sh *s, int ac, char **av)
 }
 
 /* /dev/longwire/events: a descriptor that yields the worker's events, one
- * JSON object per line. The worker's own sock is $LW_SOCK or ~/.longwire/ctl. */
+ * JSON object per line. The worker's own sock is $LW_SOCK or ~/.longwire/ctl;
+ * /dev/longwire/events@PATH names another worker's socket. */
 static int events_open(sh *s, const char *rest)
 {
 	char sock[256];
 	int fd;
 	char c;
 
-	if (strcmp(rest, "events")) {
-		hibr_fail(s, "/dev/longwire/: only 'events' exists");
+	if (strncmp(rest, "events", 6) || (rest[6] && rest[6] != '@')) {
+		hibr_fail(s, "/dev/longwire/: only 'events' and 'events@SOCKET' exist");
 		return -1;
 	}
-	default_sock(sock, sizeof sock);
+	if (rest[6] == '@' && rest[7] && strlen(rest + 7) < sizeof sock)
+		strcpy(sock, rest + 7);			/* another worker's socket: a switchboard beside a node */
+	else
+		default_sock(sock, sizeof sock);
 	if ((fd = ctl_connect(sock)) < 0) {
 		hibr_fail(s, "/dev/longwire/events: no node is running");
 		return -1;

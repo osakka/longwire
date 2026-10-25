@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M4: the switchboard application
+
+- **`apps/switchboard.hibr`** ([ADR 0030](docs/adr/0030-three-surfaces-one-engine.md)): the switchboard as a board: gauges and sparklines, the nodes
+  with the names they gave, and the calls being set up as they happen, forgotten a few seconds after. Read-only.
+  `/dev/longwire/events@PATH` opens another worker's event stream (a switchboard's, beside your node). `tests/sw.sh`. Drawing it
+  on a real desktop is untested; no token management, and a switchboard run as a service is named, not reached.
+
 ## M4: the control panel pane
 
 - **`control-panel/longwire.hibr`** ([ADR 0030](docs/adr/0030-three-surfaces-one-engine.md)): the node's number, name,

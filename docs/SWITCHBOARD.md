@@ -109,7 +109,7 @@ against the switchboard's key, so the same key always gets the same code. The sw
 nodes, and they show it (`+20 312-884-076`); the derived code (`+0…`) keeps working beside it. A switchboard that is not a registry
 refuses to issue codes.
 
-**Watching it.** The worker's event stream (`/dev/longwire/events`) also tells a watcher how calls go: `call-ring` when a ring is sent and `call-go` when the call is put through (each with the two numbers, `from` and `to`), and `call-end` when it ends without one, with a `reason` of declined, busy or no answer. They hold numbers only, are not written anywhere, and are for the operator's own screen ([ADR 0030](adr/0030-three-surfaces-one-engine.md)). `lw sb nodes` pages through the registry: number, name, listed, online, and seconds since heard.
+**Watching it.** The worker's event stream (`/dev/longwire/events`) also tells a watcher how calls go: `call-ring` when a ring is sent and `call-go` when the call is put through (each with the two numbers, `from` and `to`), and `call-end` when it ends without one, with a `reason` of declined, busy or no answer. They hold numbers only, are not written anywhere, and are for the operator's own screen: the Switchboard application on hibr's desktop draws them ([ADR 0030](adr/0030-three-surfaces-one-engine.md)). `lw sb nodes` pages through the registry: number, name, listed, online, and seconds since heard.
 
 **After `GO`, the switchboard forgets the call.** The call record is erased when `GO` is sent. Nothing logs who called
 whom: the registry on disk (`numbers.log`) holds numbers and keys, never calls.

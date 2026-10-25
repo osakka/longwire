@@ -191,12 +191,12 @@ while read -r -u 5 ev; do
 done
 ```
 
-`/dev/longwire/events` is a scheme: opening it subscribes to the worker's event stream. It is not marked
+`/dev/longwire/events` is a scheme: opening it subscribes to the worker's event stream, and `/dev/longwire/events@PATH` does the same for the worker whose control socket is `PATH` (a switchboard's, beside your node). It is not marked
 `HIBR_SCH_LOCAL`, so `source` won't run it.
 
-## The desktop *(planned: M4)*
+## The desktop
 
 The command stays the supported way to run a service. Beside it, hibr's desktop (which runs on servers too) gets a **control
 panel pane** for the client (number and name, switchboard, attach mode, answer policy, dial, the ring dialog with the safety
 phrase, lines and their members) and an **application** for the switchboard (nodes, numbers, a call feed that forgets at
-`GO`, limits, tokens), each a catalogue entry of its own ([ADR 0030](adr/0030-three-surfaces-one-engine.md)). The pane is built (`control-panel/longwire.hibr`); the switchboard application is *(planned: M4)*.
+`GO`, limits, tokens), each a catalogue entry of its own ([ADR 0030](adr/0030-three-surfaces-one-engine.md)). Both are built (`control-panel/longwire.hibr`, `apps/switchboard.hibr`).

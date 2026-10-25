@@ -66,7 +66,7 @@ for f in DOCS:
                 bad(f"{f}:{n}", f"link to missing anchor {l}")
 
 # ---------------------------------------------------------------- repository paths
-PATH_RE = re.compile(r"`((?:engine|scripts|tests|module|vendor|brand|docs|packaging|control-panel|desktop)/[\w./-]*[\w-])`")
+PATH_RE = re.compile(r"`((?:engine|scripts|tests|module|vendor|brand|docs|packaging|control-panel|apps|desktop)/[\w./-]*[\w-])`")
 for f in DOCS:
     if f.endswith("CHANGELOG.md"):
         continue
@@ -107,7 +107,7 @@ if os.path.exists("docs/ARCHITECTURE.md"):
 # ...and the other way: every source file we wrote is in that layout
 if os.path.exists("docs/ARCHITECTURE.md"):
     arch = read("docs/ARCHITECTURE.md")
-    for f in sorted(glob.glob("engine/*.c") + glob.glob("engine/*.h") + glob.glob("scripts/*.hibr") + ["module/longwire.c"]):
+    for f in sorted(glob.glob("engine/*.c") + glob.glob("engine/*.h") + glob.glob("scripts/*.hibr") + glob.glob("apps/*.hibr") + glob.glob("control-panel/*.hibr") + ["module/longwire.c"]):
         if not re.search(r"^\s*(?:\S+/)?" + re.escape(os.path.basename(f)) + r"\b", arch, re.M):
             bad("docs/ARCHITECTURE.md", f"the source layout does not list {f}")
 

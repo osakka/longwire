@@ -43,6 +43,7 @@ optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is pa
 | 3. module | `module/longwire.c` + `engine/*.c` + `vendor/*` | **deb, rpm, pacman** package `longwire` (depends on `hibr`) | `/usr/lib/hibr/longwire.so` |
 | 2. node | `scripts/longwire.hibr` | **hibr catalogue** command `cli/longwire` *(planned: M4)* | `~/.local/share/hibr/cli/`, or `/var/lib/hibr/cli` with `--system` |
 | 1. switchboard | `scripts/longwire-switchboard.hibr` | **hibr catalogue** command `cli/longwire-switchboard` *(planned: M4)* | the same |
+| 1b. switchboard app | `apps/switchboard.hibr`, its own entry (built; published with the scripts *(planned: M4)*) | the desktop's `apps` kind | a desktop scan root |
 | 2b. control panel pane | `control-panel/longwire.hibr`, its own entry (built; published with the scripts *(planned: M4)*) | the desktop's `control-panel` kind | a desktop scan root |
 | launchers + services | `packaging/launcher.sh` (twice), `packaging/systemd/` | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
 
@@ -90,6 +91,10 @@ searches `HIBR_MODPATH` or the working directory for code.
 ~/.config/hibr/control-panel/`, start the desktop with `HIBR_MODPATH=$PWD/build`, and choose Refresh Desktop; the pane is
 called Longwire, under Apps. It needs a node you started yourself (`longwire up …`, or its own Start row); a node that runs
 as a service under another user is only named there.
+
+**Trying the switchboard app.** The same way, with `apps` in place of `control-panel`: `ln -s $PWD/apps/switchboard.hibr ~/.config/hibr/apps/`,
+then Refresh Desktop; it is called Switchboard, on the hibr menu. It reads the switchboard you started as the same user
+(`~/.longwire/switchboard/ctl`, or press `s` to name another socket).
 
 ## Running a site node (splice)
 

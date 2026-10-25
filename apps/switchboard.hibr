@@ -1,0 +1,529 @@
+#!/usr/bin/env hibr
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# switchboard -- a window on a longwire switchboard you run: how many nodes are on it, which of them are online, and who
+# is ringing whom right now. It reads the switchboard's own worker through `lw`, once a second, and follows its event
+# stream for the calls. It watches; it does not decide anything (a ring and a registration are the script's to answer,
+# and the script has two seconds). It shows no address and no key: the worker does not give the registry any.
+#
+# A call is shown while it is being set up and for a few seconds after, and then it is gone. Nothing here is written
+# to disk, and the window keeps no list of past calls: that is what the switchboard promises (docs/SWITCHBOARD.md).
+#
+# It reads the worker of the user who runs the desktop. A switchboard that runs as a service under another user cannot be
+# reached (docs/adr/0030-three-surfaces-one-engine.md), and the window says so instead of showing an empty board.
+
+strict
+
+app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.3.0
+# modules: longwire
+command -v dt_app > /dev/null && dt_app switchboard "Switchboard" 24 76 once "☎"
+
+declare -gA SW SWN SWF
+
+# The switchboard's control socket, if it is not where `longwire-switchboard` puts it.
+DT_SW_SOCK="${DT_SW_SOCK-}"
+command -v dt_keep > /dev/null && dt_keep DT_SW_SOCK
+
+SW_SCANMS=1000
+SW_HISTMAX=120
+SW_LINGER=6000		# how long a call that was put through, or ended, stays on the board (ms)
+SW_RINGMAX=70000	# a ring nobody answered is gone from the switchboard after 65 s
+SW_FEEDMAX=24
+SW_SPARK=("${GL[spark1]}" "${GL[spark2]}" "${GL[spark3]}" "${GL[spark4]}" "${GL[spark5]}" "${GL[spark6]}" "${GL[spark7]}" "${GL[spark8]}")
+declare -g SW_J SW_P SW_E SW_SVC SW_SVCT=-100
+
+# --- reading the worker ------------------------------------------------------------------------------------------------
+
+fn sw_sock() {
+	if [ -n "$DT_SW_SOCK" ]; then
+		ret "$DT_SW_SOCK"
+	else
+		ret "${SB_DIR:-$HOME/.longwire/switchboard}/ctl"
+	fi
+}
+
+# One value from the status (or whichever document was parsed last into SW_J), or the default.
+fn sw_get(path, def = "") {
+	local v
+
+	if v := json get SW_J "$path" 2> /dev/null; then
+		ret "$v"
+	else
+		ret "$def"
+	fi
+}
+
+# Put a value from the parsed status into the window's state.
+fn sw_set(int id, key, path, def = "") {
+	local v
+
+	v := sw_get "$path" "$def"
+	SW[$id]["$key"]=$v
+}
+
+# 90 seconds as "1m", three days as "3d": the age of a heard-from node, and an uptime.
+fn sw_ago(int s) {
+	if [ "$s" -lt 10 ]; then
+		ret "now"
+	elif [ "$s" -lt 60 ]; then
+		ret "${s}s"
+	elif [ "$s" -lt 3600 ]; then
+		ret "$((s / 60))m"
+	elif [ "$s" -lt 172800 ]; then
+		ret "$((s / 3600))h"
+	else
+		ret "$((s / 86400))d"
+	fi
+}
+
+# Add a sample to a history kept as a string of numbers, and drop the oldest.
+fn sw_push(int id, key, int v) {
+	local -a a
+
+	read -ra a <<< "${SW[$id]["$key"]} $v"
+	[ "${#a[@]}" -gt "$SW_HISTMAX" ] && a=("${a[@]:$((${#a[@]} - SW_HISTMAX))}")
+	SW[$id]["$key"]="${a[*]}"
+}
+
+# A history as block heights, the newest on the right, as many as fit.
+fn sw_spark(hist, int width) {
+	local -a v
+	local max=1 i start s=
+
+	read -ra v <<< "$hist"
+	start=0
+	[ "${#v[@]}" -gt "$width" ] && start=$((${#v[@]} - width))
+	for ((i = start; i < ${#v[@]}; i++)); do
+		[ "${v[$i]}" -gt "$max" ] && max=${v[$i]}
+	done
+	for ((i = start; i < ${#v[@]}; i++)); do
+		s+="${SW_SPARK[$((${v[$i]} * 7 / max))]}"
+	done
+	while [ "${#s}" -lt "$width" ]; do s=" $s"; done
+	ret "$s"
+}
+
+# --- the calls on the board --------------------------------------------------------------------------------------------
+
+# Where a call between two numbers is on the board, or nothing.
+fn sw_findcall(int id, from, to) {
+	local i n=${SW[$id]["nf"]:-0}
+
+	for ((i = n - 1; i >= 0; i--)); do
+		if [ "${SWF[$id][$i]["from"]}" = "$from" ] && [ "${SWF[$id][$i]["to"]}" = "$to" ] && [ "${SWF[$id][$i]["state"]}" = ringing ]; then
+			ret "$i"
+			return 0
+		fi
+	done
+	return 1
+}
+
+fn sw_addcall(int id, from, to, state, why, int now) {
+	local n=${SW[$id]["nf"]:-0} i
+
+	if [ "$n" -ge "$SW_FEEDMAX" ]; then		# the oldest goes
+		for ((i = 1; i < n; i++)); do
+			SWF[$id][$((i - 1))]["from"]=${SWF[$id][$i]["from"]}
+			SWF[$id][$((i - 1))]["to"]=${SWF[$id][$i]["to"]}
+			SWF[$id][$((i - 1))]["state"]=${SWF[$id][$i]["state"]}
+			SWF[$id][$((i - 1))]["why"]=${SWF[$id][$i]["why"]}
+			SWF[$id][$((i - 1))]["t"]=${SWF[$id][$i]["t"]}
+		done
+		n=$((n - 1))
+	fi
+	SWF[$id][$n]["from"]=$from
+	SWF[$id][$n]["to"]=$to
+	SWF[$id][$n]["state"]=$state
+	SWF[$id][$n]["why"]=$why
+	SWF[$id][$n]["t"]=$now
+	SW[$id]["nf"]=$((n + 1))
+}
+
+# A call that has been through or ended for long enough is forgotten; a ring nobody answered is too.
+fn sw_prune(int id, int now) {
+	local i n=${SW[$id]["nf"]:-0} k=0 st t keep
+
+	for ((i = 0; i < n; i++)); do
+		st=${SWF[$id][$i]["state"]}
+		t=${SWF[$id][$i]["t"]}
+		keep=1
+		if [ "$st" = ringing ]; then
+			[ $((now - t)) -gt "$SW_RINGMAX" ] && keep=0
+		else
+			[ $((now - t)) -gt "$SW_LINGER" ] && keep=0
+		fi
+		if [ "$keep" = 1 ]; then
+			if [ "$k" != "$i" ]; then
+				SWF[$id][$k]["from"]=${SWF[$id][$i]["from"]}
+				SWF[$id][$k]["to"]=${SWF[$id][$i]["to"]}
+				SWF[$id][$k]["state"]=$st
+				SWF[$id][$k]["why"]=${SWF[$id][$i]["why"]}
+				SWF[$id][$k]["t"]=$t
+			fi
+			k=$((k + 1))
+		fi
+	done
+	SW[$id]["nf"]=$k
+}
+
+# One event from the worker. Only the three about calls matter here.
+fn sw_event(int id, line, int now) {
+	local e from to why i
+
+	json parse SW_E "$line" 2> /dev/null || return 0
+	e := json get SW_E .event 2> /dev/null || return 0
+	case $e in
+	call-ring)
+		from := json get SW_E .from
+		to := json get SW_E .to
+		sw_addcall "$id" "$from" "$to" ringing "" "$now" ;;
+	call-go | call-end)
+		from := json get SW_E .from
+		to := json get SW_E .to
+		why=
+		[ "$e" = call-end ] && why := json get SW_E .reason 2> /dev/null
+		if i := sw_findcall "$id" "$from" "$to"; then
+			SWF[$id][$i]["state"]=through
+			[ "$e" = call-end ] && SWF[$id][$i]["state"]=ended
+			SWF[$id][$i]["why"]=$why
+			SWF[$id][$i]["t"]=$now
+		else
+			sw_addcall "$id" "$from" "$to" "$([ "$e" = call-end ] && echo ended || echo through)" "$why" "$now"
+		fi ;;
+	esac
+}
+
+# Everything the worker has said since the last frame, without waiting for more.
+fn sw_drain(int id, int now) {
+	local line
+
+	[ "${SW[$id]["fd"]}" = 1 ] || return 0
+	while read -r -t 0 -u 7; do
+		if ! read -r -u 7 line; then
+			exec 7<&-
+			SW[$id]["fd"]=0			# the worker went away; it is opened again when it is back
+			return 0
+		fi
+		sw_event "$id" "$line" "$now"
+	done
+}
+
+fn sw_feedopen(int id) {
+	local sock
+
+	[ "${SW[$id]["fd"]}" = 1 ] && return 0
+	sock := sw_sock
+	if exec 7< "/dev/longwire/events@$sock" 2> /dev/null; then
+		SW[$id]["fd"]=1
+	fi
+}
+
+# --- one look at the switchboard, once a second ------------------------------------------------------------------------
+
+fn sw_scan(int id, int now) {
+	local sock st pg cur total nx cnt i k v num nm lst on age
+
+	sock := sw_sock
+	if ! st := lw status --sock "$sock" 2> /dev/null || ! json parse SW_J "$st" 2> /dev/null; then
+		SW[$id]["up"]=0
+		return 0
+	fi
+	SW[$id]["up"]=1
+	sw_set "$id" address .address
+	sw_set "$id" code .code
+	sw_set "$id" uptime .uptime 0
+	sw_set "$id" numbers .numbers 0
+	sw_set "$id" online .online 0
+	sw_set "$id" ringing .calls_ringing 0
+	sw_set "$id" policy .policy
+	sw_set "$id" max .max_nodes 1024
+	sw_set "$id" refused .code_refused
+	sw_set "$id" issued .codes_issued 0
+	k := sw_get .hs_shed 0
+	v := sw_get .cookies_sent 0
+	k=$((k + v))
+	sw_push "$id" hon "${SW[$id]["online"]}"
+	sw_push "$id" hhs "$((k - ${SW[$id]["lasths"]:-$k}))"
+	SW[$id]["lasths"]=$k
+
+	# a page of the registry each time, round and round: a switchboard of a thousand is walked in under a minute
+	cur=${SW[$id]["ncur"]:-0}
+	if pg := lw sb nodes "$cur" --sock "$sock" 2> /dev/null && json parse SW_P "$pg" 2> /dev/null; then
+		total := json get SW_P .total
+		cnt := json len SW_P .nodes
+		for ((i = 0; i < cnt; i++)); do
+			num := json get SW_P ".nodes[$i].number"
+			nm := json get SW_P ".nodes[$i].name"
+			lst := json get SW_P ".nodes[$i].listed"
+			on := json get SW_P ".nodes[$i].online"
+			age := json get SW_P ".nodes[$i].age"
+			SWN[$id][$((cur + i))]["number"]=$num
+			SWN[$id][$((cur + i))]["name"]=$nm
+			SWN[$id][$((cur + i))]["listed"]=$lst
+			SWN[$id][$((cur + i))]["online"]=$on
+			SWN[$id][$((cur + i))]["age"]=$age
+		done
+		nx := json get SW_P .next
+		[ "$nx" -ge "$total" ] || [ "$cnt" = 0 ] && nx=0
+		SW[$id]["ncur"]=$nx
+		SW[$id]["ntotal"]=$total
+	fi
+}
+
+# A switchboard run as a service is named, not reached.
+fn sw_service() {
+	[ $((SECONDS - SW_SVCT)) -ge 10 ] || return 0
+	SW_SVCT=$SECONDS
+	SW_SVC=
+	command -v systemctl > /dev/null || return 0
+	SW_SVC=$(systemctl is-active longwire-switchboard.service 2> /dev/null)
+}
+
+# --- the window ---------------------------------------------------------------------------------------------------------
+
+fn switchboard_open(int id) {
+	SW[$id]["top"]=0
+	SW[$id]["sel"]=0
+	SW[$id]["fd"]=0
+	SW[$id]["nf"]=0
+}
+
+fn switchboard_close(int id) {
+	[ "${SW[$id]["fd"]}" = 1 ] && exec 7<&-
+	# nothing is kept: not the calls, not the nodes
+	unset SWF[$id] SWN[$id] SW[$id]
+	return 0
+}
+
+# Draw a line of text in a pen, clipped to the window's width.
+fn sw_put(int id, int r, int c, text) {
+	console put -p "w$id" "$r" "$c" "$text"
+}
+
+# The calls, newest at the bottom, each as a short wire with a lamp running along it while it rings.
+fn sw_drawcalls(int id, int r0, int rows, int w, int now) {
+	local i n=${SW[$id]["nf"]:-0} first r st from to why age link len pos j
+
+	first=0
+	[ "$n" -gt "$rows" ] && first=$((n - rows))
+	len=7
+	r=$r0
+	for ((i = first; i < n; i++)); do
+		st=${SWF[$id][$i]["state"]}
+		from=${SWF[$id][$i]["from"]}
+		to=${SWF[$id][$i]["to"]}
+		why=${SWF[$id][$i]["why"]}
+		age=$(((now - ${SWF[$id][$i]["t"]}) / 1000))
+		link=
+		case $st in
+		ringing)
+			pos=$(((now / 160) % len))
+			for ((j = 0; j < len; j++)); do
+				if [ "$j" = "$pos" ]; then link+="${GL[circle]}"; else link+="${GL[dashh]}"; fi
+			done
+			console pen "$DT_WARN" "$DT_FACE" ;;
+		through)
+			for ((j = 0; j < len; j++)); do link+="${GL[minus]}"; done
+			console pen "$DT_INFO" "$DT_FACE" bold ;;
+		*)
+			for ((j = 0; j < len - 1; j++)); do link+="${GL[hline]}"; done
+			link+="${GL[cross]}"
+			console pen "$DT_DIM" "$DT_FACE" ;;
+		esac
+		case $st in
+		ringing) why="ringing ${age}s" ;;
+		through) why="put through" ;;
+		*) why=${why:-ended} ;;
+		esac
+		sw_put "$id" "$r" 2 "$from $link $to  $why"
+		r=$((r + 1))
+	done
+	console pen "$DT_INK" "$DT_FACE"
+}
+
+fn switchboard_draw(int id, int h, int w, int row, int col) {
+	local now sock i k num r vis top sel n total on max bw filled bar nw name lamp line ago sp1 sp2 half fr
+
+	now := dt_ms
+	if ! need longwire 2> /dev/null; then
+		console pen "$DT_INK" "$DT_FACE"
+		sw_put "$id" 2 2 "The longwire module is not installed."
+		sw_put "$id" 3 2 "Find longwire in the Catalogue (Commands), or install the package."
+		return 0
+	fi
+	if [ -z "${SW[$id]["scant"]}" ] || [ $((now - ${SW[$id]["scant"]})) -ge "$SW_SCANMS" ]; then
+		sw_scan "$id" "$now"
+		sw_feedopen "$id"
+		SW[$id]["scant"]=$now
+	fi
+	sw_drain "$id" "$now"
+	sw_prune "$id" "$now"
+	console pen "$DT_INK" "$DT_FACE"
+	if [ "${SW[$id]["up"]}" != 1 ]; then
+		sw_service
+		sock := sw_sock
+		sw_put "$id" 2 2 "No switchboard answers at $sock."
+		if [ "$SW_SVC" = active ]; then
+			console pen "$DT_WARN" "$DT_FACE"
+			sw_put "$id" 4 2 "longwire-switchboard.service is running here, as another user."
+			sw_put "$id" 5 2 "Its control socket belongs to that user, so this window cannot read it."
+			console pen "$DT_DIM" "$DT_FACE"
+			sw_put "$id" 7 2 "See it with: systemctl status longwire-switchboard"
+		else
+			console pen "$DT_DIM" "$DT_FACE"
+			sw_put "$id" 4 2 "Start one with: longwire-switchboard --registry none"
+			sw_put "$id" 5 2 "or press s to say where its control socket is."
+		fi
+		dt_want "$SW_SCANMS"
+		return 0
+	fi
+
+	# --- the head: who it is, how full it is -----------------------------------------------------------------------
+	console pen "$DT_INK" "$DT_FACE" bold
+	line="${GL[circle]} ${SW[$id]["address"]:0:30}${GL[ellipsis]}"
+	[ -n "${SW[$id]["code"]}" ] && line+="  code +${SW[$id]["code"]}"
+	ago := sw_ago "${SW[$id]["uptime"]}"
+	line+="  up $ago  policy ${SW[$id]["policy"]}"
+	sw_put "$id" 1 1 "${line:0:$((w - 1))}"
+	on=${SW[$id]["online"]}
+	max=${SW[$id]["max"]}
+	[ "$max" -ge 1 ] || max=1
+	bw=$((w - 34))
+	[ "$bw" -lt 8 ] && bw=8
+	filled=$((on * bw / max))
+	[ "$on" -gt 0 ] && [ "$filled" = 0 ] && filled=1
+	bar=
+	for ((i = 0; i < bw; i++)); do
+		if [ "$i" -lt "$filled" ]; then bar+="${GL[block]}"; else bar+="${GL[light]}"; fi
+	done
+	console pen "$DT_INK" "$DT_FACE"
+	sw_put "$id" 2 1 "online $(printf '%4d' "$on")/$max "
+	console pen "$DT_GOOD" "$DT_FACE"
+	sw_put "$id" 2 $((16 + ${#max})) "$bar"
+	console pen "$DT_INK" "$DT_FACE"
+	sw_put "$id" 2 $((17 + ${#max} + bw)) " ringing ${SW[$id]["ringing"]}"
+	if [ -n "${SW[$id]["refused"]}" ]; then
+		console pen "$DT_WARN" "$DT_FACE"
+		sw_put "$id" 3 1 "no short code: ${SW[$id]["refused"]}"
+	fi
+	half=$(((w - 2) / 2))
+	console pen "$DT_DIM" "$DT_FACE"
+	sw_put "$id" 4 1 "online"
+	sw_put "$id" 4 $((half + 2)) "handshake load"
+	sp1 := sw_spark "${SW[$id]["hon"]}" "$half"
+	sp2 := sw_spark "${SW[$id]["hhs"]}" $((w - 2 - half - 1))
+	console pen "$DT_GOOD" "$DT_FACE"
+	sw_put "$id" 5 1 "$sp1"
+	console pen "$DT_WARN" "$DT_FACE"
+	sw_put "$id" 5 $((half + 2)) "$sp2"
+
+	# --- the board: the nodes, newest at the top -------------------------------------------------------------------
+	fr=5
+	[ "$h" -lt 20 ] && fr=3
+	total=${SW[$id]["ntotal"]:-0}
+	console pen "$DT_INK" "$DT_FACE" bold
+	sw_put "$id" 6 1 "Nodes ($total)"
+	vis=$((h - 6 - fr - 2))
+	[ "$vis" -lt 1 ] && vis=1
+	SW[$id]["vis"]=$vis
+	n=$total
+	top=${SW[$id]["top"]:-0}
+	[ "$top" -gt $((n - vis)) ] && top=$((n - vis))
+	[ "$top" -lt 0 ] && top=0
+	SW[$id]["top"]=$top
+	sel=${SW[$id]["sel"]:-0}
+	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
+	SW[$id]["sel"]=$sel
+	SW[$id]["n"]=$n
+	nw=$((w - 2 - 2 - 11 - 1 - 2 - 5))
+	[ "$nw" -lt 6 ] && nw=6
+	r=7
+	for ((i = top; r < 7 + vis; i++, r++)); do
+		if [ "$i" -ge "$n" ]; then break; fi
+		k=$((n - 1 - i))			# the newest is the last registered
+		num=${SWN[$id][$k]["number"]}
+		if [ -z "$num" ]; then
+			console pen "$DT_DIM" "$DT_FACE"
+			sw_put "$id" "$r" 2 "${GL[ellipsis]}"
+			continue
+		fi
+		name=${SWN[$id][$k]["name"]}
+		if [ -n "$name" ]; then name="\"$name\""; else name="${GL[dash]}"; fi
+		[ "${#name}" -gt "$nw" ] && name="${name:0:$((nw - 1))}${GL[ellipsis]}"
+		name := str pad "$name" "$nw"
+		ago := sw_ago "${SWN[$id][$k]["age"]:-0}"
+		ago=$(printf '%5s' "$ago")
+		lamp="${GL[dot]}"
+		if [ "${SWN[$id][$k]["online"]}" = true ]; then lamp="${GL[circle]}"; fi
+		line="$num $name"
+		[ "${SWN[$id][$k]["listed"]}" = true ] && line+=" ${GL[star]}" || line+="  "
+		line+=" $ago"
+		if [ "$i" = "$sel" ]; then
+			console pen "$DT_SELINK" "$DT_ACTIVE" bold
+		elif [ "${SWN[$id][$k]["online"]}" = true ]; then
+			console pen "$DT_GOOD" "$DT_FACE"
+		else
+			console pen "$DT_DIM" "$DT_FACE"
+		fi
+		sw_put "$id" "$r" 1 " $lamp $line"
+	done
+	[ "${DT_SWBAR-1}" = 1 ] && dt_scrollbar "$id" 7 $((w - 1)) "$vis" "$n" "$vis" "$top" list
+
+	# --- the wire: calls being set up ------------------------------------------------------------------------------
+	r=$((7 + vis + 1))
+	console pen "$DT_INK" "$DT_FACE" bold
+	sw_put "$id" "$r" 1 "Calls"
+	sw_drawcalls "$id" $((r + 1)) "$fr" "$w" "$now"
+	if [ "$(( ${SW[$id]["ringing"]:-0} ))" -gt 0 ] || [ "${SW[$id]["nf"]:-0}" -gt 0 ]; then
+		dt_want 150
+	else
+		dt_want "$SW_SCANMS"
+	fi
+}
+
+fn switchboard_key(int id, key) {
+	local n=${SW[$id]["n"]:-0} vis=${SW[$id]["vis"]:-1} sel=${SW[$id]["sel"]:-0} top=${SW[$id]["top"]:-0}
+
+	case $key in
+	up) sel=$((sel - 1)) ;;
+	down) sel=$((sel + 1)) ;;
+	pgup) sel=$((sel - vis)) ;;
+	pgdn) sel=$((sel + vis)) ;;
+	home) sel=0 ;;
+	end) sel=$((n - 1)) ;;
+	s) dt_ask "Switchboard socket" "Socket" "$DT_SW_SOCK" swb_setsock "the worker's control socket; empty for the usual one"; return 0 ;;
+	*) return 1 ;;
+	esac
+	sel := dt_scrollsel "$sel" "$n"
+	top := dt_scrollfit "$top" "$n" "$vis" "$sel"
+	SW[$id]["sel"]=$sel
+	SW[$id]["top"]=$top
+	return 0
+}
+
+fn swb_setsock(text, int? id = "") {
+	DT_SW_SOCK=$text
+	command -v dt_save > /dev/null && dt_save
+	return 0
+}
+
+fn switchboard_wheel(int id, dir, int? r = "", int? c = "") {
+	local top=${SW[$id]["top"]:-0} n=${SW[$id]["n"]:-0} vis=${SW[$id]["vis"]:-1}
+
+	top := dt_scrollmove "$dir" "$top" "$n" "$vis" "$DT_SCROLLWHEEL" || return 1
+	SW[$id]["top"]=$top
+	return 0
+}
+
+fn switchboard_scroll(int id, key, int top) { SW[$id]["top"]=$top; }
+
+# Edit > Copy: the selected node's number.
+fn switchboard_copy(int id) {
+	local n=${SW[$id]["n"]:-0} sel=${SW[$id]["sel"]:-0} k
+
+	[ "$n" -gt 0 ] || return 1
+	k=$((n - 1 - sel))
+	[ -n "${SWN[$id][$k]["number"]}" ] || return 1
+	ret "${SWN[$id][$k]["number"]}"
+}
