@@ -26,7 +26,9 @@ as a supplementary group cannot be recognised by comparing a gid in C.
 3. **The services use it.** Both units run in the group (`Group=longwire`, so the dynamic user's primary group is `longwire`),
    get a runtime directory their group can enter (`RuntimeDirectory=…`, mode 0750), and put their socket there:
    `/run/longwire/INSTANCE/ctl` for a node, `/run/longwire-switchboard/ctl` for the switchboard. The state directory stays 0700:
-   the seed never leaves it.
+   the seed never leaves it. (With `DynamicUser=yes`, systemd moves the *state*, cache and log directories below a root-only
+   `private/` folder; its manual lists those three and not `RuntimeDirectory=`, whose innermost directory is owned by the
+   configured `Group=`. That is what this relies on, and it is from the manual, not from a run.)
 4. **The package makes the group** (a `sysusers.d` file, and a `groupadd` fallback in each package's install step), so it
    exists before the units start. A person joins it with `usermod -aG longwire NAME` and logs in again. The package adds no one.
 5. **The desktop uses it.** The pane, when it finds no node of the person's own, looks for `/run/longwire/*/ctl` and drives the
@@ -47,8 +49,10 @@ service, in the way that putting someone in `docker` or `dialout` is a statement
 
 - **Amends 0004:** "a node never runs as root" and the one-time privilege are unchanged; the control socket's *owner-only*
   rule becomes "owner-only unless a group is named", and the services name one. The threat model says so.
-- **What stays with the service.** The pane does not offer to stop a service node (that is `systemctl`: a worker stopped from
-  its socket exits cleanly and the unit will not bring it back) and does not offer the answer policy, which is a file in the
+- **A member can take a service down.** A worker stopped over its socket makes `longwire up` exit with status 0 (tried), and the
+  units say `Restart=on-failure`, so systemd leaves it stopped until someone with `systemctl` starts it. Whether that is intended,
+  or the units should say `Restart=always` so that it is only a bounce, is the owner's to decide; this record does not change it.
+- **What stays with the service.** The pane does not offer to stop a service node (that is `systemctl`) and does not offer the answer policy, which is a file in the
   service's own state and set by `/etc/longwire/NAME.conf`. A ringing call on a service node can be answered or declined from the pane.
 - **Several service nodes:** the pane drives the first one that answers; choosing among them *(planned: M4)*.
 - **A person's own node wins:** if they have started one, the pane shows that and not the service.
