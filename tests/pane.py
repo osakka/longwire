@@ -22,7 +22,7 @@ fn dt_confirm(msg, cmd) { printf 'CONFIRM %%s -> %%s\n' "$msg" "$cmd" >> "$LOG";
 fn dt_ask(title, label, value, then, hint = "") { printf 'ASK %%s -> %%s\n' "$title" "$then" >> "$LOG"; DRV_THEN=$then; }
 fn cp_save() { return 0; }
 fn cp_toggle(var) { return 0; }
-fn cp_next(cur, int dir, ...rest) { local x; for x in "${rest[@]}"; do ret "$x"; return 0; done; }
+fn cp_next(cur, int dir, ...rest) { local x p=; for x in "${rest[@]}"; do [ "$p" = "$cur" ] && [ -n "$p" ] && { ret "$x"; return 0; }; p=$x; done; ret "${rest[0]}"; }
 fn dt_job(kind, tag, then, ...cmd) { printf 'JOB %%s\n' "${cmd[*]}" >> "$LOG"; ret 1; }
 . %(pane)s
 fn dump(int w) {
@@ -103,8 +103,8 @@ def main():
     check(ring and any(x[1].strip() == "safety phrase" and x[2] == ring["phrase"] for x in rows),
           f"...with the safety phrase the ring event gave: {ring and ring['phrase']!r}")
     key = ringrow[0][3] if ringrow else "ring:x"
-    rows, log, r = drive(envB, f'longwire_do 1 "{key}" 1; $DRV_CMD')
-    check(any(l.startswith("CONFIRM") and ring["phrase"] in l for l in log), f"clicking it asks, with the phrase in the question: {[l for l in log if l.startswith('CONFIRM')]}")
+    rows, log, r = drive(envB, f'dump 1 > /dev/null; longwire_do 1 "{key}" 1; $DRV_CMD')
+    check(any(l.startswith("CONFIRM") and ring["phrase"] in l and "Alice, a claim" in l for l in log), f"clicking it asks, with the phrase in the question: {[l for l in log if l.startswith('CONFIRM')]}")
     check(B.w.wait("connected", 20, after=mk) is not None, "answering yes picks up and the call connects")
     time.sleep(1.5)
     rows, log, r = drive(envB, "dump 1")
@@ -115,8 +115,8 @@ def main():
     # policy and dial
     rows, log, r = drive(envB, 'longwire_do 1 policy 1; dump 1')
     pol = open(B.home + "/lw/answer").read().strip()
-    check(pol == "ask" and any(k == "set" and key == "policy" and v == "ask" for k, t, v, key in rows) or pol in ("ask", "known", "auto", "never"),
-          f"changing the answer policy writes the file the node reads: {pol}")
+    check(pol == "known" and any(k == "set" and key == "policy" and v == "known" for k, t, v, key in rows),
+          f"changing the answer policy from ask writes the next one to the file the node reads, and the row shows it: {pol}")
     rows, log, r = drive(envB, 'longwire_do 1 dial 1; $DRV_THEN "000-000-001"; $DRV_THEN "  "')
     check(any(l.startswith("ASK Dial") for l in log) and any(l.startswith("NOTE high") for l in log), f"Dial asks for a number, and a bad one is reported rather than swallowed: {log} {r.stderr[-300:]}")
 

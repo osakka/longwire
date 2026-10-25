@@ -17,14 +17,14 @@ command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
 
 # What the person chose for starting a node. None of it is secret: the seed never passes through here.
 DT_LW_SB="${DT_LW_SB-}"
-DT_LW_ATTACH="${DT_LW_ATTACH-none}"
+DT_LW_ATTACH="${DT_LW_ATTACH-jack}"
 DT_LW_IFACE="${DT_LW_IFACE-}"
 DT_LW_NAME="${DT_LW_NAME-}"
 DT_LW_LISTED="${DT_LW_LISTED-0}"
 command -v dt_keep > /dev/null && dt_keep DT_LW_SB DT_LW_ATTACH DT_LW_IFACE DT_LW_NAME DT_LW_LISTED
 
 LWP_POLICIES=(ask known auto never)
-LWP_ATTACHES=(none jack splice)
+LWP_ATTACHES=(jack splice)
 
 # The last status read, and when. _rows runs every frame, and a read of the node is a round trip, so it is kept for a second.
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN=
@@ -103,9 +103,7 @@ fn longwire_rows(int w) {
 		lwp_row "$w" "$n" head "Start a node" "" none; n=$((n + 1))
 		lwp_row "$w" "$n" action "Switchboard" "${DT_LW_SB:-HOST:PORT/KEY}" sb; n=$((n + 1))
 		lwp_row "$w" "$n" set "Attach" "$DT_LW_ATTACH" attach; n=$((n + 1))
-		if [ "$DT_LW_ATTACH" != none ]; then
-			lwp_row "$w" "$n" action "Interface" "${DT_LW_IFACE:-name}" iface; n=$((n + 1))
-		fi
+		lwp_row "$w" "$n" action "Interface" "${DT_LW_IFACE:-name}" iface; n=$((n + 1))
 		lwp_row "$w" "$n" action "Name" "${DT_LW_NAME:-none}" name; n=$((n + 1))
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="List in the directory"; CP[$w][$n]["wtype"]=bool
 		CP[$w][$n]["val"]=off; [ "$DT_LW_LISTED" = 1 ] && CP[$w][$n]["val"]=on
@@ -136,7 +134,7 @@ fn longwire_rows(int w) {
 		nm := lwp_get ".calls[$i].name"
 		phr := lwp_get ".calls[$i].phrase"
 		if [ "$state" = ringing ] && [ "$we" != true ]; then
-			lwp_row "$w" "$n" action "$num rings${nm:+ ($nm, a claim)}" "pick up?" "ring:$call:$num:$phr:$nm"; n=$((n + 1))
+			lwp_row "$w" "$n" action "$num rings${nm:+ ($nm, a claim)}" "pick up?" "ring:$call"; n=$((n + 1))
 			lwp_row "$w" "$n" action "  safety phrase" "$phr" none; n=$((n + 1))
 			lwp_row "$w" "$n" action "  decline" "" "rej:$call"; n=$((n + 1))
 		elif [ "$state" != up ]; then
@@ -272,6 +270,26 @@ fn lwp_start(int w) {
 	LWP_T=-100
 }
 
+# A ringing call, found again in the last status by its id, so that what is asked is what the node reported a moment ago and
+# not something carried in a row's key.
+fn lwp_ring(call) {
+	local i cnt num phr nm c
+
+	cnt := json len LWP_S .calls
+	for ((i = 0; i < ${cnt:-0}; i++)); do
+		c := lwp_get ".calls[$i].call"
+		[ "$c" = "$call" ] || continue
+		num := lwp_get ".calls[$i].number"
+		phr := lwp_get ".calls[$i].phrase"
+		nm := lwp_get ".calls[$i].name"
+		LWP_PEND_KIND=pickup
+		LWP_PEND_ARG=$call
+		dt_confirm "$num${nm:+ ($nm, a claim)} rings. Safety phrase: $phr. Pick up?" lwp_yes
+		return 0
+	done
+	dt_notep low "That call has ended."
+}
+
 fn longwire_do(int w, k, int dir) {
 	local v c rest
 
@@ -290,13 +308,7 @@ fn longwire_do(int w, k, int dir) {
 	stop) dt_confirm "Stop this node? Calls end." lwp_yes; LWP_PEND_KIND=stop ;;
 	dial) dt_ask "Dial" "Number" "" lwp_dialled "a number like 447-120-933, or +code number" ;;
 	svc) dt_notep low "Control it with: systemctl status %s" "${LWP_SVC%% *}" ;;
-	ring:*)
-		rest=${k#ring:}
-		c=${rest%%:*}; rest=${rest#*:}
-		v=${rest%%:*}; rest=${rest#*:}
-		LWP_PEND_KIND=pickup
-		LWP_PEND_ARG=$c
-		dt_confirm "$v rings. Safety phrase: ${rest%%:*}. Pick up?" lwp_yes ;;
+	ring:*) lwp_ring "${k#ring:}" ;;
 	rej:*) lwp_run reject "${k#rej:}"; LWP_T=-100 ;;
 	hang:*) lwp_ask hangup "${k#hang:}" "Hang up on ${k#hang:}?" ;;
 	evict:*) lwp_ask evict "${k#evict:}" "Evict ${k#evict:}? Every member drops it and the line key changes." ;;
