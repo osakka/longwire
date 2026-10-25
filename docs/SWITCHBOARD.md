@@ -124,7 +124,7 @@ Everything the switchboard does not do yet is marked where it is described and l
 | that a number is online, and the public IP:port it connects from | any frame, any traffic volume after `GO`, or how long a call lasts |
 | who rings whom, and when (until `GO`, then it forgets) | MAC or IP addresses inside the line |
 | bundles (public keys) and the numbers they hold | seeds, session keys, call contents |
-| a name for each node that gave one, whether it asked to be listed, and (in `names.log`) which key holds each listed name | a name for a node that gave none: nothing is ever invented |
+| a name for each node that gave one, whether it asked to be listed, and (in `names.log`) which key holds each listed name (`lw sb nodes` shows them to its operator) | a name for a node that gave none: nothing is ever invented |
 
 ## How tiny
 

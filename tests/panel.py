@@ -66,8 +66,11 @@ def main():
     check(go is not None and go["from"] == num["A"] and go["to"] == num["B"], "...and when it puts the call through (and then forgets it)")
     check(B.w.wait("connected", 20) is not None, "the call itself connects")
 
+    check(all(0 <= n["age"] < 60 for n in nodes()["nodes"]), "age is seconds since the node was heard, from the persisted time")
     for n in (A, B, S):
         n.stop()
+    log = open(f"{T}/S.log").read()
+    check("call-" not in log, "the shipped switchboard script prints no call event: nothing logs who called whom")
 
 
 try:

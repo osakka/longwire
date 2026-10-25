@@ -1084,7 +1084,7 @@ static int nodes_json(lw_node *n, int from, char *out, size_t cap)
 		fmt_number(f, r->number);
 		json_esc(nm, sizeof nm, r->name);
 		len += snprintf(out + len, cap - (size_t)len, "%s{\"number\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"online\":%s,\"age\":%d}",
-				any ? "," : "", f, nm, r->listed ? "true" : "false", online(n, r) ? "true" : "false", (int)(n->now - r->seen));
+				any ? "," : "", f, nm, r->listed ? "true" : "false", online(n, r) ? "true" : "false", (int)(time(0) - r->wall));
 		any++;
 		last = i + 1;
 	}
