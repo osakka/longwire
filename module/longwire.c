@@ -443,6 +443,10 @@ int m_lw(sh *s, int ac, char **av)
 			snprintf(req + o, sizeof req - (size_t)o, "\n");
 			return ask(s, sock, req, 1);
 		}
+		if (!strcmp(av[2], "nodes")) {		/* lw sb nodes [FROM]: a page of the registry */
+			snprintf(req, sizeof req, "nodes %d\n", ac >= 4 && strcmp(av[3], "--sock") ? atoi(av[3]) : 0);
+			return ask(s, sock, req, 1);
+		}
 		return usage(s);
 	}
 	if (!strcmp(av[1], "status"))

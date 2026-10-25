@@ -41,6 +41,7 @@ check: all lint
 	sh tests/pmp.sh
 	sh tests/operator.sh
 	sh tests/ipv6.sh
+	sh tests/panel.sh
 	sh tests/start.sh
 	sh tests/pkg.sh
 	python3 -I tests/docs.py

@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M4: what the desktop reads
+
+- **The data for the control panel and the switchboard app** ([ADR 0030](docs/adr/0030-three-surfaces-one-engine.md)): a node's
+  `status` carries its `name` and `listed`; a switchboard lists its registry a page at a time (`lw sb nodes`, no addresses and
+  no keys), reports its handshake gauges, and emits `call-ring`, `call-go` and `call-end` events that hold numbers only.
+  The screens themselves are not built yet. `tests/panel.sh`.
+
 ## M4: a catalogue kind for commands
 
 - **The scripts are commands, not desktop apps, so the catalogue has a tenth kind, `cli`** ([ADR 0029](docs/adr/0029-commands-are-their-own-catalogue-kind.md)).

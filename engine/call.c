@@ -1633,9 +1633,11 @@ int node_replay(lw_node *n, char *o, size_t cap)
 int node_status_json(lw_node *n, char *o, size_t cap)
 {
 	char codes_json[48] = "", kid[65], ep[64], num[16] = "", fullnum[40] = "", sbs[24], refl[64] = "", mapped[64];
+	char nm[2 * LW_NAME_MAX + 8];
 	const char *cs = "idle";
 	int len, i, any = 0;
 
+	json_esc(nm, sizeof nm, n->cfg.name);
 	for (i = 0; i < n->ncalls; i++) {		/* one word for the calls as a whole: the most urgent first */
 		const lw_call *k = &n->calls[i];
 
@@ -1666,10 +1668,10 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 	if (n->have_refl)
 		snprintf(refl, sizeof refl, "%u.%u.%u.%u:%u", n->refl.ip[0], n->refl.ip[1], n->refl.ip[2], n->refl.ip[3], n->refl.port);
 	len = snprintf(o, cap,
-		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"mapped\":\"%s\",\"call\":\"%s\","
+		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"mapped\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
 		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
-		kid, num, fullnum, sbs, refl, n->nat == 1 ? "easy" : n->nat == 2 ? "strict" : "unknown", mapped, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
+		kid, num, fullnum, nm, n->cfg.listed ? "true" : "false", sbs, refl, n->nat == 1 ? "easy" : n->nat == 2 ? "strict" : "unknown", mapped, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,

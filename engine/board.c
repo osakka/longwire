@@ -643,6 +643,20 @@ static const char *num_of(struct board *b, const uint8_t key[32])
 	return r ? r->number : 0;
 }
 
+/* A call's progress as an event for whoever watches the switchboard: numbers and a word, nothing that is kept. */
+static void call_ev(lw_node *n, const char *what, const uint8_t caller[32], const uint8_t callee[32], const char *why)
+{
+	struct board *b = n->bd;
+	const char *a = num_of(b, caller), *z = num_of(b, callee);
+	char f1[16] = "", f2[16] = "";
+
+	if (a)
+		fmt_number(f1, a);
+	if (z)
+		fmt_number(f2, z);
+	ev_emit(n, "{\"event\":\"%s\",\"from\":\"%s\",\"to\":\"%s\"%s%s%s}", what, f1, f2, why ? ",\"reason\":\"" : "", why ? why : "", why ? "\"" : "");
+}
+
 static void rejected(lw_node *n, const uint8_t key[32], const uint8_t id[8], int why, const char *callee_number)
 {
 	lw_peer *p = peer_by_key(n, key);
@@ -719,6 +733,7 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 	if (cr->name[0] && !n->cfg.no_caller_id)
 		o += tlv_put(m + o, TAG_NAME, cr->name, strlen(cr->name));
 	ctl_msg_send(n, ep, M_RING, m, (size_t)o);
+	call_ev(n, "call-ring", caller_key, callee_key, 0);
 }
 
 static pend *pend_new(struct board *b, int kind)
@@ -976,6 +991,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			return;
 		if (pl[8] != V_ACCEPT) {
 			rejected(n, c->caller, c->id, pl[8] == V_BUSY ? R_BUSY : R_DECLINED, num_of(b, c->callee));
+			call_ev(n, "call-end", c->caller, c->callee, pl[8] == V_BUSY ? "busy" : "declined");
 			c->used = 0;
 			return;
 		}
@@ -1007,6 +1023,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		o = 11 + NUMLEN + 32 + LW_BUNDLE;
 		o += cands_write(m + o, c->cc, c->ncc, c->strict);
 		ctl_msg_send(n, calleep, M_GO, m, (size_t)o);
+		call_ev(n, "call-go", c->caller, c->callee, 0);
 		memset(c, 0, sizeof *c);		/* and the call is forgotten: nothing keeps who called whom */
 		return;
 	}
@@ -1029,6 +1046,7 @@ void board_timers(lw_node *n)
 	for (i = 0; i < MAXCALLS; i++)
 		if (b->calls[i].used && n->now > b->calls[i].deadline) {
 			rejected(n, b->calls[i].caller, b->calls[i].id, R_TIMEOUT, num_of(b, b->calls[i].callee));
+			call_ev(n, "call-end", b->calls[i].caller, b->calls[i].callee, "no answer");
 			memset(&b->calls[i], 0, sizeof b->calls[i]);
 		}
 	for (i = 0; i < MAXPEND; i++) {
@@ -1048,12 +1066,39 @@ void board_timers(lw_node *n)
 }
 
 /* reply ID accept [NUMBER]   |   reply ID refuse [REASON...] */
+/* The registry as a page: up to NODEPAGE entries from `from`, each a number, the name it gave (a claim), whether it listed
+ * itself, whether it is online and how long since it was heard. No addresses and no keys: those stay in the worker. */
+#define NODEPAGE 24
+static int nodes_json(lw_node *n, int from, char *out, size_t cap)
+{
+	struct board *b = n->bd;
+	int i, len, any = 0, last = from;
+
+	if (from < 0)
+		from = 0;
+	len = snprintf(out, cap, "{\"total\":%d,\"nodes\":[", b->n);
+	for (i = from; i < b->n && any < NODEPAGE && len < (int)cap - 200; i++) {
+		const reg *r = &b->regs[i];
+		char f[16], nm[2 * LW_NAME_MAX + 8];
+
+		fmt_number(f, r->number);
+		json_esc(nm, sizeof nm, r->name);
+		len += snprintf(out + len, cap - (size_t)len, "%s{\"number\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"online\":%s,\"age\":%d}",
+				any ? "," : "", f, nm, r->listed ? "true" : "false", online(n, r) ? "true" : "false", (int)(n->now - r->seen));
+		any++;
+		last = i + 1;
+	}
+	return len + snprintf(out + len, cap - (size_t)len, "],\"next\":%d}\n", any ? last : from);
+}
+
 int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 {
 	struct board *b = n->bd;
 	int id, i;
 	char verdict[16] = "", arg[80] = "";
 
+	if (!strncmp(line, "nodes", 5) && (line[5] == 0 || line[5] == ' '))
+		return nodes_json(n, atoi(line + 5), out, cap);
 	if (sscanf(line, "reply %d %15s %79[^\n]", &id, verdict, arg) < 2)
 		return snprintf(out, cap, "{\"error\":\"unknown request\"}\n");
 	for (i = 0; i < MAXPEND; i++) {
@@ -1104,7 +1149,9 @@ int board_status_json(lw_node *n, char *o, size_t cap)
 	lw_address(addr, n->id.key_id);
 	return snprintf(o, cap,
 		"{\"node\":\"switchboard\",\"key_id\":\"%s\",\"address\":\"%s\",\"uptime\":%d,\"numbers\":%d,\"online\":%d,"
-		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu,\"code\":\"%s\",\"code_refused\":\"%s\",\"codes_issued\":%d}\n",
+		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu,\"code\":\"%s\",\"code_refused\":\"%s\",\"codes_issued\":%d,"
+		"\"max_nodes\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"cookies_got\":%llu}\n",
 		kid, addr, (int)(n->now - n->started), b->n, online_n, calls,
-		n->cfg.policy_script ? "script" : "open", (unsigned long long)n->drop_garbage, n->home_code, n->reg_why, b->ncodes);
+		n->cfg.policy_script ? "script" : "open", (unsigned long long)n->drop_garbage, n->home_code, n->reg_why, b->ncodes, n->maxpeers,
+		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->cookies_got);
 }

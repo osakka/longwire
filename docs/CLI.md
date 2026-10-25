@@ -117,7 +117,7 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 
 | Field | Meaning |
 |---|---|
-| `key_id`, `number`, `switchboard`, `reflexive` | your key id and number; the switchboard's state (`none`, `no switchboard`, `registering`, `dial tone`); the public address it sees you at |
+| `key_id`, `number`, `name`, `listed`, `switchboard`, `reflexive` | your key id and number; the name you announce (empty if none) and whether you asked to be listed; the switchboard's state (`none`, `no switchboard`, `registering`, `dial tone`); the public address it sees you at |
 | `mapped` | the address and port the router gave by NAT-PMP, or empty |
 | `nat` | what the switchboard's second port says of your NAT: `easy` (one mapping for every destination, so a direct path is likely), `strict` (a new mapping per destination: only a relay is certain) or `unknown` (not measured yet, or the second port is blocked) |
 | `call` | one word for all your calls: `dialing` or `ringing` (a person's call is waiting), else `connecting`, `up` or `idle` |
@@ -134,7 +134,7 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 | `registrations`, `sb_rekeys` | `NUMBER` replies received; rekeys of the switchboard session |
 | `peers` | per peer: `key_id`, `number`, `state`, `path`, `ep`, `age`, `rx_frames`, `tx_frames`, `rekeys`, `drop_auth`, `drop_replay` |
 
-On a switchboard: `key_id`, `address`, `uptime`, `numbers`, `online`, `calls_ringing`, `policy`, `drop_garbage`, `code` (its short code), `code_refused` (why the registry did not give it one) and `codes_issued` (a registry's count). A
+On a switchboard: `key_id`, `address`, `uptime`, `numbers`, `online`, `calls_ringing`, `policy`, `drop_garbage`, `code` (its short code), `code_refused` (why the registry did not give it one), `codes_issued` (a registry's count), `max_nodes` and the handshake gauges `hs_shed`, `cookies_sent` and `cookies_got`. `lw sb nodes [FROM]` lists the registry a page at a time (24 entries, then `next`): each entry has `number`, `name`, `listed`, `online` and `age`, and no address or key. A
 tabular view *(planned: M4)*.
 
 ## Events
@@ -156,6 +156,7 @@ verb works from any hibr process, through the worker's control socket (`~/.longw
 
 | Verb | Does |
 |---|---|
+| `lw sb nodes [FROM]` | on a switchboard: a page of the registry (JSON) |
 | `lw start [options]` | open the port, clear every capability set, then fork the engine worker, which inherits the empty sets (see the note below) |
 | `lw stop` | end the worker |
 | `lw dial NUM`, `lw pickup [ID]`, `lw reject [ID]`, `lw hangup [NUM]`, `lw unpin NUM` | calls and pins |

@@ -26,8 +26,9 @@ Three surfaces over the same `lw` verbs and event stream, none holding a secret 
    `register` and `dial` policy events give the script two seconds.
 
 Both desktop pieces are catalogue entries of their own (`# modules: longwire`), not parts of the commands, and they use only
-what every scope has (hibr ADR 0046). They need three verbs the module lacks: a machine-readable `status` and `lines`, and an
-event stream a window can follow *(planned: M4)*; any of that is C under TCC.
+what every scope has (hibr ADR 0046). `status` is already JSON and the events are already a stream a window can follow. What the two lacked was small and is
+built: the node's name in `status`, and on the switchboard the registry in pages (`lw sb nodes`), the handshake gauges and call
+progress events (`tests/panel.sh`).
 
 ## Consequences
 
