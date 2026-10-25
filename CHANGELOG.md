@@ -3,6 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.3.1
+
+- **The counters, published.** 0.3.0 went out without them; 0.3.1 has the byte counters and the rates in the pane
+  ([ADR 0031](docs/adr/0031-a-connection-counts-the-frames-it-carries.md)), in the packages and in the four catalogue entries.
+
 ## M4: what a connection carried
 
 - **Bytes and bit rates next to each connection** ([ADR 0031](docs/adr/0031-a-connection-counts-the-frames-it-carries.md)). `status` carries

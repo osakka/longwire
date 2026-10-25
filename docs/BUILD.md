@@ -77,7 +77,7 @@ with the pane and the app.
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.3.0
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.3.1
 # modules: longwire
 ```
 
