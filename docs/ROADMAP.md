@@ -67,7 +67,7 @@ relayed pair upgrades to direct once a path exists.
 
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install cli/longwire`,
 and then dial and pick up entirely from the hibr desktop.
-- control-panel/lines.hibr: the Network pane's Lines section, the ring dialog with the safety phrase, the menu-bar ☎
+- A control panel pane for the client (`control-panel/longwire.hibr`) and an application for the switchboard (`apps/switchboard.hibr`), both over `lw` verbs; first the verbs they need (a machine-readable `status` and `lines`, an event stream) ([ADR 0030](adr/0030-three-surfaces-one-engine.md)) *(planned: M4)*
 - *Built:* the module as a deb, an rpm and a pacman package (`make packages`, `tests/pkg.sh`), the launchers, and the two
   systemd services ([ADR 0028](adr/0028-one-deb-and-the-others-from-it.md)); the scripts declare their catalogue headers.
 - Signed package repositories in the existing hibr repositories, and both scripts published in hibr's catalogue under a new `cli` kind

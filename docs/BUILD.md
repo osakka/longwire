@@ -43,7 +43,7 @@ optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is pa
 | 3. module | `module/longwire.c` + `engine/*.c` + `vendor/*` | **deb, rpm, pacman** package `longwire` (depends on `hibr`) | `/usr/lib/hibr/longwire.so` |
 | 2. node | `scripts/longwire.hibr` | **hibr catalogue** command `cli/longwire` *(planned: M4)* | `~/.local/share/hibr/cli/`, or `/var/lib/hibr/cli` with `--system` |
 | 1. switchboard | `scripts/longwire-switchboard.hibr` | **hibr catalogue** command `cli/longwire-switchboard` *(planned: M4)* | the same |
-| 2b. the Lines pane | `control-panel/lines.hibr`, a `# part:` of an app *(planned: M4)* | the desktop's `control-panel` kind | a desktop scan root |
+| 2b. control panel pane | `control-panel/longwire.hibr`, its own entry *(planned: M4)* | the desktop's `control-panel` kind | a desktop scan root |
 | launchers + services | `packaging/launcher.sh` (twice), `packaging/systemd/` | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
 
 ```
@@ -79,7 +79,6 @@ The scripts declare what they need in their headers, so the catalogue checks bef
 ```sh
 app longwire "One long wire between your sites: dial a number, share a LAN" 0.3.0
 # modules: longwire
-# part: control-panel/lines.hibr   (when the pane exists)
 ```
 
 **Loading the module.** Scripts use `mod load "${LONGWIRE_MOD:-longwire}"`: an explicit path when `LONGWIRE_MOD` is

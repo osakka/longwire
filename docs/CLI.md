@@ -195,7 +195,7 @@ done
 
 ## The desktop *(planned: M4)*
 
-The Network pane of hibr's desktop gains a **Lines** section: your number, a dial field, the call and its peers with
-path and round-trip time, and pick up, hang up and unpin buttons; the ring becomes a dialog showing the safety phrase,
-and the menu bar shows a ☎ that lights while a call is up. It ships as a part of the node app in hibr's catalogue
-(`control-panel/lines.hibr` *(planned: M4)*).
+The command stays the supported way to run a service. Beside it, hibr's desktop (which runs on servers too) gets a **control
+panel pane** for the client (number and name, switchboard, attach mode, answer policy, dial, the ring dialog with the safety
+phrase, lines and their members) and an **application** for the switchboard (nodes, numbers, a call feed that forgets at
+`GO`, limits, tokens), each a catalogue entry of its own ([ADR 0030](adr/0030-three-surfaces-one-engine.md)).

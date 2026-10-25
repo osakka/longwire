@@ -38,6 +38,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0027](0027-ipv6-is-a-second-socket.md) | IPv6 is a second socket, not a dual-stack one | accepted |
 | [0028](0028-one-deb-and-the-others-from-it.md) | One deb, the others made from it, and the launchers find what the catalogue installed | accepted |
 | [0029](0029-commands-are-their-own-catalogue-kind.md) | Commands are their own catalogue kind | accepted |
+| [0030](0030-three-surfaces-one-engine.md) | Three surfaces on one engine: the command, a control panel, a switchboard app | accepted *(planned: M4)* |
 
 ---
 

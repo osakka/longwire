@@ -7,8 +7,7 @@ Status: accepted, and built in hibr (`c5bf491`) and hibr-apps (`697f789`); in a 
 
 hibr's catalogue knows nine kinds, and eight of them are places the desktop scans. A script placed in `apps` is an
 application: it can appear on the Applications menu and is shaped like one. `longwire` and `longwire-switchboard` are not
-that. They are commands, run from a prompt or a service, with no window; a text-mode desktop application of ours (the
-Lines pane, M4) would be a different thing, and that kind of script belongs in `apps` or `control-panel` as hibr's own do.
+that. They are commands, run from a prompt or a service, with no window; a text-mode desktop piece of ours (the control panel pane and the switchboard app, M4, [ADR 0030](0030-three-surfaces-one-engine.md)) would be a different thing, and that kind of script belongs in `apps` or `control-panel` as hibr's own do.
 
 ## Decision
 
