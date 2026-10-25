@@ -6,7 +6,10 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 ## 0.3.1
 
 - **The counters, published.** 0.3.0 went out without them; 0.3.1 has the byte counters and the rates in the pane
-  ([ADR 0031](docs/adr/0031-a-connection-counts-the-frames-it-carries.md)), in the packages and in the four catalogue entries.
+  ([ADR 0031](docs/adr/0031-a-connection-counts-the-frames-it-carries.md)), in the packages and in the four catalogue entries (`hibr-apps` `5ed137e`, `hibr-apt` `2435444`, `hibr-rpm` `814b4b9`,
+  `hibr-arch` `6d7f182`). 0.3.0 stays in the repositories, so it can still be named. The whole suite passed before publishing, on the
+  third full run: two earlier runs each failed `tests/m1.sh` once (a direct connection through a strict NAT, 80 s), under heavy
+  load from other work on the machine; it has passed alone 16 times, and its cause is not found.
 
 ## M4: what a connection carried
 
