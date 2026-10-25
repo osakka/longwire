@@ -88,6 +88,7 @@ and on the other machine's `up` terminal:
 | `--sb-rekey S` | the rekey interval of a switchboard session (600), the same on the node and the switchboard: a switchboard holds thousands of sessions, and they carry only control messages |
 | `--cand-loopback` | offer 127.x as a call candidate: tests, and two nodes on one host |
 | `--seed FILE`, `--sock PATH`, `--state DIR` | where the identity, control socket and pins live (default `~/.longwire/`) |
+| `--group NAME\|GID` | give the control socket to that group at mode 0660, so its members can use it ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); the services use `longwire`. An unknown group stops the start |
 | `--maxpeers N` | how many peers to hold (default 32; a switchboard 1024) |
 
 **Attaching.** Today the attach mode is always explicit (`--splice` or `--jack`). Choosing one automatically, from what

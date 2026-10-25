@@ -4,6 +4,8 @@
 # The script comes from the catalogue, for the machine:  sudo catalogue --system install cli/longwire
 # AF_NETLINK is for listing the interface addresses (candidates); each instance has a state directory of its own, so two NICs
 # are two identities. The script is read from the machine's scope only: this service's own writable home is never searched.
+# The control socket is /run/longwire/%i/ctl, mode 0660, group longwire: the people in that group (usermod -aG longwire NAME) can
+# dial, hang up and watch this node from the hibr desktop or the command line, and read no key (docs/adr/0032).
 # CAP_NET_RAW opens the packet socket and is the only privilege; `lw start` clears every capability the moment it is open.
 [Unit]
 Description=longwire site node (splice on %I)
@@ -18,8 +20,12 @@ EnvironmentFile=/etc/longwire/%i.conf
 Environment=HOME=/var/lib/longwire/%i
 Environment=LONGWIRE_SCRIPTS=/var/lib/hibr/cli
 Environment=LONGWIRE_MOD=/usr/lib/hibr/longwire.so
-ExecStart=/usr/bin/longwire up --splice %i $ARGS
+Environment=LW_SOCK=/run/longwire/%i/ctl
+ExecStart=/usr/bin/longwire up --splice %i --group longwire $ARGS
 DynamicUser=yes
+Group=longwire
+RuntimeDirectory=longwire/%i
+RuntimeDirectoryMode=0750
 StateDirectory=longwire/%i
 StateDirectoryMode=0700
 AmbientCapabilities=CAP_NET_RAW

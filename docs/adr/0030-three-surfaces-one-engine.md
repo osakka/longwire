@@ -56,10 +56,9 @@ switchboard and records what it draws as text; how that looks on a real desktop 
 
 ## Consequences
 
-- **Open: who may speak to a worker.** The control socket is mode 0600 and checks the caller's uid, and a service node runs as
-  a transient user. Until that changes the panel drives the nodes of the user running it, and shows a service node read-only.
-  The alternative is a named `longwire` group with a 0660 socket, which makes everyone in the group an operator of the node
-  (never a reader of its seed) and amends [0004](0004-a-node-never-runs-as-root.md) and the threat model. Not decided.
+- **Who may speak to a worker** was open here and is decided in [0032](0032-the-services-share-their-control-socket-with-a-group.md):
+  the services give their control socket to a group, `longwire`, and the pane and the application use it. Without that group the
+  panel drives only the nodes of the user running it.
 - The look is hibr's own widgets and colour schemes, so it follows the user's theme.
 - Two more catalogue entries to publish with the `cli` ones, once hibr's release carries the kind.
 - Testing a screen is harder than a verb; the data (status, lines, events) is tested as verbs first, the drawing by hand.

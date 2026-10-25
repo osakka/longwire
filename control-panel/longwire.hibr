@@ -27,7 +27,7 @@ LWP_POLICIES=(ask known auto never)
 LWP_ATTACHES=(jack splice)
 
 # The last status read, and when. _rows runs every frame, and a read of the node is a round trip, so it is kept for a second.
-declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN=
+declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK=
 
 # Bytes a connection has carried, in the units a person reads: decimal, one place.
 fn lwp_bytes(n) {
@@ -84,16 +84,27 @@ fn lwp_rates() {
 
 # Read the node's status into LWP_S, at most once a second. LWP_UP says whether there was a node to read.
 fn lwp_poll() {
-	local st
+	local st f
 
 	[ $((SECONDS - LWP_T)) -ge 1 ] || return 0
 	LWP_T=$SECONDS
+	LWP_SOCK=
 	if st := lw status 2> /dev/null && json parse LWP_S "$st" 2> /dev/null; then
 		LWP_UP=1
 		lwp_rates
-	else
-		LWP_UP=0
+		return 0
 	fi
+	# no node of our own: a service node's socket is in /run/longwire/INSTANCE/ctl, and the group longwire may use it (ADR 0032)
+	for f in "${LW_RUN:-/run}"/longwire/*/ctl; do
+		[ -S "$f" ] || continue
+		if st := lw status --sock "$f" 2> /dev/null && json parse LWP_S "$st" 2> /dev/null; then
+			LWP_UP=1
+			LWP_SOCK=$f
+			lwp_rates
+			return 0
+		fi
+	done
+	LWP_UP=0
 }
 
 # Whether longwire runs here as a service, under another user: read-only, and looked at every ten seconds.
@@ -153,6 +164,7 @@ fn longwire_rows(int w) {
 		lwp_row "$w" "$n" head "No node is running" "" none; n=$((n + 1))
 		if [ -n "$LWP_SVC" ]; then
 			lwp_row "$w" "$n" action "A service node runs here" "${LWP_SVC}(systemctl)" svc; n=$((n + 1))
+			lwp_row "$w" "$n" action "  to use it from here" "join the group longwire, then log in again" none; n=$((n + 1))
 		fi
 		lwp_row "$w" "$n" head "Start a node" "" none; n=$((n + 1))
 		lwp_row "$w" "$n" action "Switchboard" "${DT_LW_SB:-HOST:PORT/KEY}" sb; n=$((n + 1))
@@ -176,7 +188,11 @@ fn longwire_rows(int w) {
 	lwp_row "$w" "$n" action "Name" "${name:-none}" none; n=$((n + 1))
 	lwp_row "$w" "$n" action "Switchboard" "$sw" none; n=$((n + 1))
 	lwp_row "$w" "$n" action "NAT" "$nat" none; n=$((n + 1))
-	lwp_row "$w" "$n" action "Stop this node" "" stop; n=$((n + 1))
+	if [ -n "$LWP_SOCK" ]; then
+		lwp_row "$w" "$n" action "Runs as" "a service, reached through the group longwire" none; n=$((n + 1))
+	else
+		lwp_row "$w" "$n" action "Stop this node" "" stop; n=$((n + 1))
+	fi
 
 	lwp_row "$w" "$n" head "Calls" "" none; n=$((n + 1))
 	cnt := json len LWP_S .calls
@@ -238,8 +254,12 @@ fn longwire_rows(int w) {
 	fi
 
 	lwp_row "$w" "$n" head "Answering" "" none; n=$((n + 1))
-	pol := lwp_policy
-	lwp_row "$w" "$n" set "When a call rings" "$pol" policy; n=$((n + 1))
+	if [ -n "$LWP_SOCK" ]; then
+		lwp_row "$w" "$n" action "When a call rings" "set by the service (/etc/longwire)" none; n=$((n + 1))
+	else
+		pol := lwp_policy
+		lwp_row "$w" "$n" set "When a call rings" "$pol" policy; n=$((n + 1))
+	fi
 	ret "$n"
 }
 
@@ -250,7 +270,7 @@ declare -g LWP_PEND_KIND= LWP_PEND_ARG= LWP_PEND_ARG2=
 
 fn lwp_run(what, arg = "") {
 	# a failed verb leaves its reason in $ERRMSG
-	if lw "$what" ${arg:+"$arg"} > /dev/null 2>&1; then
+	if lw "$what" ${arg:+"$arg"} ${LWP_SOCK:+--sock "$LWP_SOCK"} > /dev/null 2>&1; then
 		return 0
 	fi
 	dt_notep high "longwire: %s" "${ERRMSG:-$what failed}"

@@ -1,6 +1,6 @@
 # 0004 — A node never runs as root; any privilege is a one-time grant
 
-Status: accepted
+Status: accepted. Amended by [0032](0032-the-services-share-their-control-socket-with-a-group.md): the control socket may belong to a group.
 
 ## Context
 

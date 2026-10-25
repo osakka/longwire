@@ -88,7 +88,7 @@ per-source budget by /64), and a firewall may close the port ([ADR 0027](adr/002
   handshake slots (8, one per source), and four reassembly slots per peer, created on first use.
 - Keys are handled in C only. The seed is mode 0600. `lw start` and `lw key` read it inside the module's process and
   wipe it before returning; the worker keeps its identity in memory that is `mlock`ed where the OS allows. It never
-  crosses the control socket and never enters a hibr variable, so scripts handle numbers and decisions, never secrets. The control socket is mode 0600 and checks the peer's uid (`SO_PEERCRED`). The worker
+  crosses the control socket and never enters a hibr variable, so scripts handle numbers and decisions, never secrets. The control socket is mode 0600 and checks the peer's uid (`SO_PEERCRED`), unless it is given a group: the services give theirs to the group `longwire`, mode 0660, and then the file mode is the check, so everyone in that group may dial, hang up, evict and stop that node, and no one may read its key ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)). The worker
   closes every descriptor it inherits.
 - Nothing is setuid, and hibr never gains privilege (hibr ADR 0016). Splice gets `CAP_NET_RAW` from the service manager
   as an ambient capability. `lw start` opens the packet socket, clears every capability set and sets `no_new_privs`, and only

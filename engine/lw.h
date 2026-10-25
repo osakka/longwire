@@ -33,6 +33,8 @@ typedef struct lw_peercfg {
 typedef struct lw_cfg {
 	char seed_path[256];
 	char ctl_path[256];
+	int  ctl_group;			/* 1: the control socket belongs to group ctl_gid and is mode 0660 (docs/adr/0032) */
+	unsigned ctl_gid;
 	char log_path[256];
 	char port_kind[16];		/* "splice" | "jack" | "sock" | "none" */
 	char port_arg[256];		/* NIC name | tap name | "mypath:peerpath" */

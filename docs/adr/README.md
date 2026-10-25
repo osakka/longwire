@@ -40,6 +40,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0029](0029-commands-are-their-own-catalogue-kind.md) | Commands are their own catalogue kind | accepted |
 | [0030](0030-three-surfaces-one-engine.md) | Three surfaces on one engine: the command, a control panel, a switchboard app | accepted |
 | [0031](0031-a-connection-counts-the-frames-it-carries.md) | A connection counts the frames it carries, and only a node says so | accepted |
+| [0032](0032-the-services-share-their-control-socket-with-a-group.md) | The services share their control socket with the group longwire | accepted |
 
 ---
 

@@ -36,9 +36,10 @@ fn show(int id) {
 '''
 
 
-def drive(sock, body):
+def drive(sock, body, **more):
     src = DRIVER % dict(mod=MOD, app=APP, body=body)
     e = dict(os.environ, HOME=f"{T}/swhome", LW_SOCK="/nonexistent", SB_DIR=os.path.dirname(sock), DT_SW_SOCK=sock)
+    e.update(more)
     r = subprocess.run([HIBR, "-c", src], env=e, capture_output=True, text=True, timeout=60)
     return r.stdout.splitlines(), r
 
@@ -75,6 +76,13 @@ def main():
     B = node("B", 4002, "--answer", "auto")
     num = {k: until(lambda n=n: n.status()["number"], 20) for k, n in (("A", A), ("B", B))}
     check(all(num.values()), f"two nodes register: {num}")
+
+    # a service switchboard: no socket of the person's own, and one in /run/longwire-switchboard/ctl (here a link to S's)
+    os.makedirs(f"{T}/run/longwire-switchboard")
+    os.symlink(S.sock, f"{T}/run/longwire-switchboard/ctl")
+    out, r = drive("", "x := sw_sock; echo \"SOCK $x\"; switchboard_open 1; sw_scan 1 0; show 1", SB_DIR=f"{T}/nobody", DT_SW_SOCK="", LW_RUN=f"{T}/run")
+    check(any(l == f"SOCK {T}/run/longwire-switchboard/ctl" for l in out) and any(l.startswith("UP 1") for l in out),
+          f"with no switchboard of its own the app reads the service's socket: {out[:2]} {r.stderr[-200:]}")
 
     out, r = drive(S.sock, "switchboard_open 1; sw_scan 1 0; show 1")
     nodes = {l[5:].split("|")[0]: l[5:].split("|") for l in out if l.startswith("NODE ")}

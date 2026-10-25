@@ -30,6 +30,7 @@ usage: longwire <command>
   up [--switchboard HOST:PORT/KEY] [--answer ask|known|auto|never] [--token T] [--name TEXT] [--listed]
      [--authority OPERATORKEY | --admit ADMIT]   found a line run by an operator, or join one with the operator's admit
      [--splice NIC [--site-key FILE] | --jack TAP | --sock-port LOCAL:PEER] [--listen [ADDR:]PORT]
+     [--group NAME|GID]                      let that group use the control socket (the services use: longwire)
      [--peer BUNDLEFILE[@HOST:PORT]]...      run this node (foreground: a service or hold runs this)
   dial NUMBER|lw1...                          call a number, or a full address (needs the switchboard's directory)
   pickup [ID] | reject [ID]                   answer the ringing call (ID, from the ring, if several ring)

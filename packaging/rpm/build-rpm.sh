@@ -58,6 +58,9 @@ catalogue install cli/longwire cli/longwire-switchboard
 %install
 cp -a $STAGE/. %{buildroot}/
 
+%pre
+systemd-sysusers /usr/lib/sysusers.d/longwire.conf > /dev/null 2>&1 || getent group longwire > /dev/null || groupadd -r longwire
+
 %post
 echo "longwire: the scripts come from the catalogue now:"
 echo "longwire:   catalogue install cli/longwire cli/longwire-switchboard"
@@ -70,6 +73,7 @@ echo "longwire: (add --system as root to install them for the whole machine and 
 /usr/lib/hibr/longwire.so
 /usr/lib/systemd/system/longwire-switchboard.service
 /usr/lib/systemd/system/longwire@.service
+/usr/lib/sysusers.d/longwire.conf
 %dir /usr/share/doc/longwire
 %license /usr/share/doc/longwire/COPYING
 %doc /usr/share/doc/longwire/*.md

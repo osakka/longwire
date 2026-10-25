@@ -9,6 +9,7 @@
 #include "hibr.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -282,6 +283,22 @@ static int do_start(sh *s, int ac, char **av, int role)
 			snprintf(c->seed_path, sizeof c->seed_path, "%s", v);
 		else if (!strcmp(a, "--sock"))
 			snprintf(c->ctl_path, sizeof c->ctl_path, "%s", v);
+		else if (!strcmp(a, "--group")) {		/* the control socket is this group's (ADR 0032) */
+			struct group *g;
+			char *end;
+			unsigned long gid = strtoul(v, &end, 10);
+
+			if (*v && !*end)		/* a number is a group id */
+				c->ctl_gid = (unsigned)gid;
+			else if ((g = getgrnam(v)))
+				c->ctl_gid = (unsigned)g->gr_gid;
+			else {
+				snprintf(msg, sizeof msg, "lw start: no group called %s", v);
+				hibr_fail(s, msg);
+				goto out;
+			}
+			c->ctl_group = 1;
+		}
 		else if (!strcmp(a, "--state"))
 			snprintf(c->state_dir, sizeof c->state_dir, "%s", v);
 		else if (!strcmp(a, "--switchboard") && !role)

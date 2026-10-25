@@ -151,6 +151,19 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     fm = [l[2:] for l in out.splitlines() if l.startswith("F ")]
     check(fm == ["999 bit/s", "12.5 kbit/s", "940.0 Mbit/s", "2.5 Gbit/s", "999 B", "12.3 kB", "5.9 MB", "3.1 GB"], f"rates and totals are written in decimal units: {fm}")
 
+    # a service node: no node of the person's own, and a socket in /run/longwire/INSTANCE/ctl (here a link to B's)
+    os.makedirs(f"{T}/run/longwire/svc")
+    os.symlink(B.sock, f"{T}/run/longwire/svc/ctl")
+    envS = dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", LW_RUN=f"{T}/run")
+    rows, log, r = drive(envS, 'dump 1 > /dev/null; dump 1')
+    check(any(x[0] == "head" and x[1] == "This node" for x in rows) and any(x[1] == "Runs as" for x in rows),
+          f"with no node of its own the pane reads a service node's socket and says so: {rows[:3]}")
+    check(not any(x[3] == "stop" or x[3] == "policy" for x in rows),
+          "...and offers neither to stop it nor to change its answer policy, which belong to the service")
+    rows, log, r = drive(envS, 'dump 1 > /dev/null; lwp_run hangup; echo "RC $?"; lwp_run nonsense; echo "RC $?"')
+    check("RC 0" in r.stdout and any(l.startswith("NOTE high") for l in log),
+          f"a verb goes to that socket (a hang up works) and a failed one is reported: {r.stdout.strip()[-40:]!r} {[l for l in log if l.startswith('NOTE')][:1]}")
+
     # starting: refused without what it needs, then with it
     rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", PATH="/usr/bin:/bin"), 'longwire_do 1 start 1')
     check(any(l.startswith("NOTE high") and ("not installed" in l or "switchboard" in l) for l in log), f"Start without the command or a switchboard says what is missing: {log}")

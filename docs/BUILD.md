@@ -74,6 +74,12 @@ launchers, so the scripts must have been installed for the machine with `catalog
 ([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)). hibr's `catalogue` has the kind from 0.99.315, and the two bundles are published,
 with the pane and the app.
 
+**The group `longwire`.** The package makes a group of that name, and both services give their control socket to it (mode 0660, in
+`/run/longwire/NIC/ctl` and `/run/longwire-switchboard/ctl`). A person in the group can use the services from the hibr desktop (the pane
+and the switchboard application find those sockets themselves) and from the command line (`LW_SOCK=/run/longwire/eth0/ctl longwire peers`); join
+with `sudo usermod -aG longwire NAME` and log in again. Being in it means being allowed to dial, hang up, evict and stop that
+node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)). Not run: the units under a live systemd.
+
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
@@ -88,12 +94,12 @@ searches `HIBR_MODPATH` or the working directory for code.
 
 **Trying the pane.** From a checkout, as an ordinary user: `mkdir -p ~/.config/hibr/control-panel && ln -s $PWD/control-panel/longwire.hibr
 ~/.config/hibr/control-panel/`, start the desktop with `HIBR_MODPATH=$PWD/build`, and choose Refresh Desktop; the pane is
-called Longwire, under Apps. It needs a node you started yourself (`longwire up …`, or its own Start row); a node that runs
-as a service under another user is only named there.
+called Longwire, under Apps. It drives a node you started yourself (`longwire up …`, or its own Start row) or, if you have none, a service node
+whose socket is under `/run/longwire` and whose group (`longwire`) you are in.
 
 **Trying the switchboard app.** The same way, with `apps` in place of `control-panel`: `ln -s $PWD/apps/switchboard.hibr ~/.config/hibr/apps/`,
 then Refresh Desktop; it is called Switchboard, on the hibr menu. It reads the switchboard you started as the same user
-(`~/.longwire/switchboard/ctl`, or press `s` to name another socket).
+(`~/.longwire/switchboard/ctl`), or the service's (`/run/longwire-switchboard/ctl`) if you are in the group `longwire`; press `s` to name another socket.
 
 ## Running a site node (splice)
 

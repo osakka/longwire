@@ -8,12 +8,13 @@
 #   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
 #                        [--per-ip-hour N] [--rings-per-minute N] [--max-nodes N]
 #                        [--caller-id on|off] [--directory on|off]
-#                        [--release-after TIME]
+#                        [--release-after TIME] [--group NAME|GID]
 #                        --registry HOST:PORT/KEY|none [--issue-codes [--public-switchboard KEY]] [--codes-per-ip-day N]
 #
 # --tokens FILE   registration needs a token: one per line, "TOKEN" or
 #                 "TOKEN NUMBER" (that token claims that number). A token is
 #                 spent when it is used. Without it, registration is open.
+# --group         let that group use the control socket (mode 0660): the service uses longwire (docs/adr/0032)
 # --caller-id off / --directory off   do not carry names on rings / do not answer lookups (both on by default;
 #                 a node only appears in either if it asked to).
 # --registry      the registry of switchboard codes, which gives this switchboard its short code (+1, +20, ...); "none"
@@ -38,6 +39,7 @@ directory=on
 registry=
 issue_codes=
 public_sb=
+group=
 codes_per_ip_day=2
 release_after=365d
 
@@ -52,6 +54,7 @@ while [ $# -gt 0 ]; do
 	--rings-per-minute) rings_per_min=$2 ;;
 	--max-nodes) max_nodes=$2 ;;
 	--registry) registry=$2 ;;
+	--group) group=$2 ;;
 	--issue-codes) issue_codes=1; shift; continue ;;
 	--public-switchboard) public_sb=$2 ;;
 	--codes-per-ip-day) codes_per_ip_day=$2 ;;
@@ -142,7 +145,7 @@ case "$release_after" in
 esac
 
 run lw key new "$SB_DIR/seed" > /dev/null
-run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" --release-after "$release_secs" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} > /dev/null
+run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" ${group:+--group "$group"} --release-after "$release_secs" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} > /dev/null
 addr=$(lw key address "$SB_DIR/seed")
 echo "switchboard  $addr   (give this full address to your nodes)"
 echo "listening    udp $listen    tokens: ${tokens:-open registration}"

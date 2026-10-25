@@ -44,6 +44,7 @@ check: all lint
 	sh tests/panel.sh
 	sh tests/pane.sh
 	sh tests/sw.sh
+	sh tests/group.sh
 	sh tests/start.sh
 	sh tests/pkg.sh
 	python3 -I tests/docs.py
@@ -51,7 +52,7 @@ check: all lint
 # The module goes where hibr looks for modules; the two launchers and the services go where a package puts them. The
 # scripts are not installed: they come from the catalogue (docs/adr/0028).
 install: all
-	install -d $(DESTDIR)$(PREFIX)/lib/hibr $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/lib/systemd/system \
+	install -d $(DESTDIR)$(PREFIX)/lib/hibr $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/lib/systemd/system $(DESTDIR)$(PREFIX)/lib/sysusers.d \
 		$(DESTDIR)$(PREFIX)/share/doc/longwire
 	install -m 755 $(B)/longwire.so $(DESTDIR)$(PREFIX)/lib/hibr/longwire.so
 	install -m 755 packaging/launcher.sh $(DESTDIR)$(PREFIX)/bin/longwire
@@ -59,6 +60,7 @@ install: all
 	for u in longwire-switchboard.service longwire@.service; do \
 		sed -e 's|/usr/bin/|$(PREFIX)/bin/|g' -e 's|/usr/lib/hibr/|$(PREFIX)/lib/hibr/|g' packaging/systemd/$$u \
 			> $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u && chmod 644 $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u; done
+	install -m 644 packaging/longwire.sysusers $(DESTDIR)$(PREFIX)/lib/sysusers.d/longwire.conf
 	install -m 644 README.md COPYING CHANGELOG.md docs/*.md $(DESTDIR)$(PREFIX)/share/doc/longwire/
 
 # Packages, into build/pkg: the deb first, and the rpm and the pacman package from the deb's own files.

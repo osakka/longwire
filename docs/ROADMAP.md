@@ -68,6 +68,7 @@ relayed pair upgrades to direct once a path exists.
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install cli/longwire`,
 and then dial and pick up entirely from the hibr desktop.
 - *Built:* the control panel pane for the client (`control-panel/longwire.hibr`): status, dial, answer a ring with the safety phrase, hang up, the line and its members, evict, the answer policy, and starting a node (jack) ([ADR 0030](adr/0030-three-surfaces-one-engine.md)); drawing it is untested
+- *Built:* the services give their control sockets to a group, `longwire`, so the pane and the switchboard application work with a service node and a service switchboard ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); choosing among several service nodes *(planned: M4)*
 - *Built:* bytes and bit rates, sent and received, next to each connection in the pane ([ADR 0031](adr/0031-a-connection-counts-the-frames-it-carries.md)); the switchboard shows none, by design
 - *Built:* the application for the switchboard (`apps/switchboard.hibr`): fill and handshake gauges, the nodes with the names they gave, and the calls being set up as they happen; drawing it on a real desktop is untested
 - The menu-bar ☎ and a ring that interrupts (both need a background hook in hibr's desktop), splice from the pane, and token management in the switchboard app *(planned: M4)*

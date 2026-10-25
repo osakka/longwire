@@ -3,6 +3,17 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## Unreleased
+
+- **The services share their control socket with the group `longwire`** ([ADR 0032](docs/adr/0032-the-services-share-their-control-socket-with-a-group.md),
+  amends 0004). `--group NAME|GID` gives a worker's control socket to a group at mode 0660, and then the file mode is the check; the
+  two units run in the group with a runtime directory under `/run`, and the package makes the group (a `sysusers.d` file). The control
+  panel pane drives a service node, and the switchboard application a service switchboard, when the person is in the group. Tested with
+  three real users (`tests/group.sh`: owner, a user in the group only by a supplementary group, and a user in neither), the start
+  refusing an unknown group, the pane and the application reading a socket under another `/run`, and the units and group in all
+  three packages. Not tested: a running systemd, the group being made on a clean install, a desktop after `usermod`. This widens who
+  may control a service node, so it should be a minor version.
+
 ## 0.3.1
 
 - **The counters, published.** 0.3.0 went out without them; 0.3.1 has the byte counters and the rates in the pane

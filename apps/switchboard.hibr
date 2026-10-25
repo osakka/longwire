@@ -37,6 +37,8 @@ declare -g SW_J SW_P SW_E SW_SVC SW_SVCT=-100
 fn sw_sock() {
 	if [ -n "$DT_SW_SOCK" ]; then
 		ret "$DT_SW_SOCK"
+	elif [ ! -S "${SB_DIR:-$HOME/.longwire/switchboard}/ctl" ] && [ -S "${LW_RUN:-/run}/longwire-switchboard/ctl" ]; then
+		ret "${LW_RUN:-/run}/longwire-switchboard/ctl"		# the service's, which the group longwire may use (ADR 0032)
 	else
 		ret "${SB_DIR:-$HOME/.longwire/switchboard}/ctl"
 	fi
@@ -366,9 +368,9 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 		if [ "$SW_SVC" = active ]; then
 			console pen "$DT_WARN" "$DT_FACE"
 			sw_put "$id" 4 2 "longwire-switchboard.service is running here, as another user."
-			sw_put "$id" 5 2 "Its control socket belongs to that user, so this window cannot read it."
+			sw_put "$id" 5 2 "Its control socket is open to the group longwire; you are not in it, or have not logged in since."
 			console pen "$DT_DIM" "$DT_FACE"
-			sw_put "$id" 7 2 "See it with: systemctl status longwire-switchboard"
+			sw_put "$id" 7 2 "Join it with: sudo usermod -aG longwire YOURNAME   (then log in again)"
 		else
 			console pen "$DT_DIM" "$DT_FACE"
 			sw_put "$id" 4 2 "Start one with: longwire-switchboard --registry none"

@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Control socket: one text line in, one JSON object out, or `watch` to keep
- * the connection and receive events as JSON lines. Mode 0600, peer uid
- * checked. Keys never cross it. */
+ * the connection and receive events as JSON lines. Mode 0600 and the peer's uid
+ * checked, unless a group is named (cfg.ctl_group): then the socket is mode 0660 in
+ * that group and the file mode is the check (ADR 0032). Keys never cross it. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <poll.h>
@@ -47,6 +48,13 @@ int ctl_open(lw_node *n, char *err, size_t errn)
 		return -1;
 	}
 	umask(old);
+	if (n->cfg.ctl_group &&
+	    (chown(a.sun_path, (uid_t)-1, (gid_t)n->cfg.ctl_gid) < 0 || chmod(a.sun_path, 0660) < 0)) {
+		snprintf(err, errn, "control socket %s: cannot give it to group %u: %s", a.sun_path, n->cfg.ctl_gid, strerror(errno));
+		close(fd);
+		unlink(a.sun_path);
+		return -1;
+	}
 	n->ctl_fd = fd;
 	{
 		int i;
@@ -110,7 +118,7 @@ void ctl_accept(lw_node *n)
 
 	if (c < 0)
 		return;
-	if (getsockopt(c, SOL_SOCKET, SO_PEERCRED, &cr, &cl) < 0 || cr.uid != geteuid()) {
+	if (getsockopt(c, SOL_SOCKET, SO_PEERCRED, &cr, &cl) < 0 || (!n->cfg.ctl_group && cr.uid != geteuid())) {
 		close(c);
 		return;
 	}

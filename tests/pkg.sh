@@ -28,7 +28,7 @@ bsdtar -xf "$ARC" -C "$T/arch" 2> /dev/null
 
 # --- what is in them
 for f in usr/bin/longwire usr/bin/longwire-switchboard usr/lib/hibr/longwire.so \
-	 usr/lib/systemd/system/longwire-switchboard.service usr/lib/systemd/system/longwire@.service; do
+	 usr/lib/systemd/system/longwire-switchboard.service usr/lib/systemd/system/longwire@.service usr/lib/sysusers.d/longwire.conf; do
 	[ -e "$T/deb/$f" ] && [ -e "$T/rpm/$f" ] && [ -e "$T/arch/$f" ]; check $? "all three hold $f"
 done
 ! find "$T/deb" "$T/rpm" "$T/arch" -name '*.hibr' | grep -q .; check $? "none holds a script: those come from the catalogue"
@@ -73,6 +73,15 @@ out=$(HOME="$T/home" XDG_CONFIG_HOME="$T/none" XDG_DATA_HOME="$T/none" HIBR_SYSD
 out=$(HOME="$T/home2" XDG_CONFIG_HOME="$T/none" LONGWIRE_SCRIPTS="$PWD/scripts" LONGWIRE_MOD="$T/deb/usr/lib/hibr/longwire.so" \
 	PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" sh "$T/deb/usr/bin/longwire" id 2>&1)
 [ ${#out} -eq 64 ]; check $? "longwire id through the launcher and the packaged module gives a key id"
+
+# --- the group that may use the services' control sockets (ADR 0032): a sysusers.d file, and each package makes the group
+grep -q '^g longwire' "$T/deb/usr/lib/sysusers.d/longwire.conf"; check $? "the package ships the group longwire as a sysusers.d file"
+for u in longwire-switchboard.service longwire@.service; do
+	grep -q '^Group=longwire' "$T/deb/usr/lib/systemd/system/$u" && grep -q '^RuntimeDirectoryMode=0750' "$T/deb/usr/lib/systemd/system/$u" && grep -q -- '--group longwire' "$T/deb/usr/lib/systemd/system/$u"; check $? "$u runs in the group longwire, with a runtime directory its members can reach, and gives it the control socket"
+done
+dpkg-deb -I "$DEB" postinst | grep -q 'groupadd -r longwire'; check $? "the deb makes the group when it is installed"
+rpm -qp --scripts "$RPM" 2> /dev/null | grep -q 'groupadd -r longwire'; check $? "the rpm makes it too"
+bsdtar -xOf "$ARC" .INSTALL 2> /dev/null | grep -q 'groupadd -r longwire'; check $? "and so does the pacman package"
 
 if command -v systemd-analyze > /dev/null; then
 	mkdir -p "$T/units"

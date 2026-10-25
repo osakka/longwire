@@ -72,6 +72,7 @@ cat > "$STAGE/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
 if [ "$1" = configure ]; then
+	systemd-sysusers /usr/lib/sysusers.d/longwire.conf > /dev/null 2>&1 || getent group longwire > /dev/null || groupadd -r longwire
 	echo "longwire: the scripts come from the catalogue now:"
 	echo "longwire:   catalogue install cli/longwire cli/longwire-switchboard"
 	echo "longwire: (add --system as root to install them for the whole machine and for the services)."

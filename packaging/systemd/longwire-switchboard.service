@@ -3,6 +3,8 @@
 #     ARGS="--listen 1877 --registry none"
 # then   systemctl enable --now longwire-switchboard
 # The script comes from the catalogue, for the machine:  sudo catalogue --system install cli/longwire-switchboard
+# The control socket is /run/longwire-switchboard/ctl, mode 0660, group longwire: the people in that group (usermod -aG longwire NAME)
+# can watch this switchboard from the hibr desktop, and read no key (docs/adr/0032).
 [Unit]
 Description=longwire switchboard
 Documentation=file:///usr/share/doc/longwire/SWITCHBOARD.md
@@ -17,8 +19,12 @@ Environment=HOME=/var/lib/longwire-switchboard
 Environment=LONGWIRE_SCRIPTS=/var/lib/hibr/cli
 Environment=SB_DIR=/var/lib/longwire-switchboard
 Environment=LONGWIRE_MOD=/usr/lib/hibr/longwire.so
-ExecStart=/usr/bin/longwire-switchboard $ARGS
+Environment=LW_SOCK=/run/longwire-switchboard/ctl
+ExecStart=/usr/bin/longwire-switchboard --group longwire $ARGS
 DynamicUser=yes
+Group=longwire
+RuntimeDirectory=longwire-switchboard
+RuntimeDirectoryMode=0750
 StateDirectory=longwire-switchboard
 StateDirectoryMode=0700
 Restart=on-failure
