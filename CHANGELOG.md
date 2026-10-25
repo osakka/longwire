@@ -5,8 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## M4: what a connection carried
 
-- **Bytes and bit rates next to each connection** ([ADR 0031](docs/adr/0031-a-connection-counts-the-frames-it-carries.md)). `status` and
-  `peers` carry `rx_bytes` and `tx_bytes` for each peer, now counted at the frame in both directions (`tx_bytes` used to include
+- **Bytes and bit rates next to each connection** ([ADR 0031](docs/adr/0031-a-connection-counts-the-frames-it-carries.md)). `status` carries
+  `rx_bytes` and `tx_bytes` for each peer (`longwire status`; `longwire peers` is the line's members and has none), now counted at the frame in both directions (`tx_bytes` used to include
   keepalives and control messages, so the two ends could not agree); the pane shows `rx` and `tx` in Mbit/s and the totals in MB,
   with the rate made from two reads. Tested: the two ends agree exactly after 600 frames each way and after frames split in two;
   the formatting and the rate arithmetic are tested against known numbers. Not tested: the rows drawn on a desktop, and a rate on real links.
