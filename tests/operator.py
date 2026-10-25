@@ -96,7 +96,7 @@ def main():
     check(rc != 0 and "operator" in out, f"a member's own evict is refused: {out[:80]}")
     # --- the operator evicts A; B carries it, and the founder is down at the time -------------
     blob = helper.cmd("operator", "evict", op, lid, ids["A"])[1]
-    rc, out = B.cmd("revoke", "00" + blob[2:])
+    rc, out = B.cmd("revoke", "%02x" % (int(blob[:2], 16) ^ 0xff) + blob[2:])   # flip the first byte: setting it to 00 changed nothing one run in 256
     check(rc != 0, "a mangled eviction is not accepted")
     F.cmd("down")
     time.sleep(1)

@@ -3,7 +3,7 @@
 **Dependencies: hibr, and libc.** The crypto is vendored. There's no OpenSSL, no libsodium, no pkg-config, and no
 build system beyond one `Makefile`, in the same spirit as hibr's own ADR 0001. **TCC is the only compiler**, with no
 exceptions ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)). Anything designed and unbuilt carries
-`*(planned: M4)*`.
+`*(planned: M5)*` or similar.
 
 ## Building and running today
 
@@ -15,8 +15,7 @@ hibr scripts/longwire-switchboard.hibr --listen 1877 --registry none     # on th
 hibr scripts/longwire.hibr up --switchboard HOST:1877/lw1… --splice eth0       # on a node
 ```
 
-The module is built from source and the scripts run from the repository; the packages and the catalogue
-(below) *(planned: M4)*. `make` needs `tcc` and hibr's header directory, `../hibr` by default.
+Here the module is built from source and the scripts run from the repository; the packages and the catalogue are below. `make` needs `tcc` and hibr's header directory, `../hibr` by default.
 
 ```
 make HIBR_SRC=/path/to/hibr  # hibr's source tree, for its headers (not the HIBR the tests use)
@@ -41,10 +40,10 @@ optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is pa
 | Component | Source | Ships as | Lands in |
 |---|---|---|---|
 | 3. module | `module/longwire.c` + `engine/*.c` + `vendor/*` | **deb, rpm, pacman** package `longwire` (depends on `hibr`) | `/usr/lib/hibr/longwire.so` |
-| 2. node | `scripts/longwire.hibr` | **hibr catalogue** command `cli/longwire` *(planned: M4)* | `~/.local/share/hibr/cli/`, or `/var/lib/hibr/cli` with `--system` |
-| 1. switchboard | `scripts/longwire-switchboard.hibr` | **hibr catalogue** command `cli/longwire-switchboard` *(planned: M4)* | the same |
-| 1b. switchboard app | `apps/switchboard.hibr`, its own entry (built; published with the scripts *(planned: M4)*) | the desktop's `apps` kind | a desktop scan root |
-| 2b. control panel pane | `control-panel/longwire.hibr`, its own entry (built; published with the scripts *(planned: M4)*) | the desktop's `control-panel` kind | a desktop scan root |
+| 2. node | `scripts/longwire.hibr` | **hibr catalogue** command `cli/longwire` | `~/.local/share/hibr/cli/`, or `/var/lib/hibr/cli` with `--system` |
+| 1. switchboard | `scripts/longwire-switchboard.hibr` | **hibr catalogue** command `cli/longwire-switchboard` | the same |
+| 1b. switchboard app | `apps/switchboard.hibr`, its own entry, the catalogue's `switchboard` in the `apps` kind | the desktop's `apps` kind | a desktop scan root |
+| 2b. control panel pane | `control-panel/longwire.hibr`, its own entry, the catalogue's `longwire` in the `control-panel` kind | the desktop's `control-panel` kind | a desktop scan root |
 | launchers + services | `packaging/launcher.sh` (twice), `packaging/systemd/` | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
 
 ```
@@ -64,16 +63,16 @@ staging directory), then the rpm and the pacman package from the deb's own files
 `makepkg`, and no root; the module itself is built with TCC. `tests/pkg.sh` builds them and checks them. A package depends on
 hibr at `HIBR_MIN` (the oldest release the suite has been run against), and its version is `VERSION`. The reasoning is in
 [ADR 0013](adr/0013-packages-for-the-module-the-catalogue-for-the-scripts.md) and
-[ADR 0028](adr/0028-one-deb-and-the-others-from-it.md). Signed repositories to install from, and a Homebrew formula, are
-*(planned: M5)*; the formula waits for macOS.
+[ADR 0028](adr/0028-one-deb-and-the-others-from-it.md). The three are published in hibr's own signed repositories, which also carry hibr (set one up as hibr's README says, then
+`apt install longwire`, `dnf install longwire` or `pacman -S longwire`). A Homebrew formula is *(planned: M5)*, and waits for macOS.
 
 **The services.** `longwire-switchboard.service` runs a switchboard: put `ARGS="--listen 1877 --registry none"` (or your
 registry) in `/etc/longwire/switchboard.conf` and enable it. `longwire@NIC.service` runs a spliced site node on `NIC` with the
 arguments in `/etc/longwire/NIC.conf`; it holds `CAP_NET_RAW` and nothing else. Both run as a transient user with a state
 directory of their own (`/var/lib/longwire-switchboard`, `/var/lib/longwire`: the identity lives there), and both start the
 launchers, so the scripts must have been installed for the machine with `catalogue --system`. The scripts are commands, not desktop apps, so they are published under the catalogue's `cli` kind
-([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)). hibr's `catalogue` and `hibr-apps` have the kind; a hibr release
-that carries it, and publishing the two bundles, are *(planned: M4)*.
+([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)). hibr's `catalogue` has the kind from 0.99.315, and the two bundles are published,
+with the pane and the app.
 
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
@@ -99,7 +98,7 @@ then Refresh Desktop; it is called Switchboard, on the hibr menu. It reads the s
 ## Running a site node (splice)
 
 `longwire setup splice NIC` prints the service unit (`/usr/bin/longwire` is the launcher the package installs
-*(planned: M4)*; until then write the paths to `hibr` and to the script there):
+(the package installs it; if you run from a checkout write the paths to `hibr` and to the script there):
 
 ```ini
 [Unit]

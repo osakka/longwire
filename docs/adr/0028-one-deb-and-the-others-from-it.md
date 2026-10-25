@@ -17,7 +17,7 @@ services run without a login.
 - **The package carries the module, two launchers, two services and the documentation. It carries no script.** A script
   in two places is two versions to keep in step; the catalogue is the one route and can be updated without a release.
 - **The package depends on hibr at `HIBR_MIN`** (a file: the oldest release the whole test suite has been run against, found
-  by running it against the published hibr packages; 0.99.265 passes and 0.99.260 does not) and on libc at the newest
+  by running it against the published hibr packages; 0.99.265 passed and 0.99.260 did not; it is 0.99.315 now, the first release with the `cli` kind, [ADR 0029](0029-commands-are-their-own-catalogue-kind.md)) and on libc at the newest
   symbol version the module uses, read from the module. A module is built for one hibr module ABI (16, unchanged since
   0.99.74), and hibr refuses one it cannot satisfy, so the dependency is what makes a hibr too old for the module visible to
   the package manager. Moving `HIBR_MIN` down means running the suite against the older hibr first.

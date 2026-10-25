@@ -72,9 +72,9 @@ and then dial and pick up entirely from the hibr desktop.
 - The menu-bar ☎ and a ring that interrupts (both need a background hook in hibr's desktop), splice from the pane, and token management in the switchboard app *(planned: M4)*
 - *Built:* the module as a deb, an rpm and a pacman package (`make packages`, `tests/pkg.sh`), the launchers, and the two
   systemd services ([ADR 0028](adr/0028-one-deb-and-the-others-from-it.md)); the scripts declare their catalogue headers.
-- Signed package repositories in the existing hibr repositories, and both scripts published in hibr's catalogue under a new `cli` kind
-  ([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)) *(planned: M4)*; Homebrew *(planned: M5)*; the
-  default public switchboard and the project's registry live
+- *Built and published:* the packages in the signed hibr repositories (apt, dnf, pacman), and in hibr's catalogue the two commands under the `cli` kind
+  ([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)), the pane and the switchboard app. Not yet tried: installing from those repositories on a clean machine.
+- Homebrew *(planned: M5)*; the default public switchboard and the project's registry live *(planned: M4)*
 - `longwire` with no arguments, `longwire watch`, a tabular `status`, automatic choice of attach mode
 
 **M5: No privilege, more Unix.** Done when a user with no sudo anywhere joins a line with `longwire shell`.

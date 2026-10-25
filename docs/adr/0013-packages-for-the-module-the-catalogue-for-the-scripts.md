@@ -1,6 +1,7 @@
 # 0013 — Packages for the module, hibr's catalogue for the scripts
 
-Status: accepted *(planned: M4)*
+Status: accepted, and built: the module is a deb, an rpm and a pacman package in the hibr repositories, and the scripts are
+in hibr's catalogue ([ADR 0028](0028-one-deb-and-the-others-from-it.md), [0029](0029-commands-are-their-own-catalogue-kind.md))
 
 ## Context
 
@@ -18,8 +19,7 @@ unit template, because a catalogue app is not a command on `PATH` by itself.
 
 ## Consequences
 
-None of the packaging exists yet *(planned: M4)*; today the module is built from source with `make`, and the scripts are
-run from the repository. Four repositories to publish to is the cost of reaching four package managers, and why the
+The packaging exists. Homebrew *(planned: M5)* waits for macOS. Four repositories to publish to is the cost of reaching four package managers, and why the
 default switchboard's address lives in a script rather than the module
 ([0014](0014-a-default-public-switchboard.md)).
 

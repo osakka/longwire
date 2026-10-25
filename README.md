@@ -43,9 +43,9 @@ then `catalogue install cli/longwire`; or run `hibr scripts/longwire.hibr` with 
 
 | | Component | What it is | Ships through |
 |---|---|---|---|
-| 1 | **switchboard** (`longwire-switchboard`) | a hibr script: who may register, whose ring goes through | hibr's catalogue *(planned: M4)* |
-| 2 | **node** (`longwire`) | a hibr script: client and server in one: the commands, the answer policy, the events as sentences | hibr's catalogue *(planned: M4)* |
-| 3 | **module** (`longwire.so`) | the hibr module: the whole engine in C. Crypto, sockets, NAT punching, the switch, the ports. Runs in its own worker process | deb, rpm, pacman and Homebrew packages *(planned: M4)* |
+| 1 | **switchboard** (`longwire-switchboard`) | a hibr script: who may register, whose ring goes through | hibr's catalogue (`cli/longwire-switchboard`) |
+| 2 | **node** (`longwire`) | a hibr script: client and server in one: the commands, the answer policy, the events as sentences | hibr's catalogue (`cli/longwire`) |
+| 3 | **module** (`longwire.so`) | the hibr module: the whole engine in C. Crypto, sockets, NAT punching, the switch, the ports. Runs in its own worker process | deb, rpm and pacman packages from the hibr repositories; Homebrew *(planned: M5)* |
 
 **C handles bytes and keys; hibr makes the decisions.** The engine's C never includes `hibr.h`, so the phone app can
 reuse it later through JNI. That app will be a fourth piece *(planned: M6)*. Today the module is built from source

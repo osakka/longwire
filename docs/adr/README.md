@@ -21,7 +21,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0010](0010-numbers-are-allocated-and-bound-to-keys.md) | Numbers are allocated by the switchboard and bound to keys | accepted |
 | [0011](0011-one-switchboard-and-one-call-at-a-time.md) | One switchboard per deployment, and a person is asked about one call at a time | accepted |
 | [0012](0012-gpl-3-or-later.md) | The licence is GPL-3.0-or-later | accepted |
-| [0013](0013-packages-for-the-module-the-catalogue-for-the-scripts.md) | Packages for the module, hibr's catalogue for the scripts | accepted *(planned: M4)* |
+| [0013](0013-packages-for-the-module-the-catalogue-for-the-scripts.md) | Packages for the module, hibr's catalogue for the scripts | accepted |
 | [0014](0014-a-default-public-switchboard.md) | A default public switchboard, operated by the project | accepted |
 | [0015](0015-scripts-decide-c-enforces.md) | Scripts decide policy; C enforces what must not be skippable | accepted |
 | [0016](0016-cookies-are-checked-on-every-fragment.md) | Handshake cookies are checked on every fragment | accepted |
@@ -38,7 +38,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0027](0027-ipv6-is-a-second-socket.md) | IPv6 is a second socket, not a dual-stack one | accepted |
 | [0028](0028-one-deb-and-the-others-from-it.md) | One deb, the others made from it, and the launchers find what the catalogue installed | accepted |
 | [0029](0029-commands-are-their-own-catalogue-kind.md) | Commands are their own catalogue kind | accepted |
-| [0030](0030-three-surfaces-one-engine.md) | Three surfaces on one engine: the command, a control panel, a switchboard app | accepted *(planned: M4)* |
+| [0030](0030-three-surfaces-one-engine.md) | Three surfaces on one engine: the command, a control panel, a switchboard app | accepted |
 
 ---
 

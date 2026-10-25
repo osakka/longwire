@@ -14,7 +14,7 @@ $ longwire up --switchboard 203.0.113.7:1877/lw1q7m…k2a --splice eth0
 ☎  your number 447-120-933 — dial tone
 ```
 
-(The examples write `longwire`; until the launcher is packaged *(planned: M4)* that is `hibr scripts/longwire.hibr`.)
+(The examples write `longwire`, the launcher the package installs; from a checkout that is `hibr scripts/longwire.hibr`.)
 
 `longwire up` runs the node in the foreground, which is what a service unit or `hold` runs. It creates your identity
 (`~/.longwire/seed`, 32 bytes, mode 0600: back it up, it *is* your number), starts the engine worker, registers with the

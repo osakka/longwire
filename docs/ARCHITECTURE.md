@@ -217,7 +217,7 @@ brand/                       the mark and wordmark
 docs/                        these documents
 control-panel/longwire.hibr the client's control panel pane, a catalogue entry of its own
 apps/switchboard.hibr       the switchboard application, a catalogue entry of its own
-packaging/                   *(planned: M4)* deb, rpm, arch and homebrew builds, the launchers, the systemd unit
+packaging/                   deb, rpm and arch builds, the launchers, the systemd units (Homebrew *(planned: M5)*)
 ```
 
 When the Android app comes (M6), it builds `engine/` with TCC for arm64 into a library behind a small Kotlin `VpnService`. That is the

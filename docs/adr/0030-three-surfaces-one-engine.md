@@ -16,7 +16,7 @@ switchboard at a glance.
 Three surfaces over the same `lw` verbs and event stream, none holding a secret and none gaining privilege (hibr ADR 0016):
 
 1. **The command** (`cli/longwire`, `cli/longwire-switchboard`): unchanged, the supported way to run a node as a service.
-2. **A control panel pane, `control-panel/longwire.hibr`** *(planned: M4)*, for the client: your number, name and caller ID; the switchboard
+2. **A control panel pane, `control-panel/longwire.hibr`**, for the client: your number, name and caller ID; the switchboard
    to use; attach mode (splice, jack) with the one privileged step shown, never run; the answer policy; dial, the ring
    dialog with the safety phrase, hang up, unpin; lines, their members and path to each; and, for an operator, admit and
    evict. It is the Network pane's Lines section made its own pane, and it is the only place a person is asked.

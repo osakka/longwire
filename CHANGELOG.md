@@ -3,6 +3,18 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M4: published
+
+- **longwire 0.3.0 is published.** The deb, the rpm and the pacman package are in hibr's apt, dnf and pacman repositories
+  (`hibr-apt` `6db9f39`, `hibr-rpm` `d8e386f`, `hibr-arch` `917d8ac`), and hibr's catalogue has `cli/longwire`,
+  `cli/longwire-switchboard`, `apps/switchboard` and `control-panel/longwire` (`hibr-apps` `3312e50`). `HIBR_MIN` is 0.99.315,
+  the first hibr with the `cli` kind ([ADR 0029](docs/adr/0029-commands-are-their-own-catalogue-kind.md)). The whole suite
+  passed against hibr 0.99.336 before publishing. Not tried: installing from the repositories on a clean machine.
+- **A test that failed one run in 256 is fixed.** `tests/operator.py` mangled an eviction by setting its first byte to `00`,
+  which is the line id's first byte and so changed nothing when it already was. It flips the byte now. One full run also failed
+  `tests/m1.sh` ("the easy end dials" through a strict NAT, 80 s) while another session was running its own tests; it passed on
+  the next eight runs, and a cause was not found.
+
 ## M4: the switchboard application
 
 - **`apps/switchboard.hibr`** ([ADR 0030](docs/adr/0030-three-surfaces-one-engine.md)): the switchboard as a board: gauges and sparklines, the nodes
@@ -30,18 +42,18 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 - **The scripts are commands, not desktop apps, so the catalogue has a tenth kind, `cli`** ([ADR 0029](docs/adr/0029-commands-are-their-own-catalogue-kind.md)).
   It was added in hibr (`catalogue install cli/NAME` files a script under `$XDG_DATA_HOME/hibr/cli`, which the desktop never
   scans; the Catalogue window calls it Commands) and in hibr-apps (`addapp --kind cli`, the licence a script declares, a dash in
-  a name). The launchers look there first. The bundles are not published yet: that waits for a hibr release with the kind.
+  a name). The launchers look there first. The bundles are published.
 
 ## M4: packages
 
 - **The module as a deb, an rpm and a pacman package** (`make packages`; [ADR 0028](docs/adr/0028-one-deb-and-the-others-from-it.md)).
-  The deb is built first and the other two are made from its files, so they hold the same bytes; each depends on hibr 0.99.265 or
-  newer (the oldest published hibr the whole test suite passes against; 0.99.260 fails it). They carry the module, two launchers that find the scripts the catalogue installed, two systemd
+  The deb is built first and the other two are made from its files, so they hold the same bytes; each depends on hibr 0.99.315 or
+  newer (0.99.265 before the `cli` kind existed). They carry the module, two launchers that find the scripts the catalogue installed, two systemd
   services (`longwire-switchboard`, and `longwire@NIC` for a spliced site, with `CAP_NET_RAW` only), and the
   documentation; the scripts come from the catalogue and declare their `app` and `# modules:` headers. `make install`
   installs the same layout; `VERSION` is the one version. `tests/pkg.sh` builds all three and checks their contents,
-  dependencies, that the module in them loads and that the launcher runs a script. Not done: signed repositories to install
-  from, publishing the scripts to the catalogue, Homebrew (it waits for macOS), and a package tried on a machine that is not
+  dependencies, that the module in them loads and that the launcher runs a script. Not done then: signed repositories to install
+  from, publishing the scripts to the catalogue (both done: see above), Homebrew (it waits for macOS), and a package tried on a machine that is not
   this one.
 
 ## M3: the documentation review, and a limit on guessing numbers
