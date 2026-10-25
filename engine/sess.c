@@ -108,7 +108,6 @@ int sess_send(lw_node *n, lw_peer *p, uint8_t kind, const uint8_t *body, size_t 
 	s->ctr_send++;
 	peer_out(n, p, buf, 12 + 1 + len + 16);
 	p->last_tx = n->now;
-	p->tx_bytes += len;
 	return 0;
 }
 

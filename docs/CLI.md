@@ -132,7 +132,7 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 | `full`, `switchboard_offers`, `switchboard_codes` | your full number (`+code number`); the switchboard keys and short codes this node has been told of |
 | `relay` | `routes`, `forwarded`, `dropped` and `offer` (whether this node offers to relay) |
 | `registrations`, `sb_rekeys` | `NUMBER` replies received; rekeys of the switchboard session |
-| `peers` | per peer: `key_id`, `number`, `state`, `path`, `ep`, `age`, `rx_frames`, `tx_frames`, `rekeys`, `drop_auth`, `drop_replay` |
+| `peers` | per peer: `key_id`, `number`, `state`, `path`, `ep`, `age`, `rx_frames`, `tx_frames`, `rx_bytes`, `tx_bytes` (the Ethernet frames carried each way, since the session started: [ADR 0031](adr/0031-a-connection-counts-the-frames-it-carries.md)), `rekeys`, `drop_auth`, `drop_replay` |
 
 On a switchboard: `key_id`, `address`, `uptime`, `numbers`, `online`, `calls_ringing`, `policy`, `drop_garbage`, `code` (its short code), `code_refused` (why the registry did not give it one), `codes_issued` (a registry's count), `max_nodes` and the handshake gauges `hs_shed`, `cookies_sent` and `cookies_got`. `lw sb nodes [FROM]` lists the registry a page at a time (24 entries, then `next`): each entry has `number`, `name`, `listed`, `online` and `age`, and no address or key. A
 tabular view *(planned: M4)*.

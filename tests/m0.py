@@ -126,9 +126,14 @@ check(drain(colB) == [], "a frame between two local MACs never crosses the line"
 
 # --- throughput / integrity, both directions at once -------------------------
 N = 600
+b0 = {nm: (ctl(nm)["peers"][0]["tx_bytes"], ctl(nm)["peers"][0]["rx_bytes"]) for nm in "AB"}
+sent = {"A": 0, "B": 0}
 for i in range(N):
-    hostA.sendto(frame(MAC_B, MAC_A, struct.pack(">I", i) + os.urandom(900)), portA)
-    hostB.sendto(frame(MAC_A, MAC_B, struct.pack(">I", i) + os.urandom(900)), portB)
+    fa = frame(MAC_B, MAC_A, struct.pack(">I", i) + os.urandom(900))
+    fb = frame(MAC_A, MAC_B, struct.pack(">I", i) + os.urandom(900))
+    sent["A"] += len(fa); sent["B"] += len(fb)
+    hostA.sendto(fa, portA)
+    hostB.sendto(fb, portB)
     if i % 25 == 24: time.sleep(0.02)
 time.sleep(0.8)
 ra, rb = drain(colA), drain(colB)
@@ -138,6 +143,11 @@ if len(ra) != N or len(rb) != N:
         d = ctl(nm); p = d["peers"][0]
         print(f"     debug {nm}: local_rx={d['local_rx']} local_tx={d['local_tx']} tx_frames={p['tx_frames']} rx_frames={p['rx_frames']} auth={p['drop_auth']} replay={p['drop_replay']} garbage={d['drop_garbage']} noroute={d['drop_noroute']}")
 check(sorted(struct.unpack(">I", f[14:18])[0] for f in rb) == list(range(N)), "no loss, reorder-safe, no duplicates A->B")
+b1 = {nm: (ctl(nm)["peers"][0]["tx_bytes"], ctl(nm)["peers"][0]["rx_bytes"]) for nm in "AB"}
+txA, rxB = b1["A"][0] - b0["A"][0], b1["B"][1] - b0["B"][1]
+txB, rxA = b1["B"][0] - b0["B"][0], b1["A"][1] - b0["A"][1]
+check(txA == sent["A"] == rxB and txB == sent["B"] == rxA,
+      f"the byte counters count frames and agree at both ends: A sent {txA} B got {rxB} (sent {sent['A']}); B sent {txB} A got {rxA} (sent {sent['B']})")
 
 # --- hostile network: duplicates must be dropped, once-only delivery -----------
 px.mode = "dup"

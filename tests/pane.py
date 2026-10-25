@@ -17,6 +17,7 @@ mod load %(mod)s
 LOG=%(log)s
 fn cp_absent(int w, what) { CP[$w][0]["kind"]=head; CP[$w][0]["text"]="absent: $what"; return 0; }
 fn dt_want(int ms) { return 0; }
+fn dt_ms() { ret "${DRV_MS:-0}"; }
 fn dt_notep(prio, text, ...rest) { printf 'NOTE %%s %%s\n' "$prio" "$text ${rest[*]}" >> "$LOG"; }
 fn dt_confirm(msg, cmd) { printf 'CONFIRM %%s -> %%s\n' "$msg" "$cmd" >> "$LOG"; DRV_CMD=$cmd; }
 fn dt_ask(title, label, value, then, hint = "") { printf 'ASK %%s -> %%s\n' "$title" "$then" >> "$LOG"; DRV_THEN=$then; }
@@ -119,6 +120,36 @@ def main():
           f"changing the answer policy from ask writes the next one to the file the node reads, and the row shows it: {pol}")
     rows, log, r = drive(envB, 'longwire_do 1 dial 1; $DRV_THEN "000-000-001"; $DRV_THEN "  "')
     check(any(l.startswith("ASK Dial") for l in log) and any(l.startswith("NOTE high") for l in log), f"Dial asks for a number, and a bad one is reported rather than swallowed: {log} {r.stderr[-300:]}")
+
+    # throughput: totals from the node's counters, rates from two reads of them
+    body = r'''
+DRV_MS=1000
+json parse LWP_S '{"peers":[{"number":"111-111-111","state":"up","path":"direct","age":5,"rx_bytes":1000,"tx_bytes":2000}]}'
+lwp_rates
+echo "FIRST [${LWP_RRATE[111-111-111]-}]"
+DRV_MS=2000
+json parse LWP_S '{"peers":[{"number":"111-111-111","state":"up","path":"direct","age":6,"rx_bytes":6000000,"tx_bytes":2500000}]}'
+lwp_rates
+echo "RATE ${LWP_RRATE[111-111-111]-} ${LWP_TRATE[111-111-111]-}"
+LWP_UP=1; LWP_T=$SECONDS
+dump 1
+DRV_MS=2500
+json parse LWP_S '{"peers":[{"number":"111-111-111","state":"up","path":"direct","age":7,"rx_bytes":10,"tx_bytes":5}]}'
+lwp_rates
+echo "RESET [${LWP_RRATE[111-111-111]-}]"
+x := lwp_rate 999; echo "F $x"; x := lwp_rate 12500; echo "F $x"; x := lwp_rate 940000000; echo "F $x"; x := lwp_rate 2500000000; echo "F $x"
+x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_bytes 5999000; echo "F $x"; x := lwp_bytes 3100000000; echo "F $x"
+'''
+    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", DRV_MS="0"), body)
+    out = r.stdout
+    check("FIRST []" in out, "the first read of a connection gives a total but no rate")
+    check("RATE 47992000 19984000" in out, f"the second gives bits a second from the bytes since the first: {[l for l in out.splitlines() if l.startswith('RATE')]} {r.stderr[-200:]}")
+    rr = [x for x in rows if x[1].startswith("  rx ")]
+    check(len(rr) == 1 and rr[0][1] == "  rx 47.9 Mbit/s   tx 19.9 Mbit/s" and rr[0][2] == "6.0 MB in, 2.5 MB out",
+          f"the connection's row shows rx and tx rates and the totals: {rr}")
+    check("RESET []" in out, "a counter that went down (the connection started again) has no rate until the next read")
+    fm = [l[2:] for l in out.splitlines() if l.startswith("F ")]
+    check(fm == ["999 bit/s", "12.5 kbit/s", "940.0 Mbit/s", "2.5 Gbit/s", "999 B", "12.3 kB", "5.9 MB", "3.1 GB"], f"rates and totals are written in decimal units: {fm}")
 
     # starting: refused without what it needs, then with it
     rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", PATH="/usr/bin:/bin"), 'longwire_do 1 start 1')

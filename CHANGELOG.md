@@ -3,6 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M4: what a connection carried
+
+- **Bytes and bit rates next to each connection** ([ADR 0031](docs/adr/0031-a-connection-counts-the-frames-it-carries.md)). `status` and
+  `peers` carry `rx_bytes` and `tx_bytes` for each peer, now counted at the frame in both directions (`tx_bytes` used to include
+  keepalives and control messages, so the two ends could not agree); the pane shows `rx` and `tx` in Mbit/s and the totals in MB,
+  with the rate made from two reads. Tested: the two ends agree exactly after 600 frames each way and after frames split in two;
+  the formatting and the rate arithmetic are tested against known numbers. Not tested: the rows drawn on a desktop, and a rate on real links.
+  The switchboard shows no rates, by design.
+
 ## M4: published
 
 - **longwire 0.3.0 is published.** The deb, the rpm and the pacman package are in hibr's apt, dnf and pacman repositories

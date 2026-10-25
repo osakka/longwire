@@ -537,8 +537,10 @@ void sw_gratuitous(lw_node *n)
 static void send_one(lw_node *n, lw_peer *p, const uint8_t *f, size_t len)
 {
 	if (len <= FRAME_SINGLE) {
-		if (!sess_send(n, p, K_FRAME, f, len))
+		if (!sess_send(n, p, K_FRAME, f, len)) {
 			p->tx_frames++;
+			p->tx_bytes += len;
+		}
 		return;
 	}
 	{	/* two datagrams: id(2) part(1) total(2), then half the frame each */
@@ -556,6 +558,7 @@ static void send_one(lw_node *n, lw_peer *p, const uint8_t *f, size_t len)
 		memcpy(b + 5, f + h, len - h);
 		sess_send(n, p, K_FRAG, b, 5 + len - h);
 		p->tx_frames++;
+		p->tx_bytes += len;
 		n->frames_split++;
 	}
 }

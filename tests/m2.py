@@ -106,6 +106,13 @@ def main():
     check(got == 4, f"full-size frames (1514 bytes, ping -s 1472 -M do): {got}/4 replies")
     check(st_a["frames_split"] - s0 >= 4 and st_b["frames_joined"] - j0 >= 4,
           f"each was split in two on the way ({st_a['frames_split'] - s0} split by sa) and put back together ({st_b['frames_joined'] - j0} joined by sb)")
+    time.sleep(1.0)
+    # every frame either way, whole or in two halves, is counted once, at its own length, at both ends
+    st_a, st_b = SA.status(), SB.status()
+    tx_a, rx_b = sum(p["tx_bytes"] for p in st_a["peers"]), sum(p["rx_bytes"] for p in st_b["peers"])
+    tx_b, rx_a = sum(p["tx_bytes"] for p in st_b["peers"]), sum(p["rx_bytes"] for p in st_a["peers"])
+    check(tx_a > 6000 and tx_a == rx_b and tx_b == rx_a,
+          f"split frames are counted once at their whole length, and sa and sb agree: sa sent {tx_a}, sb got {rx_b}; sb sent {tx_b}, sa got {rx_a}")
 
     # --- TCP: the MSS clamp keeps segments in one datagram -----------------------------------
     data = random.Random(5).randbytes(3_000_000)
