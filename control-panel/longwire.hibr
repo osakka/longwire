@@ -1,0 +1,312 @@
+#!/usr/bin/env hibr
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# longwire -- the Control Panel pane for longwire, the layer-2 mesh VPN: who you are, who is ringing, who you are
+# connected to, the line you are on, and how this machine answers. It speaks to the node you started yourself through
+# `lw`, the same verbs the command uses, and to nothing else: it never reads the seed, never asks for privilege, and a
+# node that runs as a service under another user is shown, not driven (docs/adr/0030-three-surfaces-one-engine.md).
+#
+# A ring is answered here, in the Calls rows, while the pane is open. It is not a pop-up: a pane runs only while it is
+# drawn, so nothing watches in the background (the menu bar's ☎ needs a hook the desktop does not have).
+
+strict
+
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.3.0
+# modules: longwire
+command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
+
+# What the person chose for starting a node. None of it is secret: the seed never passes through here.
+DT_LW_SB="${DT_LW_SB-}"
+DT_LW_ATTACH="${DT_LW_ATTACH-none}"
+DT_LW_IFACE="${DT_LW_IFACE-}"
+DT_LW_NAME="${DT_LW_NAME-}"
+DT_LW_LISTED="${DT_LW_LISTED-0}"
+command -v dt_keep > /dev/null && dt_keep DT_LW_SB DT_LW_ATTACH DT_LW_IFACE DT_LW_NAME DT_LW_LISTED
+
+LWP_POLICIES=(ask known auto never)
+LWP_ATTACHES=(none jack splice)
+
+# The last status read, and when. _rows runs every frame, and a read of the node is a round trip, so it is kept for a second.
+declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN=
+
+# Read the node's status into LWP_S, at most once a second. LWP_UP says whether there was a node to read.
+fn lwp_poll() {
+	local st
+
+	[ $((SECONDS - LWP_T)) -ge 1 ] || return 0
+	LWP_T=$SECONDS
+	if st := lw status 2> /dev/null && json parse LWP_S "$st" 2> /dev/null; then
+		LWP_UP=1
+	else
+		LWP_UP=0
+	fi
+}
+
+# Whether longwire runs here as a service, under another user: read-only, and looked at every ten seconds.
+fn lwp_service() {
+	local u rest
+
+	[ $((SECONDS - LWP_SVCT)) -ge 10 ] || return 0
+	LWP_SVCT=$SECONDS
+	LWP_SVC=
+	command -v systemctl > /dev/null || return 0
+	LWP_SVC=$(systemctl list-units 'longwire@*' --state=active --no-legend --plain 2> /dev/null | while read -r u rest; do printf '%s ' "${u%.service}"; done)
+}
+
+# One value from the status, or the second word if it is not there.
+fn lwp_get(path, def = "") {
+	local v
+
+	if v := json get LWP_S "$path" 2> /dev/null; then
+		ret "$v"
+	else
+		ret "$def"
+	fi
+}
+
+# The answer policy: the file `longwire answer` writes and `longwire up` reads at each ring.
+fn lwp_policy_file() {
+	ret "${LW_DIR:-$HOME/.longwire}/answer"
+}
+
+fn lwp_policy() {
+	local f p=ask
+
+	f := lwp_policy_file
+	[ -r "$f" ] && read -r p < "$f"
+	case $p in ask | known | auto | never) ;; *) p=ask ;; esac
+	ret "$p"
+}
+
+fn lwp_row(int w, int n, kind, text, val, key) {
+	CP[$w][$n]["kind"]=$kind
+	CP[$w][$n]["text"]=$text
+	CP[$w][$n]["val"]=$val
+	CP[$w][$n]["key"]=$key
+}
+
+fn longwire_rows(int w) {
+	local n=0 i cnt num name state p we call phr nm sw nat full path age yn pol
+
+	if ! need longwire 2> /dev/null; then
+		cp_absent "$w" "the longwire module"
+		ret 1
+	fi
+	lwp_poll
+	dt_want 1000
+	if [ "$LWP_UP" != 1 ]; then
+		lwp_service
+		lwp_row "$w" "$n" head "No node is running" "" none; n=$((n + 1))
+		if [ -n "$LWP_SVC" ]; then
+			lwp_row "$w" "$n" action "A service node runs here" "${LWP_SVC}(systemctl)" svc; n=$((n + 1))
+		fi
+		lwp_row "$w" "$n" head "Start a node" "" none; n=$((n + 1))
+		lwp_row "$w" "$n" action "Switchboard" "${DT_LW_SB:-HOST:PORT/KEY}" sb; n=$((n + 1))
+		lwp_row "$w" "$n" set "Attach" "$DT_LW_ATTACH" attach; n=$((n + 1))
+		if [ "$DT_LW_ATTACH" != none ]; then
+			lwp_row "$w" "$n" action "Interface" "${DT_LW_IFACE:-name}" iface; n=$((n + 1))
+		fi
+		lwp_row "$w" "$n" action "Name" "${DT_LW_NAME:-none}" name; n=$((n + 1))
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="List in the directory"; CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "$DT_LW_LISTED" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=listed; n=$((n + 1))
+		lwp_row "$w" "$n" action "Start" "" start; n=$((n + 1))
+		ret "$n"
+		return 0
+	fi
+
+	num := lwp_get .full
+	name := lwp_get .name
+	sw := lwp_get .switchboard
+	nat := lwp_get .nat
+	lwp_row "$w" "$n" head "This node" "" none; n=$((n + 1))
+	lwp_row "$w" "$n" action "Number" "${num:-waiting for the switchboard}" none; n=$((n + 1))
+	lwp_row "$w" "$n" action "Name" "${name:-none}" none; n=$((n + 1))
+	lwp_row "$w" "$n" action "Switchboard" "$sw" none; n=$((n + 1))
+	lwp_row "$w" "$n" action "NAT" "$nat" none; n=$((n + 1))
+	lwp_row "$w" "$n" action "Stop this node" "" stop; n=$((n + 1))
+
+	lwp_row "$w" "$n" head "Calls" "" none; n=$((n + 1))
+	cnt := json len LWP_S .calls
+	for ((i = 0; i < ${cnt:-0}; i++)); do
+		state := lwp_get ".calls[$i].state"
+		we := lwp_get ".calls[$i].we_called"
+		call := lwp_get ".calls[$i].call"
+		num := lwp_get ".calls[$i].number"
+		nm := lwp_get ".calls[$i].name"
+		phr := lwp_get ".calls[$i].phrase"
+		if [ "$state" = ringing ] && [ "$we" != true ]; then
+			lwp_row "$w" "$n" action "$num rings${nm:+ ($nm, a claim)}" "pick up?" "ring:$call:$num:$phr:$nm"; n=$((n + 1))
+			lwp_row "$w" "$n" action "  safety phrase" "$phr" none; n=$((n + 1))
+			lwp_row "$w" "$n" action "  decline" "" "rej:$call"; n=$((n + 1))
+		elif [ "$state" != up ]; then
+			lwp_row "$w" "$n" action "$num" "$state" "hang:$num"; n=$((n + 1))
+		fi
+	done
+	cnt := json len LWP_S .peers
+	for ((i = 0; i < ${cnt:-0}; i++)); do
+		num := lwp_get ".peers[$i].number"
+		state := lwp_get ".peers[$i].state"
+		path := lwp_get ".peers[$i].path"
+		age := lwp_get ".peers[$i].age"
+		[ -n "$num" ] || continue
+		lwp_row "$w" "$n" action "$num" "$state, $path${age:+, ${age}s}" "hang:$num"; n=$((n + 1))
+	done
+	lwp_row "$w" "$n" action "Dial${GL[ellipsis]}" "" dial; n=$((n + 1))
+
+	lwp_row "$w" "$n" head "Line" "" none; n=$((n + 1))
+	yn := json type LWP_S .line
+	if [ "$yn" = object ]; then
+		local mg id
+		id := lwp_get .line.id
+		mg := lwp_get .line.managed false
+		lwp_row "$w" "$n" action "Line $id" "$([ "$mg" = true ] && echo 'managed by an operator' || echo 'members vouch for members')" none; n=$((n + 1))
+		cnt := json len LWP_S .line.members
+		for ((i = 0; i < ${cnt:-0}; i++)); do
+			num := lwp_get ".line.members[$i].number"
+			state := lwp_get ".line.members[$i].state"
+			if [ "$state" = you ] || [ "$mg" = true ]; then
+				lwp_row "$w" "$n" action "$num" "$state" none
+			else
+				lwp_row "$w" "$n" action "$num" "$state" "evict:$num"
+			fi
+			n=$((n + 1))
+		done
+	else
+		lwp_row "$w" "$n" action "Not on a line" "a call to a second node starts one" none; n=$((n + 1))
+	fi
+
+	lwp_row "$w" "$n" head "Answering" "" none; n=$((n + 1))
+	pol := lwp_policy
+	lwp_row "$w" "$n" set "When a call rings" "$pol" policy; n=$((n + 1))
+	ret "$n"
+}
+
+# --- what a row does -------------------------------------------------------------------------------------------------
+
+# A question that has been asked and not yet answered: dt_confirm runs a function of no arguments.
+declare -g LWP_PEND_KIND= LWP_PEND_ARG= LWP_PEND_ARG2=
+
+fn lwp_run(what, arg = "") {
+	# a failed verb leaves its reason in $ERRMSG
+	if lw "$what" ${arg:+"$arg"} > /dev/null 2>&1; then
+		return 0
+	fi
+	dt_notep high "longwire: %s" "${ERRMSG:-$what failed}"
+	return 1
+}
+
+fn lwp_yes() {
+	case $LWP_PEND_KIND in
+	pickup) lwp_run pickup "$LWP_PEND_ARG" ;;
+	hangup) lwp_run hangup "$LWP_PEND_ARG" ;;
+	evict) lwp_run evict "$LWP_PEND_ARG" ;;
+	stop) lwp_run stop ;;
+	esac
+	LWP_T=-100
+}
+
+fn lwp_ask(kind, arg, msg) {
+	LWP_PEND_KIND=$kind
+	LWP_PEND_ARG=$arg
+	dt_confirm "$msg" lwp_yes
+}
+
+# The Dial dialog's answer.
+fn lwp_dialled(text, int? id = "") {
+	text=${text//[[:space:]]/}
+	[ -n "$text" ] || return 1
+	lwp_run dial "$text"
+	LWP_T=-100
+	return 0
+}
+
+fn lwp_setsb(text, int? id = "") { DT_LW_SB=$text; cp_save; return 0; }
+fn lwp_setiface(text, int? id = "") { DT_LW_IFACE=$text; cp_save; return 0; }
+fn lwp_setname(text, int? id = "") { DT_LW_NAME=$text; cp_save; return 0; }
+fn cp_set_lwpolicy(int? id = "", value = "") { lwp_setpolicy "$value"; }
+fn cp_set_lwattach(int? id = "", value = "") { DT_LW_ATTACH=$value; cp_save; }
+
+fn lwp_setpolicy(p) {
+	local f
+
+	f := lwp_policy_file
+	mkdir -p "${f%/*}" 2> /dev/null
+	printf '%s\n' "$p" > "$f"
+}
+
+# The node was started by the pane and has ended.
+fn lwp_ended(int n, int st) {
+	local f msg=
+
+	f := dt_jobfile "$n" err
+	[ -r "$f" ] && read -r msg < "$f"
+	[ "$st" = 0 ] || dt_notep high "longwire stopped: %s" "${msg:-exit $st}"
+	LWP_T=-100
+	return 0
+}
+
+fn lwp_start(int w) {
+	local -a a
+
+	if ! command -v longwire > /dev/null; then
+		dt_notep high "longwire is not installed. Find it in the Catalogue (Commands)."
+		return 1
+	fi
+	if [ -z "$DT_LW_SB" ]; then
+		dt_notep high "Set the switchboard first (HOST:PORT/KEY)."
+		return 1
+	fi
+	a=(up --switchboard "$DT_LW_SB" --answer "$(lwp_policy)")
+	case $DT_LW_ATTACH in
+	jack) [ -n "$DT_LW_IFACE" ] || { dt_notep high "Name the jack interface first."; return 1; }
+		a+=(--jack "$DT_LW_IFACE") ;;
+	splice)
+		dt_notep high "Splice needs a one-time grant. In a terminal: longwire setup splice %s" "${DT_LW_IFACE:-eth0}"
+		return 1 ;;
+	esac
+	[ -n "$DT_LW_NAME" ] && a+=(--name "$DT_LW_NAME")
+	[ "$DT_LW_LISTED" = 1 ] && a+=(--listed)
+	dt_job longwire "" lwp_ended longwire "${a[@]}" > /dev/null
+	dt_notep low "Starting longwire${GL[ellipsis]}"
+	LWP_T=-100
+}
+
+fn longwire_do(int w, k, int dir) {
+	local v c rest
+
+	case $k in
+	policy)
+		v := lwp_policy
+		v := cp_next "$v" "$dir" "${LWP_POLICIES[@]}"
+		lwp_setpolicy "$v" ;;
+	attach)
+		DT_LW_ATTACH := cp_next "$DT_LW_ATTACH" "$dir" "${LWP_ATTACHES[@]}" ;;
+	listed) cp_toggle DT_LW_LISTED ;;
+	sb) dt_ask "Switchboard" "HOST:PORT/KEY" "$DT_LW_SB" lwp_setsb "the switchboard's address, then / and its key" ;;
+	iface) dt_ask "Interface" "Interface" "$DT_LW_IFACE" lwp_setiface "for jack, the tap to make; for splice, the NIC" ;;
+	name) dt_ask "Name" "Name" "$DT_LW_NAME" lwp_setname "what callers see (a claim, not proof); empty for none" ;;
+	start) lwp_start "$w" ;;
+	stop) dt_confirm "Stop this node? Calls end." lwp_yes; LWP_PEND_KIND=stop ;;
+	dial) dt_ask "Dial" "Number" "" lwp_dialled "a number like 447-120-933, or +code number" ;;
+	svc) dt_notep low "Control it with: systemctl status %s" "${LWP_SVC%% *}" ;;
+	ring:*)
+		rest=${k#ring:}
+		c=${rest%%:*}; rest=${rest#*:}
+		v=${rest%%:*}; rest=${rest#*:}
+		LWP_PEND_KIND=pickup
+		LWP_PEND_ARG=$c
+		dt_confirm "$v rings. Safety phrase: ${rest%%:*}. Pick up?" lwp_yes ;;
+	rej:*) lwp_run reject "${k#rej:}"; LWP_T=-100 ;;
+	hang:*) lwp_ask hangup "${k#hang:}" "Hang up on ${k#hang:}?" ;;
+	evict:*) lwp_ask evict "${k#evict:}" "Evict ${k#evict:}? Every member drops it and the line key changes." ;;
+	esac
+	cp_save
+}
+
+fn longwire_drop(int? w = "", int? r = "", int? c = "", k = "") {
+	case $k in
+	policy) dt_droplist "$w" "$r" "$c" cp_set_lwpolicy "${LWP_POLICIES[@]}" ;;
+	attach) dt_droplist "$w" "$r" "$c" cp_set_lwattach "${LWP_ATTACHES[@]}" ;;
+	esac
+}

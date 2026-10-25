@@ -1,6 +1,6 @@
 # 0030 — Three surfaces on one engine: the command, a control panel, and a switchboard app
 
-Status: accepted; the design is settled and the code is *(planned: M4)*. Supersedes the "Lines pane" of the
+Status: accepted; the pane is built, the switchboard application *(planned: M4)*. Supersedes the "Lines pane" of the
 [ROADMAP](../ROADMAP.md) and amends [0029](0029-commands-are-their-own-catalogue-kind.md) (the pane is not a `# part:` of
 the command).
 
@@ -29,6 +29,17 @@ Both desktop pieces are catalogue entries of their own (`# modules: longwire`), 
 what every scope has (hibr ADR 0046). `status` is already JSON and the events are already a stream a window can follow. What the two lacked was small and is
 built: the node's name in `status`, and on the switchboard the registry in pages (`lw sb nodes`), the handshake gauges and call
 progress events (`tests/panel.sh`).
+
+## What the pane does today
+
+Rows for the node you started: its number, name, switchboard and NAT; its calls, where a ring is a row that names the
+caller (with the name marked as a claim), shows the safety phrase, and asks before it picks up; the connected peers, each
+of whom can be hung up on; the line and its members, each of whom can be evicted unless the line has an operator; the answer
+policy; and Dial. With no node it offers Start for a jack node, and for splice it shows the command to run in a terminal.
+It reads the node once a second while it is drawn, and no more. Left out: a ring that interrupts whatever else you are
+doing, and the menu-bar ☎ *(planned: M4)*, because a pane runs only while it is drawn and the desktop has no hook for a background watcher;
+that is a request to hibr, not something to work around here. `tests/pane.sh` drives the rows and actions against real nodes with
+the desktop's calls stubbed, and loads the file under hibr's real panel code; how it is drawn has not been seen.
 
 ## Consequences
 

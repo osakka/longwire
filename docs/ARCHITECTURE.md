@@ -215,7 +215,7 @@ vendor/monocypher/           X25519, Ed25519, ChaCha20-Poly1305, BLAKE2b
 vendor/mlkem768/             PQClean ML-KEM-768 "clean" + fips202, with a 5-line compat shim for TCC
 brand/                       the mark and wordmark
 docs/                        these documents
-control-panel/longwire.hibr *(planned: M4)* the client's control panel pane, a catalogue entry of its own
+control-panel/longwire.hibr the client's control panel pane, a catalogue entry of its own
 apps/switchboard.hibr       *(planned: M4)* the switchboard application, a catalogue entry of its own
 packaging/                   *(planned: M4)* deb, rpm, arch and homebrew builds, the launchers, the systemd unit
 ```

@@ -1706,14 +1706,21 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 	for (i = 0; i < n->ncalls && len < (int)cap - 400; i++) {
 		static const char *const SN[] = { "idle", "dialing", "ringing", "punching", "connecting", "up" };
 		const lw_call *k = &n->calls[i];
-		char f[16], hx[17];
+		char f[16], hx[17], ph[64] = "", cn[2 * LW_NAME_MAX + 8];
 
 		if (k->state == CALL_IDLE)
 			continue;
 		fmt_number(f, k->number);
 		lw_hex(hx, k->id, 8);
-		len += snprintf(o + len, cap - (size_t)len, "%s{\"call\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"we_called\":%s,\"mesh\":%s}",
-				any ? "," : "", hx, f, SN[k->state], k->we_caller ? "true" : "false", k->auto_ ? "true" : "false");
+		json_esc(cn, sizeof cn, k->name);
+		if (k->state == CALL_RINGING && !k->we_caller) {	/* what a person is asked to compare before picking up */
+			uint8_t ck[32];
+
+			lw_h(ck, k->bundle, LW_BUNDLE);
+			phrase_of(ph, sizeof ph, ck, n->id.key_id);
+		}
+		len += snprintf(o + len, cap - (size_t)len, "%s{\"call\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"we_called\":%s,\"mesh\":%s,\"name\":\"%s\",\"phrase\":\"%s\"}",
+				any ? "," : "", hx, f, SN[k->state], k->we_caller ? "true" : "false", k->auto_ ? "true" : "false", cn, ph);
 		any = 1;
 	}
 	len += snprintf(o + len, cap - (size_t)len, "],\"line\":");

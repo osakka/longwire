@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## M4: the control panel pane
+
+- **`control-panel/longwire.hibr`** ([ADR 0030](docs/adr/0030-three-surfaces-one-engine.md)): the node's number, name,
+  switchboard and NAT; calls, with a ring shown as a row that carries the caller, the name as a claim and the safety phrase, and
+  asks before picking up; peers to hang up on; the line and its members, with eviction; the answer policy; Dial; and Start for a
+  jack node. A ringing call's `name` and `phrase` are now in `status`, which is what lets the pane (or anything polling) show them.
+  `tests/pane.sh`. Its drawing is untested; there is no ring pop-up or menu-bar ☎ yet, because the desktop has no hook for them.
+
 ## M4: what the desktop reads
 
 - **The data for the control panel and the switchboard app** ([ADR 0030](docs/adr/0030-three-surfaces-one-engine.md)): a node's

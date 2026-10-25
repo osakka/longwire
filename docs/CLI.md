@@ -121,7 +121,7 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 | `mapped` | the address and port the router gave by NAT-PMP, or empty |
 | `nat` | what the switchboard's second port says of your NAT: `easy` (one mapping for every destination, so a direct path is likely), `strict` (a new mapping per destination: only a relay is certain) or `unknown` (not measured yet, or the second port is blocked) |
 | `call` | one word for all your calls: `dialing` or `ringing` (a person's call is waiting), else `connecting`, `up` or `idle` |
-| `calls` | each call: `call` (its id), `number`, `state` (`dialing`, `ringing`, `punching`, `connecting`, `up`), `we_called`, `mesh` (a call a line's mesh made by itself) |
+| `calls` | each call: `call` (its id), `number`, `state` (`dialing`, `ringing`, `punching`, `connecting`, `up`), `we_called`, `mesh` (a call a line's mesh made by itself), `name` (what a ringing caller announced: a claim) and `phrase` (the safety phrase of a ring awaiting an answer, else empty) |
 | `line` | `null`, or the line you are on: `id` (six hex digits, for people), `id_full` (all sixteen: what the operator signs for), `managed` (it has an operator) and `authority` (the operator's public key, or empty), `founder` (you founded it), `members` (each with `number`, `key_id` and `state`: `you`, `up` or `down`), `up`, `partial` |
 | `uptime`, `port` | seconds since start; the attach mode and its argument |
 | `macs`, `local_rx`, `local_tx`, `flood` | the switch: addresses known, frames read from and written to the LAN, frames flooded |
@@ -199,4 +199,4 @@ done
 The command stays the supported way to run a service. Beside it, hibr's desktop (which runs on servers too) gets a **control
 panel pane** for the client (number and name, switchboard, attach mode, answer policy, dial, the ring dialog with the safety
 phrase, lines and their members) and an **application** for the switchboard (nodes, numbers, a call feed that forgets at
-`GO`, limits, tokens), each a catalogue entry of its own ([ADR 0030](adr/0030-three-surfaces-one-engine.md)).
+`GO`, limits, tokens), each a catalogue entry of its own ([ADR 0030](adr/0030-three-surfaces-one-engine.md)). The pane is built (`control-panel/longwire.hibr`); the switchboard application is *(planned: M4)*.
