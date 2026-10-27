@@ -5,6 +5,10 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.1
 
+*Published:* the catalogue (`hibr-apps` `11a949f`) and the packages (`hibr-apt` `bb26450`, `hibr-rpm` `27c0f38`, `hibr-arch` `bb804c3`), each of the last three in one commit
+that also removed the 0.6.0 file. `make check` passed on the exact tree (`e2623ca`). Not tried: installing from those repositories on a clean machine, and the units
+under a live systemd.
+
 *Renumbered:* this content was first published as 0.6.0 and withdrawn a few hours later, because the project stays on 0.5.x (the middle number moves
 only when the user says so). It is the same menu bar item, strip module and bundle, plus the three commands below. The 0.6.0 files are gone from the
 catalogue and the three package repositories (the git history of those repositories still holds them).
