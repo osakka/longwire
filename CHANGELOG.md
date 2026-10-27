@@ -5,6 +5,10 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.6.0
 
+*Published:* the catalogue (`hibr-apps` `b9550c7`: seven entries, three of them new: `menubar/longwire`, `control-strip/longwire` and the bundle `longwire`) and the packages
+(`hibr-apt` `dfab5b3`, `hibr-rpm` `58dcb0a`, `hibr-arch` `5c4e0b2`). `make check` passed on the exact tree (`29b82a6`; 463 checks, run again after a reboot).
+Not tried: installing from those repositories on a clean machine, and the units under a live systemd.
+
 - **Longwire on the menu bar and the Control Strip** ([ADR 0035](docs/adr/0035-longwire-on-the-menu-bar.md)). A telephone on the bar that says whether the line
   is off (`☎ ○`), waiting for the switchboard (`☎ ◌`), on (`☎ ●`, with the number of people connected) or ringing (`☎ ◉ 447-120-933`), a **ring that
   interrupts** (a note, and the dialog with the caller and the six-word safety phrase, once per call), and a menu that follows the state: Turn
