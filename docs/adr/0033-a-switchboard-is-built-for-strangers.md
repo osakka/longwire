@@ -32,10 +32,11 @@ Found by reading. Items 1 to 3 were then **reproduced** with a test that fails o
    answered.
 4. **Numbers and refusal text from a switchboard reached JSON and the pin file unchecked.** A number is now nine digits or the
    message is dropped; the refusal text is plain ASCII and escaped.
-5. **The pending-decision table (32) and the call table (32) were global and one session could fill either.** Now one decision
-   pending per asker and kind, one outstanding call per caller, 256 calls.
+5. **The pending-decision table (32) and the call table (32) were global and one session could fill either.** Now one registration
+   pending per asker, at most 16 dials pending and 16 calls outstanding per caller (a line has 16 members and a node builds it by
+   dialing them together), 256 of each overall.
 6. **A flood of introductions could push out an honest node's** (16 places for 10 s, so a few hundred packets a second). The table
-   is 1,024 places found by the key id (a hash of the bundle, which nobody can aim at another's), two to try.
+   is 1,024 places found by a per-boot keyed hash of the key id, two to try (a key id can be ground to any value, so it is not used as it is).
 7. **Handshake fragments waited in 8 slots** that spoofed fragments from nine sources could churn. 512 slots, found by a keyed
    hash of the source; an answer (`HS_RESP`) is given a slot only if we have a handshake out with that id.
 8. **The per-address limit for cookie holders** used an unkeyed 64-bucket hash an attacker with two addresses could collide. It is
@@ -47,7 +48,7 @@ Found by reading. Items 1 to 3 were then **reproduced** with a test that fails o
 11. **A stranger's session could send frames to a switchboard**, which has no LAN; and could flood the script with
     `dhcp-conflict` events. Frames are dropped on a switchboard, and the event is at most one in thirty seconds.
 12. **No limit on what one session could say.** Now 10 control messages a second (burst 30) per session; one registration in five
-    seconds (each is a write to disk); a dial every two seconds (burst 12) whatever came of it, so numbers are not found by trying
+    seconds (each is a write to disk); a dial every two seconds (burst 20, a line's worth and more) whatever came of it, so numbers are not found by trying
     them.
 13. **The registry had no end and was walked for every message.** `--max-numbers` (default 100,000), a hash index by key and by
     number, and allocation failures that refuse instead of crashing.
@@ -56,7 +57,7 @@ Found by reading. Items 1 to 3 were then **reproduced** with a test that fails o
     *Now:* limits key on `net`; counters are emptied every hour and day and when large; a missing value or a bad number is an error;
     the file is written beside and moved into place; files are made private from the first byte (`umask 077`).
 15. **Smaller:** the unknown-initiator path stopped before a Diffie-Hellman that the known one does (a timing difference that told
-    whether a key was a peer), and now does it too; `HS_RESP` draws on the handshake budget; a directory query with a NUL could dodge the 3-character
+    whether a key was a peer), and now does that one too (the known path still does more work, so a smaller difference remains); `HS_RESP` draws on the handshake budget; a directory query with a NUL could dodge the 3-character
     minimum; `FOUND` for a key query read bytes it was not sent; `name_ok` accepted overlong forms, surrogates and text that
     moves or hides other text; pins are written whole and moved into place; an event line is never cut short; the control
     socket waits 25 ms, not 200 ms, for a silent client; a signed shift in the address parser.

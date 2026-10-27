@@ -279,7 +279,7 @@ void sess_timers(lw_node *n)
 		}
 		if (p->prev.valid && n->now - c->born > 10)
 			explicit_bzero(&p->prev, sizeof p->prev);
-		if (n->role && p->next.valid && n->now - p->next.born > 30)	/* a switchboard: the stranger never sent its first data. (A node keeps it: a lost
+		if (n->role && p->next.valid && n->now - p->next.born > (n->keepalive > 10 ? 3.0 * n->keepalive : 30.0))	/* a switchboard: the stranger never sent its first data. (A node keeps it: a lost
 										 * confirmation is made good by the next packet, and dropping the key would leave the
 										 * two ends disagreeing about whether there is a session.) */
 			explicit_bzero(&p->next, sizeof p->next);
@@ -360,7 +360,8 @@ static lw_peer *peer_slot(lw_node *n)
 			best = p;
 		/* A switchboard's table can be held by strangers who shake hands and then say nothing. A session that has
 		 * not registered gives way, the one that has been silent longest first; a registered one never does. */
-		if (n->role && !p->is_sb && !p->dial && !p->sb_registered && !p->hs.active && (!anon || p->touched < anon->touched))
+		if (n->role && !p->is_sb && !p->dial && !p->sb_registered && !p->hs.active && n->now - p->touched > 10.0 &&	/* long enough to have registered */
+		    (!anon || p->touched < anon->touched))
 			anon = p;
 	}
 	if (!best)
@@ -425,7 +426,7 @@ lw_peer *peer_for_unknown(lw_node *n, const uint8_t key_id[32])
 	if (!n->role)
 		return 0;
 	for (i = 0; i < 2; i++) {
-		lw_offer *o = &n->offers[offer_home(key_id) ^ (unsigned)i];
+		lw_offer *o = &n->offers[offer_home(n, key_id) ^ (unsigned)i];
 
 		if (o->used && n->now - o->t < 10.0 && !crypto_verify32(o->key_id, key_id)) {
 			lw_peer *p = peer_add(n, o->bundle);

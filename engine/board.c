@@ -650,6 +650,7 @@ static void send_code(lw_node *n, lw_peer *p, const char *code)
 {
 	reg r;
 
+	p->sb_registered = 1;			/* a switchboard that asked for its code is not a stranger holding a place */
 	memset(&r, 0, sizeof r);
 	memset(r.number, '0', NUMLEN);
 	send_number(n, p, &r, code);
@@ -668,7 +669,7 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 	struct held *h;
 	int tries;
 
-	if (b->n >= (n->cfg.max_numbers > 0 ? n->cfg.max_numbers : 100000)) {	/* every number is a bundle in memory and a line in a file */
+	if (!held_by_key(b, p->key_id) && b->n >= (n->cfg.max_numbers > 0 ? n->cfg.max_numbers : 100000)) {	/* every number is a bundle in memory and a line in a file */
 		refuse(n, p, "this switchboard has no numbers left to give (--max-numbers)");
 		return;
 	}
@@ -876,7 +877,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 
 			for (k = 1; k <= pl[0]; k++)
 				if (pl[k] < 0x21 || pl[k] > 0x7e || pl[k] == '"' || pl[k] == '\\' || (k == 1 && pl[k] == '#')) {
-					refuse(n, p, "the token is not acceptable (visible characters, no spaces, quotes or backslashes, and not starting with #)");
+					refuse(n, p, "a token has no spaces, quotes or backslashes, and does not start with #");
 					return;
 				}
 		}
@@ -1049,17 +1050,17 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		if (!r || len < NUMLEN + 1)
 			return;
 		heard(n, r);
-		r->dial_tok += (n->now - r->dial_t) * 0.5;		/* a dial every two seconds, burst 12, whatever came of it: numbers are not found by trying them */
+		memcpy(num, pl, NUMLEN);
+		num[NUMLEN] = 0;
+		r->dial_tok += (n->now - r->dial_t) * 0.5;		/* a dial every two seconds, burst 20 (a full line dials 15 at once), whatever came of it: numbers are not found by trying them */
 		r->dial_t = n->now;
-		if (r->dial_tok > 12.0)
-			r->dial_tok = 12.0;
+		if (r->dial_tok > 20.0)
+			r->dial_tok = 20.0;
 		if (r->dial_tok < 1.0) {
-			rejected(n, p->key_id, 0, R_POLICY, "000000000");
+			rejected(n, p->key_id, 0, R_POLICY, num);	/* with the number, so the caller knows which call it was */
 			return;
 		}
 		r->dial_tok -= 1.0;
-		memcpy(num, pl, NUMLEN);
-		num[NUMLEN] = 0;
 		if ((cn = cands_read(pl + NUMLEN, len - NUMLEN, cc, &nc, &strict)) < 0)
 			return;
 		{

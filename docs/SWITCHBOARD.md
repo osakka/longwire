@@ -139,7 +139,7 @@ Everything the switchboard does not do yet is marked where it is described and l
   pays the extra round trip. A handshake costs a few milliseconds of CPU under TCC (about 5 ms for both ends together, [CRYPTO §6](CRYPTO.md#6-measured)), most of it on the responder.
 - **Abuse limits:** registrations per source (an IPv4 address, or an IPv6 /64) per hour and rings per callee per minute (the
   script); the handshake budget, 10 control messages a second from a session, one registration in five seconds, a dial every
-  two seconds (the worker); one decision pending per asker, one call at a time per caller, 100,000 numbers (`--max-numbers`).
+  two seconds (the worker); one registration pending per asker and at most a line's worth (16) of dials or calls, 100,000 numbers (`--max-numbers`).
   The script empties its counters every hour and day.
 - **One switchboard per deployment.** Numbers are local to it. Federation (`number@sb`), redundancy and a larger number space *(planned: M9)*.
 

@@ -3,7 +3,7 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
-## Unreleased
+## 0.4.0
 
 - **A switchboard built for strangers** ([ADR 0033](docs/adr/0033-a-switchboard-is-built-for-strangers.md)). Before putting one online
   we attacked it: every parser a stranger's bytes reach was read by three readers, and the engine now runs under TCC's own bounds
@@ -13,7 +13,7 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
   and then silence; 24 filled 24 and the next honest node was refused), **a registration token could write into the event the policy
   script reads** (replacing the address its limit counted), and **a switchboard could connect a call nobody answered**. Fixed, with
   the smaller ones: unconfirmed sessions lapse and unregistered ones give way when the table is full; numbers and refusal text from
-  a switchboard are checked and escaped; one decision and one call per asker; a 1,024-place hashed table for introductions and a
+  a switchboard are checked and escaped; one registration pending per asker and at most a line's worth of dials and calls; a 1,024-place hashed table for introductions and a
   512-slot one for handshake fragments; a keyed per-source limit; IPv6 cookie replies; a one-step session lookup; a budget per
   session (messages, registrations, dials); `--max-numbers` and an indexed registry; the script counts an IPv6 /64, empties its
   counters, and refuses an option with its value missing; stricter names; pins written whole. The units are sandboxed (a system-call

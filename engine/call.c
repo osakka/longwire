@@ -401,9 +401,12 @@ void hello_offer(lw_node *n, const struct sockaddr *dst, socklen_t dl)
 	sendto(ufd(n, dst->sa_family), b, sizeof b, 0, dst, dl);
 }
 
-unsigned offer_home(const uint8_t kid[32])
+unsigned offer_home(const lw_node *n, const uint8_t kid[32])
 {
-	return get32(kid) % OFFERS;
+	uint8_t hv[8];
+
+	crypto_blake2b_keyed(hv, 8, (const uint8_t *)&n->hsalt, 8, kid, 32);	/* a key id can be ground to any value: the place is not the key id's to choose */
+	return (unsigned)(get32(hv) % OFFERS);
 }
 
 void hello_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
@@ -467,8 +470,8 @@ void hello_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 		lw_offer *a, *b2, *o;
 
 		lw_h(kid, pkt + 2, LW_BUNDLE);
-		a = &n->offers[offer_home(kid)];		/* a key id is a hash of the bundle: nobody can aim at another's place */
-		b2 = &n->offers[offer_home(kid) ^ 1];
+		a = &n->offers[offer_home(n, kid)];
+		b2 = &n->offers[offer_home(n, kid) ^ 1];
 		if (a->used && !crypto_verify32(a->key_id, kid))
 			o = a;
 		else if (b2->used && !crypto_verify32(b2->key_id, kid))

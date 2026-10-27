@@ -302,7 +302,7 @@ void hs_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr 
 
 /* sess.c */
 uint32_t sess_new_idx(lw_node *n, const lw_peer *p);
-unsigned offer_home(const uint8_t kid[32]);		/* where a stranger's offered bundle waits */
+unsigned offer_home(const lw_node *n, const uint8_t kid[32]);		/* where a stranger's offered bundle waits: a keyed hash, per boot */
 void sess_set_keys(lw_sess *s, int we_init, const uint8_t ck[32], uint32_t rx_idx, uint32_t tx_idx, double now);
 int  sess_send(lw_node *n, lw_peer *p, uint8_t kind, const uint8_t *body, size_t len);
 void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);

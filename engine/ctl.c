@@ -150,22 +150,26 @@ void ctl_accept(lw_node *n)
 	while (r > 0 && (line[r - 1] == '\n' || line[r - 1] == '\r'))
 		line[--r] = 0;
 	if (!strcmp(line, "watch")) {
+		int mine = cr.uid == geteuid() || cr.uid == 0, others = 0;
+
+		for (i = 0; i < MAXSUBS; i++)
+			others += n->subs[i] >= 0 && !n->subs_owner[i];
 		for (i = 0; i < MAXSUBS; i++)
 			if (n->subs[i] < 0)
 				break;
-		if (i == MAXSUBS) {
+		if (i == MAXSUBS || (!mine && others >= MAXSUBS / 2)) {	/* the group cannot take every place from the owner's script */
 			close(c);
 			return;
 		}
 		n->subs[i] = c;
-		n->subs_owner[i] = cr.uid == geteuid();
+		n->subs_owner[i] = mine;
 		len = snprintf(out, sizeof out, "{\"event\":\"watching\",\"role\":\"%s\"}\n", n->role ? "switchboard" : "node");
 		(void)!write(c, out, (size_t)len);
 		if (!n->role && (len = node_replay(n, out, sizeof out)) > 0)
 			(void)!write(c, out, (size_t)len);
 		return;				/* the connection stays open */
 	}
-	if (n->cfg.ctl_group && cr.uid != geteuid() && (!strcmp(line, "stop") || !strncmp(line, "reply ", 6))) {	/* the group runs the node; the service's owner stops it and decides its policy */
+	if (n->cfg.ctl_group && cr.uid != geteuid() && cr.uid != 0 && (!strcmp(line, "stop") || !strncmp(line, "reply ", 6))) {	/* the group runs the node; the service's owner stops it and decides its policy */
 		len = snprintf(out, sizeof out, "{\"error\":\"only the user this runs as may do that (systemctl stops a service)\"}\n");
 		(void)!write(c, out, (size_t)len);
 		close(c);
@@ -221,7 +225,7 @@ int name_ok(const uint8_t *s, size_t n)
 		/* strict UTF-8 (RFC 3629), and no code point that moves or hides text: controls, line breaks, direction overrides */
 		if ((extra == 2 && cp < 0x800) || (extra == 3 && (cp < 0x10000 || cp > 0x10ffff)) || (cp >= 0xd800 && cp <= 0xdfff) ||
 		    (cp >= 0x80 && cp <= 0x9f) || cp == 0x2028 || cp == 0x2029 || (cp >= 0x202a && cp <= 0x202e) || (cp >= 0x2066 && cp <= 0x2069) ||
-		    (cp >= 0x200b && cp <= 0x200f) || cp == 0xfeff)
+		    cp == 0x200b || cp == 0x200e || cp == 0x200f || cp == 0xfeff)
 			return 0;
 		i += (size_t)extra + 1;
 	}

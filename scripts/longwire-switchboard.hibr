@@ -26,7 +26,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.3.1
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.4.0
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -105,14 +105,17 @@ tidy() {
 # written (a token must never be good twice). Blank lines and lines that begin with # are kept and are never tokens.
 spend_token() {
 	local want=$1 line tok num found=1 out=
-	while IFS= read -r line; do
+	while IFS= read -r line || [ -n "$line" ]; do		# (a last line with no newline is a line too)
 		case $line in
 		''|'#'*) out="$out$line
 "; continue ;;
 		esac
 		tok=${line%% *}
 		num=
-		[ "$tok" != "$line" ] && num=${line#* }
+		if [ "$tok" != "$line" ]; then
+			num=${line#* }
+			while [ "${num# }" != "$num" ]; do num=${num# }; done		# any number of spaces between a token and its number
+		fi
 		if [ "$tok" = "$want" ] && [ $found -ne 0 ]; then
 			found=0
 			case $num in *[!0-9]*) num= ;; esac		# a reserved number is nine digits or nothing
@@ -132,7 +135,7 @@ on_register() {
 	local now=$(date +%s) k n num
 	tidy $now
 	if [ "${e[switchboard]}" = true ]; then		# a switchboard asking this registry for its code: codes are scarce
-		k="code:${e[net]}"
+		k="code:${e[net]:-${e[ip]%:*}}"
 		n=$(( ${seend[$k]:-0} + 1 )); seend[$k]=$n
 		if [ $n -gt $codes_per_ip_day ]; then
 			lw sb reply "${e[id]}" refuse "too many codes asked for from this address today" > /dev/null
@@ -141,7 +144,7 @@ on_register() {
 		fi
 		return
 	fi
-	k="reg:${e[net]}"			# net is an IPv4 address, or an IPv6 /64: the engine works it out
+	k="reg:${e[net]:-${e[ip]%:*}}"		# net is an IPv4 address, or an IPv6 /64: the engine works it out
 	n=$(( ${seen[$k]:-0} + 1 )); seen[$k]=$n
 	if [ $n -gt $per_ip_hour ]; then
 		lw sb reply "${e[id]}" refuse "too many registrations from this address" > /dev/null; return
