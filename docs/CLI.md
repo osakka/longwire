@@ -38,7 +38,9 @@ and on the other machine's `up` terminal:
 
 | Command | Does |
 |---|---|
-| `longwire up [options]` | run the node in the foreground ([options](#options-of-up)) |
+| `longwire on [PROFILE]` | start the node **in the background** from a saved [profile](#profiles) (the default one if none is named), make the jack if it is missing, and say the number it was given. `on` again says it is already on |
+| `longwire off` | stop the node (the same as `down`) |
+| `longwire up [options]` | run the node in the foreground ([options](#options-of-up)). With no switchboard named it uses the default profile; `up --profile NAME` a named one; anything on the command line overrides the profile |
 | `longwire dial NUMBER` | call a number: `447-120-933` (dashes optional) on your own switchboard, or its full number `+0731042 447-120-933`, whose code must be your switchboard's today. A wrong check digit is refused before anything is sent |
 | `longwire pickup [ID]` / `longwire reject [ID]` | answer the ringing call; `ID` is the call id from the ring, needed only when several rings are waiting |
 | `longwire hangup [NUMBER]` | with no number: end every call and leave the line (or decline a ringing call); with a number: end just that call |
@@ -51,9 +53,11 @@ and on the other machine's `up` terminal:
 | `longwire status` | what the node is doing, as JSON ([fields](#status)) |
 | `longwire down` | stop the node |
 | `longwire id`, `longwire address`, `longwire bundle` | your key id (hex), your full address (`lw1…`), your public bundle (hex, for `--peer`) |
-| `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode |
+| `longwire jack [TAP]` | make the tap device a single machine attaches to (`lw0` to `lw99`, `lw0` by default) and give it to you. A small root helper does it ([ADR 0034](adr/0034-a-connection-is-a-profile.md)): polkit asks for a password once, in a terminal or in the desktop. `on` does this by itself when the jack is missing |
+| `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode, to run by hand if you would rather |
+| `longwire profile list`, `show [NAME]`, `set NAME KEY=VALUE…`, `token NAME`, `default NAME`, `remove NAME` | the saved connections ([profiles](#profiles)) |
 | `longwire-switchboard [options]` | run a switchboard ([SWITCHBOARD](SWITCHBOARD.md)) |
-| `longwire` with no arguments starts the node if it isn't running, then shows status | *(planned: M4)* |
+| `longwire` with no arguments starts the node if it isn't running, then shows status | *(planned: M4)*; for now `longwire on` and `longwire status` |
 | `longwire who NAME` or `who lw1…` | ask the switchboard's directory for listed nodes whose name contains the text (3 characters or more), or that hold that full address: up to 8 results, each with number, key id and name (JSON). A name is a claim, so check the safety phrase on the first call |
 | `longwire dial lw1…` | call a full address, through the directory. Fails plainly if the switchboard has none or the node is not listed |
 | `longwire who NUMBER` | what this node knows of a number (JSON): its key id and full address, whether it is pinned, on your line, connected (and by what path), and the safety phrase of a live call. It asks nobody, so a number never called, pinned or listed is "not known here" |
@@ -61,6 +65,37 @@ and on the other machine's `up` terminal:
 | `longwire watch` | stream events as sentences *(planned: M4)* |
 | `longwire shell NUMBER` | dial, then a shell whose only network is the line *(planned: M5)* |
 | `longwire key export`, `longwire key import` | the identity as 33 words from the safety-phrase list (32 for the seed, one of checksum), and back. `export` prints to the terminal only; `import` reads the words on standard input, checks the checksum, and refuses to overwrite an identity. The same words give the same key and so the same number. They *are* the identity: keep them like the seed file |
+
+### Profiles
+
+A profile is a saved connection: which switchboard, the token it asked for, how to attach, and so on. They live in one file,
+`~/.config/longwire/profiles` (`$XDG_CONFIG_HOME/longwire/profiles`), readable by you only because it holds tokens, and the
+command, the Control Panel pane and the menu bar item all read it. You can edit it by hand; `longwire profile` rewrites it whole, so a
+comment you put in it is not kept.
+
+```
+default home
+
+profile home
+  switchboard = vps.example.org:1877/lw1…
+  token = 5fe1c0ab…
+  attach = jack                      jack | splice
+  interface = lw0                    the tap, or the NIC to splice
+  name = osakka
+  listed = no
+  answer = known
+```
+
+```
+longwire profile set home switchboard=HOST:1877/lw1… token=… attach=jack interface=lw0 answer=known
+longwire profile token home            # the token on standard input, so it is never on a command line
+longwire on                            # the default profile, in the background
+longwire off
+```
+
+The first profile you make is the default. `show` prints the token only as its length. A token is needed the first time a machine
+registers at a switchboard that wants one; after that the switchboard knows the machine's key and the token can be taken out
+(`longwire profile set home token=`).
 
 ### Options of `up`
 
@@ -91,8 +126,8 @@ and on the other machine's `up` terminal:
 | `--group NAME\|GID` | give the control socket to that group at mode 0660, so its members can use it ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); the services use `longwire`. An unknown group stops the start |
 | `--maxpeers N` | how many peers to hold (default 32; a switchboard 1024) |
 
-**Attaching.** Today the attach mode is always explicit (`--splice` or `--jack`). Choosing one automatically, from what
-the machine can do, *(planned: M4)*.
+**Attaching.** The attach mode is explicit (`--splice` or `--jack`), or the one in the profile. `jack` is the one for a single machine, and
+the jack is made for you (`longwire jack`, or `on`). Choosing the mode automatically, from what the machine can do, *(planned: M4)*.
 
 ## Answer policy
 

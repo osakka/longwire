@@ -49,7 +49,7 @@ modes differ only in what that port is:
 | Port | Mechanism | Privilege | Notes |
 |---|---|---|---|
 | **splice** | `AF_PACKET` raw socket on a NIC (Linux) | `CAP_NET_RAW`, granted once to the node's service as an **ambient capability**, and dropped as soon as the socket is open | **No interface is created.** Wired Ethernet only: most Wi-Fi client links drop frames with foreign source MACs (4-address/WDS mode excepted). The splice box's *own* stack doesn't see injected frames, so if that box itself needs the far side, add a jack too. |
-| **jack** | A tap device (`IFF_TAP \| IFF_NO_PI`) | Created once, owned by the user: `ip tuntap add mode tap user $USER` | Ordinary host membership. The tap's MTU should be 1400. *Written but untested: the machine this was built on has no `/dev/net/tun`.* |
+| **jack** | A tap device (`IFF_TAP \| IFF_NO_PI`) | Created once, owned by the user: `longwire jack` (a root helper, [ADR 0034](adr/0034-a-connection-is-a-profile.md)), or by hand `ip tuntap add mode tap user $USER` | Ordinary host membership. The tap's MTU should be 1400. *Written but untested: the machine this was built on has no `/dev/net/tun`.* |
 | **sock** | frames as datagrams on a Unix socket | none | for tests and experiments only |
 | **none** | no local port | none | what the switchboard uses: it never sees a frame |
 | **shell** | A tap inside an unprivileged user + network namespace | **None** | *(planned: M5)* `longwire shell` hands you a shell whose only network is the line. |

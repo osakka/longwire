@@ -68,11 +68,12 @@ relayed pair upgrades to direct once a path exists.
 
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install cli/longwire`,
 and then dial and pick up entirely from the hibr desktop.
-- *Built:* the control panel pane for the client (`control-panel/longwire.hibr`): status, dial, answer a ring with the safety phrase, hang up, the line and its members, evict, the answer policy, and starting a node (jack) ([ADR 0030](adr/0030-three-surfaces-one-engine.md)); drawing it is untested
+- *Built:* the control panel pane for the client (`control-panel/longwire.hibr`): status, dial, answer a ring with the safety phrase, hang up, the line and its members, evict, the answer policy ([ADR 0030](adr/0030-three-surfaces-one-engine.md)); drawing it is untested
+- *Built:* saved connections ([ADR 0034](adr/0034-a-connection-is-a-profile.md)): profiles (switchboard, token, attach, interface, name), `longwire on` and `off` in the background, `up` with no arguments using the default profile, the jack made by a root helper through polkit, and the pane's profile form with a token field and Turn on / Turn off. Untested: the form drawn on a real desktop, `pkexec` behind the desktop's pty job, a real tap device
 - *Built:* the services give their control sockets to a group, `longwire`, so the pane and the switchboard application work with a service node and a service switchboard ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); choosing among several service nodes *(planned: M4)*
 - *Built:* bytes and bit rates, sent and received, next to each connection in the pane ([ADR 0031](adr/0031-a-connection-counts-the-frames-it-carries.md)); the switchboard shows none, by design
 - *Built:* the application for the switchboard (`apps/switchboard.hibr`): fill and handshake gauges, the nodes with the names they gave, and the calls being set up as they happen; drawing it on a real desktop is untested
-- The menu-bar ☎ and a ring that interrupts (both need a background hook in hibr's desktop), splice from the pane, and token management in the switchboard app *(planned: M4)*
+- The menu-bar item and control strip switch (on/off, the number, a ring that interrupts; the desktop's `menubar` kind is what to build them on), splice from the pane, and token management in the switchboard app *(planned: M4)*
 - *Built:* the module as a deb, an rpm and a pacman package (`make packages`, `tests/pkg.sh`), the launchers, and the two
   systemd services ([ADR 0028](adr/0028-one-deb-and-the-others-from-it.md)); the scripts declare their catalogue headers.
 - *Built and published:* the packages in the signed hibr repositories (apt, dnf, pacman), and in hibr's catalogue the two commands under the `cli` kind

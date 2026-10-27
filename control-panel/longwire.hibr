@@ -6,22 +6,19 @@
 # `lw`, the same verbs the command uses, and to nothing else: it never reads the seed, never asks for privilege, and a
 # node that runs as a service under another user is shown, not driven (docs/adr/0030-three-surfaces-one-engine.md).
 #
-# A ring is answered here, in the Calls rows, while the pane is open. It is not a pop-up: a pane runs only while it is
-# drawn, so nothing watches in the background (the menu bar's ☎ needs a hook the desktop does not have).
+# A ring is answered here, in the Calls rows, while the pane is open. The pane is where the connection is set up and turned on and
+# off: a profile (switchboard, token, attach mode, interface, name), a Turn on that makes the jack if it has to, and a Turn off.
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.4.0
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.0
 # modules: longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
 
-# What the person chose for starting a node. None of it is secret: the seed never passes through here.
-DT_LW_SB="${DT_LW_SB-}"
-DT_LW_ATTACH="${DT_LW_ATTACH-jack}"
-DT_LW_IFACE="${DT_LW_IFACE-}"
-DT_LW_NAME="${DT_LW_NAME-}"
-DT_LW_LISTED="${DT_LW_LISTED-0}"
-command -v dt_keep > /dev/null && dt_keep DT_LW_SB DT_LW_ATTACH DT_LW_IFACE DT_LW_NAME DT_LW_LISTED
+# The connection the person chose lives in the profiles file (~/.config/longwire/profiles, `longwire profile`), the same one the
+# command and the menu bar read. The pane only remembers which profile it is showing.
+DT_LW_PROFILE="${DT_LW_PROFILE-}"
+command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE
 
 LWP_POLICIES=(ask known auto never)
 LWP_ATTACHES=(jack splice)
@@ -143,6 +140,65 @@ fn lwp_policy() {
 	ret "$p"
 }
 
+# --- the profiles --------------------------------------------------------------------------------------------------------
+
+# What the file says, read at most once a second (the rows are built every frame). A token is not kept here, only how long it is.
+declare -gA LWP_PF
+declare -ga LWP_PNAMES=()
+declare -g LWP_PDEF= LWP_PT=-100 LWP_BUSY=0 LWP_JOB= LWP_ON=
+
+fn lwp_pfile() {
+	ret "${XDG_CONFIG_HOME:-$HOME/.config}/longwire/profiles"
+}
+
+fn lwp_profiles(force = "") {
+	local f k eq v cur=
+
+	[ -n "$force" ] || [ $((SECONDS - LWP_PT)) -ge 1 ] || return 0
+	LWP_PT=$SECONDS
+	LWP_PF=()
+	LWP_PNAMES=()
+	LWP_PDEF=
+	f := lwp_pfile
+	[ -r "$f" ] || return 0
+	while read -r k eq v; do
+		case $k in
+		default) LWP_PDEF=$eq ;;
+		profile) cur=$eq; LWP_PNAMES+=("$cur") ;;
+		token) [ -n "$cur" ] && LWP_PF["$cur.token"]=${#v} ;;
+		switchboard | attach | interface | name | listed | answer) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
+		esac
+	done < "$f"
+}
+
+# The profile the pane shows: the one chosen if it is still there, else the default, else the first, else none.
+fn lwp_cur() {
+	local n
+
+	lwp_profiles
+	for n in "${LWP_PNAMES[@]}"; do
+		[ "$n" = "$DT_LW_PROFILE" ] && { ret "$n"; return 0; }
+	done
+	[ -n "$LWP_PDEF" ] && { ret "$LWP_PDEF"; return 0; }
+	ret "${LWP_PNAMES[0]:-}"
+}
+
+# Change a field of the profile shown, making the first one (called home) if there is none. `longwire profile` does the
+# writing and the checking, so what the pane saves is what the command would have.
+fn lwp_pset(key, value) {
+	local n out
+
+	n := lwp_cur
+	[ -n "$n" ] || n=home
+	if out=$(longwire profile set "$n" "$key=$value" 2>&1); then
+		DT_LW_PROFILE=$n
+		lwp_profiles 1
+		return 0
+	fi
+	dt_notep high "%s" "$out"
+	return 1
+}
+
 fn lwp_row(int w, int n, kind, text, val, key) {
 	CP[$w][$n]["kind"]=$kind
 	CP[$w][$n]["text"]=$text
@@ -151,7 +207,7 @@ fn lwp_row(int w, int n, kind, text, val, key) {
 }
 
 fn longwire_rows(int w) {
-	local n=0 i cnt num name state p we call phr nm sw nat full path age yn pol rx tx rr tr rb tb
+	local n=0 i cnt num name state p we call phr nm sw nat full path age yn pol rx tx rr tr rb tb tk
 
 	if ! need longwire 2> /dev/null; then
 		cp_absent "$w" "the longwire module"
@@ -161,20 +217,39 @@ fn longwire_rows(int w) {
 	dt_want 1000
 	if [ "$LWP_UP" != 1 ]; then
 		lwp_service
-		lwp_row "$w" "$n" head "No node is running" "" none; n=$((n + 1))
+		lwp_row "$w" "$n" head "Longwire is off" "" none; n=$((n + 1))
 		if [ -n "$LWP_SVC" ]; then
 			lwp_row "$w" "$n" action "A service node runs here" "${LWP_SVC}(systemctl)" svc; n=$((n + 1))
 			lwp_row "$w" "$n" action "  to use it from here" "join the group longwire, then log in again" none; n=$((n + 1))
 		fi
-		lwp_row "$w" "$n" head "Start a node" "" none; n=$((n + 1))
-		lwp_row "$w" "$n" action "Switchboard" "${DT_LW_SB:-HOST:PORT/KEY}" sb; n=$((n + 1))
-		lwp_row "$w" "$n" set "Attach" "$DT_LW_ATTACH" attach; n=$((n + 1))
-		lwp_row "$w" "$n" action "Interface" "${DT_LW_IFACE:-name}" iface; n=$((n + 1))
-		lwp_row "$w" "$n" action "Name" "${DT_LW_NAME:-none}" name; n=$((n + 1))
+		p := lwp_cur
+		lwp_row "$w" "$n" head "Connection" "" none; n=$((n + 1))
+		if [ -n "$p" ]; then
+			lwp_row "$w" "$n" set "Profile" "$p" profile; n=$((n + 1))
+		else
+			lwp_row "$w" "$n" action "Profile" "none yet: fill in the rows below" none; n=$((n + 1))
+		fi
+		lwp_row "$w" "$n" action "Switchboard" "${LWP_PF[$p.switchboard]:-HOST:PORT/KEY}" sb; n=$((n + 1))
+		if [ -n "${LWP_PF[$p.token]-}" ]; then
+			tk="set (${LWP_PF[$p.token]} characters)"
+		else
+			tk=none
+		fi
+		lwp_row "$w" "$n" action "Token" "$tk" token; n=$((n + 1))
+		lwp_row "$w" "$n" set "Attach" "${LWP_PF[$p.attach]:-jack}" attach; n=$((n + 1))
+		lwp_row "$w" "$n" action "Interface" "${LWP_PF[$p.interface]:-lw0}" iface; n=$((n + 1))
+		lwp_row "$w" "$n" action "Name" "${LWP_PF[$p.name]:-none}" name; n=$((n + 1))
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="List in the directory"; CP[$w][$n]["wtype"]=bool
-		CP[$w][$n]["val"]=off; [ "$DT_LW_LISTED" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.listed]-}" = yes ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=listed; n=$((n + 1))
-		lwp_row "$w" "$n" action "Start" "" start; n=$((n + 1))
+		lwp_row "$w" "$n" set "When a call rings" "${LWP_PF[$p.answer]:-ask}" ppolicy; n=$((n + 1))
+		if [ "$LWP_BUSY" = 1 ]; then
+			lwp_row "$w" "$n" action "Turning on${GL[ellipsis]}" "" none; n=$((n + 1))
+		else
+			lwp_row "$w" "$n" action "Turn on" "" on; n=$((n + 1))
+		fi
+		lwp_row "$w" "$n" action "New profile${GL[ellipsis]}" "" newprofile; n=$((n + 1))
+		[ -n "$p" ] && { lwp_row "$w" "$n" action "Remove profile $p" "" rmprofile; n=$((n + 1)); }
 		ret "$n"
 		return 0
 	fi
@@ -191,7 +266,7 @@ fn longwire_rows(int w) {
 	if [ -n "$LWP_SOCK" ]; then
 		lwp_row "$w" "$n" action "Runs as" "a service, reached through the group longwire" none; n=$((n + 1))
 	else
-		lwp_row "$w" "$n" action "Stop this node" "" stop; n=$((n + 1))
+		lwp_row "$w" "$n" action "Turn off" "" stop; n=$((n + 1))
 	fi
 
 	lwp_row "$w" "$n" head "Calls" "" none; n=$((n + 1))
@@ -283,6 +358,9 @@ fn lwp_yes() {
 	hangup) lwp_run hangup "$LWP_PEND_ARG" ;;
 	evict) lwp_run evict "$LWP_PEND_ARG" ;;
 	stop) lwp_run stop ;;
+	rmprofile)
+		longwire profile remove "$LWP_PEND_ARG" > /dev/null 2>&1
+		lwp_profiles 1 ;;
 	esac
 	LWP_T=-100
 }
@@ -302,11 +380,51 @@ fn lwp_dialled(text, int? id = "") {
 	return 0
 }
 
-fn lwp_setsb(text, int? id = "") { DT_LW_SB=$text; cp_save; return 0; }
-fn lwp_setiface(text, int? id = "") { DT_LW_IFACE=$text; cp_save; return 0; }
-fn lwp_setname(text, int? id = "") { DT_LW_NAME=$text; cp_save; return 0; }
+fn lwp_setsb(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset switchboard "$text"; return 0; }
+fn lwp_setiface(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset interface "$text"; return 0; }
+fn lwp_setname(text, int? id = "") { lwp_pset name "$text"; return 0; }
 fn cp_set_lwpolicy(int? id = "", value = "") { lwp_setpolicy "$value"; }
-fn cp_set_lwattach(int? id = "", value = "") { DT_LW_ATTACH=$value; cp_save; }
+fn cp_set_lwppolicy(int? id = "", value = "") { lwp_pset answer "$value"; }
+fn cp_set_lwattach(int? id = "", value = "") { lwp_pset attach "$value"; }
+fn cp_set_lwprofile(int? id = "", value = "") {
+	DT_LW_PROFILE=$value
+	longwire profile default "$value" > /dev/null 2>&1		# the command and the menu bar use the default one: it is the one shown here
+	lwp_profiles 1
+	cp_save
+}
+
+# The token is typed into a masked dialog and goes to `longwire profile token` on its standard input, never on a command line.
+fn lwp_settoken(text, int? id = "") {
+	local n out
+
+	n := lwp_cur
+	if [ -z "$n" ]; then
+		lwp_pset interface lw0 || return 0
+		n := lwp_cur
+	fi
+	text=${text//[[:space:]]/}
+	if out=$(printf '%s\n' "$text" | longwire profile token "$n" 2>&1); then
+		lwp_profiles 1
+	else
+		dt_notep high "%s" "$out"
+	fi
+	return 0
+}
+
+fn lwp_newprofile(text, int? id = "") {
+	local out
+
+	text=${text//[[:space:]]/}
+	[ -n "$text" ] || return 0
+	if out=$(longwire profile set "$text" interface=lw0 2>&1); then
+		DT_LW_PROFILE=$text
+		lwp_profiles 1
+		cp_save
+	else
+		dt_notep high "%s" "$out"
+	fi
+	return 0
+}
 
 fn lwp_setpolicy(p) {
 	local f
@@ -316,41 +434,111 @@ fn lwp_setpolicy(p) {
 	printf '%s\n' "$p" > "$f"
 }
 
-# The node was started by the pane and has ended.
-fn lwp_ended(int n, int st) {
+# --- turning on ---------------------------------------------------------------------------------------------------------------
+# The jack (a tap device) is made by a small root helper that polkit lets the person run after one password, so nobody types
+# `ip tuntap`. The password is asked for here, in the desktop, the way the Networks item asks for its own: pkexec runs on a pty
+# and its "Password:" is answered from a masked dialog.
+
+fn lwp_pkprompt(int n, text) {
+	case $text in *"assword: ") ;; *) return 1 ;; esac
+	[ -n "${DTJ[$n]["asking"]}" ] && return 0
+	DTJ[$n]["asking"]=1
+	dt_ask "Authentication" "Password:" "" lwp_pwgive "To create the network device longwire uses, once: the administrator's (root) password" 1 76 lwp_pwcancel > /dev/null
+	return 0
+}
+
+fn lwp_pwgive(v, int id) {
+	local n=$LWP_JOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	pty write "${DTJ[$n]["pty"]}" "$v"$'\r'
+	DTJ[$n]["asking"]=
+	return 0
+}
+
+fn lwp_pwcancel(int id) {
+	local n=$LWP_JOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	DTJ[$n]["cancelled"]=1
+	DTJ[$n]["asking"]=
+	pty write "${DTJ[$n]["pty"]}" $'\003' 2> /dev/null
+	return 0
+}
+
+# The jack was asked for and the job has ended: go on to turn the node on, or say why not.
+fn lwp_jackdone(int n, int st) {
+	local why=
+
+	LWP_JOB=
+	if [ "$st" = 0 ]; then
+		lwp_launch "$LWP_ON"
+		return 0
+	fi
+	LWP_BUSY=0
+	if [ -n "${DTJ[$n]["cancelled"]}" ]; then
+		dt_notep low "Cancelled"
+	else
+		why := dt_joblast "$n"
+		dt_notep high "Could not make the jack: %s" "${why:-exit $st}"
+	fi
+	return 0
+}
+
+# `longwire on` in the background of the desktop: it starts the node detached and says what number it got.
+fn lwp_launch(p) {
+	LWP_BUSY=1
+	dt_job longwire "" lwp_ondone longwire on "$p" > /dev/null
+	LWP_T=-100
+}
+
+fn lwp_ondone(int n, int st) {
 	local f msg=
 
-	f := dt_jobfile "$n" err
-	[ -r "$f" ] && read -r msg < "$f"
-	[ "$st" = 0 ] || dt_notep high "longwire stopped: %s" "${msg:-exit $st}"
+	LWP_BUSY=0
+	f := dt_jobfile "$n" out
+	[ -r "$f" ] && while read -r line; do msg=$line; done < "$f"
+	if [ "$st" = 0 ]; then
+		dt_notep low "%s" "${msg#longwire: }"
+	else
+		f := dt_jobfile "$n" err
+		[ -r "$f" ] && while read -r line; do msg=$line; done < "$f"
+		dt_notep high "%s" "${msg#longwire: }"
+	fi
 	LWP_T=-100
 	return 0
 }
 
-fn lwp_start(int w) {
-	local -a a
+fn lwp_turnon(int w) {
+	local p sb attach iface
 
 	if ! command -v longwire > /dev/null; then
 		dt_notep high "longwire is not installed. Find it in the Catalogue (Commands)."
 		return 1
 	fi
-	if [ -z "$DT_LW_SB" ]; then
+	[ "$LWP_BUSY" = 0 ] || return 0
+	p := lwp_cur
+	sb=${LWP_PF[$p.switchboard]-}
+	if [ -z "$p" ] || [ -z "$sb" ]; then
 		dt_notep high "Set the switchboard first (HOST:PORT/KEY)."
 		return 1
 	fi
-	a=(up --switchboard "$DT_LW_SB" --answer "$(lwp_policy)")
-	case $DT_LW_ATTACH in
-	jack) [ -n "$DT_LW_IFACE" ] || { dt_notep high "Name the jack interface first."; return 1; }
-		a+=(--jack "$DT_LW_IFACE") ;;
-	splice)
-		dt_notep high "Splice needs a one-time grant. In a terminal: longwire setup splice %s" "${DT_LW_IFACE:-eth0}"
-		return 1 ;;
-	esac
-	[ -n "$DT_LW_NAME" ] && a+=(--name "$DT_LW_NAME")
-	[ "$DT_LW_LISTED" = 1 ] && a+=(--listed)
-	dt_job longwire "" lwp_ended longwire "${a[@]}" > /dev/null
-	dt_notep low "Starting longwire${GL[ellipsis]}"
-	LWP_T=-100
+	attach=${LWP_PF[$p.attach]:-jack}
+	iface=${LWP_PF[$p.interface]:-lw0}
+	if [ "$attach" = splice ]; then
+		dt_notep high "Splice needs a one-time grant. In a terminal: longwire setup splice %s" "$iface"
+		return 1
+	fi
+	LWP_ON=$p
+	if [ "$attach" = jack ] && [ ! -d "/sys/class/net/$iface" ]; then
+		LWP_BUSY=1
+		LWP_JOB := dt_ptyjob longwire jack lwp_jackdone lwp_pkprompt longwire jack "$iface"
+		[ -n "$LWP_JOB" ] || { LWP_BUSY=0; dt_notep high "Could not start pkexec"; return 1; }
+		dt_notep low "Making the jack $iface${GL[ellipsis]}"
+		return 0
+	fi
+	lwp_launch "$p"
+	dt_notep low "Turning on${GL[ellipsis]}"
 }
 
 # A ringing call, found again in the last status by its id, so that what is asked is what the node reported a moment ago and
@@ -374,21 +562,42 @@ fn lwp_ring(call) {
 }
 
 fn longwire_do(int w, k, int dir) {
-	local v c rest
+	local v c rest p
 
 	case $k in
 	policy)
 		v := lwp_policy
 		v := cp_next "$v" "$dir" "${LWP_POLICIES[@]}"
 		lwp_setpolicy "$v" ;;
+	ppolicy)
+		p := lwp_cur
+		v=${LWP_PF[$p.answer]:-ask}
+		v := cp_next "$v" "$dir" "${LWP_POLICIES[@]}"
+		lwp_pset answer "$v" ;;
 	attach)
-		DT_LW_ATTACH := cp_next "$DT_LW_ATTACH" "$dir" "${LWP_ATTACHES[@]}" ;;
-	listed) cp_toggle DT_LW_LISTED ;;
-	sb) dt_ask "Switchboard" "HOST:PORT/KEY" "$DT_LW_SB" lwp_setsb "the switchboard's address, then / and its key" ;;
-	iface) dt_ask "Interface" "Interface" "$DT_LW_IFACE" lwp_setiface "for jack, the tap to make; for splice, the NIC" ;;
-	name) dt_ask "Name" "Name" "$DT_LW_NAME" lwp_setname "what callers see (a claim, not proof); empty for none" ;;
-	start) lwp_start "$w" ;;
-	stop) dt_confirm "Stop this node? Calls end." lwp_yes; LWP_PEND_KIND=stop ;;
+		p := lwp_cur
+		v=${LWP_PF[$p.attach]:-jack}
+		v := cp_next "$v" "$dir" "${LWP_ATTACHES[@]}"
+		lwp_pset attach "$v" ;;
+	listed)
+		p := lwp_cur
+		if [ "${LWP_PF[$p.listed]-}" = yes ]; then lwp_pset listed no; else lwp_pset listed yes; fi ;;
+	profile)
+		p := lwp_cur
+		v := cp_next "$p" "$dir" "${LWP_PNAMES[@]}"
+		cp_set_lwprofile "" "$v" ;;
+	sb) p := lwp_cur; dt_ask "Switchboard" "HOST:PORT/KEY" "${LWP_PF[$p.switchboard]-}" lwp_setsb "the switchboard's address, then / and its key" ;;
+	token) dt_ask "Token" "Token" "" lwp_settoken "the invite token your switchboard gave you; empty removes it. It is kept in a file only you can read" 1 ;;
+	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "for jack, the tap (lw0 to lw99, made for you); for splice, the NIC" ;;
+	name) p := lwp_cur; dt_ask "Name" "Name" "${LWP_PF[$p.name]-}" lwp_setname "what callers see (a claim, not proof); empty for none" ;;
+	newprofile) dt_ask "New profile" "Name" "" lwp_newprofile "letters, digits, . _ -" ;;
+	rmprofile)
+		p := lwp_cur
+		LWP_PEND_KIND=rmprofile
+		LWP_PEND_ARG=$p
+		dt_confirm "Remove the profile $p? Its token goes too." lwp_yes ;;
+	on) lwp_turnon "$w" ;;
+	stop) dt_confirm "Turn longwire off? Calls end." lwp_yes; LWP_PEND_KIND=stop ;;
 	dial) dt_ask "Dial" "Number" "" lwp_dialled "a number like 447-120-933, or +code number" ;;
 	svc) dt_notep low "Control it with: systemctl status %s" "${LWP_SVC%% *}" ;;
 	ring:*) lwp_ring "${k#ring:}" ;;
@@ -402,6 +611,8 @@ fn longwire_do(int w, k, int dir) {
 fn longwire_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	case $k in
 	policy) dt_droplist "$w" "$r" "$c" cp_set_lwpolicy "${LWP_POLICIES[@]}" ;;
+	ppolicy) dt_droplist "$w" "$r" "$c" cp_set_lwppolicy "${LWP_POLICIES[@]}" ;;
 	attach) dt_droplist "$w" "$r" "$c" cp_set_lwattach "${LWP_ATTACHES[@]}" ;;
+	profile) dt_droplist "$w" "$r" "$c" cp_set_lwprofile "${LWP_PNAMES[@]}" ;;
 	esac
 }

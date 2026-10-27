@@ -3,6 +3,19 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.0
+
+- **A connection is a saved profile, and the Control Panel turns it on** ([ADR 0034](docs/adr/0034-a-connection-is-a-profile.md)). 0.4.0
+  left you typing the switchboard and token each time, in a command that sat in the foreground, with a pane that had no token field and
+  a tap device you made by hand as root. Now: `longwire profile set home switchboard=… token=… attach=jack` (one 0600 file the command, the
+  pane and the menu bar share; the token is never on a command line), `longwire on` / `off` (in the background, saying the number it got),
+  `longwire up` with nothing said using the default profile, `longwire jack` (a small root helper through polkit makes the tap after one
+  password; `on` does it for you), and in the pane a profile picker, a token field, the rest of the form, and **Turn on / Turn off**, which
+  makes the jack and asks for the password in the desktop. Tested: the commands against a real switchboard that wants a token
+  (`tests/profile.sh`), the pane's rows and actions (stubs and hibr's own desktop code), the helper and policy in all three packages.
+  Not tested: the form drawn on a real desktop, `pkexec` behind the desktop's pty job, a real tap. Not built: the menu bar item and control
+  strip switch (next), picking the attach mode automatically, an address for the jack.
+
 ## 0.4.0
 
 *Published:* the catalogue (`hibr-apps` `b44d5e8`: `cli/longwire`, `cli/longwire-switchboard`, the switchboard application and the pane) and the

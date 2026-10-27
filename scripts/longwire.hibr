@@ -7,7 +7,7 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.4.0
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.0
 # modules: longwire
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
@@ -42,13 +42,20 @@ usage: longwire <command>
   unpin NUMBER                                forget a number's key: the next call from it is a first call again
   status                                      what the node is doing (JSON)
   answer [ask|known|auto|never]               show, or change, how the running node answers rings
-  down                                        stop the node
-  setup splice NIC | setup jack [TAP]         print the one-time privileged step for that attach mode
+  down | off                                  stop the node
+  on [PROFILE]                                start the node in the background, from a saved profile (the default one if none is named)
+  profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | remove NAME
+                                              saved connections: switchboard, token, attach, interface, name, listed, answer
+  jack [TAP]                                  make the tap device a single machine attaches to (lw0 by default); asks for a password once
+  setup splice NIC | setup jack [TAP]         print the one-time privileged step for that attach mode, to run by hand
   key export | import                         the identity as 33 words, and back (import reads them on stdin)
   revoke EVICTION                             carry the operator's signed eviction (hex, or a file) to the line
   operator new|authority FILE                 an operator's key: make one; show its public key
   operator admit|evict FILE LINEID NODE       sign an admit or an eviction for NODE (lw1... or key id) on that line
   id | address | bundle                       your key id, full address (lw1...), public bundle
+
+A profile is a saved connection (~/.config/longwire/profiles, readable by you only: it holds the token). `longwire up` with no
+switchboard named uses the default profile, `up --profile NAME` a named one, and anything on the command line overrides it.
 
 --answer: ask (default) rings and waits for 'longwire pickup'; known picks up numbers
 you have been connected to before and asks about the rest; auto picks up anyone; never refuses.
@@ -110,17 +117,242 @@ on_ring() {
 	esac
 }
 
+# ---- profiles: saved connections -----------------------------------------------------------------------------------------------
+# One file, hand-editable, rewritten whole by `longwire profile` (so a comment in it is not kept):
+#
+#   default home
+#
+#   profile home
+#     switchboard = vps.example.org:1877/lw1...
+#     token = 5fe1c0ab...
+#     attach = jack                      jack | splice | sock (sock is for tests)
+#     interface = lw0                    the tap, the NIC, or LOCAL:PEER for sock
+#     name = osakka
+#     listed = no
+#     answer = known
+LW_CONF=${LW_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/longwire}
+PROFILES=$LW_CONF/profiles
+declare -A PF
+PNAMES=()
+PDEFAULT=
+
+profiles_read() {
+	local k eq v cur=
+	PF=()
+	PNAMES=()
+	PDEFAULT=
+	[ -r "$PROFILES" ] || return 0
+	while read -r k eq v; do
+		case $k in
+		default) PDEFAULT=$eq ;;
+		profile) cur=$eq; PNAMES+=("$cur") ;;
+		switchboard|token|attach|interface|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
+		esac
+	done < "$PROFILES"
+}
+
+profiles_write() {
+	local n k out="" tmp
+	[ -n "$PDEFAULT" ] && out="default $PDEFAULT
+"
+	for n in "${PNAMES[@]}"; do
+		out="$out
+profile $n
+"
+		for k in switchboard token attach interface name listed answer; do
+			[ -n "${PF[$n.$k]:-}" ] && out="$out  $k = ${PF[$n.$k]}
+"
+		done
+	done
+	umask 077
+	mkdir -p "$LW_CONF" && chmod 700 "$LW_CONF" || { echo "longwire: cannot make $LW_CONF" >&2; exit 1; }
+	tmp=$PROFILES.new
+	printf '%s' "$out" > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$PROFILES" || { echo "longwire: cannot write $PROFILES" >&2; exit 1; }
+}
+
+profile_exists() {
+	local n
+	for n in "${PNAMES[@]}"; do [ "$n" = "$1" ] && return 0; done
+	return 1
+}
+
+# The arguments for `lw start` that profile $1 stands for, in PARGS; its answer policy in PANSWER.
+profile_args() {
+	local n=$1
+	PARGS=()
+	PANSWER=${PF[$n.answer]:-}
+	[ -n "${PF[$n.switchboard]:-}" ] && PARGS+=(--switchboard "${PF[$n.switchboard]}")
+	[ -n "${PF[$n.token]:-}" ] && PARGS+=(--token "${PF[$n.token]}")
+	case ${PF[$n.attach]:-} in
+	jack)   PARGS+=(--jack "${PF[$n.interface]:-lw0}") ;;
+	splice) PARGS+=(--splice "${PF[$n.interface]:-}") ;;
+	sock)   PARGS+=(--sock-port "${PF[$n.interface]:-}") ;;
+	esac
+	[ -n "${PF[$n.name]:-}" ] && PARGS+=(--name "${PF[$n.name]}")
+	[ "${PF[$n.listed]:-}" = yes ] && PARGS+=(--listed)
+	return 0
+}
+
+cmd_profile() {
+	local sub=${1:-} n k v kv
+	[ $# -gt 0 ] && shift
+	profiles_read
+	case $sub in
+	list|"")
+		for n in "${PNAMES[@]}"; do
+			if [ "$n" = "$PDEFAULT" ]; then echo "* $n   ${PF[$n.switchboard]:-}"; else echo "  $n   ${PF[$n.switchboard]:-}"; fi
+		done ;;
+	show)
+		n=${1:-$PDEFAULT}
+		[ -n "$n" ] && profile_exists "$n" || { echo "longwire: no profile${n:+ called $n}" >&2; exit 1; }
+		echo "profile $n$([ "$n" = "$PDEFAULT" ] && echo '   (default)')"
+		for k in switchboard token attach interface name listed answer; do
+			v=${PF[$n.$k]:-}
+			[ -n "$v" ] || continue
+			[ "$k" = token ] && v="(set, ${#v} characters)"		# the token is not shown: it is in the file, readable by you only
+			echo "  $k = $v"
+		done ;;
+	set)
+		n=${1:-}
+		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface name listed answer)" >&2; exit 2; }
+		shift
+		case $n in ''|*[!A-Za-z0-9._-]*) echo "longwire: a profile name is letters, digits, . _ -" >&2; exit 2 ;; esac
+		profile_exists "$n" || { PNAMES+=("$n"); [ -n "$PDEFAULT" ] || PDEFAULT=$n; }	# the first profile is the default one
+		for kv in "$@"; do
+			k=${kv%%=*}
+			v=${kv#*=}
+			[ "$k" != "$kv" ] || { echo "longwire: '$kv' is not KEY=VALUE" >&2; exit 2; }
+			case $v in *[[:cntrl:]]*) echo "longwire: $k has a control character" >&2; exit 2 ;; esac
+			case $k in
+			switchboard|token|name|interface) ;;
+			attach) case $v in jack|splice|sock|"") ;; *) echo "longwire: attach is jack or splice" >&2; exit 2 ;; esac ;;
+			listed) case $v in yes|no|"") ;; *) echo "longwire: listed is yes or no" >&2; exit 2 ;; esac ;;
+			answer) case $v in ask|known|auto|never|"") ;; *) echo "longwire: answer is ask, known, auto or never" >&2; exit 2 ;; esac ;;
+			*) echo "longwire: unknown key '$k' (switchboard token attach interface name listed answer)" >&2; exit 2 ;;
+			esac
+			if [ -n "$v" ]; then PF["$n.$k"]=$v; else unset "PF[$n.$k]"; fi
+		done
+		profiles_write ;;
+	token)
+		# the token comes on standard input, so it is never on a command line, where any user could read it in the process list
+		n=${1:-}
+		profile_exists "$n" || { echo "longwire: no profile called '$n'" >&2; exit 1; }
+		read -r v
+		case $v in *[[:cntrl:]]*) echo "longwire: the token has a control character" >&2; exit 2 ;; esac
+		if [ -n "$v" ]; then PF["$n.token"]=$v; else unset "PF[$n.token]"; fi
+		profiles_write ;;
+	default)
+		n=${1:-}
+		profile_exists "$n" || { echo "longwire: no profile called '$n'" >&2; exit 1; }
+		PDEFAULT=$n
+		profiles_write ;;
+	remove)
+		n=${1:-}
+		profile_exists "$n" || { echo "longwire: no profile called '$n'" >&2; exit 1; }
+		local keep=() m
+		for m in "${PNAMES[@]}"; do [ "$m" = "$n" ] || keep+=("$m"); done
+		PNAMES=("${keep[@]}")
+		for k in switchboard token attach interface name listed answer; do unset "PF[$n.$k]"; done
+		[ "$PDEFAULT" = "$n" ] && PDEFAULT=${PNAMES[0]:-}
+		profiles_write ;;
+	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | remove NAME" >&2; exit 2 ;;
+	esac
+}
+
+# The jack: a tap device owned by the person, made by a small root helper (packaging/longwire-jack) that polkit lets the desktop's
+# user run after one password. A person never types `ip tuntap` for it; setup jack prints that for those who want to do it by hand.
+jack_helper() {
+	local f
+	for f in "${LONGWIRE_JACK:-}" /usr/lib/longwire/jack /usr/local/lib/longwire/jack; do
+		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+	done
+	return 1
+}
+
+cmd_jack() {
+	local tap=${1:-lw0} helper
+	if [ -d "/sys/class/net/$tap" ]; then
+		echo "longwire: the jack $tap is there"
+		return 0
+	fi
+	if ! helper=$(jack_helper); then
+		echo "longwire: the jack helper is not installed (the longwire package has it). By hand, once, as root:" >&2
+		cmd_setup jack "$tap" >&2
+		return 1
+	fi
+	if [ "$(id -u)" = 0 ]; then
+		"$helper" "$tap" "${SUDO_UID:-}"
+	elif command -v pkexec > /dev/null; then
+		pkexec "$helper" "$tap"
+	else
+		echo "longwire: there is no pkexec to ask for the password with. By hand, once, as root:" >&2
+		cmd_setup jack "$tap" >&2
+		return 1
+	fi
+}
+
+# Start the node in the background and say how it went: the number it was given, or why not.
+cmd_on() {
+	local n=${1:-} i
+	if lw status > /dev/null 2>&1; then
+		json parse S "$(lw status)"
+		echo "longwire: already on${S[number]:+: your number is ${S[number]}}"
+		return 0
+	fi
+	profiles_read
+	[ -n "$n" ] || n=$PDEFAULT
+	if [ -z "$n" ]; then
+		echo "longwire: no profile yet. Make one:  longwire profile set home switchboard=HOST:PORT/KEY token=... attach=jack interface=lw0" >&2
+		exit 2
+	fi
+	profile_exists "$n" || { echo "longwire: no profile called '$n'  (longwire profile list)" >&2; exit 1; }
+	if [ "${PF[$n.attach]:-}" = jack ] && [ ! -d "/sys/class/net/${PF[$n.interface]:-lw0}" ]; then
+		cmd_jack "${PF[$n.interface]:-lw0}" || exit 1			# made now, with a password if it must be
+	fi
+	: > "$LW_DIR/log"
+	nohup setsid "${LONGWIRE_HIBR:-hibr}" "$0" up --profile "$n" >> "$LW_DIR/log" 2>&1 < /dev/null &
+	for ((i = 0; i < 80; i++)); do			# up to 8 s for the switchboard to give a number
+		if lw status > /dev/null 2>&1; then
+			json parse S "$(lw status)"
+			if [ -n "${S[number]:-}" ]; then echo "longwire: on, your number is ${S[number]}   (profile $n)"; return 0; fi
+		fi
+		sleep 0.1
+	done
+	if lw status > /dev/null 2>&1; then
+		echo "longwire: on (profile $n), but the switchboard has not given a number yet:"
+	else
+		echo "longwire: it did not start:" >&2
+	fi
+	tail -n 5 "$LW_DIR/log" >&2
+	return 1
+}
+
 cmd_up() {
-	local answer=ask line
+	local answer= line profile= given=0 a
 	local args=()
 	while [ $# -gt 0 ]; do
 		case $1 in
+		--profile) [ $# -ge 2 ] || { echo "longwire: --profile needs a name" >&2; exit 2; }; profile=$2; shift 2; continue ;;
+		--switchboard|--jack|--splice|--sock-port|--peer) given=1 ;;&
 		--answer|--admit) [ $# -ge 2 ] || { echo "longwire: $1 needs a value" >&2; exit 2; } ;;&
 		--answer) answer=$2; shift 2 ;;
 		--admit) local ad=$2; [ -r "$ad" ] && read -r ad < "$2"; args+=(--admit "$ad"); shift 2 ;;	# a file, or the hex itself
 		*) args+=("$1"); shift ;;
 		esac
 	done
+	if [ -z "$profile" ] && [ $given -eq 0 ]; then			# nothing named: the default profile is the connection
+		profiles_read
+		profile=$PDEFAULT
+	fi
+	if [ -n "$profile" ]; then
+		profiles_read
+		profile_exists "$profile" || { echo "longwire: no profile called '$profile'  (longwire profile list)" >&2; exit 1; }
+		profile_args "$profile"
+		args=("${PARGS[@]}" "${args[@]}")			# the profile first: what is said on the command line comes after it and wins
+		[ -n "$answer" ] || answer=$PANSWER
+		say "·  profile $profile"
+	fi
+	[ -n "$answer" ] || answer=ask
 	case $answer in ask|known|auto|never) ;; *) echo "longwire: --answer wants ask, known, auto or never" >&2; exit 2 ;; esac
 	echo "$answer" > "$LW_DIR/answer"
 	if lw status > /dev/null 2>&1; then
@@ -225,6 +457,10 @@ answer)  case "${1:-}" in
          *) echo "longwire: answer wants ask, known, auto or never" >&2; exit 2 ;;
          esac ;;
 down)    run lw stop ;;
+off)     run lw stop ;;
+on)      cmd_on "$@" ;;
+jack)    cmd_jack "$@" ;;
+profile) cmd_profile "$@" ;;
 setup)   cmd_setup "$@" ;;
 id)      run lw key new "$LW_SEED" > /dev/null; run lw key id "$LW_SEED" ;;
 address) run lw key new "$LW_SEED" > /dev/null; run lw key address "$LW_SEED" ;;

@@ -83,7 +83,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.4.0
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.0
 # modules: longwire
 ```
 
@@ -130,8 +130,9 @@ init system is documented once it has been tested *(planned: M5)*. The capabilit
 opened the packet socket, and then it's cleared in every process
 ([ARCHITECTURE §2](ARCHITECTURE.md#2-attaching-a-node-ports)).
 
-Jack mode needs no service and no privilege after the one-time tap: `longwire up --jack lw0` in a terminal, under
-`hold`, or as a systemd *user* unit.
+Jack mode needs no service, and no privilege but the creation of the tap, which `longwire jack` (or `longwire on`, or the Control Panel's Turn on) does through
+a small root helper after one password ([ADR 0034](adr/0034-a-connection-is-a-profile.md)). Then `longwire on` runs it in the background, or `longwire up --jack lw0` in a terminal,
+under `hold`, or as a systemd *user* unit.
 
 ## Vendored code
 

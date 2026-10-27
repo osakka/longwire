@@ -72,6 +72,9 @@ echo "longwire: (add --system as root to install them for the whole machine and 
 /usr/lib/systemd/system/longwire-switchboard.service
 /usr/lib/systemd/system/longwire@.service
 /usr/lib/sysusers.d/longwire.conf
+%dir /usr/lib/longwire
+/usr/lib/longwire/jack
+/usr/share/polkit-1/actions/org.longwire.jack.policy
 %dir /usr/share/doc/longwire
 %license /usr/share/doc/longwire/COPYING
 %doc /usr/share/doc/longwire/*.md

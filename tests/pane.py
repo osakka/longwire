@@ -20,7 +20,12 @@ fn dt_want(int ms) { return 0; }
 fn dt_ms() { ret "${DRV_MS:-0}"; }
 fn dt_notep(prio, text, ...rest) { printf 'NOTE %%s %%s\n' "$prio" "$text ${rest[*]}" >> "$LOG"; }
 fn dt_confirm(msg, cmd) { printf 'CONFIRM %%s -> %%s\n' "$msg" "$cmd" >> "$LOG"; DRV_CMD=$cmd; }
-fn dt_ask(title, label, value, then, hint = "") { printf 'ASK %%s -> %%s\n' "$title" "$then" >> "$LOG"; DRV_THEN=$then; }
+fn dt_ask(title, label, value, then, hint = "", ...rest) { printf 'ASK %%s -> %%s\n' "$title" "$then" >> "$LOG"; DRV_THEN=$then; }
+fn dt_ptyjob(kind, tag, then, prompt, ...cmd) { printf 'PTYJOB %%s\n' "${cmd[*]}" >> "$LOG"; ret 7; }
+fn dt_jobfile(int n, which) { ret "/nonexistent/$n.$which"; }
+fn dt_joblast(int n) { ret ""; }
+declare -gA DTJ
+fn dt_droplist(...a) { printf 'DROP %%s\n' "${a[*]}" >> "$LOG"; }
 fn cp_save() { return 0; }
 fn cp_toggle(var) { return 0; }
 fn cp_next(cur, int dir, ...rest) { local x p=; for x in "${rest[@]}"; do [ "$p" = "$cur" ] && [ -n "$p" ] && { ret "$x"; return 0; }; p=$x; done; ret "${rest[0]}"; }
@@ -75,8 +80,8 @@ def main():
 
     # no node at all
     rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), "dump 1")
-    check(any(k == "head" and t == "No node is running" for k, t, v, key in rows), f"with no node the pane says so: {rows[:2]} {r.stderr[-200:]}")
-    check(any(key == "start" for _, _, _, key in rows), "...and offers to start one")
+    check(any(k == "head" and t == "Longwire is off" for k, t, v, key in rows), f"with no node the pane says it is off: {rows[:2]} {r.stderr[-200:]}")
+    check(any(key == "on" for _, _, _, key in rows), "...and offers to turn it on")
 
     A = node("A", 4001, "--answer", "ask", "--name", "Alice", "--listed")
     B = node("B", 4002, "--answer", "ask")
@@ -164,9 +169,46 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     check("RC 0" in r.stdout and any(l.startswith("NOTE high") for l in log),
           f"a verb goes to that socket (a hang up works) and a failed one is reported: {r.stdout.strip()[-40:]!r} {[l for l in log if l.startswith('NOTE')][:1]}")
 
-    # starting: refused without what it needs, then with it
-    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", PATH="/usr/bin:/bin"), 'longwire_do 1 start 1')
-    check(any(l.startswith("NOTE high") and ("not installed" in l or "switchboard" in l) for l in log), f"Start without the command or a switchboard says what is missing: {log}")
+    # turning on: refused without what it needs
+    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", PATH="/usr/bin:/bin"), 'longwire_do 1 on 1')
+    check(any(l.startswith("NOTE high") and ("not installed" in l or "switchboard" in l) for l in log), f"Turn on without the command or a switchboard says what is missing: {log}")
+
+    # the connection form, over a real `longwire profile` (a wrapper in PATH stands for the installed launcher)
+    binp = f"{T}/bin"
+    os.makedirs(binp)
+    wrapper = f"{binp}/longwire"
+    open(wrapper, "w").write(f'#!/bin/sh\nexec {HIBR} {L.ROOT}/scripts/longwire.hibr "$@"\n')
+    os.chmod(wrapper, 0o755)
+    ph = f"{T}/formhome"
+    os.makedirs(ph)
+    envF = dict(HOME=ph, XDG_CONFIG_HOME=f"{ph}/cfg", LW_DIR=f"{ph}/lw", LW_SOCK=f"{ph}/none.sock", LONGWIRE_MOD=MOD,
+                PATH=f"{binp}:" + os.environ["PATH"])
+    rows, log, r = drive(envF, 'dump 1')
+    flat = {(x[0], x[1]): x[2:] for x in rows}
+    check(any(x[0] == "head" and x[1] == "Longwire is off" for x in rows) and any(x[3] == "on" for x in rows),
+          f"with no node the pane says it is off and has Turn on: {rows[:3]}")
+    check(flat.get(("action", "Profile"), [""])[0].startswith("none yet") and flat.get(("action", "Token"), [""])[0] == "none",
+          "with no profile it says none yet, and no token")
+    rows, log, r = drive(envF, 'lwp_setsb "127.0.0.1:1877/lw1abc"; lwp_settoken "secret-token-1"; lwp_pset attach jack; lwp_pset name "Form Box"; dump 1')
+    flat = {(x[0], x[1]): x[2:] for x in rows}
+    check(flat.get(("set", "Profile"), [""])[0] == "home" and flat.get(("action", "Switchboard"), [""])[0] == "127.0.0.1:1877/lw1abc",
+          f"setting the switchboard makes the profile home and shows it: {flat.get(('set', 'Profile'))} {flat.get(('action', 'Switchboard'))} {r.stderr[-200:]}")
+    check(flat.get(("action", "Token"), [""])[0] == "set (14 characters)", f"the token is shown as its length, never itself: {flat.get(('action', 'Token'))}")
+    check("secret-token-1" not in r.stdout and "secret-token-1" not in open(f"{T}/pane.log").read(), "the token is in no row and no log")
+    pf = f"{ph}/cfg/longwire/profiles"
+    check(os.path.exists(pf) and oct(os.stat(pf).st_mode & 0o777) == "0o600" and "token = secret-token-1" in open(pf).read(),
+          "it went into the profiles file, which only the person can read")
+    rows, log, r = drive(envF, 'lwp_pset interface lo; longwire_do 1 on 1')
+    check(any(l == "JOB longwire on home" for l in log), f"Turn on with the jack there starts `longwire on home`: {log}")
+    rows, log, r = drive(envF, 'lwp_pset interface lw9; longwire_do 1 on 1')
+    check(any(l == "PTYJOB longwire jack lw9" for l in log), f"Turn on with no jack asks for it to be made, with the password dialog: {log}")
+    rows, log, r = drive(envF, 'lwp_pset attach splice; longwire_do 1 on 1')
+    check(any(l.startswith("NOTE high") and "setup splice" in l for l in log), f"splice says the one-time step: {log}")
+    rows, log, r = drive(envF, 'lwp_pset attach jack; lwp_newprofile "work"; lwp_pset switchboard "other:1877/lw1xyz"; dump 1')
+    flat = {(x[0], x[1]): x[2:] for x in rows}
+    check(flat.get(("set", "Profile"), [""])[0] == "work", f"a new profile becomes the one shown: {flat.get(('set', 'Profile'))}")
+    rows, log, r = drive(envF, 'longwire_do 1 profile 1; n := lwp_cur; echo "NOW $n"')
+    check("NOW work" in r.stdout, f"the profile row cycles from the default (home) to the other profile: {r.stdout.strip()[-30:]}")
     for n in (A, B, S):
         n.stop()
 

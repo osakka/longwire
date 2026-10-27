@@ -14,7 +14,7 @@
 
 strict
 
-app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.4.0
+app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.0
 # modules: longwire
 command -v dt_app > /dev/null && dt_app switchboard "Switchboard" 24 76 once "☎"
 

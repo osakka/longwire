@@ -1,0 +1,27 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# longwire-jack TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then bring it up.
+# This is the one privileged step a node on a single machine needs. A person never runs it by hand: `longwire jack` and the Control
+# Panel's Turn on run it through pkexec (polkit's action org.longwire.jack names this file), which asks for a password in the
+# desktop. pkexec sets PKEXEC_UID; run as root by hand, pass the user as the second argument. It makes nothing but a device called
+# lw0 to lw99, owned by that user, and does nothing else: the node itself never runs as root (docs/adr/0004).
+set -eu
+
+tap=${1:-lw0}
+uid=${PKEXEC_UID:-${2:-}}
+
+case $tap in
+lw[0-9] | lw[0-9][0-9]) ;;
+*) echo "longwire-jack: a jack is called lw0 to lw99, not '$tap'" >&2; exit 2 ;;
+esac
+case $uid in
+'' | *[!0-9]*) echo "longwire-jack: no user to give it to (pass a uid, or run it through pkexec)" >&2; exit 2 ;;
+esac
+[ "$uid" -ne 0 ] || { echo "longwire-jack: a jack owned by root would need a node that runs as root" >&2; exit 2; }
+
+if [ ! -d "/sys/class/net/$tap" ]; then
+	ip tuntap add dev "$tap" mode tap user "$uid"
+fi
+ip link set "$tap" mtu 1400 up
+echo "longwire-jack: $tap is up, owned by user $uid"

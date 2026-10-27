@@ -56,7 +56,7 @@ reuse it later through JNI. That app will be a fourth piece *(planned: M6)*. Tod
 | Mode | For | One-time privilege | What happens |
 |---|---|---|---|
 | **splice** | a whole site (*the primary case*) | `AmbientCapabilities=CAP_NET_RAW` in the node's service unit | Frames go straight onto the wired NIC. **No interface is created.** |
-| **jack** | one Linux host | `ip tuntap add mode tap user $USER` | The host gets a tap on the far subnet. Written, but untested here. |
+| **jack** | one Linux host | `longwire jack` (a root helper makes the tap after one password; or by hand, `ip tuntap add mode tap user $USER`) | The host gets a tap on the far subnet. Written, but untested here. |
 | **shell** | one Linux user, no privilege at all | none (user namespaces) | A shell whose network *is* the line *(planned: M5)* |
 | **member** | phones, laptops on macOS and Windows | the OS's VPN prompt | longwire acts as an Ethernet host in userspace, so the device gets a real DHCP lease on the far LAN *(planned: M6)* |
 

@@ -47,6 +47,18 @@ What longwire defends against, what it does not, and what is still open. Designe
 - **Out of scope for v1:** hiding *that* two sites talk (traffic analysis, padding, cover traffic), anonymity, and
   resisting a compromised endpoint OS.
 
+## Saved connections and the jack helper
+
+[ADR 0034](adr/0034-a-connection-is-a-profile.md). The profiles file (`~/.config/longwire/profiles`) holds registration **tokens**, so it is
+mode 0600 in a 0700 directory, a token is never put on a command line (standard input only), and `show` and the pane print only its
+length. A token is an invitation, not an identity: it lets one machine register once, and the seed is stored elsewhere and never enters
+the file. Anyone who can read your home directory can read your tokens, as they could read your SSH config.
+
+The one new privileged piece is `/usr/lib/longwire/jack`, run through `pkexec` (polkit asks for an administrator's password once per
+session). It can only create a tap device called `lw0` to `lw99`, owned by the user polkit says asked, and bring it up. The node
+itself still never runs as root and still holds no capability. Not tested: `pkexec` behind the desktop's pseudo-terminal job with a real
+polkit agent, and the helper on a machine with `/dev/net/tun`.
+
 ## Port mapping
 
 A node asks its default gateway for a port mapping (NAT-PMP). Someone on the same LAN can answer in the gateway's

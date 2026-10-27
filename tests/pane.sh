@@ -18,7 +18,7 @@ if [ -d "$DD" ] && [ "$(id -u)" != 0 ]; then
 n := longwire_rows 1
 for ((i = 0; i < n; i++)); do echo \"\${CP[1][\$i][kind]}|\${CP[1][\$i][text]}\"; done" 2>&1)
 	case $out in
-	*"head|No node is running"*"action|Start"*) case $out in *"not declared"*) echo "FAIL the pane under hibr's real desktop code: $out"; exit 1 ;; esac
+	*"head|Longwire is off"*"action|Turn on"*) case $out in *"not declared"*) echo "FAIL the pane under hibr's real desktop code: $out"; exit 1 ;; esac
 		echo "ok   the pane loads and builds its rows under hibr's real desktop and panel code" ;;
 	*) echo "FAIL the pane under hibr's real desktop code: $out"; exit 1 ;;
 	esac

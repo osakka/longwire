@@ -42,6 +42,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0031](0031-a-connection-counts-the-frames-it-carries.md) | A connection counts the frames it carries, and only a node says so | accepted |
 | [0032](0032-the-services-share-their-control-socket-with-a-group.md) | The services share their control socket with the group longwire | accepted |
 | [0033](0033-a-switchboard-is-built-for-strangers.md) | A switchboard is built for strangers | accepted |
+| [0034](0034-a-connection-is-a-profile.md) | A connection is a profile, and the Control Panel turns it on | accepted |
 
 ---
 
