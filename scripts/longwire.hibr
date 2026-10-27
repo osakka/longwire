@@ -42,6 +42,9 @@ usage: longwire <command>
   unpin NUMBER                                forget a number's key: the next call from it is a first call again
   status                                      what the node is doing (JSON)
   answer [ask|known|auto|never]               show, or change, how the running node answers rings
+  (nothing)                                   turn the node on from the default profile if it is off, then say how it is
+  show                                        how the node is, in a few lines (no JSON)
+  watch                                       the node's events as sentences, as they happen (Ctrl-C leaves; the node goes on)
   down | off                                  stop the node
   on [PROFILE]                                start the node in the background, from a saved profile (the default one if none is named)
   profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | remove NAME
@@ -257,6 +260,112 @@ cmd_profile() {
 		profiles_write ;;
 	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | remove NAME" >&2; exit 2 ;;
 	esac
+}
+
+# Bytes and a time in the units a person reads.
+human_bytes() {
+	local n=$1
+	if [ "$n" -ge 1000000000 ]; then echo "$((n / 1000000000)).$((n % 1000000000 / 100000000)) GB"
+	elif [ "$n" -ge 1000000 ]; then echo "$((n / 1000000)).$((n % 1000000 / 100000)) MB"
+	elif [ "$n" -ge 1000 ]; then echo "$((n / 1000)).$((n % 1000 / 100)) kB"
+	else echo "$n B"; fi
+}
+
+human_age() {
+	local s=$1
+	if [ "$s" -ge 3600 ]; then echo "$((s / 3600))h$((s % 3600 / 60))m"
+	elif [ "$s" -ge 60 ]; then echo "$((s / 60))m"
+	else echo "${s}s"; fi
+}
+
+# How the node is, in a few lines: the number, the switchboard, who is connected and what they have carried, the line, any ring.
+cmd_show() {
+	local i cnt n num st path age rx tx t members id calls we state nm phr
+
+	if ! lw status > /dev/null 2>&1; then
+		echo "longwire is off.   longwire on   turns it on"
+		return 0
+	fi
+	json parse S "$(lw status)"
+	n=${S[full]:-}
+	profiles_read
+	if [ -n "$n" ]; then
+		echo "☎  your number $n${PDEFAULT:+    (profile $PDEFAULT)}"
+	else
+		echo "☎  waiting for a number from the switchboard${PDEFAULT:+    (profile $PDEFAULT)}"
+	fi
+	echo "   switchboard   ${S[switchboard]:-?}${S[nat]:+     NAT ${S[nat]}}"
+	cnt := json len S .peers
+	for ((i = 0; i < ${cnt:-0}; i++)); do
+		num := json get S ".peers[$i].number"
+		st := json get S ".peers[$i].state"
+		path := json get S ".peers[$i].path"
+		age := json get S ".peers[$i].age"
+		rx := json get S ".peers[$i].rx_bytes"
+		tx := json get S ".peers[$i].tx_bytes"
+		[ -n "$num" ] || continue
+		echo "   connected     $num  $st${path:+ $path}${age:+, $(human_age "${age%.*}")}  in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
+	done
+	t := json type S .line
+	if [ "$t" = object ]; then
+		id := json get S .line.id
+		members := json len S .line.members
+		echo "   line          $members members (line ${id:-?})"
+	fi
+	calls := json len S .calls
+	for ((i = 0; i < ${calls:-0}; i++)); do
+		state := json get S ".calls[$i].state"
+		we := json get S ".calls[$i].we_called"
+		if [ "$state" = ringing ] && [ "$we" != true ]; then
+			num := json get S ".calls[$i].number"
+			nm := json get S ".calls[$i].name"
+			phr := json get S ".calls[$i].phrase"
+			echo "   RINGING       $num${nm:+ (\"$nm\", a claim)}   safety phrase: $phr   -> longwire pickup | longwire reject"
+		fi
+	done
+}
+
+# `longwire` with nothing said: if there is a connection to turn on and the node is off, turn it on; then say how it is. With no
+# connection yet it says how to make one, and that the Control Panel does the same.
+cmd_here() {
+	profiles_read
+	if ! lw status > /dev/null 2>&1; then
+		if [ -z "$PDEFAULT" ]; then
+			cat <<EOM
+longwire is off, and there is no connection saved yet. Either open Control Panel > Longwire and fill in the form, or:
+
+  longwire profile set home switchboard=HOST:PORT/KEY token=... attach=jack interface=lw0
+  longwire                     # turns it on, in the background
+
+(longwire help lists everything)
+EOM
+			return 0
+		fi
+		cmd_on "$PDEFAULT" || return 1
+	fi
+	cmd_show
+}
+
+# The node's events as sentences, as they happen. It only listens: Ctrl-C leaves and the node goes on.
+cmd_watch() {
+	local rc line
+	lw status > /dev/null 2>&1 || { echo "longwire: it is off.  longwire on" >&2; exit 1; }
+	trap 'exit 0' TERM INT
+	exec 5</dev/longwire/events || exit 1
+	say "·  watching (Ctrl-C leaves; the node goes on)"
+	while :; do
+		read -r -t 1 -u 5 line
+		rc=$?
+		[ $rc -eq 142 ] && continue
+		[ $rc -ne 0 ] && break
+		json parse e "$line"
+		case ${e[event]} in
+		watching) ;;
+		ring) announce ring; [ "${e[admit]}" = true ] || say "   run: longwire pickup | longwire reject" ;;
+		*) announce "${e[event]}" ;;
+		esac
+	done
+	say "·  the node stopped"
 }
 
 # The jack: a tap device owned by the person, made by a small root helper (packaging/longwire-jack) that polkit lets the desktop's
@@ -480,7 +589,10 @@ operator)
 	*) usage >&2; exit 2 ;;
 	esac ;;
 bundle)  run lw key new "$LW_SEED" > /dev/null; run lw key bundle "$LW_SEED" ;;
-help|-h|--help|"") usage ;;
+"")      cmd_here ;;
+show)    cmd_show ;;
+watch)   cmd_watch ;;
+help|-h|--help) usage ;;
 *)
 	echo "longwire: unknown command '$cmd'" >&2
 	usage >&2

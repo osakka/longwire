@@ -110,6 +110,44 @@ def main():
         p.kill(); said = p.communicate()[0]
     check("profile good" in said, f"and says which profile it used: {said.strip()[:100]!r}")
 
+    # --- longwire with nothing said, show, watch ------------------------------------------------------------------------------
+    rc, out = lwc("show")
+    check(rc == 0 and "longwire is off" in out, f"show with the node off says so: {out!r}")
+    envx = dict(env, XDG_CONFIG_HOME=home + "/cfg-none", LW_DIR=home + "/lw-none")
+    r0 = nsx(HIBR, ROOT + "/scripts/longwire.hibr", env=envx, capture_output=True, text=True, timeout=30)
+    check(r0.returncode == 0 and "no connection saved yet" in r0.stdout and "Control Panel > Longwire" in r0.stdout,
+          f"longwire alone with no connection says how to make one, and that the Control Panel does it too: {r0.stdout.strip()[:100]!r}")
+    rc, out = lwc("profile", "default", "good")
+    rc, out = lwc(timeout=40)
+    check(rc == 0 and "your number is" in out and "☎  your number +" in out and out.count(num) == 2 and "switchboard" in out and "(profile good)" in out,
+          f"longwire alone turns the node on from the default profile and then says how it is: {out!r}")
+    rc, out = lwc("show")
+    check(rc == 0 and out.count(num) == 1 and "switchboard   dial tone" in out, f"show: the number once, and the switchboard: {out!r}")
+
+    A = Node("A", ns, "longwire.hibr", ["up", "--switchboard", f"127.0.0.1:1877/{addr}", "--token", "good-token-two", "--sock-port", f"{T}/A/p:{T}/A/h",
+                                         "--listen", "127.0.0.1:4001", "--cand-loopback", "--keepalive", "5", "--answer", "ask", "--name", "Alice"])
+    anum = until(lambda: A.status()["number"], 20)
+    check(bool(anum), f"a second node registers (with its own token): {anum}")
+    w = subprocess.Popen(["nsenter", "-t", str(ns.pid), "-n", HIBR, ROOT + "/scripts/longwire.hibr", "watch"], env=env,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    L.procs.append(w)
+    time.sleep(2)
+    A.cmd("dial", num)
+    time.sleep(4)
+    rc, out = lwc("show")
+    check("RINGING" in out and anum in out and "safety phrase" in out, f"show names a ringing call, its caller and the phrase: {out!r}")
+    w.terminate()
+    try:
+        said = w.communicate(timeout=10)[0]
+    except subprocess.TimeoutExpired:
+        w.kill(); said = w.communicate()[0]
+    check("watching" in said and f"{anum} is calling" in said and "safety phrase" in said and "run: longwire pickup" in said,
+          f"watch narrates the ring as sentences, with the phrase and what to run: {said.strip()[:200]!r}")
+    A.cmd("hangup")
+    A.stop()
+    lwc("off")
+    until(lambda: lwc("status")[0] != 0, 10)
+
     # --- a profile is removed ----------------------------------------------------------------------------------------------
     rc, out = lwc("profile", "remove", "bad")
     check(rc == 0 and "bad" not in lwc("profile", "list")[1], "a profile can be removed")

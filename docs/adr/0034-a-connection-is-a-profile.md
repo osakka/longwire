@@ -46,7 +46,7 @@ make its own tap device by hand (`ip tuntap …` as root), which a person using 
   the caller; the owner is polkit's own `PKEXEC_UID`) and polkit's decision (an administrator's password, kept for the session).
   A person who can already run commands as root gains nothing; one who cannot gains a tap device of their own, which is what
   the kernel's `tuntap` permissions would allow them anyway.
-- **Not done, and said so:** a menu bar item and a control strip switch (the desktop now has a `menubar` kind to build them on);
+- **Not done, and said so** (the menu bar item and the control strip switch were done next: [0035](0035-longwire-on-the-menu-bar.md)):
   choosing the attach mode automatically; assigning an address to the jack (the node carries Ethernet frames; an address comes
   from a DHCP server on the other side, or you set one); the splice mode from the pane (it needs a one-time grant that is not a
   tap, `longwire setup splice`).

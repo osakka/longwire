@@ -57,12 +57,13 @@ and on the other machine's `up` terminal:
 | `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode, to run by hand if you would rather |
 | `longwire profile list`, `show [NAME]`, `set NAME KEY=VALUE…`, `token NAME`, `default NAME`, `remove NAME` | the saved connections ([profiles](#profiles)) |
 | `longwire-switchboard [options]` | run a switchboard ([SWITCHBOARD](SWITCHBOARD.md)) |
-| `longwire` with no arguments starts the node if it isn't running, then shows status | *(planned: M4)*; for now `longwire on` and `longwire status` |
+| `longwire` with no arguments | turn the node on from the default [profile](#profiles) if it is off, then say how it is (the same as `longwire on` and then `longwire show`). With no profile yet it says how to make one, and that Control Panel > Longwire does the same |
+| `longwire show` | how the node is, in a few lines and no JSON: your number, the switchboard, who is connected and what they have carried, the line, and any ring waiting (with the safety phrase) |
 | `longwire who NAME` or `who lw1…` | ask the switchboard's directory for listed nodes whose name contains the text (3 characters or more), or that hold that full address: up to 8 results, each with number, key id and name (JSON). A name is a claim, so check the safety phrase on the first call |
 | `longwire dial lw1…` | call a full address, through the directory. Fails plainly if the switchboard has none or the node is not listed |
 | `longwire who NUMBER` | what this node knows of a number (JSON): its key id and full address, whether it is pinned, on your line, connected (and by what path), and the safety phrase of a live call. It asks nobody, so a number never called, pinned or listed is "not known here" |
 | `longwire answer [POLICY]` | show, or change, the [answer policy](#answer-policy) of the running node. It takes effect on the next ring; a call already ringing is judged by the policy it arrived under. `up` sets it again from `--answer` (default `ask`) |
-| `longwire watch` | stream events as sentences *(planned: M4)* |
+| `longwire watch` | the node's events as sentences, as they happen (a ring shows the safety phrase and what to run). It only listens: Ctrl-C leaves and the node goes on |
 | `longwire shell NUMBER` | dial, then a shell whose only network is the line *(planned: M5)* |
 | `longwire key export`, `longwire key import` | the identity as 33 words from the safety-phrase list (32 for the seed, one of checksum), and back. `export` prints to the terminal only; `import` reads the words on standard input, checks the checksum, and refuses to overwrite an identity. The same words give the same key and so the same number. They *are* the identity: keep them like the seed file |
 
@@ -171,7 +172,7 @@ first call. A number is pinned to its key once the call is up, so a wrong phrase
 | `peers` | per peer: `key_id`, `number`, `state`, `path`, `ep`, `age`, `rx_frames`, `tx_frames`, `rx_bytes`, `tx_bytes` (the Ethernet frames carried each way, since the session started: [ADR 0031](adr/0031-a-connection-counts-the-frames-it-carries.md)), `rekeys`, `drop_auth`, `drop_replay` |
 
 On a switchboard: `key_id`, `address`, `uptime`, `numbers`, `online`, `calls_ringing`, `policy`, `drop_garbage`, `code` (its short code), `code_refused` (why the registry did not give it one), `codes_issued` (a registry's count), `max_nodes` and the handshake gauges `hs_shed`, `cookies_sent` and `cookies_got`. `lw sb nodes [FROM]` lists the registry a page at a time (24 entries, then `next`): each entry has `number`, `name`, `listed`, `online` and `age`, and no address or key. A
-tabular view *(planned: M4)*.
+readable view of a node's status is `longwire show`; a switchboard's is the switchboard application.
 
 ## Events
 

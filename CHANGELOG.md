@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## Unreleased
+
+- **`longwire`, `longwire show` and `longwire watch`.** The three roadmap items that answer "shouldn't it just work?" now that a connection is a profile. `longwire` alone turns the
+  node on from the default profile if it is off and then says how it is (and with no profile yet says how to make one, and that Control Panel > Longwire does it too);
+  `show` is the readable status (your number, the switchboard and NAT, who is connected with what they have carried, the line, any ring with its safety phrase); `watch`
+  narrates the node's events as sentences as they happen, and leaves the node alone when you Ctrl-C. Tested against real nodes (`tests/profile.sh`: 30 checks).
+
 ## 0.6.0
 
 *Published:* the catalogue (`hibr-apps` `b9550c7`: seven entries, three of them new: `menubar/longwire`, `control-strip/longwire` and the bundle `longwire`) and the packages
