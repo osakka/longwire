@@ -21,9 +21,12 @@ command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
 DT_LW_PROFILE="${DT_LW_PROFILE-}"
 # Whether the menu bar item (menubar/longwire.hibr, in the same bundle) is shown: Menu Bar Items turns it too.
 DT_LWBAR="${DT_LWBAR-1}"
-command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE DT_LWBAR
+# Phone Style: modern (a handset) or classic (a rotary desk phone), for glyph sets that draw the telephone (Blit's); it is a row only where there is a choice.
+DT_LWSTYLE="${DT_LWSTYLE-modern}"
+command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE DT_LWBAR DT_LWSTYLE
 
 LWP_POLICIES=(ask known auto never)
+LWP_STYLES=(modern classic)
 LWP_ATTACHES=(jack splice)
 
 # The last status read, and when. _rows runs every frame, and a read of the node is a round trip, so it is kept for a second.
@@ -251,6 +254,9 @@ fn longwire_rows(int w) {
 			CP[$w][$n]["val"]=off; [ "$DT_LWBAR" = 1 ] && CP[$w][$n]["val"]=on
 			CP[$w][$n]["key"]=barswitch; n=$((n + 1))
 		fi
+		if [ -n "${GL[phoneoff]-}" ]; then
+			lwp_row "$w" "$n" set "Phone Style" "$DT_LWSTYLE" lwstyle; n=$((n + 1))
+		fi
 		if [ "$LWP_BUSY" = 1 ]; then
 			lwp_row "$w" "$n" action "Turning on${GL[ellipsis]}" "" none; n=$((n + 1))
 		else
@@ -348,6 +354,9 @@ fn longwire_rows(int w) {
 		CP[$w][$n]["val"]=off; [ "$DT_LWBAR" = 1 ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=barswitch; n=$((n + 1))
 	fi
+	if [ -n "${GL[phoneoff]-}" ]; then
+		lwp_row "$w" "$n" set "Phone Style" "$DT_LWSTYLE" lwstyle; n=$((n + 1))
+	fi
 	ret "$n"
 }
 
@@ -399,6 +408,7 @@ fn lwp_setname(text, int? id = "") { lwp_pset name "$text"; return 0; }
 fn cp_set_lwpolicy(int? id = "", value = "") { lwp_setpolicy "$value"; }
 fn cp_set_lwppolicy(int? id = "", value = "") { lwp_pset answer "$value"; }
 fn cp_set_lwattach(int? id = "", value = "") { lwp_pset attach "$value"; }
+fn cp_set_lwstyle(int? id = "", value = "") { DT_LWSTYLE=$value; dt_has lwb_refresh && lwb_refresh; cp_save; }
 fn cp_set_lwprofile(int? id = "", value = "") {
 	DT_LW_PROFILE=$value
 	longwire profile default "$value" > /dev/null 2>&1		# the command and the menu bar use the default one: it is the one shown here
@@ -610,6 +620,9 @@ fn longwire_do(int w, k, int dir) {
 		LWP_PEND_ARG=$p
 		dt_confirm "Remove the profile $p? Its token goes too." lwp_yes ;;
 	barswitch) cp_toggle DT_LWBAR; dt_has lwb_refresh && lwb_refresh ;;
+	lwstyle)
+		DT_LWSTYLE := cp_next "$DT_LWSTYLE" "$dir" "${LWP_STYLES[@]}"
+		dt_has lwb_refresh && lwb_refresh ;;
 	on) lwp_turnon "$w" ;;
 	stop) dt_confirm "Turn longwire off? Calls end." lwp_yes; LWP_PEND_KIND=stop ;;
 	dial) dt_ask "Dial" "Number" "" lwp_dialled "a number like 447-120-933, or +code number" ;;
@@ -628,5 +641,6 @@ fn longwire_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	ppolicy) dt_droplist "$w" "$r" "$c" cp_set_lwppolicy "${LWP_POLICIES[@]}" ;;
 	attach) dt_droplist "$w" "$r" "$c" cp_set_lwattach "${LWP_ATTACHES[@]}" ;;
 	profile) dt_droplist "$w" "$r" "$c" cp_set_lwprofile "${LWP_PNAMES[@]}" ;;
+	lwstyle) dt_droplist "$w" "$r" "$c" cp_set_lwstyle "${LWP_STYLES[@]}" ;;
 	esac
 }

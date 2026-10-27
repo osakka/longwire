@@ -37,6 +37,9 @@ Network, Battery and Power use) and a `control-strip` kind.
    is set, the picture is that one icon (with the count, or the caller's number while ringing); the ring falls back to the "on" icon;
    when the set has none (Unicode, ASCII, Nerd, and Blit until then) the item builds the state from a telephone and a mark, as above.
    No code waits on the icons.
+   Blit also draws a classic rotary phone (U+10001F to U+100022, from Blit 0.2.45), named in the same set `GL[phoneoffc]`, `GL[phonewaitc]`, `GL[phoneonc]` and
+   `GL[phoneringc]`. A **Phone Style** setting in the pane (`modern`, the default, or `classic`; kept by the desktop; a row only where the glyph set has telephones)
+   picks which set the bar item and the strip use; a style whose icons the glyph set lacks falls back to the modern ones, then to characters.
 8. **It wakes the desktop every 1.5 s while the line is on**, so a ring is heard within about that; while the line is off it waits for
    the bar's own minute clock and the moment the person turns it on from the menu or the pane. Idle cost is the desktop waking once
    a second and a half to read a local socket.

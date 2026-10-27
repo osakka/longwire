@@ -116,6 +116,22 @@ def main():
     log, r = drive(nobody, body.replace("lwb_tick", "lwstrip_draw 1 4"))
     check(any(l.startswith("CONSOLE put 1 4 \U00100020") for l in log), f"and the strip draws it too: {log}")
 
+    # Phone Style: the classic set when asked for and present, the modern set when the classic is absent or the style is modern
+    base = 'GL[phoneoff]=$\'\\U00100020\'; GL[phonewait]=$\'\\U00100021\'; GL[phoneon]=$\'\\U00100022\'; '
+    classic = 'GL[phoneoffc]=$\'\\U00100030\'; GL[phonewaitc]=$\'\\U00100031\'; GL[phoneonc]=$\'\\U00100032\'; '
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + "lwb_tick")
+    check("BARITEM lwb|\U00100030" in log, f"Phone Style classic: the bar draws the classic outline telephone when off: {[l for l in log if l.startswith('BARITEM')]}")
+    log, r = drive(dict(nobody, DT_LWSTYLE="modern"), base + classic + "lwb_tick")
+    check("BARITEM lwb|\U00100020" in log, "Phone Style modern: the modern one, though the classic is there")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + "lwb_tick")
+    check("BARITEM lwb|\U00100020" in log, "classic asked for but the glyph set has none: the modern one, not nothing")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), "lwb_tick")
+    check("BARITEM lwb|\u260e \u25cb" in log, "and with neither, the characters")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + 'LWB_ST=ring; LWB_RINGNUM=111-222-333; t := lwb_text; echo "RING [$t]"')
+    check("RING [\U00100032 111-222-333]" in r.stdout, f"a ring in the classic style, with no classic ring icon, is the classic filled one with the caller: {r.stdout.strip()}")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + "lwstrip_draw 1 4")
+    check(any(l.startswith("CONSOLE put 1 4 \U00100030") for l in log), f"the strip follows the style: {log}")
+
     # a profile exists: the menu offers Turn On
     envP = dict(nobody, HOME=f"{T}/withprofile", XDG_CONFIG_HOME=f"{T}/withprofile/cfg", LW_SOCK=f"{T}/none2.sock", LW_DIR=f"{T}/withprofile/lw",
                 LONGWIRE_MOD=MOD)

@@ -169,6 +169,14 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     check("RC 0" in r.stdout and any(l.startswith("NOTE high") for l in log),
           f"a verb goes to that socket (a hang up works) and a failed one is reported: {r.stdout.strip()[-40:]!r} {[l for l in log if l.startswith('NOTE')][:1]}")
 
+    # Phone Style: a row only where the glyph set draws telephones, and it cycles between modern and classic
+    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), "dump 1")
+    check(not any(x[3] == "lwstyle" for x in rows), "with a glyph set that has no telephones there is no Phone Style row (no choice to make)")
+    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), "GL[phoneoff]=x; dump 1")
+    check(any(x[3] == "lwstyle" and x[0] == "set" and x[1] == "Phone Style" and x[2] == "modern" for x in rows), f"with telephones in the glyph set there is one, at modern: {[x for x in rows if x[3] == 'lwstyle']}")
+    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), 'GL[phoneoff]=x; longwire_do 1 lwstyle 1; echo "STYLE $DT_LWSTYLE"; longwire_do 1 lwstyle 1; echo "STYLE $DT_LWSTYLE"')
+    check("STYLE classic" in r.stdout and r.stdout.strip().endswith("STYLE modern"), f"the row cycles modern, classic, modern: {r.stdout.strip()}")
+
     # turning on: refused without what it needs
     rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", PATH="/usr/bin:/bin"), 'longwire_do 1 on 1')
     check(any(l.startswith("NOTE high") and ("not installed" in l or "switchboard" in l) for l in log), f"Turn on without the command or a switchboard says what is missing: {log}")

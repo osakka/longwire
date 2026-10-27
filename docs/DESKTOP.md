@@ -43,6 +43,7 @@ The page says **Longwire is off** and shows the connection:
 | **List in the directory** | on: others can find you by name on the switchboard. Off by default. |
 | **When a call rings** | how this machine answers: `ask`, `known`, `auto` or `never` (see below). |
 | **Longwire on the Menu Bar** | show or hide the telephone. |
+| **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. |
 | **Turn on** | does everything: makes the network device if it is missing (that asks for your password), starts the node in the background, and tells you your number. |
 | **New profile…** / **Remove profile** | keep several connections (home, office, a friend's switchboard) and switch between them. |
 
@@ -74,7 +75,8 @@ can use it if you are in the group `longwire`, but only the administrator turns 
 | `☎ ◉ 312-884-076` | that number is **ringing you** |
 
 (In the plain-text glyph set it writes `tel -`, `tel ~`, `tel *`, `tel ! 312-…`. With the Blit glyph set and hibr 0.99.364 it is
-Blit's own telephone: outline when off, dashed while connecting, filled when on, with ring waves when ringing.)
+Blit's own telephone: outline when off, dashed while connecting, filled when on, with ring waves when ringing. **Phone Style** in the pane picks the
+modern handset or the classic rotary phone; with a Blit that lacks the classic set it shows the modern one.)
 
 **Click it** for a menu that depends on the state:
 
