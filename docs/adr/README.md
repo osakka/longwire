@@ -43,6 +43,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0032](0032-the-services-share-their-control-socket-with-a-group.md) | The services share their control socket with the group longwire | accepted |
 | [0033](0033-a-switchboard-is-built-for-strangers.md) | A switchboard is built for strangers | accepted |
 | [0034](0034-a-connection-is-a-profile.md) | A connection is a profile, and the Control Panel turns it on | accepted |
+| [0035](0035-longwire-on-the-menu-bar.md) | Longwire on the menu bar and the Control Strip | accepted |
 
 ---
 

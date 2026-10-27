@@ -83,7 +83,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.0
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.6.0
 # modules: longwire
 ```
 
@@ -95,7 +95,13 @@ searches `HIBR_MODPATH` or the working directory for code.
 **Trying the pane.** From a checkout, as an ordinary user: `mkdir -p ~/.config/hibr/control-panel && ln -s $PWD/control-panel/longwire.hibr
 ~/.config/hibr/control-panel/`, start the desktop with `HIBR_MODPATH=$PWD/build`, and choose Refresh Desktop; the pane is
 called Longwire, under Apps. It drives a node you started yourself (`longwire up …`, or its own Start row) or, if you have none, a service node
-whose socket is under `/run/longwire` and whose group (`longwire`) you are in.
+whose socket is under `/run/longwire` and whose group (`longwire`) you are in. Its form is a saved connection ([ADR 0034](adr/0034-a-connection-is-a-profile.md)): a profile,
+the switchboard, a token, and Turn on, which makes the jack (a password, once) and starts the node in the background.
+
+**Trying the menu bar item and the strip module.** The same way again, from the checkout: `mkdir -p ~/.config/hibr/menubar ~/.config/hibr/control-strip`,
+`ln -s $PWD/menubar/longwire.hibr ~/.config/hibr/menubar/` and `ln -s $PWD/control-strip/longwire.hibr ~/.config/hibr/control-strip/`, then Refresh Desktop. A telephone
+appears on the bar ([ADR 0035](adr/0035-longwire-on-the-menu-bar.md)); Control Panel > Longwire > Longwire on the Menu Bar turns it. From the catalogue, installing
+the bundle `longwire` installs the pane, the item and the module together.
 
 **Trying the switchboard app.** The same way, with `apps` in place of `control-panel`: `ln -s $PWD/apps/switchboard.hibr ~/.config/hibr/apps/`,
 then Refresh Desktop; it is called Switchboard, on the hibr menu. It reads the switchboard you started as the same user

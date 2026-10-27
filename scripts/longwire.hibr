@@ -7,7 +7,7 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.0
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.6.0
 # modules: longwire
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}

@@ -3,6 +3,16 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.6.0
+
+- **Longwire on the menu bar and the Control Strip** ([ADR 0035](docs/adr/0035-longwire-on-the-menu-bar.md)). A telephone on the bar that says whether the line
+  is off (`☎ ○`), waiting for the switchboard (`☎ ◌`), on (`☎ ●`, with the number of people connected) or ringing (`☎ ◉ 447-120-933`), a **ring that
+  interrupts** (a note, and the dialog with the caller and the six-word safety phrase, once per call), and a menu that follows the state: Turn
+  On / Turn Off, Pick up, Dial, who is connected with their rates, and Settings. A Control Strip telephone that is dim, blue, green or amber. One switch for
+  it in the pane (and in Menu Bar Items). All three are one catalogue bundle, `longwire`. Where a glyph set has telephones that carry the state (Blit's, from Blit
+  0.2.44: outline, dashed, filled, and with ring waves), the item uses them; otherwise it uses characters. Tested against real nodes with the desktop's functions
+  stubbed (`tests/bar.sh`), and the files load under hibr's own desktop code. Not tested: how it is drawn.
+
 ## 0.5.0
 
 *Published:* the catalogue (`hibr-apps` `288c876`) and the packages (`hibr-apt` `c6e32da`, `hibr-rpm` `eab116d`, `hibr-arch` `784d551`). `make check` passed on the exact tree

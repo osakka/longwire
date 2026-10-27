@@ -1,0 +1,9 @@
+{
+ "title": "Longwire",
+ "about": "Longwire in the desktop: Control Panel > Longwire to set up a connection and turn it on, a telephone on the menu bar and the Control Strip that shows whether it is on, and a ring that interrupts.",
+ "members": [
+  "control-panel/longwire",
+  "menubar/longwire",
+  "control-strip/longwire"
+ ]
+}

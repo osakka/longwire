@@ -46,6 +46,7 @@ check: all lint
 	sh tests/sw.sh
 	sh tests/group.sh
 	sh tests/profile.sh
+	sh tests/bar.sh
 	sh tests/fuzz.sh
 	sh tests/kat.sh
 	sh tests/start.sh

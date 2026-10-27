@@ -1,0 +1,61 @@
+#!/usr/bin/env hibr
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# longwire -- a Control Strip module for longwire (docs/adr/0035-longwire-on-the-menu-bar.md): a telephone that is dim when the line
+# is off, blue while it waits for a number, green when it is on, and amber while someone is ringing. A click opens the same menu as the
+# menu bar item (Turn On, Turn Off, Pick up, Dial, Settings). The strip and the bar can each show it, or both, or neither.
+#
+# Called lwstrip: longwire is the Control Panel pane's prefix, and a pane with a longwire_draw would be taken for one that draws itself.
+
+strict
+
+app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.6.0
+command -v cs_module > /dev/null && cs_module lwstrip Longwire 1
+
+# Wherever the pane is (the module reads the node through the pane's functions).
+fn lwstrip_shown() {
+	dt_has lwp_poll
+}
+
+fn lwstrip_draw(int row, int col) {
+	local ink=$DT_DIM g
+
+	g=${GL[phone]-}
+	dt_has lwb_g && g := lwb_g phone
+	[ -n "$g" ] || g="tel"
+	if dt_has lwb_state; then
+		lwb_state
+		case $LWB_ST in
+		on) ink=$DT_GOOD ;;
+		wait) ink=$DT_INFO ;;
+		ring) ink=$DT_WARN ;;
+		esac
+		if dt_has lwb_icon; then		# where the glyph set draws the state in the telephone (Blit's colour icons), that is the picture
+			local ic
+			ic := lwb_icon
+			[ -n "$ic" ] && g=$ic
+		fi
+	fi
+	console pen "$ink" "$DT_FACE"
+	console put "$row" "$col" "$g"
+}
+
+fn lwstrip_click(int row, int col) {
+	dt_context_open lwstrip "" "$row" "$col"
+	return 0
+}
+
+# The bar item's own menu where it is installed; a plain one where it is not.
+fn lwstrip_context(id = "") {
+	if dt_has lwb_context; then
+		lwb_context "$id"
+		return 0
+	fi
+	dt_menu "Longwire"
+	if dt_has panel_goto; then
+		dt_item "Longwire Settings${GL[ellipsis]}" s dt_panelpane longwire
+	else
+		dt_dim "Longwire Settings${GL[ellipsis]}"
+	fi
+	return 0
+}

@@ -1,0 +1,255 @@
+#!/usr/bin/env hibr
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# menubar/longwire -- longwire on the menu bar (docs/adr/0035-longwire-on-the-menu-bar.md): whether it is on, a ring that interrupts,
+# and a menu with what a person does with a phone line: turn it on or off, pick up, decline, dial, see who is connected and how
+# fast, and open the settings.
+#
+#   off        ☎ ○              the line is off (a click offers Turn On)
+#   waiting    ☎ ◌              on, and the switchboard has not given a number yet
+#   on         ☎ ●   or ☎ ● 2   on, with a number; the count is how many are connected
+#   ringing    ☎ ◉ 447-120-933  someone is calling: the bar says who, and a dialog asks, with the safety phrase
+#
+# It reads the node through the pane's own functions (control-panel/longwire.hibr: the status, the rates, the profile, Turn on), so a
+# number is worked out in one place; it is part of the pane's catalogue entry and absent on a desktop without it. It runs only
+# while the desktop does: the node itself is a background process (`longwire on`) that does not need the desktop, but a ring is only
+# heard here, in the bar, while the desktop is up.
+#
+# overlay: its bar item and its pop-ups are the desktop's own, drawn over the finished frame.
+
+strict
+
+app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.6.0
+
+# The switch (Control Panel > Longwire > Longwire on the Menu Bar, and Menu Bar Items) lives with the pane; the bar reads it.
+# The state this item last drew from, so the bar text is made again only when it changes, and the ring it has already announced.
+declare -g LWB_KEY= LWB_ST=off LWB_NUM= LWB_PEERS=0 LWB_RINGNUM= LWB_RINGCALL= LWB_SAID=
+
+# A glyph by what it means, in the desktop's glyph set: Unicode and the Blit and Nerd sets draw the telephone, ASCII writes it.
+fn lwb_g(what) {
+	case ${DT_GLYPHSET-unicode} in
+	ascii)
+		case $what in
+		phone) ret "tel" ;;
+		off) ret "-" ;;
+		wait) ret "~" ;;
+		on) ret "*" ;;
+		ring) ret "!" ;;
+		esac ;;
+	nerd)
+		case $what in
+		phone) ret $'' ;;
+		off) ret $'○' ;;
+		wait) ret $'◌' ;;
+		on) ret $'●' ;;
+		ring) ret $'◉' ;;
+		esac ;;
+	*)
+		case $what in
+		phone) ret $'☎' ;;
+		off) ret $'○' ;;
+		wait) ret $'◌' ;;
+		on) ret $'●' ;;
+		ring) ret $'◉' ;;
+		esac ;;
+	esac
+}
+
+# A glyph set that draws the state in the telephone itself (Blit's colour icons: GL[phoneoff], GL[phonewait], GL[phoneon] and GL[phonering])
+# gives the bar one picture for the state; the ring falls back to the "on" one. Empty where the set has none, and the bar then builds the state
+# from a telephone and a mark.
+fn lwb_icon() {
+	local g=${GL["phone$LWB_ST"]-}
+
+	[ -n "$g" ] || [ "$LWB_ST" != ring ] || g=${GL[phoneon]-}
+	ret "$g"
+}
+
+# Read the node (at most once a second: the pane's poll keeps the time) and work out which of the four states the line is in.
+fn lwb_state() {
+	local i cnt state we call num n=0
+
+	lwp_poll
+	LWB_ST=off
+	LWB_NUM=
+	LWB_PEERS=0
+	LWB_RINGNUM=
+	LWB_RINGCALL=
+	[ "$LWP_UP" = 1 ] || return 0
+	LWB_NUM := lwp_get .full
+	LWB_ST=on
+	[ -n "$LWB_NUM" ] || LWB_ST=wait
+	cnt := json len LWP_S .calls
+	for ((i = 0; i < ${cnt:-0}; i++)); do
+		state := lwp_get ".calls[$i].state"
+		we := lwp_get ".calls[$i].we_called"
+		if [ "$state" = ringing ] && [ "$we" != true ]; then
+			call := lwp_get ".calls[$i].call"
+			num := lwp_get ".calls[$i].number"
+			LWB_ST=ring
+			LWB_RINGCALL=$call
+			LWB_RINGNUM=$num
+			break
+		fi
+	done
+	cnt := json len LWP_S .peers
+	for ((i = 0; i < ${cnt:-0}; i++)); do
+		state := lwp_get ".peers[$i].state"
+		[ "$state" = up ] && n=$((n + 1))
+	done
+	LWB_PEERS=$n
+	return 0
+}
+
+# The bar's text for the state.
+fn lwb_text() {
+	local ph s
+
+	ph := lwb_icon
+	if [ -n "$ph" ]; then
+		case $LWB_ST in
+		ring) ret "$ph $LWB_RINGNUM" ;;
+		on) if [ "$LWB_PEERS" -gt 0 ]; then ret "$ph $LWB_PEERS"; else ret "$ph"; fi ;;
+		*) ret "$ph" ;;
+		esac
+		return 0
+	fi
+	ph := lwb_g phone
+	case $LWB_ST in
+	off) s := lwb_g off; ret "$ph $s" ;;
+	wait) s := lwb_g wait; ret "$ph $s" ;;
+	ring) s := lwb_g ring; ret "$ph $s $LWB_RINGNUM" ;;
+	*)
+		s := lwb_g on
+		if [ "$LWB_PEERS" -gt 0 ]; then ret "$ph $s $LWB_PEERS"; else ret "$ph $s"; fi ;;
+	esac
+}
+
+# A ring is announced once, by id: a note, and the dialog the pane asks the same question with (the number, the safety phrase, pick up?).
+fn lwb_announce() {
+	[ -n "$LWB_RINGCALL" ] || { LWB_SAID=; return 0; }
+	[ "$LWB_SAID" = "$LWB_RINGCALL" ] && return 0
+	LWB_SAID=$LWB_RINGCALL
+	dt_notep high "%s is calling" "$LWB_RINGNUM"
+	lwp_ring "$LWB_RINGCALL"
+	dt_want 30
+	return 0
+}
+
+# Every frame: the bar item, kept to what the state is.
+fn lwb_tick() {
+	local k t
+
+	dt_has lwp_poll || return 0
+	if [ "${DT_LWBAR-1}" != 1 ]; then
+		dt_baritem lwb ""
+		return 0
+	fi
+	need longwire 2> /dev/null || { dt_baritem lwb ""; return 0; }
+	lwb_state
+	k="$LWB_ST|$LWB_NUM|$LWB_PEERS|$LWB_RINGNUM|${DT_GLYPHSET-}|${DT_LANG-}"
+	if [ "$k" != "$LWB_KEY" ]; then
+		LWB_KEY=$k
+		t := lwb_text
+		dt_baritem lwb "$t" lwb_menu
+		dt_bariright lwb lwb_menu
+	fi
+	lwb_announce
+	[ "$LWB_ST" = off ] || dt_want 1500
+	return 0
+}
+
+# After the switch is turned, from the pane or Menu Bar Items: at once.
+fn lwb_refresh() {
+	LWB_KEY=
+	lwb_tick
+}
+
+fn lwb_menu() {
+	dt_barmenu lwb lwb
+	return 0
+}
+
+# --- the menu --------------------------------------------------------------------------------------------------------------
+
+fn lwb_on() {
+	lwp_turnon 0
+	return 0
+}
+
+fn lwb_off() {
+	LWP_PEND_KIND=stop
+	dt_confirm "Turn longwire off? Calls end." lwp_yes
+	return 0
+}
+
+fn lwb_dial() {
+	dt_ask "Dial" "Number" "" lwp_dialled "a number like 447-120-933, or +code number"
+	return 0
+}
+
+fn lwb_ring(call) {
+	lwp_ring "$call"
+	return 0
+}
+
+# What the menu holds depends on the state: off offers Turn On (when there is a connection to turn on); on shows the number, who is
+# connected and how fast, any ring to answer, Dial and Turn Off. Settings is always there.
+fn lwb_context(id = "") {
+	local i cnt num state path rr tr p sb text
+
+	lwb_state
+	dt_menu "Longwire"
+	if [ "$LWB_ST" = off ]; then
+		p := lwp_cur
+		sb=${LWP_PF[$p.switchboard]-}
+		if [ -n "$p" ] && [ -n "$sb" ]; then
+			dt_dim "Off, profile $p"
+			if [ "$LWP_BUSY" = 1 ]; then
+				dt_dim "Turning on${GL[ellipsis]}"
+			else
+				dt_item "Turn On" o lwb_on
+			fi
+		else
+			dt_dim "Off: no connection set up yet"
+		fi
+	else
+		if [ -n "$LWB_NUM" ]; then
+			dt_dim "On, your number is $LWB_NUM"
+		else
+			dt_dim "On, waiting for the switchboard${GL[ellipsis]}"
+		fi
+		if [ -n "$LWB_RINGCALL" ]; then
+			dt_item "Pick up $LWB_RINGNUM${GL[ellipsis]}" p lwb_ring "$LWB_RINGCALL"
+		fi
+		cnt := json len LWP_S .peers
+		for ((i = 0; i < ${cnt:-0}; i++)); do
+			num := lwp_get ".peers[$i].number"
+			state := lwp_get ".peers[$i].state"
+			path := lwp_get ".peers[$i].path"
+			[ -n "$num" ] || continue
+			text="$num, $state${path:+ $path}"
+			if [ -n "${LWP_RRATE[$num]-}" ]; then
+				rr := lwp_rate "${LWP_RRATE[$num]}"
+				tr := lwp_rate "${LWP_TRATE[$num]}"
+				text="$text, in $rr, out $tr"
+			fi
+			dt_dim "$text"
+		done
+		dt_item "Dial${GL[ellipsis]}" d lwb_dial
+		dt_item "Turn Off" f lwb_off
+	fi
+	dt_sep
+	if dt_has panel_goto; then
+		dt_item "Longwire Settings${GL[ellipsis]}" s dt_panelpane longwire
+	else
+		dt_dim "Longwire Settings${GL[ellipsis]}"
+	fi
+	return 0
+}
+
+# Its place on the bar is taken while the file is read, so that a rescan finding the file gone knows whose item this is.
+dt_baritem lwb ""
+dt_bariswitch lwb DT_LWBAR lwb_refresh
+dt_barilabel lwb "Longwire"
+dt_ticker lwb_tick

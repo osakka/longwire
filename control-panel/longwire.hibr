@@ -11,14 +11,16 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.0
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.6.0
 # modules: longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
 
 # The connection the person chose lives in the profiles file (~/.config/longwire/profiles, `longwire profile`), the same one the
 # command and the menu bar read. The pane only remembers which profile it is showing.
 DT_LW_PROFILE="${DT_LW_PROFILE-}"
-command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE
+# Whether the menu bar item (menubar/longwire.hibr, in the same bundle) is shown: Menu Bar Items turns it too.
+DT_LWBAR="${DT_LWBAR-1}"
+command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE DT_LWBAR
 
 LWP_POLICIES=(ask known auto never)
 LWP_ATTACHES=(jack splice)
@@ -243,6 +245,11 @@ fn longwire_rows(int w) {
 		CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.listed]-}" = yes ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=listed; n=$((n + 1))
 		lwp_row "$w" "$n" set "When a call rings" "${LWP_PF[$p.answer]:-ask}" ppolicy; n=$((n + 1))
+		if dt_has lwb_tick; then
+			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Longwire on the Menu Bar"; CP[$w][$n]["wtype"]=bool
+			CP[$w][$n]["val"]=off; [ "$DT_LWBAR" = 1 ] && CP[$w][$n]["val"]=on
+			CP[$w][$n]["key"]=barswitch; n=$((n + 1))
+		fi
 		if [ "$LWP_BUSY" = 1 ]; then
 			lwp_row "$w" "$n" action "Turning on${GL[ellipsis]}" "" none; n=$((n + 1))
 		else
@@ -334,6 +341,11 @@ fn longwire_rows(int w) {
 	else
 		pol := lwp_policy
 		lwp_row "$w" "$n" set "When a call rings" "$pol" policy; n=$((n + 1))
+	fi
+	if dt_has lwb_tick; then
+		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Longwire on the Menu Bar"; CP[$w][$n]["wtype"]=bool
+		CP[$w][$n]["val"]=off; [ "$DT_LWBAR" = 1 ] && CP[$w][$n]["val"]=on
+		CP[$w][$n]["key"]=barswitch; n=$((n + 1))
 	fi
 	ret "$n"
 }
@@ -596,6 +608,7 @@ fn longwire_do(int w, k, int dir) {
 		LWP_PEND_KIND=rmprofile
 		LWP_PEND_ARG=$p
 		dt_confirm "Remove the profile $p? Its token goes too." lwp_yes ;;
+	barswitch) cp_toggle DT_LWBAR; dt_has lwb_refresh && lwb_refresh ;;
 	on) lwp_turnon "$w" ;;
 	stop) dt_confirm "Turn longwire off? Calls end." lwp_yes; LWP_PEND_KIND=stop ;;
 	dial) dt_ask "Dial" "Number" "" lwp_dialled "a number like 447-120-933, or +code number" ;;
