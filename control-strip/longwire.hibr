@@ -2,14 +2,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # longwire -- a Control Strip module for longwire (docs/adr/0035-longwire-on-the-menu-bar.md): a telephone that is dim when the line
-# is off, blue while it waits for a number, green when it is on, and amber while someone is ringing. A click opens the same menu as the
+# is off, in the theme's info colour while it waits for a number, its good colour when it is on, and its warning colour while someone is ringing. A click opens the same menu as the
 # menu bar item (Turn On, Turn Off, Pick up, Dial, Settings). The strip and the bar can each show it, or both, or neither.
 #
 # Called lwstrip: longwire is the Control Panel pane's prefix, and a pane with a longwire_draw would be taken for one that draws itself.
 
 strict
 
-app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.1
+app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.2
+# needs: control-panel/longwire
 command -v cs_module > /dev/null && cs_module lwstrip Longwire 1
 
 # Wherever the pane is (the module reads the node through the pane's functions).

@@ -81,6 +81,7 @@ and then dial and pick up entirely from the hibr desktop.
   ([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)), the pane and the switchboard app. Not yet tried: installing from those repositories on a clean machine.
 - Homebrew *(planned: M5)*; the default public switchboard and the project's registry live *(planned: M4)*
 - *Built:* `longwire` with no arguments, `longwire show` and `longwire watch` (no JSON); automatic choice of attach mode *(planned: M4)*
+- An address for the jack from the pane, static or from a DHCP server on the line, so that nobody runs `ip addr` *(planned: M4)*
 
 **M5: No privilege, more Unix.** Done when a user with no sudo anywhere joins a line with `longwire shell`.
 - A Homebrew formula, once the module builds on macOS; `longwire shell` (user namespaces); FreeBSD and OpenBSD tap and BPF splice; macOS BPF splice; documented invocations
@@ -97,7 +98,7 @@ and then dial and pick up entirely from the hibr desktop.
   TCC's assembler is verified), an optional AEGIS-256 suite, real path-MTU probing, and a proper end-to-end benchmark
 
 **M8: 1.0.** Done when an independent report has no open high-severity findings.
-- A formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto (X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 are cross-checked against other implementations now; ML-KEM is not) and a script that
+- A published security contact and a disclosure policy, with the project's public home; a longer safety phrase committed to before it is shown (today 48 bits, no commitment); a formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto (X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 are cross-checked against other implementations now; ML-KEM is not) and a script that
   fetches and verifies the vendored sources; fuzzing of the parsers the harness does not reach yet (the line operator's signed
   messages, a relay's second hop, the state files; what it does reach is in [ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md));
   timing tests; reproducible builds; an external review

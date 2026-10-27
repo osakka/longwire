@@ -1,0 +1,175 @@
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.2" "longwire manual"
+.SH NAME
+longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
+.SH SYNOPSIS
+.B longwire-switchboard
+.BI \-\-registry " HOST:PORT/KEY" | none
+.RI [ options ]
+.SH DESCRIPTION
+The switchboard is the one public piece of a longwire deployment.
+A node registers with it and is given a short number;
+when one node dials another, the switchboard tells each the other's public key and addresses so that the two can punch through their NATs and talk directly.
+After that the switchboard is not on the path: traffic never passes through it, and a call that is up survives the switchboard going down.
+.PP
+It sees that a node is online, its public address and port, who rings whom and when, and the names nodes chose to give it.
+It never sees a frame, a seed or a private key.
+.PP
+The engine does the mechanism (sessions, presence, introductions); this script is the policy: who may register, and whose ring may go through.
+.PP
+.B \-\-registry
+is required.
+A private switchboard says
+.B \-\-registry none
+and keeps its derived code.
+.SH OPTIONS
+.TP
+.BI \-\-listen " PORT|ADDR:PORT|[ADDR]:PORT"
+Where to listen, over UDP (default 1877).
+A bare port is IPv4 and IPv6 on any address;
+.I ADDR:PORT
+is IPv4 only;
+.I [ADDR]:PORT
+is IPv6 only; a comma separates several.
+The switchboard also listens on the next port up (1878) to answer the NAT-type check; let both through a firewall.
+.TP
+.BI \-\-tokens " FILE"
+Registration needs a token: one per line,
+.B TOKEN
+or
+.BR "TOKEN NUMBER" ,
+where the second form reserves that number for that token.
+A token is spent when it is used.
+A token is visible characters with no spaces, quotes or backslashes, and does not begin with
+.BR # .
+Lines that are blank or begin with
+.B #
+are kept and are never tokens.
+The file is rewritten whole beside itself and moved into place, so it must be in a directory the service can write.
+Without this option, registration is open.
+.TP
+.BI \-\-state " DIR"
+The state directory (default
+.IR ~/.longwire/switchboard ):
+the seed, the control socket,
+.I numbers.log
+and
+.IR names.log .
+.TP
+.BI \-\-per\-ip\-hour " N"
+Registrations per source per hour (default 20).
+A source is an IPv4 address or an IPv6 /64.
+.TP
+.BI \-\-rings\-per\-minute " N"
+Rings per caller to one callee per minute (default 6); a callee takes five times that from everyone.
+.TP
+.BI \-\-max\-nodes " N"
+How many node sessions the worker holds at once (default 1024, at most 65536).
+When they are all taken, a session that never registered gives way to a new one; a registered session never does.
+.TP
+.BI \-\-max\-numbers " N"
+The most numbers it will give out (default 100000).
+Each is a bundle of about 1.3 KB in memory and a line in
+.IR numbers.log .
+.TP
+.BI \-\-registry " HOST:PORT/KEY" "\fR | \fPnone"
+The registry of switchboard codes, which gives this switchboard its short code.
+.TP
+.B \-\-issue\-codes
+This switchboard is a registry: it gives codes to switchboards that register with it.
+.TP
+.BI \-\-public\-switchboard " KEY"
+On a registry: the switchboard (an
+.B lw1...
+address or hex) that is given the code +1.
+.TP
+.BI \-\-codes\-per\-ip\-day " N"
+On a registry: codes asked for per source per day (default 2).
+.TP
+.BI \-\-release\-after " TIME"
+How long a number may go unheard before it is released, and held back as long again (default 365d; a suffix of s, m, h or d; a bare number is days).
+Its owner coming back in that time gets the same number.
+.TP
+.BR \-\-caller\-id " " on | off
+Carry the names callers announced (default on).
+.TP
+.BR \-\-directory " " on | off
+Answer lookups for nodes that listed themselves (default on).
+A node appears in either only if it asked to.
+.TP
+.BI \-\-group " NAME|GID"
+Let that group use the control socket, mode 0660.
+The service uses the group
+.BR longwire .
+Members of the group can watch the switchboard; only the user it runs as can stop it or decide its registrations.
+.SH "RUNNING IT AS A SERVICE"
+The package ships
+.BR longwire-switchboard.service .
+Put the arguments in
+.I /etc/longwire/switchboard.conf
+as one line:
+.PP
+.nf
+.RS
+ARGS="\-\-listen 1877 \-\-registry none \-\-tokens /var/lib/longwire\-switchboard/tokens"
+.RE
+.fi
+.PP
+and enable it with
+.BR "systemctl enable \-\-now longwire\-switchboard" .
+The service runs as a transient user with no capabilities, no home, a system-call filter, a memory limit and
+.BR Restart=always .
+Its state, including its identity, is in
+.IR /var/lib/longwire\-switchboard .
+Its control socket is
+.IR /run/longwire\-switchboard/ctl .
+.PP
+On start it prints its full address,
+.BR lw1... ,
+which is what nodes put after the slash in
+.BR "\-\-switchboard HOST:PORT/KEY" .
+.SH FILES
+.TP
+.I SB_DIR/seed
+The switchboard's identity.
+Every node pins its address, so a lost seed means re-pointing every node.
+Back it up and keep it private.
+.TP
+.I SB_DIR/numbers.log
+.TQ
+.I SB_DIR/names.log
+.TQ
+.I SB_DIR/codes.log
+What the switchboard remembers: numbers, listed names, codes it has issued.
+.TP
+.I SB_DIR/ctl
+The control socket.
+.SH ENVIRONMENT
+.TP
+.B SB_DIR
+The state directory (the default of
+.BR \-\-state ).
+.TP
+.B LONGWIRE_MOD
+The module to load, when it is not on hibr's module path.
+.TP
+.B LW_SOCK
+The control socket.
+.SH SECURITY
+A switchboard on the internet is open to anyone who can send a UDP packet.
+It limits what a stranger can hold: sessions that never register give way, one registration is allowed every few seconds, dials are rationed, and the registry has an end.
+Open registration can still be used up to
+.B \-\-max\-numbers
+by anyone with enough addresses; for a switchboard that matters, use
+.BR \-\-tokens .
+See
+.BR longwire-security (7).
+.SH "SEE ALSO"
+.BR longwire (1),
+.BR longwire-profiles (5),
+.BR longwire-security (7)
+.PP
+.IR /usr/share/doc/longwire/SWITCHBOARD.md ,
+.IR /usr/share/doc/longwire/OPERATING.md
+.SH AUTHORS
+longwire is free software under the GNU General Public License, version 3 or later.

@@ -23,13 +23,14 @@ Network, Battery and Power use) and a `control-strip` kind.
 3. **The menu follows the state.** Off: the profile it would turn on, and **Turn On** (or "no connection set up yet" if there is
    none). On: the number, any ring to **Pick up**, each connection with its path and its rates, **Dial…**, **Turn Off**. **Longwire
    Settings…** opens the pane, always.
-4. **A Control Strip module, `control-strip/longwire`** (`lwstrip`): the telephone alone, dim when off, blue while waiting, green
-   when on, amber while ringing; a click opens the same menu. The strip and the bar can each show it, or both, or neither.
+4. **A Control Strip module, `control-strip/longwire`** (`lwstrip`): the telephone alone, coloured by the theme: dim when off, its info colour while waiting, its good colour
+   when on, its warning colour while ringing; a click opens the same menu. The strip and the bar can each show it, or both, or neither.
 5. **One switch**, *Longwire on the Menu Bar* in the pane, which Menu Bar Items also shows and turns. Off, the item is empty.
 6. **No second reader of the node.** The bar item and the strip read the node through the pane's own functions (its poll, its rates,
    its profile, Turn on, the ring dialog), so a number or a rate is worked out in one place. They are members of one catalogue
-   *bundle*, `bundles/longwire.json` (the catalogue's `longwire` in the `control-panel`, `menubar` and `control-strip` kinds), which is
-   how hibr groups Sound, Network, Bluetooth and Power, and they are absent on a desktop without the pane.
+   *bundle*, `bundles/longwire.json` (the catalogue's `longwire` in the `cli`, `control-panel`, `menubar` and `control-strip` kinds: the command the pane runs,
+   the pane, the item and the module), which is how hibr groups Sound, Network, Bluetooth and Power, and they are absent on a desktop without the pane.
+   Each also says what it `# needs:` (the pane the command; the item and the module the pane), so installing any one brings what it cannot work without.
 7. **Telephones that carry the state, where the glyph set has them.** Blit's icon font gets four colour icons (outline, dashed outline,
    filled, filled with ring waves: U+10001B to U+10001E, from Blit 0.2.44), named `GL[phoneoff]`, `GL[phonewait]`, `GL[phoneon]` and
    `GL[phonering]` in hibr's Blit glyph set once that release is on the machine. The bar item and the strip read those names: when a name

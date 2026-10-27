@@ -217,6 +217,7 @@ brand/                       the mark and wordmark
 docs/                        these documents
 control-panel/longwire.hibr the client's control panel pane, a catalogue entry of its own
 apps/switchboard.hibr       the switchboard application, a catalogue entry of its own
+man/                        the manual pages: longwire(1), longwire-switchboard(1), longwire-profiles(5), longwire-security(7)
 menubar/longwire.hibr       the telephone on the menu bar, with its menu and the ring that interrupts (ADR 0035)
 control-strip/longwire.hibr the same as a Control Strip module
 bundles/longwire.json       the catalogue bundle that installs the pane, the bar item and the strip module together

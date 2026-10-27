@@ -1,5 +1,7 @@
 # Threat model
 
+The plain-language version, with what has and has not been checked, is [SECURITY](SECURITY.md).
+
 What longwire defends against, what it does not, and what is still open. Designed-but-unbuilt defences carry
 `*(planned: M3)*`.
 
@@ -39,9 +41,11 @@ What longwire defends against, what it does not, and what is still open. Designe
   have decided to trust.
 - **The first call trusts the switchboard,** exactly as the first SSH connection trusts DNS. To remove even that,
   compare the six-word **safety phrase** both sides show. A number's key is pinned once a call is up, so from then on a
-  lying switchboard cannot substitute another. Dialing a full address (`lw1…`) rather than a number is supported.
+  lying switchboard cannot substitute another. The phrase is 48 bits with no commitment, and the caller sees it only once the call is connected,
+  so a switchboard that is itself the attacker can search for substitute keys that give matching words (of the order of 2^24 pairs): the phrase
+  raises the cost of that attack and does not make it impossible ([SECURITY](SECURITY.md#the-safety-phrase-honestly)). Dialing a full address (`lw1…`) rather than a number is supported.
 - **What the switchboard sees:** that you're online, your public address and port, which numbers ring which, and when.
-  On the default public switchboard, that's its operator, the longwire project. If that metadata matters, run your
+  On a public switchboard, that's whoever runs it. If that metadata matters, run your
   own switchboard; it's one more script in the same install (`longwire-switchboard`). See
   [SWITCHBOARD](SWITCHBOARD.md#what-it-sees).
 - **Out of scope for v1:** hiding *that* two sites talk (traffic analysis, padding, cover traffic), anonymity, and
@@ -50,8 +54,8 @@ What longwire defends against, what it does not, and what is still open. Designe
 ## Saved connections and the jack helper
 
 [ADR 0034](adr/0034-a-connection-is-a-profile.md). The profiles file (`~/.config/longwire/profiles`) holds registration **tokens**, so it is
-mode 0600 in a 0700 directory, a token is never put on a command line (standard input only), and `show` and the pane print only its
-length. A token is an invitation, not an identity: it lets one machine register once, and the seed is stored elsewhere and never enters
+mode 0600 in a 0700 directory, the Control Panel and `longwire profile token` take a token without putting it on a command line (standard input; the `token=` form of
+`profile set` and `up --token` do put it there), and `show` and the pane print only its length. A token is an invitation, not an identity: it lets one machine register once, and the seed is stored elsewhere and never enters
 the file. Anyone who can read your home directory can read your tokens, as they could read your SSH config.
 
 The one new privileged piece is `/usr/lib/longwire/jack`, run through `pkexec` (polkit asks for an administrator's password once per

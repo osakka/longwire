@@ -2,7 +2,7 @@
 
 **The rule: boring primitives, careful composition, no TLS.** longwire is efficient because of what it leaves out:
 no certificate chains, no ASN.1, no cipher negotiation, a 12-byte header. It is *not* efficient because of exotic
-primitives. Every primitive here is standardised, audited, constant-time C that compiles under TCC unchanged. The
+primitives. Every primitive here is standardised, widely used C (written by its authors to avoid timing leaks, though nobody has measured it as TCC compiles it) that compiles under TCC unchanged. The
 one new thing is how they're combined, and that combination must be formally analysed before 1.0
 ([ROADMAP](ROADMAP.md) M8). That analysis has not been done yet *(planned: M8)*.
 
@@ -155,8 +155,9 @@ supports the same `__asm__` barrier). The ML-KEM round trip was checked to agree
 
 - **The composition is ours.** Every primitive is standard, but the handshake above is a new composition and needs a
   Tamarin or ProVerif model, then an external review, before anyone relies on it *(planned: M8)*. The vendored
-  libraries have not been checked against known-answer vectors either *(planned: M8)*; their correctness rests on
-  upstream's own tests.
+  libraries have not been checked against published known-answer vectors *(planned: M8)*; their correctness rests on
+  upstream's own tests. X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519, as TCC builds them, agree with independent implementations
+  (Python's `hashlib` and `cryptography`) on 2,100 random cases (`tests/kat.sh`); ML-KEM has no second implementation to compare with here.
 - **Signatures are classical.** Admits and evictions use Ed25519. An eviction is accepted only inside a PQ-authenticated
   session from the member that signed it (on a line with an operator, from any member, carrying the operator's signature), but an *admit* travels in a ring, through the switchboard, and is checked by its
   signature alone: an attacker able to forge Ed25519 could get a node let in, unprompted, to a line it was never vouched

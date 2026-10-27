@@ -9,12 +9,13 @@
 # A call is shown while it is being set up and for a few seconds after, and then it is gone. Nothing here is written
 # to disk, and the window keeps no list of past calls: that is what the switchboard promises (docs/SWITCHBOARD.md).
 #
-# It reads the worker of the user who runs the desktop. A switchboard that runs as a service under another user cannot be
-# reached (docs/adr/0030-three-surfaces-one-engine.md), and the window says so instead of showing an empty board.
+# It reads the worker of the user who runs the desktop or, if there is none, a switchboard that runs as a service under another
+# user, which the group longwire lets you reach (docs/adr/0032-the-services-share-their-control-socket-with-a-group.md). If it
+# can reach neither, the window says so and how to join the group, instead of showing an empty board.
 
 strict
 
-app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.1
+app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.2
 # modules: longwire
 command -v dt_app > /dev/null && dt_app switchboard "Switchboard" 24 76 once "☎"
 

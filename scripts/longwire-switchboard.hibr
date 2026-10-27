@@ -26,7 +26,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.1
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.2
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -188,8 +188,9 @@ esac
 run lw key new "$SB_DIR/seed" > /dev/null
 run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" ${group:+--group "$group"} --release-after "$release_secs" --max-numbers "$max_numbers" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} > /dev/null
 addr=$(lw key address "$SB_DIR/seed")
-echo "switchboard  $addr   (give this full address to your nodes)"
-echo "listening    udp $listen    tokens: ${tokens:-open registration}"
+# on stderr, which hibr does not hold back: under a service these lines reach the journal when they are printed, not when a buffer fills
+echo "switchboard  $addr   (give this full address to your nodes)" >&2
+echo "listening    udp $listen    tokens: ${tokens:-open registration}" >&2
 trap 'lw stop > /dev/null 2>&1; exit 0' TERM INT
 
 exec 5</dev/longwire/events || exit 1

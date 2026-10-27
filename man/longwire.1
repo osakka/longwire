@@ -1,0 +1,451 @@
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.2" "longwire manual"
+.SH NAME
+longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
+.SH SYNOPSIS
+.B longwire
+.RI [ command " [" argument " ...]]"
+.br
+.B longwire on
+.RI [ profile ]
+.br
+.B longwire dial
+.I number
+.br
+.B longwire up
+.RI [ options ]
+.SH DESCRIPTION
+.B longwire
+stretches one Ethernet segment across the internet.
+You run it on each machine or at each site, dial a number, and the LANs become one subnet:
+ARP, DHCP, mDNS and everything else on a LAN work across the distance.
+Every node is equal; a client is also a server.
+A small rendezvous server, the
+.BR longwire-switchboard (1),
+gives each node its number and introduces two nodes that want to talk.
+It then steps aside, and the traffic goes directly between them, end-to-end encrypted.
+.PP
+The node never runs as root.
+Bridging a whole site needs one capability, granted once by the service manager;
+joining a single Linux host needs one tap device it owns, which
+.B longwire jack
+creates, asking for a password when it has to be made.
+.PP
+.B longwire
+is a script for the hibr shell (the engine is the hibr module
+.IR longwire.so ).
+It has a graphical side as well: the Control Panel pane
+.B Longwire
+and a telephone on the menu bar do everything described here.
+See
+.IR /usr/share/doc/longwire/DESKTOP.md .
+.PP
+With no command,
+.B longwire
+turns the node on from the default profile if it is off, then says how it is.
+.SH COMMANDS
+.SS Turning it on and off
+.TP
+.BR on " [" \fIprofile\fR ]
+Start the node in the background from a saved profile (the default one if none is named),
+make the jack if it is missing, and say the number the switchboard gave.
+Saying it again reports that it is already on.
+.TP
+.B off
+Stop the node.
+Same as
+.BR down .
+.TP
+.BR up " [" \fIoptions\fR ]
+Run the node in the foreground, printing what happens as sentences.
+This is what a service unit runs.
+With no switchboard named it uses the default profile;
+.B up \-\-profile
+.I name
+uses a named one; anything on the command line overrides the profile.
+See
+.BR OPTIONS .
+.TP
+.B show
+How the node is, in a few lines and no JSON:
+your number, the switchboard, who is connected and what they have carried, the line, and any ringing call with its safety phrase.
+.TP
+.B status
+What the node is doing, as JSON.
+.TP
+.B watch
+The node's events as sentences, as they happen.
+It only listens: Ctrl-C leaves and the node goes on.
+.TP
+.B down
+Stop the node.
+.SS Calls
+.TP
+.BI dial " number"
+Call a number such as
+.BR 447-120-933 ,
+a full number such as
+.BR "'+0731042 447-120-933'" ,
+(quoted: it is one argument), or a full address
+.RB ( lw1... ).
+A full address or a name is looked up in the switchboard's directory.
+.TP
+.BR pickup " [" \fIid\fR ]
+Answer the ringing call.
+.I id
+is the call id from the ring, needed only when several rings are waiting.
+.TP
+.BR reject " [" \fIid\fR ]
+Decline the ringing call.
+.TP
+.BR hangup " [" \fInumber\fR ]
+With no number: end every call and leave the line.
+With a number: end just that call.
+.TP
+.BR answer " [" ask | known | auto | never ]
+Show, or change, how the running node answers rings.
+See
+.BR "ANSWER POLICY" .
+.TP
+.BI who " number"
+What this node knows of a number: its key id and full address, whether it is pinned, on your line, connected (and by what path), and the safety phrase of a live call.
+.TP
+.BI who " name"
+Ask the switchboard's directory for listed nodes whose name contains the text, or that hold a full address
+.RB ( lw1... ).
+.TP
+.BI unpin " number"
+Forget a number's key.
+The next call from it is a first call again.
+.SS The line
+.TP
+.B peers
+The line you are on: its members and which of them are connected (JSON).
+.TP
+.BI evict " number"
+Remove a member from the line for good and change the line key.
+On a line with an operator only the operator evicts: use
+.BR revoke .
+.TP
+.BI revoke " eviction"
+Carry the operator's signed eviction (hex, or a file holding it) to the line.
+.TP
+.BI "operator new" " file"
+Make an operator's key; the file is its seed.
+Keep it offline.
+.TP
+.BI "operator authority" " file"
+Show an operator key's public key.
+.TP
+.BI "operator admit" " file lineid node"
+Sign an admit for a node (its
+.B lw1...
+address or key id) on the line
+.IR lineid .
+.TP
+.BI "operator evict" " file lineid node"
+Sign an eviction.
+.SS Saved connections
+.TP
+.B profile list
+The profiles; the default one is marked with an asterisk.
+.TP
+.BR "profile show" " [" \fIname\fR ]
+A profile's fields.
+The token is shown only as its length.
+.TP
+.BI "profile set" " name key" = value " ..."
+Create or change a profile.
+The keys are
+.BR switchboard ,
+.BR token ,
+.BR attach " (" jack " or " splice ),
+.BR interface ,
+.BR name ,
+.BR listed " (" yes " or " no ),
+and
+.BR answer .
+An empty value removes the field.
+The first profile you make is the default.
+.TP
+.BI "profile token" " name"
+Set the token from standard input, so that it is never on a command line.
+.TP
+.BI "profile default" " name"
+Make a profile the default.
+.TP
+.BI "profile remove" " name"
+Delete a profile.
+.TP
+.BR jack " [" \fItap\fR ]
+Make the tap device a single machine attaches to
+.RB ( lw0
+to
+.BR lw99 ,
+.B lw0
+by default) and give it to you.
+A small root helper does it through polkit, which asks for a password.
+The device does not survive a restart, so it is asked for again then.
+.B on
+does this by itself when the jack is missing.
+.TP
+.B setup splice \fInic\fR
+.TQ
+.B setup jack \fR[\fItap\fR]
+Print the one-time privileged step for an attach mode, to run by hand.
+.SS Identity
+.TP
+.B id
+Your key id (hex).
+.TP
+.B address
+Your full address
+.RB ( lw1... ).
+.TP
+.B bundle
+Your public bundle (hex), for
+.BR \-\-peer .
+.TP
+.B key export
+Print the identity as 33 words (32 for the seed and one of checksum).
+It prints to the terminal only.
+.TP
+.B key import
+Read the 33 words on standard input, check the checksum, and restore the identity.
+.SH OPTIONS
+These are the options of
+.BR up .
+The engine takes the ones not listed as handled by the script.
+.TP
+.BI \-\-profile " name"
+Use a saved profile.
+.TP
+.BI \-\-switchboard " HOST:PORT/KEY"
+The switchboard to register with.
+.I KEY
+is its full address
+.RB ( lw1... )
+or 64 hex digits.
+.TP
+.BI \-\-token " T"
+The registration token, for a switchboard that requires one.
+.TP
+.BI \-\-name " TEXT"
+Announce this name to the nodes you call, through a switchboard that carries names.
+It is a claim, never proof.
+.TP
+.B \-\-listed
+List the name and number in the switchboard's directory.
+.TP
+.BR \-\-answer " " ask | known | auto | never
+The answer policy.
+The default is
+.BR ask .
+.TP
+.BI \-\-splice " NIC"
+Attach to a LAN: frames go straight on that NIC.
+Needs
+.B CAP_NET_RAW
+once.
+.TP
+.BI \-\-site\-key " FILE"
+The secret shared by every splice box on one LAN segment, 64 hex digits.
+.TP
+.BI \-\-jack " TAP"
+Attach a tap device you own.
+.TP
+.BI \-\-sock\-port " LOCAL:PEER"
+Frames as datagrams on a Unix socket: for tests.
+.TP
+.BI \-\-listen " [ADDR:]PORT"
+The UDP address to listen on.
+A bare port is IPv4 and IPv6 on any address;
+.BI [ ADDR ] :PORT
+is IPv6; a comma separates several.
+.TP
+.BI \-\-peer " BUNDLE[@HOST:PORT]"
+A peer known by its bundle file.
+Used without a switchboard.
+.TP
+.BI \-\-authority " KEY"
+Found a line run by the operator whose public key this is.
+.TP
+.BI \-\-admit " ADMIT"
+The operator's admit for this node (hex, or a file).
+.TP
+.BR \-\-relay " " yes | no | auto
+Relay for members of your line;
+.B auto
+only when this node has a public address.
+.TP
+.BR \-\-nat\-pmp " " on | off
+Ask the home router to keep a port open (default on).
+.TP
+.BI \-\-direct\-retry " S"
+How often a relayed peer tries for a direct path.
+.TP
+.BI \-\-keepalive " S" "\fR, \fP" \-\-rekey " S"
+Keepalive (25) and rekey (120) intervals, in seconds.
+.TP
+.BI \-\-sb\-rekey " S"
+The rekey interval of a switchboard session (600).
+.TP
+.B \-\-cand\-loopback
+Offer 127.x as a call candidate: tests, and two nodes on one host.
+.TP
+.BI \-\-seed " FILE" "\fR, \fP" \-\-sock " PATH" "\fR, \fP" \-\-state " DIR"
+Where the identity, the control socket and the pins live.
+.TP
+.BI \-\-group " NAME|GID"
+Give the control socket to that group at mode 0660 (the services use the group
+.BR longwire ).
+.TP
+.BI \-\-maxpeers " N"
+How many peers to hold (default 32).
+.SH "ANSWER POLICY"
+.TP
+.B ask
+Every ring waits for
+.B longwire pickup
+or
+.BR "longwire reject" .
+This is the default.
+.TP
+.B known
+Numbers you have been connected to before are answered; the rest wait for you.
+.TP
+.B auto
+Anyone is answered.
+For headless machines you have decided to trust.
+.TP
+.B never
+Every ring is refused.
+.PP
+A node vouched for by a member of your line, or holding the operator's admit,
+is answered under every policy except
+.BR never .
+.PP
+Both ends show the same six-word
+.IR "safety phrase" :
+the person called sees it when the phone rings, the caller when the call connects.
+Compare it on another channel as soon as you are connected, and hang up at once if the words differ.
+It is short (48 bits); see
+.BR longwire-security (7).
+.SH FILES
+.TP
+.I ~/.longwire/seed
+Your identity: 32 bytes, mode 0600.
+It is your number; back it up
+.RB ( "longwire key export" ).
+.TP
+.I ~/.longwire/ctl
+The control socket of the running node.
+.TP
+.I ~/.longwire/known
+The numbers whose keys you have pinned.
+.TP
+.I ~/.longwire/answer
+The current answer policy.
+.TP
+.I ~/.longwire/log
+What the background node (\fBlongwire on\fP) said.
+.TP
+.I ~/.config/longwire/profiles
+Saved connections.
+Mode 0600, because it holds tokens.
+See
+.BR longwire-profiles (5).
+.TP
+.I /usr/lib/longwire/jack
+The root helper that makes the tap device, run through polkit.
+.TP
+.I /etc/longwire/NIC.conf
+Arguments of the service
+.BR longwire@NIC.service .
+.SH ENVIRONMENT
+.TP
+.B LW_DIR
+The directory of the identity and state (default
+.IR ~/.longwire ).
+.TP
+.B LW_SEED
+The identity file (default
+.IR $LW_DIR/seed ).
+.TP
+.B LW_SOCK
+The control socket (default
+.IR $LW_DIR/ctl ).
+To use a service node:
+.BR LW_SOCK=/run/longwire/eth0/ctl .
+.TP
+.B LW_CONF
+The directory of the profiles file (default
+.IR ${XDG_CONFIG_HOME:-~/.config}/longwire ).
+.TP
+.B LONGWIRE_MOD
+The module to load, when it is not on hibr's module path.
+.TP
+.B LONGWIRE_HIBR
+The hibr executable that
+.B on
+starts (default
+.BR hibr ).
+.TP
+.B LONGWIRE_JACK
+The jack helper to run.
+.SH "EXIT STATUS"
+.TP
+.B 0
+Success.
+.TP
+.B 1
+The command failed; the reason is on standard error.
+.TP
+.B 2
+A usage error.
+.SH EXAMPLES
+Save a connection and turn it on in the background:
+.PP
+.nf
+.RS
+longwire profile set home switchboard=203.0.113.7:1877/lw1q7m...k2a \e
+        token=5fe1c0ab attach=jack interface=lw0
+longwire on
+.RE
+.fi
+.PP
+Call another node, and answer on the other end:
+.PP
+.nf
+.RS
+longwire dial 312-884-076
+longwire pickup
+.RE
+.fi
+.PP
+Watch the node narrate itself:
+.PP
+.nf
+.RS
+longwire watch
+.RE
+.fi
+.SH SECURITY
+The handshake combines X25519 with ML-KEM-768, so a quantum computer would have to break ML-KEM-768 as well as X25519 to read recorded traffic;
+the data is ChaCha20-Poly1305 with keys renewed every two minutes.
+The composition has not been formally analysed or independently reviewed, and the Ed25519 signatures that vouch for line membership are not post-quantum.
+See
+.BR longwire-security (7).
+.SH "SEE ALSO"
+.BR longwire-switchboard (1),
+.BR longwire-profiles (5),
+.BR longwire-security (7)
+.PP
+.IR /usr/share/doc/longwire/ :
+QUICKSTART.md, DESKTOP.md, OPERATING.md, SECURITY.md, TROUBLESHOOTING.md, CLI.md
+.SH BUGS
+The jack (a real tap device) and real wide-area links have not been tested by the author.
+The graphical items have been tested against stubs and the desktop's own code, not drawn on a real screen.
+Choosing the attach mode automatically is not built.
+.SH AUTHORS
+longwire is free software under the GNU General Public License, version 3 or later.

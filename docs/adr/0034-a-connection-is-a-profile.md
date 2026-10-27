@@ -19,8 +19,10 @@ make its own tap device by hand (`ip tuntap …` as root), which a person using 
    because it holds tokens. `longwire profile list | show | set | token | default | remove` read and rewrite it whole (a comment
    in the file is not kept). The first profile is the default. The command, the Control Panel pane and the menu bar item all read
    this one file; none keeps a second copy of a setting.
-2. **The token is never on a command line.** `profile token NAME` reads it from standard input, `show` prints only its length,
-   and the pane passes it by a pipe from a masked dialog. (A command line is visible to every user in the process list.) A
+2. **The token can be kept off the command line.** `profile token NAME` reads it from standard input, `show` prints only its length,
+   and the pane passes it by a pipe from a masked dialog. (A command line is visible to every user in the process list; the `token=` form of
+   `profile set` and `up --token` do put it there, so the commands that do not are the ones to use. A node started from a profile does not
+   either: it reads the file in-process.) A
    token is only needed the first time a machine registers; after that the switchboard knows its key, and it can be removed.
 3. **`longwire on [PROFILE]` runs the node in the background** and says the number it got, or why not (the tail of its log). `off` is
    `down`. `up` with no switchboard named uses the default profile; `up --profile NAME` a named one; anything on the command

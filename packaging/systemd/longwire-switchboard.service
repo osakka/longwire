@@ -3,8 +3,8 @@
 #     ARGS="--listen 1877 --registry none"
 # then   systemctl enable --now longwire-switchboard
 # The script comes from the catalogue, for the machine:  sudo catalogue --system install cli/longwire-switchboard
-# This is the service that faces the internet. Restart=always: a member of the group can stop the worker over its socket (it exits
-# cleanly), and that must only ever be a bounce; `systemctl stop` still stops it. No AF_NETLINK: listing interface addresses is
+# This is the service that faces the internet. Restart=always: whatever makes the worker exit (a crash, a kill) must only ever be a bounce; `systemctl stop` still
+# stops it, and a member of the group cannot stop the worker over its socket (only the user it runs as can). No AF_NETLINK: listing interface addresses is
 # for a node's candidates, and a switchboard does without. The system-call filter is systemd's @system-service, and every call
 # a node and a switchboard made in a traced run is in it (docs/adr/0033); a call outside it fails with EPERM instead of killing
 # the service. MemoryDenyWriteExecute is not set: nothing here shows hibr runs without writable code pages. MemoryMax=1G suits the

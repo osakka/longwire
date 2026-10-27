@@ -47,6 +47,7 @@ check: all lint
 	sh tests/group.sh
 	sh tests/profile.sh
 	sh tests/bar.sh
+	sh tests/man.sh
 	sh tests/fuzz.sh
 	sh tests/kat.sh
 	sh tests/start.sh
@@ -57,7 +58,8 @@ check: all lint
 # scripts are not installed: they come from the catalogue (docs/adr/0028).
 install: all
 	install -d $(DESTDIR)$(PREFIX)/lib/hibr $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/lib/systemd/system $(DESTDIR)$(PREFIX)/lib/sysusers.d \
-		$(DESTDIR)$(PREFIX)/lib/longwire $(DESTDIR)$(PREFIX)/share/polkit-1/actions $(DESTDIR)$(PREFIX)/share/doc/longwire
+		$(DESTDIR)$(PREFIX)/lib/longwire $(DESTDIR)$(PREFIX)/share/polkit-1/actions $(DESTDIR)$(PREFIX)/share/doc/longwire \
+		$(DESTDIR)$(PREFIX)/share/man/man1 $(DESTDIR)$(PREFIX)/share/man/man5 $(DESTDIR)$(PREFIX)/share/man/man7
 	install -m 755 $(B)/longwire.so $(DESTDIR)$(PREFIX)/lib/hibr/longwire.so
 	install -m 755 packaging/launcher.sh $(DESTDIR)$(PREFIX)/bin/longwire
 	install -m 755 packaging/launcher.sh $(DESTDIR)$(PREFIX)/bin/longwire-switchboard
@@ -69,6 +71,8 @@ install: all
 	sed -e 's|/usr/lib/longwire/jack|$(PREFIX)/lib/longwire/jack|' packaging/org.longwire.jack.policy \
 		> $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.jack.policy && chmod 644 $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.jack.policy
 	install -m 644 README.md COPYING CHANGELOG.md docs/*.md $(DESTDIR)$(PREFIX)/share/doc/longwire/
+	for s in 1 5 7; do for p in man/*.$$s; do \
+		gzip -9n < $$p > $(DESTDIR)$(PREFIX)/share/man/man$$s/$$(basename $$p).gz && chmod 644 $(DESTDIR)$(PREFIX)/share/man/man$$s/$$(basename $$p).gz; done; done
 
 # Packages, into build/pkg: the deb first, and the rpm and the pacman package from the deb's own files.
 packages: all

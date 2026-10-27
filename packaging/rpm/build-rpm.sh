@@ -75,6 +75,10 @@ echo "longwire: (add --system as root to install them for the whole machine and 
 %dir /usr/lib/longwire
 /usr/lib/longwire/jack
 /usr/share/polkit-1/actions/org.longwire.jack.policy
+/usr/share/man/man1/longwire.1.gz
+/usr/share/man/man1/longwire-switchboard.1.gz
+/usr/share/man/man5/longwire-profiles.5.gz
+/usr/share/man/man7/longwire-security.7.gz
 %dir /usr/share/doc/longwire
 %license /usr/share/doc/longwire/COPYING
 %doc /usr/share/doc/longwire/*.md

@@ -27,3 +27,11 @@ member ([0022](0022-lines-form-by-vouching.md)).
 ---
 
 [← decisions](README.md)
+
+## A limit of the safety phrase, found later
+
+The phrase is six words from a list of 256 (48 bits of a hash of the two key ids) with no commitment before it is shown, and the caller sees it only
+when the call connects, after the callee has picked up. A switchboard that is itself the attacker chooses both substitute keys and needs only a
+pair that gives the same words: a search of the order of 2^24 key pairs. The phrase therefore catches everyone else, and a switchboard that does not
+do that work, but does not rule out one that does. It is recorded in the [threat model](../THREAT-MODEL.md) and [SECURITY](../SECURITY.md#the-safety-phrase-honestly);
+a longer phrase committed to before it is shown is planned *(planned: M8)*.

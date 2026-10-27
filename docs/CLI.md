@@ -1,7 +1,7 @@
 # Commands
 
-**Principle: you dial, it works.** There are no config files, and the only flags you need are the ones that say where
-your switchboard is and how this machine attaches to its LAN.
+**Principle: you dial, it works.** There is nothing to write by hand: the only things you ever say are where your switchboard is and how this
+machine attaches to its LAN, and you say them once, in the Control Panel or in a saved profile ([below](#profiles)).
 
 `longwire` is the node script (component 2) and `longwire-switchboard` is the switchboard script (component 1). Both
 are hibr scripts built on the module's `lw` builtin (component 3), which your own scripts can use too

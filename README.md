@@ -34,10 +34,12 @@ then `catalogue install cli/longwire`; or run `hibr scripts/longwire.hibr` with 
   encrypted, and move to a direct path as soon as one exists.
 - **It never runs as root.** Bridging a whole site needs one capability, granted once by the service manager and
   dropped as soon as the network port is open. Joining a single Linux host needs one tap device you own, created once.
-- **It's quantum-safe.** The handshake is hybrid X25519 + ML-KEM-768, the data is ChaCha20-Poly1305, and keys rotate
-  every two minutes. The composition has not yet been formally analysed *(planned: M8)*.
-- **It's tiny, and native to hibr.** The engine is plain C99, built with **TCC**, with vendored audited
-  crypto and nothing but libc. Everything you see and touch is a hibr script.
+- **Its key exchange is quantum-resistant.** The handshake is hybrid X25519 + ML-KEM-768, so a quantum computer would have to break ML-KEM-768 as
+  well as X25519 to read traffic recorded today; the data is ChaCha20-Poly1305 and keys rotate every two minutes. The signatures that vouch for line membership
+  (Ed25519) are not post-quantum, the handshake has had no formal analysis or outside review *(planned: M8)*, and none of this is a claim to be
+  "ultra safe": [SECURITY](docs/SECURITY.md) says exactly what is and is not protected and checked.
+- **It's tiny, and native to hibr.** The engine is plain C99, built with **TCC**, with vendored, widely used crypto (Monocypher and
+  PQClean's ML-KEM-768) and nothing but libc. Everything you see and touch is a hibr script.
 
 ## Three components
 
@@ -60,6 +62,17 @@ reuse it later through JNI. That app will be a fourth piece *(planned: M6)*. Tod
 | **shell** | one Linux user, no privilege at all | none (user namespaces) | A shell whose network *is* the line *(planned: M5)* |
 | **member** | phones, laptops on macOS and Windows | the OS's VPN prompt | longwire acts as an Ethernet host in userspace, so the device gets a real DHCP lease on the far LAN *(planned: M6)* |
 
+## Using it
+
+| | |
+|---|---|
+| [QUICKSTART](docs/QUICKSTART.md) | two machines on one line in ten minutes, on the desktop or the command line |
+| [DESKTOP](docs/DESKTOP.md) | the graphical side: the Control Panel pane, the menu bar telephone, the Control Strip, the Switchboard window |
+| [OPERATING](docs/OPERATING.md) | run a switchboard, run a site as a service, back up your identity, upgrade |
+| [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | a message or a symptom, its cause, and the fix |
+| [SECURITY](docs/SECURITY.md) | what longwire protects, what "quantum-safe" does and does not mean here, what has been checked, what has not |
+| manual pages | `man longwire`, `man longwire-switchboard`, `man longwire-profiles`, `man longwire-security` |
+
 ## Documents
 
 | | |
@@ -78,7 +91,8 @@ reuse it later through JNI. That app will be a fourth piece *(planned: M6)*. Tod
 
 ## Status
 
-**M0, M1, M2 and M3 are built** and tested end to end, built with TCC and nothing else: the
+**M0 to M3 are built, and most of M4 (the desktop and distribution):** profiles, the Control Panel pane, the menu bar telephone and the Control Strip, the
+packages and the catalogue entries are published. **M0, M1, M2 and M3** are built with TCC and nothing else and tested end to end: the
 handshake and its cookies, the switchboard, calls through simulated NATs, splice carrying real ping, ARP, TCP and
 broadcasts between LANs that are one subnet, a second box on a segment taking over when the first is killed, lines of
 up to 16 sites that join by number (with an operator, if the line has one), build their own mesh with no prompt, evict a member, and heal after a restart, and nodes behind strict NATs, relays or IPv6. The jack port, real

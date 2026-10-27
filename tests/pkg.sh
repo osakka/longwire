@@ -29,7 +29,8 @@ bsdtar -xf "$ARC" -C "$T/arch" 2> /dev/null
 # --- what is in them
 for f in usr/bin/longwire usr/bin/longwire-switchboard usr/lib/hibr/longwire.so \
 	 usr/lib/systemd/system/longwire-switchboard.service usr/lib/systemd/system/longwire@.service usr/lib/sysusers.d/longwire.conf \
-	 usr/lib/longwire/jack usr/share/polkit-1/actions/org.longwire.jack.policy; do
+	 usr/lib/longwire/jack usr/share/polkit-1/actions/org.longwire.jack.policy \
+	 usr/share/man/man1/longwire.1.gz usr/share/man/man1/longwire-switchboard.1.gz usr/share/man/man5/longwire-profiles.5.gz usr/share/man/man7/longwire-security.7.gz; do
 	[ -e "$T/deb/$f" ] && [ -e "$T/rpm/$f" ] && [ -e "$T/arch/$f" ]; check $? "all three hold $f"
 done
 ! find "$T/deb" "$T/rpm" "$T/arch" -name '*.hibr' | grep -q .; check $? "none holds a script: those come from the catalogue"

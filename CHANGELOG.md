@@ -3,6 +3,19 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.2
+
+- **Documentation, properly.** Four manual pages (`man longwire`, `longwire-switchboard`, `longwire-profiles`, `longwire-security`) installed with the package, and five guides:
+  [QUICKSTART](docs/QUICKSTART.md) (two machines on one line, on the desktop or the command line), [DESKTOP](docs/DESKTOP.md) (the pane, the menu bar telephone, the strip, the Switchboard window),
+  [OPERATING](docs/OPERATING.md) (run a switchboard or a site, identity and backups, upgrades), [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) (a message or a symptom, its cause, the fix) and
+  [SECURITY](docs/SECURITY.md): the plain-language account of what longwire protects, which parts of "quantum-safe" are true (the key exchange, the cipher, the handshake's authentication)
+  and which are not (the Ed25519 signatures that vouch for line membership), what has been checked and what has not. It deliberately does not say "ultra safe". The manual pages are
+  linted and checked against the scripts by `tests/man.sh`, so they cannot fall behind the commands. The README no longer says "quantum-safe" without saying which part, nor "audited" of
+  code whose audits are not ours.
+- **Fixes found while writing them.** The bundle `longwire` left out the command the pane runs, so the pane could not have turned anything on from a bundle install; the pane now `# needs:`
+  `cli/longwire`, the bar item and the strip module need the pane, and the bundle lists all four. The switchboard script printed its address on standard output, which hibr holds back when it is
+  redirected, so under a service it might not reach the journal; it is on standard error now. A stale comment in the Switchboard window said a service switchboard cannot be reached.
+
 ## 0.5.1
 
 *Published:* the catalogue (`hibr-apps` `11a949f`) and the packages (`hibr-apt` `bb26450`, `hibr-rpm` `27c0f38`, `hibr-arch` `bb804c3`), each of the last three in one commit
@@ -16,7 +29,7 @@ catalogue and the three package repositories (the git history of those repositor
 - **Longwire on the menu bar and the Control Strip** ([ADR 0035](docs/adr/0035-longwire-on-the-menu-bar.md)). A telephone on the bar that says whether the line
   is off (`☎ ○`), waiting for the switchboard (`☎ ◌`), on (`☎ ●`, with the number of people connected) or ringing (`☎ ◉ 447-120-933`), a **ring that
   interrupts** (a note, and the dialog with the caller and the six-word safety phrase, once per call), and a menu that follows the state: Turn
-  On / Turn Off, Pick up, Dial, who is connected with their rates, and Settings. A Control Strip telephone that is dim, blue, green or amber. One switch for
+  On / Turn Off, Pick up, Dial, who is connected with their rates, and Settings. A Control Strip telephone coloured by the theme (dim, info, good or warning). One switch for
   it in the pane (and in Menu Bar Items). All three are one catalogue bundle, `longwire`. Where a glyph set has telephones that carry the state (Blit's, from Blit
   0.2.44: outline, dashed, filled, and with ring waves), the item uses them; otherwise it uses characters. Tested against real nodes with the desktop's functions
   stubbed (`tests/bar.sh`), and the files load under hibr's own desktop code. Not tested: how it is drawn.
@@ -34,7 +47,7 @@ catalogue and the three package repositories (the git history of those repositor
 - **A connection is a saved profile, and the Control Panel turns it on** ([ADR 0034](docs/adr/0034-a-connection-is-a-profile.md)). 0.4.0
   left you typing the switchboard and token each time, in a command that sat in the foreground, with a pane that had no token field and
   a tap device you made by hand as root. Now: `longwire profile set home switchboard=… token=… attach=jack` (one 0600 file the command, the
-  pane and the menu bar share; the token is never on a command line), `longwire on` / `off` (in the background, saying the number it got),
+  pane and the menu bar share; the token can be kept off a command line), `longwire on` / `off` (in the background, saying the number it got),
   `longwire up` with nothing said using the default profile, `longwire jack` (a small root helper through polkit makes the tap after one
   password; `on` does it for you), and in the pane a profile picker, a token field, the rest of the form, and **Turn on / Turn off**, which
   makes the jack and asks for the password in the desktop. Tested: the commands against a real switchboard that wants a token

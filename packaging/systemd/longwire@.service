@@ -6,7 +6,7 @@
 # are two identities. The script is read from the machine's scope only: this service's own writable home is never searched.
 # The control socket is /run/longwire/%i/ctl, mode 0660, group longwire: the people in that group (usermod -aG longwire NAME) can
 # dial, hang up and watch this node from the hibr desktop or the command line, and read no key (docs/adr/0032).
-# Restart=always: a member of the group can stop the worker over its socket (it exits cleanly), and that must only be a bounce.
+# Restart=always: whatever makes the worker exit must only be a bounce; a member of the group cannot stop it over the socket, only the user it runs as.
 # The hardening is the switchboard unit's (see there), except ProcSubset=pid: the node reads /proc/net/route to find its gateway. LimitCORE=0:
 # a crash leaves no file holding the seed. the system-call filter is @system-service, with EPERM for what is outside it.
 # CAP_NET_RAW opens the packet socket and is the only privilege; `lw start` clears every capability the moment it is open.

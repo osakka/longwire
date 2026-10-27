@@ -1,0 +1,103 @@
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.TH LONGWIRE-SECURITY 7 "October 2026" "longwire 0.5.2" "longwire manual"
+.SH NAME
+longwire-security \- what longwire protects, what it does not, and how far it has been checked
+.SH DESCRIPTION
+.B longwire
+is designed to be hard to attack.
+Its key exchange is built so that a quantum computer would have to break ML-KEM-768 as well as X25519 to read traffic recorded today.
+It runs without root, lets in only the nodes you picked up or that a member of your line vouched for (or the line's operator signed for), and was attacked on purpose before release, with the flaws found fixed.
+.PP
+It is
+.B not
+"ultra safe", and should not be called that.
+It has had no independent security review.
+Its handshake is a new combination of standard parts that has not been formally analysed.
+The list of what has not been checked is below.
+.SH "WHAT IT PROTECTS"
+.TP
+.B Confidentiality and integrity
+Every frame is sealed with ChaCha20-Poly1305 (256-bit keys).
+A packet that fails authentication is dropped; a replayed packet is dropped.
+.TP
+.B Forward secrecy
+The traffic keys are made fresh by each handshake, renewed every two minutes, and erased.
+.TP
+.B Admission
+The first call from a number asks you, under the default answer policy.
+A machine joins a line only if you picked it up, or a member vouched for it; on a line with an operator, only the operator's signature admits.
+Every member is then trusted like a host on your LAN.
+.TP
+.B Identity
+Each end proves it holds the key that matches its number.
+After the first call the key is pinned: a different key behind the same number drops the call and warns
+.RB ( "KEY CHANGED" ).
+.TP
+.B The safety phrase
+Both ends show the same six words, derived from both keys.
+The person called sees them on the ring, the caller when the call connects: compare them on another channel at once, and hang up if they differ.
+A match is good evidence that nobody is between you.
+The phrase is 48 bits with no commitment, so a switchboard that is itself the attacker has a search to do, of the order of 2^24 key pairs, but not an impossible one.
+.TP
+.B A hostile switchboard
+It never has a frame, a seed or a private key, and it cannot make you accept a call.
+On a first call you have never made, it can give a node the wrong key for a number; once a key is pinned, or the phrase compared, it cannot.
+.TP
+.B Floods
+A packet that does not prove it knows the receiver's key is dropped before any costly work.
+.SH "QUANTUM-SAFE: WHICH PARTS"
+.TP
+.B Yes
+Confidentiality of recorded traffic, forward secrecy, hiding who is calling, and authenticating the two ends of the handshake.
+The handshake combines X25519 with ML-KEM-768 (FIPS 203); an attacker must break both.
+The cipher's 256-bit keys keep 128 bits against the best known quantum attack.
+.TP
+.B No
+The Ed25519 signatures that vouch for line membership (admits, evictions, an operator's word).
+A future quantum computer could forge them.
+A forged admit would get a stranger let in to a line without a prompt: it would be a member, on your LAN, able to do what any LAN host can, though not to read sessions between other members.
+A post-quantum signature is a later option.
+.SH "HOW IT HAS BEEN CHECKED"
+A test suite that builds real networks with simulated NATs;
+an attack on the switchboard by three readers, which found and fixed real flaws;
+a fuzzer that runs the engine under TCC's bounds checker;
+and a comparison of X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519, as built, with independent implementations.
+.SH "WHAT HAS NOT BEEN CHECKED"
+No independent review or audit.
+No formal proof of the handshake.
+ML-KEM has not been compared with a second implementation.
+Constant-time behaviour, as the code is compiled, is unmeasured.
+The engine is written in C.
+A real tap device, real routers, the wide-area internet, the services under a live systemd and a clean install from the packages have not been tried by the author.
+.SH "WHAT IT DOES NOT PROTECT"
+Traffic analysis: that two addresses talk, and when.
+A compromised endpoint.
+A line member you should not trust: a call is a cable into your LAN.
+What a switchboard learns: that you are online, your public address, who rings whom, and the names you gave it.
+Floods of plain traffic.
+Loss of the seed: it is your number.
+.SH "USING IT SAFELY"
+Compare the safety phrase on a first call.
+Keep the answer policy at
+.B ask
+or
+.BR known .
+Back up the seed as 33 words
+.RB ( "longwire key export" ).
+Run your own switchboard and hand out tokens.
+Set a token with
+.BR "longwire profile token" ,
+not on a command line.
+Vouch for few machines.
+Evict a lost device.
+Put only trusted people in the group
+.BR longwire .
+Keep the packages and the scripts updated.
+.SH "SEE ALSO"
+.BR longwire (1),
+.BR longwire-switchboard (1),
+.BR longwire-profiles (5)
+.PP
+.IR /usr/share/doc/longwire/SECURITY.md ,
+.IR CRYPTO.md ,
+.IR THREAT-MODEL.md

@@ -1,0 +1,96 @@
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.2" "longwire manual"
+.SH NAME
+longwire-profiles \- saved longwire connections
+.SH SYNOPSIS
+.I ~/.config/longwire/profiles
+.SH DESCRIPTION
+A profile is a saved connection: which switchboard, the token it asked for, how to attach, and so on.
+The file holds all of them.
+.BR longwire (1),
+the Control Panel pane and the menu bar item all read it, so a setting is made in one place.
+.PP
+Because it holds tokens, the directory is mode 0700 and the file mode 0600.
+A token is an invitation to register once, not an identity; the identity (the seed) is kept elsewhere and never enters this file.
+Anyone who can read your home directory can read your tokens.
+.PP
+The file can be edited by hand.
+.B longwire profile
+rewrites it whole, so a comment you add is not kept.
+.SH FORMAT
+A line
+.B default
+.I name
+names the default profile.
+A line
+.B profile
+.I name
+starts a profile; the indented lines that follow belong to it.
+Each is
+.IB key " = " value
+and the value runs to the end of the line.
+A profile name is letters, digits, dots, underscores and hyphens.
+.PP
+.nf
+.RS
+default home
+
+profile home
+  switchboard = vps.example.org:1877/lw1...
+  token = 5fe1c0ab...
+  attach = jack
+  interface = lw0
+  name = osakka
+  listed = no
+  answer = known
+.RE
+.fi
+.SH KEYS
+.TP
+.B switchboard
+.IR HOST:PORT/KEY :
+the switchboard's address, a slash, and its full address
+.RB ( lw1... )
+or 64 hex digits.
+.TP
+.B token
+The registration token, for a switchboard that wants one.
+Needed the first time a machine registers; after that the switchboard knows its key and the token can be removed.
+.TP
+.B attach
+.B jack
+(a tap device for one machine) or
+.B splice
+(a NIC, for a whole site).
+.TP
+.B interface
+The tap device (default
+.BR lw0 )
+or the NIC to splice.
+.TP
+.B name
+The name announced to the nodes you call.
+A claim, never proof.
+.TP
+.B listed
+.B yes
+to be found by name in the switchboard's directory; default
+.BR no .
+.TP
+.B answer
+.BR ask ,
+.BR known ,
+.B auto
+or
+.BR never :
+the answer policy.
+.SH FILES
+.TP
+.I ${XDG_CONFIG_HOME:-~/.config}/longwire/profiles
+The file.
+.B LW_CONF
+names its directory instead.
+.SH "SEE ALSO"
+.BR longwire (1),
+.BR longwire-switchboard (1),
+.BR longwire-security (7)
