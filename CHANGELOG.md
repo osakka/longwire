@@ -3,18 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
-## Unreleased
+## 0.5.1
 
-- **`longwire`, `longwire show` and `longwire watch`.** The three roadmap items that answer "shouldn't it just work?" now that a connection is a profile. `longwire` alone turns the
-  node on from the default profile if it is off and then says how it is (and with no profile yet says how to make one, and that Control Panel > Longwire does it too);
-  `show` is the readable status (your number, the switchboard and NAT, who is connected with what they have carried, the line, any ring with its safety phrase); `watch`
-  narrates the node's events as sentences as they happen, and leaves the node alone when you Ctrl-C. Tested against real nodes (`tests/profile.sh`: 30 checks).
-
-## 0.6.0
-
-*Published:* the catalogue (`hibr-apps` `b9550c7`: seven entries, three of them new: `menubar/longwire`, `control-strip/longwire` and the bundle `longwire`) and the packages
-(`hibr-apt` `dfab5b3`, `hibr-rpm` `58dcb0a`, `hibr-arch` `5c4e0b2`). `make check` passed on the exact tree (`29b82a6`; 463 checks, run again after a reboot).
-Not tried: installing from those repositories on a clean machine, and the units under a live systemd.
+*Renumbered:* this content was first published as 0.6.0 and withdrawn a few hours later, because the project stays on 0.5.x (the middle number moves
+only when the user says so). It is the same menu bar item, strip module and bundle, plus the three commands below. The 0.6.0 files are gone from the
+catalogue and the three package repositories (the git history of those repositories still holds them).
 
 - **Longwire on the menu bar and the Control Strip** ([ADR 0035](docs/adr/0035-longwire-on-the-menu-bar.md)). A telephone on the bar that says whether the line
   is off (`☎ ○`), waiting for the switchboard (`☎ ◌`), on (`☎ ●`, with the number of people connected) or ringing (`☎ ◉ 447-120-933`), a **ring that
@@ -23,6 +16,11 @@ Not tried: installing from those repositories on a clean machine, and the units 
   it in the pane (and in Menu Bar Items). All three are one catalogue bundle, `longwire`. Where a glyph set has telephones that carry the state (Blit's, from Blit
   0.2.44: outline, dashed, filled, and with ring waves), the item uses them; otherwise it uses characters. Tested against real nodes with the desktop's functions
   stubbed (`tests/bar.sh`), and the files load under hibr's own desktop code. Not tested: how it is drawn.
+
+- **`longwire`, `longwire show` and `longwire watch`.** The three roadmap items that answer "shouldn't it just work?" now that a connection is a profile. `longwire` alone turns the
+  node on from the default profile if it is off and then says how it is (and with no profile yet says how to make one, and that Control Panel > Longwire does it too);
+  `show` is the readable status (your number, the switchboard and NAT, who is connected with what they have carried, the line, any ring with its safety phrase); `watch`
+  narrates the node's events as sentences as they happen, and leaves the node alone when you Ctrl-C. Tested against real nodes (`tests/profile.sh`: 30 checks).
 
 ## 0.5.0
 
