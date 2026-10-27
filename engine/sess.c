@@ -28,25 +28,21 @@ static uint64_t get64le(const uint8_t *p)
 	return v;
 }
 
-uint32_t sess_new_idx(lw_node *n)
+/* A session index is 24 bits: the low n->idxbits say which peer slot it is for, the rest are random. A datagram's owner is then
+ * one look-up away instead of a walk over every peer, which a flood of garbage would otherwise make the switchboard do. */
+uint32_t sess_new_idx(lw_node *n, const lw_peer *p)
 {
-	uint32_t v;
-	int i;
+	uint32_t mask = ((uint32_t)1 << n->idxbits) - 1, slot = (uint32_t)(p - n->peers), v;
 
 	for (;;) {
 		lw_rand(&v, sizeof v);
-		v &= 0xffffff;
+		v = (v & 0xffffff & ~mask) | slot;
 		if (!v)
 			continue;
-		for (i = 0; i < n->maxpeers; i++) {
-			lw_peer *p = &n->peers[i];
-
-			if ((p->cur.valid && p->cur.rx_idx == v) || (p->prev.valid && p->prev.rx_idx == v) ||
-			    (p->next.valid && p->next.rx_idx == v) || (p->hs.active && p->hs.my_idx == v))
-				break;
-		}
-		if (i == n->maxpeers)
-			return v;
+		if ((p->cur.valid && p->cur.rx_idx == v) || (p->prev.valid && p->prev.rx_idx == v) ||
+		    (p->next.valid && p->next.rx_idx == v) || (p->hs.active && p->hs.my_idx == v))
+			continue;
+		return v;
 	}
 }
 
@@ -163,11 +159,10 @@ void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 		return;
 	}
 	idx = pkt[1] | (uint32_t)pkt[2] << 8 | (uint32_t)pkt[3] << 16;
-	for (i = 0; i < n->maxpeers && !s; i++) {
+	i = (int)(idx & (((uint32_t)1 << n->idxbits) - 1));
+	if (i < n->maxpeers && n->peers[i].used) {
 		lw_peer *q = &n->peers[i];
 
-		if (!q->used)
-			continue;
 		if (q->cur.valid && q->cur.rx_idx == idx)
 			s = &q->cur;
 		else if (q->prev.valid && q->prev.rx_idx == idx)
@@ -209,12 +204,25 @@ void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 	if (plain[0] == K_CTL && pl >= 4) {
 		size_t l = get16(plain + 2);
 
+		if (n->role && !p->is_sb) {		/* anyone with a session may talk to a switchboard: 10 messages a second, burst 30 */
+			p->msg_tok += (n->now - p->msg_t) * 10.0;
+			if (p->msg_tok > 30.0 || !p->msg_t)
+				p->msg_tok = 30.0;
+			p->msg_t = n->now;
+			if (p->msg_tok < 1.0) {
+				n->drop_flood++;
+				return;
+			}
+			p->msg_tok -= 1.0;
+		}
 		if (l + 4 <= pl) {
 			if (n->role && !p->is_sb)		/* (a switchboard's own registry is the one peer that answers us) */
 				board_msg(n, p, plain[1], plain + 4, l);
 			else
 				node_msg(n, p, plain[1], plain + 4, l);
 		}
+	} else if (n->role && !p->is_sb) {		/* a switchboard has no LAN: frames from a stranger's session go nowhere */
+		;
 	} else if (plain[0] == K_FRAG && !p->is_sb) {
 		sw_fragment(n, (int)(p - n->peers), plain + 1, pl - 1);
 	} else if (plain[0] == K_FRAME && !p->is_sb) {
@@ -271,6 +279,10 @@ void sess_timers(lw_node *n)
 		}
 		if (p->prev.valid && n->now - c->born > 10)
 			explicit_bzero(&p->prev, sizeof p->prev);
+		if (n->role && p->next.valid && n->now - p->next.born > 30)	/* a switchboard: the stranger never sent its first data. (A node keeps it: a lost
+										 * confirmation is made good by the next packet, and dropping the key would leave the
+										 * two ends disagreeing about whether there is a session.) */
+			explicit_bzero(&p->next, sizeof p->next);
 		if (c->valid) {
 			double heard = p->last_rx > c->born ? p->last_rx : c->born;
 			double sent = p->last_tx > c->born ? p->last_tx : c->born;
@@ -335,7 +347,7 @@ lw_peer *peer_by_key(lw_node *n, const uint8_t key_id[32])
  * recycled (never one that is up, never our switchboard). */
 static lw_peer *peer_slot(lw_node *n)
 {
-	lw_peer *best = 0;
+	lw_peer *best = 0, *anon = 0;
 	int i;
 
 	for (i = 0; i < n->maxpeers; i++) {
@@ -346,7 +358,13 @@ static lw_peer *peer_slot(lw_node *n)
 		if (!p->cur.valid && !p->next.valid && !p->hs.active && !p->is_sb && !p->dial &&
 		    (!best || p->touched < best->touched))
 			best = p;
+		/* A switchboard's table can be held by strangers who shake hands and then say nothing. A session that has
+		 * not registered gives way, the one that has been silent longest first; a registered one never does. */
+		if (n->role && !p->is_sb && !p->dial && !p->sb_registered && !p->hs.active && (!anon || p->touched < anon->touched))
+			anon = p;
 	}
+	if (!best)
+		best = anon;
 	if (best)
 		peer_drop(n, best);
 	return best;
@@ -406,8 +424,8 @@ lw_peer *peer_for_unknown(lw_node *n, const uint8_t key_id[32])
 
 	if (!n->role)
 		return 0;
-	for (i = 0; i < OFFERS; i++) {
-		lw_offer *o = &n->offers[i];
+	for (i = 0; i < 2; i++) {
+		lw_offer *o = &n->offers[offer_home(key_id) ^ (unsigned)i];
 
 		if (o->used && n->now - o->t < 10.0 && !crypto_verify32(o->key_id, key_id)) {
 			lw_peer *p = peer_add(n, o->bundle);

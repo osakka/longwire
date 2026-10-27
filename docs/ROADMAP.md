@@ -63,6 +63,7 @@ relayed pair upgrades to direct once a path exists.
 - *Built:* IPv6: the underlay, v6 candidates, and neighbour-discovery suppression ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md))
 - *Built:* a longer rekey for switchboard sessions (`--sb-rekey`, 600 s).
 - *Built:* the warning when two DHCP servers share a line (`dhcp-conflict`).
+- *Built:* a switchboard for strangers: limits per session and per source, a registry with an end, a fuzzer under TCC's bounds checker, hardened units ([ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md))
 - *Built:* number release after a year unheard, then held back for a year (`--release-after`). *Built:* `longwire key export` and `import`
 
 **M4: Desktop and distribution.** Done when, on a clean machine, you install the package, `catalogue install cli/longwire`,
@@ -94,9 +95,10 @@ and then dial and pick up entirely from the hibr desktop.
   TCC's assembler is verified), an optional AEGIS-256 suite, real path-MTU probing, and a proper end-to-end benchmark
 
 **M8: 1.0.** Done when an independent report has no open high-severity findings.
-- A formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto and a script that
-  fetches and verifies the vendored sources; fuzzing of every parser with a harness built by TCC; timing tests;
-  reproducible builds; an external review
+- A formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto (X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 are cross-checked against other implementations now; ML-KEM is not) and a script that
+  fetches and verifies the vendored sources; fuzzing of the parsers the harness does not reach yet (the line operator's signed
+  messages, a relay's second hop, the state files; what it does reach is in [ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md));
+  timing tests; reproducible builds; an external review
 
 **M9: Operator grade** *(proposed, decisions below taken)*. Done when a failover test passes: a standby takes over
 from a killed primary under a load of 10,000 simulated nodes, every node is back within 30 seconds, no number or name is

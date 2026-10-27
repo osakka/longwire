@@ -6,6 +6,9 @@
 # are two identities. The script is read from the machine's scope only: this service's own writable home is never searched.
 # The control socket is /run/longwire/%i/ctl, mode 0660, group longwire: the people in that group (usermod -aG longwire NAME) can
 # dial, hang up and watch this node from the hibr desktop or the command line, and read no key (docs/adr/0032).
+# Restart=always: a member of the group can stop the worker over its socket (it exits cleanly), and that must only be a bounce.
+# The hardening is the switchboard unit's (see there), except ProcSubset=pid: the node reads /proc/net/route to find its gateway. LimitCORE=0:
+# a crash leaves no file holding the seed. the system-call filter is @system-service, with EPERM for what is outside it.
 # CAP_NET_RAW opens the packet socket and is the only privilege; `lw start` clears every capability the moment it is open.
 [Unit]
 Description=longwire site node (splice on %I)
@@ -13,6 +16,7 @@ Documentation=file:///usr/share/doc/longwire/CLI.md
 After=network-online.target
 Wants=network-online.target
 ConditionPathExists=/etc/longwire/%i.conf
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -30,7 +34,7 @@ StateDirectory=longwire/%i
 StateDirectoryMode=0700
 AmbientCapabilities=CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_RAW
-Restart=on-failure
+Restart=always
 RestartSec=2
 NoNewPrivileges=yes
 ProtectSystem=strict
@@ -40,6 +44,23 @@ PrivateDevices=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_PACKET AF_NETLINK
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077
+LimitCORE=0
+LimitNOFILE=2048
+MemoryMax=256M
+TasksMax=64
 
 [Install]
 WantedBy=multi-user.target

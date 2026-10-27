@@ -268,14 +268,15 @@ int lw_address_parse(const char *s, uint8_t key_id[32])
 		return 0;
 	}
 	if (l == 55 && !strncmp(s, "lw1", 3)) {
-		int bits = 0, acc = 0, o = 0;
+		int bits = 0, o = 0;
+		uint32_t acc = 0;
 
 		for (i = 3; i < l; i++) {
 			const char *c = strchr(B32, s[i]);
 
 			if (!c || !s[i])
 				return -1;
-			acc = acc << 5 | (int)(c - B32);
+			acc = (acc << 5 | (uint32_t)(c - B32)) & 0x1fff;	/* the bits still owed, no more */
 			bits += 5;
 			if (bits >= 8) {
 				if (o >= 32)

@@ -45,6 +45,8 @@ check: all lint
 	sh tests/pane.sh
 	sh tests/sw.sh
 	sh tests/group.sh
+	sh tests/fuzz.sh
+	sh tests/kat.sh
 	sh tests/start.sh
 	sh tests/pkg.sh
 	python3 -I tests/docs.py

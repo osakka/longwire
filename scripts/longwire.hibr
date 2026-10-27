@@ -115,6 +115,7 @@ cmd_up() {
 	local args=()
 	while [ $# -gt 0 ]; do
 		case $1 in
+		--answer|--admit) [ $# -ge 2 ] || { echo "longwire: $1 needs a value" >&2; exit 2; } ;;&
 		--answer) answer=$2; shift 2 ;;
 		--admit) local ad=$2; [ -r "$ad" ] && read -r ad < "$2"; args+=(--admit "$ad"); shift 2 ;;	# a file, or the hex itself
 		*) args+=("$1"); shift ;;

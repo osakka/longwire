@@ -1,6 +1,6 @@
 # 0032 — The services share their control socket with the group longwire
 
-Status: accepted. Amends [0004](0004-a-node-never-runs-as-root.md) and resolves the open question in [0030](0030-three-surfaces-one-engine.md).
+Status: accepted. Amends [0004](0004-a-node-never-runs-as-root.md) and resolves the open question in [0030](0030-three-surfaces-one-engine.md). The restart policy below is amended by [0033](0033-a-switchboard-is-built-for-strangers.md): the units say `Restart=always`.
 
 ## Context
 
@@ -38,7 +38,7 @@ as a supplementary group cannot be recognised by comparing a gid in C.
 ## What a member of the group can do
 
 Everything the control socket does, which is what the owner can do, and nothing else: see the node's status and events;
-for a node, dial, pick up, reject, hang up, unpin, evict and carry an operator's eviction (`revoke`); and `stop` the worker.
+for a node, dial, pick up, reject, hang up, unpin, evict and carry an operator's eviction (`revoke`). (`stop`, and for a switchboard `reply`, the script's decisions, are the owner's alone: [0033](0033-a-switchboard-is-built-for-strangers.md).)
 For a switchboard, read its status, its registry page (numbers, names, ages: no addresses or keys) and the call events, which
 hold numbers only. **No verb moves key material**: the seed is read and wiped inside the module and never crosses the socket
 ([ARCHITECTURE](../ARCHITECTURE.md)), and the key export commands write a file the person names, as the person. But a member can
@@ -49,9 +49,9 @@ service, in the way that putting someone in `docker` or `dialout` is a statement
 
 - **Amends 0004:** "a node never runs as root" and the one-time privilege are unchanged; the control socket's *owner-only*
   rule becomes "owner-only unless a group is named", and the services name one. The threat model says so.
-- **A member can take a service down.** A worker stopped over its socket makes `longwire up` exit with status 0 (tried), and the
-  units say `Restart=on-failure`, so systemd leaves it stopped until someone with `systemctl` starts it. Whether that is intended,
-  or the units should say `Restart=always` so that it is only a bounce, is the owner's to decide; this record does not change it.
+- **A member cannot stop a service** ([0033](0033-a-switchboard-is-built-for-strangers.md) amends this: the first version allowed it, and a worker stopped
+  over its socket makes `longwire up` exit with status 0, so systemd with `Restart=on-failure` would have left it down). Now `stop` is refused to
+  anyone but the user the worker runs as, and the units say `Restart=always` besides, so the owner's own stop is a bounce and `systemctl stop` still stops.
 - **What stays with the service.** The pane does not offer to stop a service node (that is `systemctl`) and does not offer the answer policy, which is a file in the
   service's own state and set by `/etc/longwire/NAME.conf`. A ringing call on a service node can be answered or declined from the pane.
 - **Several service nodes:** the pane drives the first one that answers; choosing among them *(planned: M4)*.

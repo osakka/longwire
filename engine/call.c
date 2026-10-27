@@ -61,6 +61,18 @@ void fmt_number(char out[16], const char *n9)
 	snprintf(out, 16, "%.3s-%.3s-%.3s", n9, n9 + 3, n9 + 6);
 }
 
+/* A number that arrives on the wire is nine digits. Anything else was not given out by a switchboard, and a byte that is
+ * not a digit must not reach a pin file, an event or a status line (the checksum is not checked: it never mattered here). */
+int num_wire_ok(const uint8_t *s)
+{
+	int i;
+
+	for (i = 0; i < NUMLEN; i++)
+		if (s[i] < '0' || s[i] > '9')
+			return 0;
+	return 1;
+}
+
 int parse_number(const char *in, char out[NUMLEN + 1])
 {
 	int n = 0;
@@ -185,6 +197,22 @@ void addr_str(const struct sockaddr_storage *ss, char *out, size_t n)
 
 		inet_ntop(AF_INET6, &a->sin6_addr, h, sizeof h);
 		snprintf(out, n, "[%s]:%u", h, (unsigned)ntohs(a->sin6_port));
+	} else
+		snprintf(out, n, "-");
+}
+
+/* Whoever is "one source" for a limit: an IPv4 address, or an IPv6 /64 (a host can have as many addresses in its /64 as it likes). */
+void net_str(const struct sockaddr_storage *ss, char *out, size_t n)
+{
+	if (ss->ss_family == AF_INET) {
+		char h[INET_ADDRSTRLEN];
+
+		inet_ntop(AF_INET, &((const struct sockaddr_in *)(const void *)ss)->sin_addr, h, sizeof h);
+		snprintf(out, n, "%s", h);
+	} else if (ss->ss_family == AF_INET6) {
+		const uint8_t *a = (const uint8_t *)&((const struct sockaddr_in6 *)(const void *)ss)->sin6_addr;
+
+		snprintf(out, n, "v6:%02x%02x%02x%02x%02x%02x%02x%02x", a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
 	} else
 		snprintf(out, n, "-");
 }
@@ -373,6 +401,11 @@ void hello_offer(lw_node *n, const struct sockaddr *dst, socklen_t dl)
 	sendto(ufd(n, dst->sa_family), b, sizeof b, 0, dst, dl);
 }
 
+unsigned offer_home(const uint8_t kid[32])
+{
+	return get32(kid) % OFFERS;
+}
+
 void hello_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
 {
 	uint8_t kid[32];
@@ -431,17 +464,21 @@ void hello_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 			}
 		}
 	} else if (pkt[1] == 2 && len == 2 + LW_BUNDLE && pkt[2] == 0x01 && n->role) {	/* an introduction */
-		lw_offer *o = &n->offers[0];
+		lw_offer *a, *b2, *o;
 
 		lw_h(kid, pkt + 2, LW_BUNDLE);
-		for (i = 0; i < OFFERS; i++) {
-			if (n->offers[i].used && !crypto_verify32(n->offers[i].key_id, kid)) {
-				o = &n->offers[i];
-				break;
-			}
-			if (!n->offers[i].used || n->offers[i].t < o->t)
-				o = &n->offers[i];
-		}
+		a = &n->offers[offer_home(kid)];		/* a key id is a hash of the bundle: nobody can aim at another's place */
+		b2 = &n->offers[offer_home(kid) ^ 1];
+		if (a->used && !crypto_verify32(a->key_id, kid))
+			o = a;
+		else if (b2->used && !crypto_verify32(b2->key_id, kid))
+			o = b2;
+		else if (!a->used)
+			o = a;
+		else if (!b2->used)
+			o = b2;
+		else
+			o = a->t <= b2->t ? a : b2;
 		memcpy(o->bundle, pkt + 2, LW_BUNDLE);
 		memcpy(o->key_id, kid, 32);
 		o->t = n->now;
@@ -537,7 +574,7 @@ static void pin_add(lw_node *n, const char *num, const uint8_t kid[32])
 
 static int pin_remove(lw_node *n, const char *num)
 {
-	char path[300], hex[65];
+	char path[300], tmp[310], hex[65];
 	FILE *f;
 	int i, j, found = 0;
 
@@ -552,8 +589,9 @@ static int pin_remove(lw_node *n, const char *num)
 	if (!found)
 		return 0;
 	snprintf(path, sizeof path, "%s/known", n->cfg.state_dir);
-	if ((f = fopen(path, "w"))) {
-		chmod(path, 0600);
+	snprintf(tmp, sizeof tmp, "%s.new", path);		/* written whole, then put in place: a crash keeps the old pins */
+	if ((f = fopen(tmp, "w"))) {
+		chmod(tmp, 0600);
 		for (i = 0; i < n->npins; i++) {
 			char sbh[65];
 
@@ -561,7 +599,10 @@ static int pin_remove(lw_node *n, const char *num)
 			lw_hex(sbh, n->pins[i].sb, 32);
 			fprintf(f, "%s %s %s\n", sbh, n->pins[i].number, hex);
 		}
-		fclose(f);
+		if (fclose(f) == 0)
+			rename(tmp, path);
+		else
+			unlink(tmp);
 	}
 	return 1;
 }
@@ -715,6 +756,8 @@ static void send_answer(lw_node *n, lw_call *c, int verdict)
 		return;
 	memcpy(b, c->id, 8);
 	b[8] = (uint8_t)verdict;
+	if (verdict == V_ACCEPT)
+		c->answered = 1;
 	nc = verdict == V_ACCEPT ? gather(n, cc, MAXCANDS) : 0;
 	ctl_msg_send(n, s, M_ANSWER, b, 9 + (size_t)cands_put(n, b + 9, cc, nc));
 }
@@ -929,7 +972,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 	if (n->sb >= 0 && p == &n->peers[n->sb]) {
 		switch (msg) {
 		case M_NUMBER:
-			if (len >= NUMLEN + 6) {
+			if (len >= NUMLEN + 6 && num_wire_ok(pl)) {
 				int news = !n->registered || memcmp(n->number, pl, NUMLEN);	/* re-registering on a rekey isn't news */
 
 				memcpy(n->number, pl, NUMLEN);
@@ -985,7 +1028,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			limited = pl[0] == 2;
 			kind = pl[1];
 			ql = pl[2];
-			if (len < 4 + ql || kind > 1 || ql > 64)
+			if (len < 4 + ql || kind > 1 || ql > 64 || (kind == 0 && ql != 32))
 				return;
 			cnt = pl[3 + ql];
 			o = 4 + ql;
@@ -1001,7 +1044,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				char num[NUMLEN + 1], f[16], kh[65], nm[LW_NAME_MAX + 1] = "", en[2 * LW_NAME_MAX + 8];
 				size_t nl;
 
-				if (o + NUMLEN + 33 > len)
+				if (o + NUMLEN + 33 > len || !num_wire_ok(pl + o))
 					break;
 				nl = pl[o + NUMLEN + 32];
 				if (o + NUMLEN + 33 + nl > len || !name_ok(pl + o + NUMLEN + 33, nl))
@@ -1047,11 +1090,15 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			return;
 		case M_REFUSED: {
 			char r[80];
+			size_t k;
 
 			snprintf(r, sizeof r, "%.*s", (int)(len > 70 ? 70 : len), (const char *)pl);
+			for (k = 0; r[k]; k++)		/* text from the switchboard: plain ASCII, then escaped, because it goes into JSON */
+				if ((unsigned char)r[k] > 0x7e)
+					r[k] = '?';
 			n->reg_refused = p->cur.born;	/* don't hammer: try again on the next session */
-			snprintf(n->reg_why, sizeof n->reg_why, "%s", r);
-			ev_emit(n, "{\"event\":\"register-refused\",\"reason\":\"%s\"}", r);
+			json_esc(n->reg_why, sizeof n->reg_why, r);
+			ev_emit(n, "{\"event\":\"register-refused\",\"reason\":\"%s\"}", n->reg_why);
 			return;
 		}
 		case M_RING: {
@@ -1064,7 +1111,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			size_t base = 8 + NUMLEN + LW_BUNDLE;
 			lw_call *c, *mine;
 
-			if (len < base + 1)
+			if (len < base + 1 || !num_wire_ok(pl + 8))
 				return;
 			memcpy(num, pl + 8, NUMLEN);
 			num[NUMLEN] = 0;
@@ -1154,7 +1201,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			lw_call *c;
 			size_t o = 8 + 1 + 2 + NUMLEN + 32;
 
-			if (len < o + LW_BUNDLE + 1)
+			if (len < o + LW_BUNDLE + 1 || !num_wire_ok(pl + 11))
 				return;
 			role = pl[8];
 			delay = (int)get16(pl + 9);
@@ -1165,7 +1212,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 					return;
 				memcpy(c->id, pl, 8);
 			}
-			if (c->state != CALL_OUT && c->state != CALL_RINGING)
+			if (c->state != CALL_OUT && (c->state != CALL_RINGING || !c->answered))	/* nothing connects to a ring that was not answered */
 				return;
 			if (cands_get(pl + o + LW_BUNDLE, len - o - LW_BUNDLE, cc, &nc, &gostrict) < 0)
 				return;
@@ -1205,7 +1252,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			return;
 		}
 		case M_REJECTED:
-			if (len >= 9 + NUMLEN) {
+			if (len >= 9 + NUMLEN && num_wire_ok(pl + 9)) {
 				char num[NUMLEN + 1];
 				lw_call *c;
 

@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/resource.h>
 #include "int.h"
 
 static volatile sig_atomic_t g_stop;
@@ -174,6 +175,16 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 	n->hs_t = n->now;
 	n->hs_tokens = n->role ? 2000.0 : 50.0;
 	n->maxpeers = cfg->maxpeers > 0 ? cfg->maxpeers : (cfg->role ? 1024 : 32);
+	if (n->maxpeers > 65536) {
+		snprintf(err, errn, "at most 65536 peers");
+		free(n);
+		return 0;
+	}
+	for (n->idxbits = 1; (1 << n->idxbits) < n->maxpeers; n->idxbits++)
+		;
+	lw_rand(&n->hsalt, sizeof n->hsalt);
+	for (i = 0; i < MAXSUBS; i++)		/* no watcher: -1, not the 0 that calloc leaves, which is a descriptor */
+		n->subs[i] = -1;
 	n->peers = calloc((size_t)n->maxpeers, sizeof *n->peers);
 	if (!n->peers) {
 		snprintf(err, errn, "out of memory");
@@ -246,7 +257,8 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 		goto fail;
 	if (n->role ? board_open(n, err, errn) : node_init(n, err, errn))
 		goto fail;
-	site_init(n);
+	if (site_init(n, err, errn))
+		goto fail;
 	return n;
 fail:
 	lw_node_release(n);
@@ -333,6 +345,11 @@ int lw_node_serve(lw_node *n)
 
 	n->rx_fd = n->udp >= 0 ? n->udp : n->udp6;
 	close_inherited(n);
+	{					/* a crash must not leave the seed or the KEM key in a file */
+		struct rlimit nocore = { 0, 0 };
+
+		setrlimit(RLIMIT_CORE, &nocore);
+	}
 	mlock(&n->id, sizeof n->id);		/* locks don't survive fork(); failure (rlimit) is not fatal */
 	signal(SIGTERM, on_term);
 	signal(SIGINT, on_term);

@@ -23,6 +23,7 @@ What longwire defends against, what it does not, and what is still open. Designe
 | **Active network attacker** | drop, delay, replay or inject packets; flood handshakes | forge or replay data (AEAD and the replay window), complete a handshake without the keys, or make a responder do public-key work without knowing its key id and, once it is under load, a cookie for the attacker's own address |
 | **Malicious or compromised switchboard** (or, once it exists, the registry of switchboard codes) | see presence, addresses and who rings whom, and the names and listings nodes gave it; invent or change a name; hide or fake a directory entry; refuse service; on a *first* call, hand out the wrong key for a number | read or alter traffic; impersonate a number you have already been connected to (the key is pinned); make you accept a call (a ring asks, under the default policy) |
 | **Name impersonator** | announce a name nobody has listed, or one only a claim; run a switchboard that lies | take a name another key has listed (listing or announcing it is refused), or be believed: a name is shown as a claim, never decides anything, and the number and the safety phrase identify a caller. Names nobody listed can be shared |
+| **Anonymous node on a switchboard** (anyone who can send a UDP packet and complete a handshake) | hold a session, register a number up to the limits, ring registered numbers up to the limits, send control messages up to a budget | fill a switchboard's places so that an honest node is refused (a session that never registered gives way), stuff a field of the event the policy script reads, make a node connect a call nobody answered, take another's number or name, or tell which numbers exist faster than a dial every two seconds ([ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md)) |
 | **Number squatter** | register numbers | take an existing number: numbers are bound to keys, first come. A number unheard for a year is released and held back for another before it can be issued again, so a re-issued number is rare, and shows up as a key mismatch, like SSH's changed-host-key warning |
 | **Malicious peer on a call** | everything a host on your LAN can do: ARP spoofing, DHCP, scanning | read other peers' sessions *in transit* (it sees what is flooded to it, as any LAN host would) |
 | **Malicious relay** | see sizes and timing of the traffic it relays; drop it | read or alter it: relayed packets are end-to-end sessions, and a relay is only a member of the line. It can also refuse or stall the pair: they notice, ask another member, and keep trying for a direct path |
@@ -68,6 +69,18 @@ A node with a global IPv6 address has no NAT in front of it: its UDP port is rea
 it handshake attempts as they could a public IPv4 address. The protections are the same (mac1 and cookies under load, a
 per-source budget by /64), and a firewall may close the port ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)).
 
+## A switchboard in public
+
+The switchboard is the one component that must serve strangers. [ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md) lists what
+was tried against it, what worked and was fixed, and what has not been tried. In short: every parser a stranger's bytes reach was
+read; the engine runs under TCC's bounds checker against raw datagrams, a bent real handshake, and a stranger's encrypted session
+(`tests/fuzz.sh`); and the defects found (strangers holding every place, a token writing into the script's event, a call connected
+before an answer, a registry with no end and a walk for every message) each have a test that failed before the fix.
+
+What limits remain are limits, not defences. A flood from many real addresses costs a key-encapsulation each, within the budget
+(2,000 a second on a switchboard). Open registration can be used up to `--max-numbers` by anyone with enough addresses: a switchboard
+that matters should hand out tokens. Raw bandwidth is for the network in front of it.
+
 ## Known gaps today
 
 - **Two strict NATs connect only through a relay,** a member of the line with a public address. A line with no such
@@ -75,7 +88,10 @@ per-source budget by /64), and a firewall may close the port ([ADR 0027](adr/002
 - **A crossed rekey might stall a link** until the dead-peer timer fires (76 s at the default keepalive). It is rare
   by construction and has not been reproduced; a crossed first handshake is settled by a key-id tie-break and tested (`tests/start.sh`, `tests/crossed.sh`).
 - **The handshake composition has had no formal analysis or external review,** and the vendored crypto has not been
-  checked against known-answer vectors *(planned: M8)*.
+  checked against published known-answer vectors *(planned: M8)*; X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 as TCC builds them agree with
+  independent implementations on 2,100 random cases (`tests/kat.sh`), ML-KEM was not cross-checked, and constant-time behaviour as TCC compiles it is unchecked. The fuzzer
+  ([ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md)) finds memory errors in what it generates; it does not prove their absence.
+- **Not run:** the services under a live systemd, a clean install of each package, a long soak, real routers and wide-area links.
 - **VLAN-tagged traffic through a splice box is neither handled nor tested** *(planned)*, and the jack port is untested.
   IPv6 has been tested only on loopback and between namespaces, not on a real network.
 
@@ -88,7 +104,7 @@ per-source budget by /64), and a firewall may close the port ([ADR 0027](adr/002
   handshake slots (8, one per source), and four reassembly slots per peer, created on first use.
 - Keys are handled in C only. The seed is mode 0600. `lw start` and `lw key` read it inside the module's process and
   wipe it before returning; the worker keeps its identity in memory that is `mlock`ed where the OS allows. It never
-  crosses the control socket and never enters a hibr variable, so scripts handle numbers and decisions, never secrets. The control socket is mode 0600 and checks the peer's uid (`SO_PEERCRED`), unless it is given a group: the services give theirs to the group `longwire`, mode 0660, and then the file mode is the check, so everyone in that group may dial, hang up, evict and stop that node, and no one may read its key ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)). The worker
+  crosses the control socket and never enters a hibr variable, so scripts handle numbers and decisions, never secrets. The control socket is mode 0600 and checks the peer's uid (`SO_PEERCRED`), unless it is given a group: the services give theirs to the group `longwire`, mode 0660, and then the file mode is the check, so everyone in that group may dial, hang up and evict on that node, and no one may read its key (stopping a service, and deciding a switchboard's registrations, stay with the user it runs as, and the event stream the group watches does not carry a registration's token or address) ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)). The worker
   closes every descriptor it inherits.
 - Nothing is setuid, and hibr never gains privilege (hibr ADR 0016). Splice gets `CAP_NET_RAW` from the service manager
   as an ambient capability. `lw start` opens the packet socket, clears every capability set and sets `no_new_privs`, and only

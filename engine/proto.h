@@ -103,7 +103,11 @@ static inline int cand_get(const uint8_t *p, size_t avail, lw_cand *c, int *know
 
 	if (avail < 1 || avail < (l = (size_t)p[0] + 1))
 		return -1;
-	*known = (l == 8 || l == 20) && p[1] >= CAND_HOST && p[1] <= CAND_MAPPED;
+	*known = (l == 8 || l == 20) && p[1] >= CAND_HOST && p[1] <= CAND_MAPPED && (p[2] | p[3]) != 0;	/* port 0 is no address */
+	if (*known && l == 8 && (p[4] == 0 || p[4] >= 224))		/* nor are "this host", multicast, the reserved block, or broadcast: nobody sends a call there */
+		*known = 0;
+	if (*known && l == 20 && (p[4] == 0xff || !memcmp(p + 4, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16)))
+		*known = 0;
 	if (*known) {
 		memset(c, 0, sizeof *c);
 		c->type = p[1];

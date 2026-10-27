@@ -38,6 +38,19 @@ def as_user(uid, gid, groups, sock):
     return r.stdout.strip() or r.stderr.strip()[-120:]
 
 
+ASK = r'''
+import socket, sys
+s = socket.socket(socket.AF_UNIX); s.settimeout(3)
+s.connect(sys.argv[1]); s.sendall(sys.argv[2].encode() + b"\n"); print(s.recv(4096).decode().strip())
+'''
+
+
+def ask_as(uid, gid, groups, sock, cmd):
+    g = ["--groups=" + ",".join(map(str, groups))] if groups else ["--clear-groups"]
+    r = subprocess.run(["setpriv", f"--reuid={uid}", f"--regid={gid}", *g, "python3", "-I", "-c", ASK, sock, cmd], capture_output=True, text=True)
+    return r.stdout.strip() or r.stderr.strip()[-120:]
+
+
 def start(name, *extra):
     d = f"{T}/{name}"
     os.makedirs(d, exist_ok=True)
@@ -71,6 +84,8 @@ check(as_user(2, 2, [], sock) == "answered", "...a user whose primary group is 2
 check(as_user(3, 3, [], sock) == "refused", "...a user in neither is refused")
 check(as_user(3, 3, [1], sock) == "refused", "...and so is one in another group")
 check(as_user(0, 0, [], sock) == "answered", "...the owner still is answered")
+r1 = ask_as(1, 1, [2], sock, "stop")
+check("only the user this runs as" in r1 and as_user(1, 1, [2], sock) == "answered", f"...a member of the group cannot stop it, and it goes on answering: {r1[:80]}")
 stop(sock)
 
 # a group that does not exist is refused at the start, plainly, not ignored

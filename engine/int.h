@@ -25,8 +25,10 @@
 #define LINE_MSS4 1340			/* TCP MSS on the line: a segment with 12 bytes of options is a 1406-byte frame, under FRAME_SINGLE */
 #define LINE_MSS6 1320
 #define SITE_MEMBERS 4
-#define MAXSUBS 4
-#define OFFERS 16
+#define MAXSUBS 8
+#define OFFERS 1024			/* bundles offered ahead of a handshake: hashed by key id, so a flood costs bandwidth, not a few packets */
+#define HS_SLOTS 512			/* handshake fragments being put together: hashed by source, for the same reason */
+#define SRC_BUCKETS 512
 #define ED_OFF (1 + 32 + LW_MLKEM_PK)	/* where a bundle keeps its Ed25519 public key */
 
 typedef struct lw_sess {
@@ -66,6 +68,8 @@ typedef struct lw_peer {
 	int      is_sb;			/* this peer is our switchboard: control traffic only, never bridged */
 	char     number[NUMLEN + 1];	/* dialed/answered number, "" for static peers */
 	lw_sess  cur, prev, next;
+	int      sb_registered;		/* (a switchboard) this session has registered a number: it is not a place a stranger is holding */
+	double   last_reg, msg_tok, msg_t;	/* (a switchboard) when it last registered, and its budget for control messages */
 	lw_hsi   hs;
 	uint8_t  last_tai[12];
 	frag    *fr;			/* allocated on the first split frame */
@@ -131,6 +135,7 @@ typedef struct lw_call {
 	char     name[LW_NAME_MAX + 1];	/* (a ring) the name the caller announced, if the switchboard carried one */
 	uint8_t  admit[ADMIT_LEN];	/* (a ring) what it presented, or (a dial) what we presented */
 	int      has_admit;
+	int      answered;		/* (a ring) a person, or the policy, said yes: nothing connects before that */
 	uint8_t  id[8], token[32];
 	char     number[NUMLEN + 1];
 	uint8_t  bundle[LW_BUNDLE];	/* the other end's, from RING or GO */
@@ -195,7 +200,9 @@ struct lw_node {
 	lw_peer *peers;
 	int      maxpeers;
 	mac_ent  macs[MAC_SLOTS];
-	hs_slot  slots[8];
+	hs_slot  slots[HS_SLOTS];
+	uint64_t hsalt;			/* per boot: where a source lands in slots and srcl is not for an attacker to choose */
+	int      idxbits;		/* the low bits of a session index say which peer it is for */
 	lw_offer offers[OFFERS];
 	uint64_t relay_fwd, relay_drop, relay_routes;
 	uint64_t rx_pkts, drop_garbage, drop_noroute, flood, local_tx, local_rx;
@@ -210,7 +217,7 @@ struct lw_node {
 	double   reg_born;		/* the switchboard session we registered on */
 	double   reg_refused;		/* the session on which we were refused: don't ask again until it changes */
 	uint64_t reg_count;		/* NUMBER replies received (registrations, including after each rekey) */
-	char     reg_why[80];		/* why the switchboard last refused to register us, "" if it has not */
+	char     reg_why[160];		/* why the switchboard last refused to register us, "" if it has not (already escaped for JSON) */
 	double   next_hb, next_reg;
 	lw_cand  refl;			/* what the switchboard saw of us */
 	int      have_refl;
@@ -241,6 +248,7 @@ struct lw_node {
 	int      echo_tries;
 	double   next_echo;
 	/* M2: the switch's extras and the site group */
+	double   dhcp_say;		/* when a dhcp-conflict was last announced */
 	struct { uint32_t ip; double t, said; } dhcp[4];	/* servers whose offers were seen lately (ARCHITECTURE section 3) */
 	uint64_t dhcp_conflicts;
 	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize;
@@ -258,6 +266,7 @@ struct lw_node {
 	int      site_sync_n;
 	/* events and control */
 	int      subs[MAXSUBS];
+	int      subs_owner[MAXSUBS];	/* the watcher runs as the user the worker runs as: it may be told what a group member may not */
 	struct board *bd;
 	double   hello_tokens, hello_t;
 	struct { struct sockaddr_storage a; socklen_t l; double tok, t; } hello_src[16];	/* a budget for each asker, too */
@@ -266,7 +275,7 @@ struct lw_node {
 	int      cookie_ok;		/* the INIT being consumed carried valid cookie MACs on every fragment */
 	uint8_t  csecret[2][32];	/* cookie secret now and before the last rotation */
 	double   csecret_t;
-	struct { uint32_t ip; double tok, t; } srcl[64];	/* per-source budget for cookie holders, under load */
+	struct { uint64_t id; double tok, t; } srcl[SRC_BUCKETS];	/* per-source budget for cookie holders, under load */
 };
 
 double lw_now(void);
@@ -292,7 +301,8 @@ void cookie_input(lw_node *n, const uint8_t *pkt, size_t len, const struct socka
 void hs_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
 
 /* sess.c */
-uint32_t sess_new_idx(lw_node *n);
+uint32_t sess_new_idx(lw_node *n, const lw_peer *p);
+unsigned offer_home(const uint8_t kid[32]);		/* where a stranger's offered bundle waits */
 void sess_set_keys(lw_sess *s, int we_init, const uint8_t ck[32], uint32_t rx_idx, uint32_t tx_idx, double now);
 int  sess_send(lw_node *n, lw_peer *p, uint8_t kind, const uint8_t *body, size_t len);
 void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl);
@@ -307,7 +317,7 @@ void peer_drop(lw_node *n, lw_peer *p);
 int  ctl_msg_send(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *payload, size_t len);
 
 /* site.c: boxes sharing one LAN segment elect one to forward */
-void site_init(lw_node *n);
+int  site_init(lw_node *n, char *err, size_t errn);
 void site_timers(lw_node *n);
 int  site_input(lw_node *n, const uint8_t *f, size_t len);	/* 1 = a probe, consumed */
 const char *site_role(const lw_node *n);
@@ -388,8 +398,11 @@ void port_write(lw_node *n, const uint8_t *f, size_t len);
 int  ctl_open(lw_node *n, char *err, size_t errn);
 void ctl_accept(lw_node *n);
 void ctl_close(lw_node *n);
+void ev_emit_owner(lw_node *n, const char *fmt, ...);
 void ev_emit(lw_node *n, const char *fmt, ...);
 void ctl_subs_reap(lw_node *n);
+int num_wire_ok(const uint8_t *s);			/* nine digits: the only shape a number has on the wire, in a file, in an event */
+void net_str(const struct sockaddr_storage *ss, char *out, size_t n);
 void addr_str(const struct sockaddr_storage *ss, char *out, size_t n);
 int  lw_resolve(const char *hp, struct sockaddr_storage *ss, socklen_t *sl);
 

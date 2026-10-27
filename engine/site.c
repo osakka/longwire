@@ -16,7 +16,9 @@
 #define SILENCE 3.5			/* a member unheard this long is gone */
 #define LISTEN 3.0			/* a new box listens this long before it forwards anything */
 
-void site_init(lw_node *n)
+/* A site key that is named and cannot be used stops the start: two boxes on one segment that each think they are alone forward
+ * every frame twice, which is a loop. */
+int site_init(lw_node *n, char *err, size_t errn)
 {
 	char buf[80];
 	FILE *f;
@@ -24,24 +26,33 @@ void site_init(lw_node *n)
 	int i;
 
 	if (!n->splice || !n->cfg.site_key_path[0])
-		return;
-	if (!(f = fopen(n->cfg.site_key_path, "r")))
-		return;
+		return 0;
+	if (!(f = fopen(n->cfg.site_key_path, "r"))) {
+		snprintf(err, errn, "site key %s: %s", n->cfg.site_key_path, strerror(errno));
+		return -1;
+	}
 	r = fread(buf, 1, sizeof buf - 1, f);
 	fclose(f);
 	buf[r] = 0;
-	if (r < 64)
-		return;
+	if (r < 64) {
+		snprintf(err, errn, "site key %s: it must hold 64 hex characters", n->cfg.site_key_path);
+		return -1;
+	}
+	for (i = 0; i < 64; i++)
+		if (!((buf[i] >= '0' && buf[i] <= '9') || (buf[i] >= 'a' && buf[i] <= 'f') || (buf[i] >= 'A' && buf[i] <= 'F'))) {
+			snprintf(err, errn, "site key %s: it must hold 64 hex characters (0-9, a-f)", n->cfg.site_key_path);
+			return -1;
+		}
 	for (i = 0; i < 32; i++) {
 		unsigned v;
 
-		if (sscanf(buf + 2 * i, "%2x", &v) != 1)
-			return;
+		sscanf(buf + 2 * i, "%2x", &v);
 		n->site_key[i] = (uint8_t)v;
 	}
 	n->have_site_key = 1;
 	n->standby = 1;			/* listen first: forwarding while another box does is a loop */
 	n->site_since = n->now;
+	return 0;
 }
 
 static void probe_mac(lw_node *n, const uint8_t *p, uint8_t out[16])

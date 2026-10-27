@@ -3,6 +3,13 @@
 #     ARGS="--listen 1877 --registry none"
 # then   systemctl enable --now longwire-switchboard
 # The script comes from the catalogue, for the machine:  sudo catalogue --system install cli/longwire-switchboard
+# This is the service that faces the internet. Restart=always: a member of the group can stop the worker over its socket (it exits
+# cleanly), and that must only ever be a bounce; `systemctl stop` still stops it. No AF_NETLINK: listing interface addresses is
+# for a node's candidates, and a switchboard does without. The system-call filter is systemd's @system-service, and every call
+# a node and a switchboard made in a traced run is in it (docs/adr/0033); a call outside it fails with EPERM instead of killing
+# the service. MemoryDenyWriteExecute is not set: nothing here shows hibr runs without writable code pages. MemoryMax=1G suits the
+# default --max-numbers (100000 numbers are about 140 MB): raise it with that. StartLimitIntervalSec=0: restart whatever the rate.
+# LimitCORE=0: a crash leaves no file holding the seed.
 # The control socket is /run/longwire-switchboard/ctl, mode 0660, group longwire: the people in that group (usermod -aG longwire NAME)
 # can watch this switchboard from the hibr desktop, and read no key (docs/adr/0032).
 [Unit]
@@ -11,6 +18,7 @@ Documentation=file:///usr/share/doc/longwire/SWITCHBOARD.md
 After=network-online.target
 Wants=network-online.target
 ConditionPathExists=/etc/longwire/switchboard.conf
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -27,7 +35,7 @@ RuntimeDirectory=longwire-switchboard
 RuntimeDirectoryMode=0750
 StateDirectory=longwire-switchboard
 StateDirectoryMode=0700
-Restart=on-failure
+Restart=always
 RestartSec=2
 NoNewPrivileges=yes
 ProtectSystem=strict
@@ -36,8 +44,26 @@ PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 CapabilityBoundingSet=
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077
+LimitCORE=0
+LimitNOFILE=4096
+MemoryMax=1G
+TasksMax=64
 
 [Install]
 WantedBy=multi-user.target

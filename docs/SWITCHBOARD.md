@@ -74,11 +74,11 @@ there is. A ring that nobody answers is dropped after 65 seconds with `REJECTED`
 **Policy is a script's decision.** With `--policy script` the worker emits an event, and waits up to 2 seconds for the
 script's verdict before refusing:
 
-- `register`: a key it has not seen before wants a number (`id`, `key_id`, `ip`, `token`, and the `name` it announced and whether it is `listed`). The script answers
+- `register`: a key it has not seen before wants a number (`id`, `key_id`, `ip`, `net`, `token`, and the `name` it announced and whether it is `listed`). The script answers
   `lw sb reply ID accept [NUMBER]` or `lw sb reply ID refuse REASON...`.
-- `register` with `switchboard` true: another switchboard asks this registry for its code (`id`, `key_id`, `ip`). The shipped script
+- `register` with `switchboard` true: another switchboard asks this registry for its code (`id`, `key_id`, `ip`, `net`). The shipped script
   allows `--codes-per-ip-day` of them (default 2) per address.
-- `dial`: a registered node rings another (`id`, `from`, `to`, `ip`). The script answers `lw sb reply ID accept` or
+- `dial`: a registered node rings another (`id`, `from`, `to`, `ip`, `net`). The script answers `lw sb reply ID accept` or
   `lw sb reply ID refuse`.
 
 A key that is already registered gets its number back without asking. The shipped `longwire-switchboard` script
@@ -87,11 +87,12 @@ answers with this policy:
 | Option | Default | Does |
 |---|---|---|
 | `--listen PORT\|ADDR:PORT\|[ADDR]:PORT` | `1877` | where to listen (UDP): a bare port is IPv4 and IPv6 on any address, `ADDR:PORT` IPv4 only, `[ADDR]:PORT` IPv6 only, and a comma separates several ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)). It also listens on the next port up (1878) to answer `ECHO`, so a node can tell what kind of NAT it is behind; let both through a firewall, and leave the next port free when running several on one host |
-| `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when used. A spent or unknown token: `a valid token is needed to register here` |
-| `--per-ip-hour N` | 20 | registrations per source address per hour |
+| `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when used. A spent or unknown token: `a valid token is needed to register here`. A token is visible characters with no spaces, quotes, backslashes or leading `#` (1 to 63); anything else is refused before the script sees it. Lines that are blank or begin with `#` are kept and are never tokens. The file is rewritten whole, beside itself, and moved into place, so **the file must be in a directory the service can write** (for the unit, its state directory, `/var/lib/longwire-switchboard`; the unit cannot write `/etc`): if it cannot be written the token is not spent, and the registration is refused |
+| `--per-ip-hour N` | 20 | registrations per source per hour (`net` in the event: an IPv4 address, or an IPv6 /64) |
 | `--rings-per-minute N` | 6 | rings per callee per minute |
 | `--state DIR` | `~/.longwire/switchboard` | the seed, the control socket, `numbers.log`, `names.log` |
-| `--max-nodes N` | 1024 | how many node sessions the worker holds at once |
+| `--max-nodes N` | 1024 | how many node sessions the worker holds at once (at most 65,536). When they are all taken, a session that never registered gives way to a new one; a registered one never does |
+| `--max-numbers N` | 100000 | the most numbers it will give out. Each is a bundle (1.3 KB) in memory and a line in `numbers.log`; past it a registration is refused with a plain message |
 | `--registry HOST:PORT/KEY\|none` | required | the registry of switchboard codes, which gives this switchboard its short code. `none` for a private switchboard, which keeps its derived code. Required until the project's registry is running |
 | `--issue-codes` | off | this switchboard is a registry: switchboards register with it for a code (`codes.log` in `--state` holds who has which) |
 | `--public-switchboard KEY` | none | on a registry: the switchboard (`lw1…` or hex) that is given the code `+1` |
@@ -130,14 +131,16 @@ Everything the switchboard does not do yet is marked where it is described and l
 
 - **State:** the registry is one record per number (the 1,249-byte bundle and the number), kept in memory and in an
   append-only file, `numbers.log`, that is read when the worker starts. A live session costs about the size of one
-  peer slot (roughly 10 KB); the worker holds **1,024** by default (`--max-nodes`), and when the table is full it
-  recycles the stalest slot that has no session.
+  peer slot (roughly 10 KB); the worker holds **1,024** by default (`--max-nodes`), and when the table is full a session
+  that never registered gives way to a new one (the one silent longest first); a registered session is never put out.
 - **Work:** one handshake per node every 10 minutes (`--sb-rekey`), one heartbeat every `--keepalive` seconds,
   plus calls. The handshake budget is **2,000/s** against 50/s for an ordinary node, and cookies are asked for only
   once more than half of it is spent ([PROTOCOL §3](PROTOCOL.md#3-sessions-and-timers)), so in normal operation no node
   pays the extra round trip. A handshake costs a few milliseconds of CPU under TCC (about 5 ms for both ends together, [CRYPTO §6](CRYPTO.md#6-measured)), most of it on the responder.
-- **Abuse limits:** registrations per source address per hour and rings per callee per minute (the script), the
-  handshake budget (the worker), and a limit on pending decisions.
+- **Abuse limits:** registrations per source (an IPv4 address, or an IPv6 /64) per hour and rings per callee per minute (the
+  script); the handshake budget, 10 control messages a second from a session, one registration in five seconds, a dial every
+  two seconds (the worker); one decision pending per asker, one call at a time per caller, 100,000 numbers (`--max-numbers`).
+  The script empties its counters every hour and day.
 - **One switchboard per deployment.** Numbers are local to it. Federation (`number@sb`), redundancy and a larger number space *(planned: M9)*.
 
 ## Running one
@@ -151,3 +154,19 @@ listening    udp 1877    tokens: open registration
 It needs hibr and the module, runs as an ordinary user, needs no capabilities (1877 is above 1024), and keeps
 everything in `~/.longwire/switchboard/`. Since the policy is a script, changing it (vanity numbers, a different token
 scheme, an allow-list) means editing hibr, not C.
+
+### In public
+
+A switchboard on the internet is open to anyone who can send a UDP packet; [ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md)
+says what was done about that and what is still unknown. What the operator decides:
+
+- **Registration.** Open registration (no `--tokens`) lets anyone take a number, up to `--max-numbers`, at the per-source limit
+  (`--per-ip-hour`). A botnet is not stopped by a per-address limit. For a switchboard that matters, hand out tokens and run it
+  with `--tokens`.
+- **Capacity.** `--max-nodes` sessions and `--max-numbers` numbers are the limits; set both to what the machine's memory affords
+  (a session about 10 KB, a number about 1.3 KB). Past them the switchboard refuses; it does not fall over.
+- **The service.** Run it as the systemd unit: it is sandboxed (a transient user, no capabilities, no home, a system-call
+  filter), restarts itself (`Restart=always`), and its control socket belongs to the group `longwire`, so put in that group only
+  people who may stop it. Open UDP 1877 and 1878 (`ECHO`); nothing else.
+- **What it cannot do for you.** A flood of plain traffic is for the network in front of it.
+

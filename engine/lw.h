@@ -60,6 +60,7 @@ typedef struct lw_cfg {
 	char token[64];			/* presented when registering */
 	char registry[200];		/* switchboard: HOST:PORT/KEY of the registry of switchboard codes, or "none" */
 	char public_switchboard[100];	/* registry: the key (lw1... or hex) of the switchboard that is given the code 1 */
+	int  max_numbers;		/* switchboard: how many numbers it will give out (default 100000) */
 	long release_after;		/* seconds a number may go unheard before it is released (default one year), and held back after */
 	int  issue_codes;		/* this switchboard is a registry: it assigns codes to switchboards */
 	char name[40];			/* the name this node announces to those it calls; none if empty */

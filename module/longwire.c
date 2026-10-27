@@ -323,6 +323,8 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->maxpeers = atoi(v);
 		else if (!strcmp(a, "--release-after") && role)
 			c->release_after = atol(v);
+		else if (!strcmp(a, "--max-numbers") && role)
+			c->max_numbers = atoi(v);
 		else if (!strcmp(a, "--authority") && !role) {
 			if (strlen(v) != 64 || unhex(v, c->authority, 32)) {
 				hibr_fail(s, "lw start: --authority wants the operator's public key (64 hex digits)");
@@ -450,12 +452,16 @@ int m_lw(sh *s, int ac, char **av)
 		if (!strcmp(av[2], "reply") && ac >= 5) {	/* lw sb reply ID accept|refuse [ARG...] */
 			int o = snprintf(req, sizeof req, "reply %s %s", av[3], av[4]);
 
+			if (o > (int)sizeof req - 2)		/* snprintf says what it would have written: never more than the buffer holds */
+				o = (int)sizeof req - 2;
 			for (i = 5; i < ac && o < (int)sizeof req - 2; i++) {
 				if (!strcmp(av[i], "--sock")) {
 					i++;
 					continue;
 				}
 				o += snprintf(req + o, sizeof req - (size_t)o, " %s", av[i]);
+				if (o > (int)sizeof req - 2)
+					o = (int)sizeof req - 2;
 			}
 			snprintf(req + o, sizeof req - (size_t)o, "\n");
 			return ask(s, sock, req, 1);

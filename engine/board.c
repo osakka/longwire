@@ -14,8 +14,8 @@
 #include "int.h"
 
 #define PRESENT 80.0			/* a node is online if it was heard this recently */
-#define MAXPEND 32
-#define MAXCALLS 32
+#define MAXPEND 256
+#define MAXCALLS 256
 
 typedef struct reg {
 	char    number[NUMLEN + 1];
@@ -26,6 +26,7 @@ typedef struct reg {
 	int     listed;
 	double  look_tok, look_t;		/* a budget for directory lookups */
 	double  miss_tok, miss_t;		/* a budget for dials that find no one: learning which numbers exist is slow */
+	double  dial_tok, dial_t;		/* and one for dials of any kind: a number is not found by trying them all */
 } reg;
 
 typedef struct bcall {
@@ -82,10 +83,24 @@ struct board {
 	char   nlog[320];
 	reg   *regs;
 	int    n, cap, next_id;
+	int   *hkey, *hnum, hcap, hvalid;	/* open-addressing indexes over regs, by key id and by number (rebuilt when regs shrinks) */
 	bcall  calls[MAXCALLS];
 	pend   pend[MAXPEND];
 	char   log[320];
 };
+
+/* A table that grows by doubling; 0 when there is no memory, and the old table is still there. */
+static int grow(void **arr, int *cap, int first, size_t esz)
+{
+	int nc = *cap ? *cap * 2 : first;
+	void *p = realloc(*arr, (size_t)nc * esz);
+
+	if (!p)
+		return 0;
+	*arr = p;
+	*cap = nc;
+	return 1;
+}
 
 /* Names compare without regard to ASCII case; beyond ASCII they compare byte for byte (no Unicode folding). */
 static int name_eq(const char *a, const char *b)
@@ -154,10 +169,8 @@ static void bind_set(struct board *b, const uint8_t key[32], const char *name, i
 	if (e && !strcmp(e->name, name))
 		return;
 	if (!e) {
-		if (b->nbind == b->capbind) {
-			b->capbind = b->capbind ? b->capbind * 2 : 32;
-			b->bind = realloc(b->bind, (size_t)b->capbind * sizeof *b->bind);
-		}
+		if (b->nbind == b->capbind && !grow((void **)&b->bind, &b->capbind, 32, sizeof *b->bind))
+			return;
 		e = &b->bind[b->nbind++];
 		memcpy(e->key, key, 32);
 	}
@@ -214,10 +227,8 @@ static const char *code_of(struct board *b, const uint8_t key[32])
 
 static void code_put(struct board *b, const uint8_t key[32], const char *code, int log)
 {
-	if (b->ncodes == b->capcodes) {
-		b->capcodes = b->capcodes ? b->capcodes * 2 : 16;
-		b->codes = realloc(b->codes, (size_t)b->capcodes * sizeof *b->codes);
-	}
+	if (b->ncodes == b->capcodes && !grow((void **)&b->codes, &b->capcodes, 16, sizeof *b->codes))
+		return;
 	memcpy(b->codes[b->ncodes].key, key, 32);
 	snprintf(b->codes[b->ncodes].code, 10, "%s", code);
 	b->ncodes++;
@@ -252,23 +263,85 @@ static const char *code_issue(struct board *b, const uint8_t key[32])
 	return code_of(b, key);
 }
 
+/* The registry is looked up for every message anyone sends, so it is indexed: a walk over a hundred thousand numbers for each
+ * of a flood of messages would be the cheapest way to stop a switchboard. */
+static unsigned hash_key(const uint8_t k[32])
+{
+	return get32(k) ^ get32(k + 4);
+}
+
+static unsigned hash_num(const char *num)
+{
+	return (unsigned)atol(num) * 2654435761u >> 7;
+}
+
+static void idx_put(struct board *b, int i)
+{
+	unsigned m = (unsigned)b->hcap - 1, h;
+
+	for (h = hash_key(b->regs[i].key_id) & m; b->hkey[h]; h = (h + 1) & m)
+		;
+	b->hkey[h] = i + 1;
+	for (h = hash_num(b->regs[i].number) & m; b->hnum[h]; h = (h + 1) & m)
+		;
+	b->hnum[h] = i + 1;
+}
+
+static void idx_rebuild(struct board *b)
+{
+	int c = 64, i;
+
+	while (c < 2 * b->n + 64)
+		c *= 2;
+	free(b->hkey);
+	free(b->hnum);
+	b->hkey = calloc((size_t)c, sizeof *b->hkey);
+	b->hnum = calloc((size_t)c, sizeof *b->hnum);
+	b->hcap = c;
+	b->hvalid = b->hkey && b->hnum;
+	if (b->hvalid)
+		for (i = 0; i < b->n; i++)
+			idx_put(b, i);
+	else
+		b->hcap = 0;
+}
+
+/* After regs[n-1] was appended. */
+static void idx_added(struct board *b)
+{
+	if (b->hvalid && 2 * b->n < b->hcap)
+		idx_put(b, b->n - 1);
+	else
+		b->hvalid = 0;
+}
+
 static reg *reg_by_key(struct board *b, const uint8_t k[32])
 {
-	int i;
+	unsigned m, h;
 
-	for (i = 0; i < b->n; i++)
-		if (!crypto_verify32(b->regs[i].key_id, k))
-			return &b->regs[i];
+	if (!b->hvalid)
+		idx_rebuild(b);
+	if (!b->hvalid)
+		return 0;
+	m = (unsigned)b->hcap - 1;
+	for (h = hash_key(k) & m; b->hkey[h]; h = (h + 1) & m)
+		if (!crypto_verify32(b->regs[b->hkey[h] - 1].key_id, k))
+			return &b->regs[b->hkey[h] - 1];
 	return 0;
 }
 
 static reg *reg_by_number(struct board *b, const char *num)
 {
-	int i;
+	unsigned m, h;
 
-	for (i = 0; i < b->n; i++)
-		if (!strcmp(b->regs[i].number, num))
-			return &b->regs[i];
+	if (!b->hvalid)
+		idx_rebuild(b);
+	if (!b->hvalid)
+		return 0;
+	m = (unsigned)b->hcap - 1;
+	for (h = hash_num(num) & m; b->hnum[h]; h = (h + 1) & m)
+		if (!strcmp(b->regs[b->hnum[h] - 1].number, num))
+			return &b->regs[b->hnum[h] - 1];
 	return 0;
 }
 
@@ -301,10 +374,8 @@ static void held_add(struct board *b, const reg *r, long when)
 {
 	struct held *h;
 
-	if (b->nheld == b->capheld) {
-		b->capheld = b->capheld ? b->capheld * 2 : 16;
-		b->held = realloc(b->held, (size_t)b->capheld * sizeof *b->held);
-	}
+	if (b->nheld == b->capheld && !grow((void **)&b->held, &b->capheld, 16, sizeof *b->held))
+		return;				/* out of memory: the number is simply not held back */
 	h = &b->held[b->nheld++];
 	memcpy(h->number, r->number, sizeof h->number);
 	memcpy(h->bundle, r->bundle, LW_BUNDLE);
@@ -365,6 +436,7 @@ static void sweep(lw_node *n)
 			held_add(b, r, w);
 			ev_emit(n, "{\"event\":\"number-released\",\"number\":\"%s\"}", r->number);
 			*r = b->regs[--b->n];
+			b->hvalid = 0;
 		} else
 			i++;
 	}
@@ -493,6 +565,7 @@ int board_open(lw_node *n, char *err, size_t errn)
 				} else {
 					held_add(b, q, when);
 					*q = b->regs[--b->n];
+					b->hvalid = 0;
 				}
 				continue;
 			}
@@ -520,11 +593,13 @@ int board_open(lw_node *n, char *err, size_t errn)
 				if (h)				/* its owner came back while it was held */
 					held_drop(b, h);
 			}
-			if (b->n == b->cap) {
-				b->cap = b->cap ? b->cap * 2 : 64;
-				b->regs = realloc(b->regs, (size_t)b->cap * sizeof *b->regs);
+			if (b->n == b->cap && !grow((void **)&b->regs, &b->cap, 64, sizeof *b->regs)) {
+				fclose(f);
+				snprintf(err, errn, "out of memory reading %s", path);
+				return -1;
 			}
 			b->regs[b->n++] = r;
+			idx_added(b);
 		}
 		fclose(f);
 	}
@@ -593,6 +668,10 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 	struct held *h;
 	int tries;
 
+	if (b->n >= (n->cfg.max_numbers > 0 ? n->cfg.max_numbers : 100000)) {	/* every number is a bundle in memory and a line in a file */
+		refuse(n, p, "this switchboard has no numbers left to give (--max-numbers)");
+		return;
+	}
 	memset(&r, 0, sizeof r);
 	memcpy(r.bundle, p->bundle, LW_BUNDLE);
 	memcpy(r.key_id, p->key_id, 32);
@@ -626,11 +705,13 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 	r.wall = r.wall_logged = (long)time(0);
 	snprintf(r.name, sizeof r.name, "%s", name);
 	r.listed = listed;
-	if (b->n == b->cap) {
-		b->cap = b->cap ? b->cap * 2 : 64;
-		b->regs = realloc(b->regs, (size_t)b->cap * sizeof *b->regs);
+	if (b->n == b->cap && !grow((void **)&b->regs, &b->cap, 64, sizeof *b->regs)) {
+		refuse(n, p, "switchboard busy");
+		return;
 	}
 	b->regs[b->n++] = r;
+	idx_added(b);
+	p->sb_registered = 1;
 	persist(b, &r);
 	send_number(n, p, &r, n->home_code);
 }
@@ -704,6 +785,16 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 		rejected(n, caller_key, 0, R_OFFLINE, num_of(b, callee_key));
 		return;
 	}
+	{					/* a line is built by dialing its members together: up to LINE_MAX outstanding calls each, and no more */
+		int mine = 0;
+
+		for (i = 0; i < MAXCALLS; i++)
+			mine += b->calls[i].used && !memcmp(b->calls[i].caller, caller_key, 32);
+		if (mine >= LINE_MAX) {
+			rejected(n, caller_key, 0, R_BUSY, ce->number);
+			return;
+		}
+	}
 	for (i = 0; i < MAXCALLS; i++)
 		if (!b->calls[i].used) {
 			c = &b->calls[i];
@@ -736,6 +827,18 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 	call_ev(n, "call-ring", caller_key, callee_key, 0);
 }
 
+/* Is `max` decisions of this kind for this asker already with the script? A registration is one at a time; a node building a full
+ * line dials up to LINE_MAX members at once. A stranger cannot fill the table, whichever it asks for. */
+static int pend_has(const struct board *b, int kind, const uint8_t key[32], int max)
+{
+	int i, k = 0;
+
+	for (i = 0; i < MAXPEND; i++)
+		if (b->pend[i].used && b->pend[i].kind == kind && !memcmp(b->pend[i].key, key, 32))
+			k++;
+	return k >= max;
+}
+
 static pend *pend_new(struct board *b, int kind)
 {
 	int i;
@@ -755,15 +858,28 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 {
 	struct board *b = n->bd;
 	reg *r = reg_by_key(b, p->key_id);
-	char ep[64], nm_[LW_NAME_MAX + 1];
+	char ep[64], net[40], nm_[LW_NAME_MAX + 1];
 	const char *why_;
 	int listed_ = 0;
 
 	addr_str(&p->ep, ep, sizeof ep);
+	net_str(&p->ep, net, sizeof net);
 	switch (msg) {
 	case M_REGISTER:
 		if (len < 1 || (size_t)pl[0] + 1 > len)
 			return;
+		if (p->last_reg && n->now - p->last_reg < 5.0)	/* a registration is a write to disk: one in five seconds from a session */
+			return;
+		p->last_reg = n->now;
+		{					/* a token is visible text: it goes into the token file, and into an event the script parses */
+			size_t k;
+
+			for (k = 1; k <= pl[0]; k++)
+				if (pl[k] < 0x21 || pl[k] > 0x7e || pl[k] == '"' || pl[k] == '\\' || (k == 1 && pl[k] == '#')) {
+					refuse(n, p, "the token is not acceptable (visible characters, no spaces, quotes or backslashes, and not starting with #)");
+					return;
+				}
+		}
 		{					/* a switchboard asking for its code */
 			size_t zl;
 			const char *have;
@@ -778,9 +894,12 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 					return;
 				}
 				if (n->cfg.policy_script) {
-					pend *q = pend_new(b, P_CODE);
+					pend *q;
 					char kh[65];
 
+					if (pend_has(b, P_CODE, p->key_id, 1))
+						return;
+					q = pend_new(b, P_CODE);
 					if (!q) {
 						refuse(n, p, "switchboard busy");
 						return;
@@ -788,8 +907,8 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 					memcpy(q->key, p->key_id, 32);
 					q->deadline = n->now + 2.0;
 					lw_hex(kh, p->key_id, 32);
-					ev_emit(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"token\":\"\",\"name\":\"\",\"listed\":false,\"switchboard\":true}",
-						q->id, kh, ep);
+					ev_emit_owner(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"net\":\"%s\",\"token\":\"\",\"name\":\"\",\"listed\":false,\"switchboard\":true}",
+						q->id, kh, ep, net);
 				} else
 					send_code(n, p, code_issue(b, p->key_id));
 				return;
@@ -815,6 +934,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			return;
 		}
 		if (r) {				/* the same key always gets the same number */
+			p->sb_registered = 1;
 			snprintf(r->name, sizeof r->name, "%s", nm_);
 			r->listed = listed_;
 			heard(n, r);
@@ -822,9 +942,12 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			return;
 		}
 		if (n->cfg.policy_script) {
-			pend *q = pend_new(b, P_REG);
-			char kh[65], tok[65];
+			pend *q;
+			char kh[65], tok[65], te[2 * 65 + 8];
 
+			if (pend_has(b, P_REG, p->key_id, 1))
+				return;
+			q = pend_new(b, P_REG);
 			if (!q) {
 				refuse(n, p, "switchboard busy");
 				return;
@@ -835,12 +958,13 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			q->listed = listed_;
 			lw_hex(kh, p->key_id, 32);
 			snprintf(tok, sizeof tok, "%.*s", (int)pl[0] > 63 ? 63 : (int)pl[0], (const char *)pl + 1);
+			json_esc(te, sizeof te, tok);
 			{
 				char en[2 * LW_NAME_MAX + 8];
 
 				json_esc(en, sizeof en, nm_);
-				ev_emit(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"token\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"switchboard\":false}",
-					q->id, kh, ep, tok, en, listed_ ? "true" : "false");
+				ev_emit_owner(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"net\":\"%s\",\"token\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"switchboard\":false}",
+					q->id, kh, ep, net, te, en, listed_ ? "true" : "false");
 			}
 		} else
 			do_register(n, p, 0, nm_, listed_);
@@ -882,7 +1006,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			return;
 		}
 		r->look_tok -= 1.0;
-		if ((pl[0] == 0 && ql != 32) || (pl[0] == 1 && (ql < 3 || ql > LW_NAME_MAX)) || pl[0] > 1)
+		if ((pl[0] == 0 && ql != 32) || (pl[0] == 1 && (ql < 3 || ql > LW_NAME_MAX || memchr(pl + 1, 0, ql) || !name_ok(pl + 1, ql))) || pl[0] > 1)
 			return;
 		o[0] = n->cfg.no_directory ? 1 : 0;
 		o[1] = pl[0];
@@ -925,6 +1049,15 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		if (!r || len < NUMLEN + 1)
 			return;
 		heard(n, r);
+		r->dial_tok += (n->now - r->dial_t) * 0.5;		/* a dial every two seconds, burst 12, whatever came of it: numbers are not found by trying them */
+		r->dial_t = n->now;
+		if (r->dial_tok > 12.0)
+			r->dial_tok = 12.0;
+		if (r->dial_tok < 1.0) {
+			rejected(n, p->key_id, 0, R_POLICY, "000000000");
+			return;
+		}
+		r->dial_tok -= 1.0;
 		memcpy(num, pl, NUMLEN);
 		num[NUMLEN] = 0;
 		if ((cn = cands_read(pl + NUMLEN, len - NUMLEN, cc, &nc, &strict)) < 0)
@@ -950,9 +1083,14 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			return;
 		}
 		if (n->cfg.policy_script) {
-			pend *q = pend_new(b, P_DIAL);
+			pend *q;
 			char f1[16], f2[16];
 
+			if (pend_has(b, P_DIAL, p->key_id, LINE_MAX)) {
+				rejected(n, p->key_id, 0, R_BUSY, num);
+				return;
+			}
+			q = pend_new(b, P_DIAL);
 			if (!q) {
 				rejected(n, p->key_id, 0, R_BUSY, num);
 				return;
@@ -969,7 +1107,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			q->deadline = n->now + 2.0;
 			fmt_number(f1, r->number);
 			fmt_number(f2, ce->number);
-			ev_emit(n, "{\"event\":\"dial\",\"id\":%d,\"from\":\"%s\",\"to\":\"%s\",\"ip\":\"%s\"}", q->id, f1, f2, ep);
+			ev_emit_owner(n, "{\"event\":\"dial\",\"id\":%d,\"from\":\"%s\",\"to\":\"%s\",\"ip\":\"%s\",\"net\":\"%s\"}", q->id, f1, f2, ep, net);
 		} else
 			route_dial(n, p->key_id, ce->key_id, cc, nc, strict, admit, alen);
 		return;

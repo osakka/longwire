@@ -111,7 +111,7 @@ int hs_init_build(lw_node *n, lw_peer *p)
 	if (dh(t, n->id.x_sk, p->x_pk))			/* ss */
 		return -1;
 	lw_kdf2(ck, t, 32, k);
-	hs->my_idx = sess_new_idx(n);
+	hs->my_idx = sess_new_idx(n, p);
 	tai64n(pay);				/* tai64n(12) | index(3) | flags(1) */
 	put24(pay + 12, hs->my_idx);
 	pay[15] = 0;
@@ -225,24 +225,38 @@ static int cookie_valid(lw_node *n, const struct sockaddr *src, socklen_t sl, co
 	return 0;
 }
 
-/* A cookie holder under load is still limited, per source address: burst 8, 2 a second. */
+/* A cookie holder under load is still limited, per source address: burst 8, 2 a second. A whole /64 is one source (a host can
+ * have as many addresses as it likes). Sources are told apart by a keyed hash of the address, so an attacker who owns two
+ * addresses cannot pick two that share a bucket and trade one against the other. */
 static int src_ok(lw_node *n, const struct sockaddr *src)
 {
-	uint32_t ip;
+	uint8_t b[17], hv[8];
+	uint64_t id;
+	size_t bl;
 	int i;
 
-	if (src->sa_family == AF_INET6) {		/* a whole /64 is one source: a host can have as many addresses as it likes */
-		const struct sockaddr_in6 *a6 = (const void *)src;
-		uint32_t w[2];
-
-		memcpy(w, &a6->sin6_addr, 8);
-		ip = w[0] ^ (w[1] * 2246822519u) ^ 1u;
-	} else
-		ip = ((const struct sockaddr_in *)(const void *)src)->sin_addr.s_addr;
-	i = (int)((ip * 2654435761u) >> 26) & 63;
-
-	if (n->srcl[i].ip != ip) {
-		n->srcl[i].ip = ip;
+	if (src->sa_family == AF_INET6) {
+		memcpy(b, &((const struct sockaddr_in6 *)(const void *)src)->sin6_addr, 8);
+		b[8] = 6;
+		bl = 9;
+	} else {
+		memcpy(b, &((const struct sockaddr_in *)(const void *)src)->sin_addr, 4);
+		b[4] = 4;
+		bl = 5;
+	}
+	crypto_blake2b_keyed(hv, 8, (const uint8_t *)&n->hsalt, 8, b, bl);
+	memcpy(&id, hv, 8);
+	i = (int)(id % SRC_BUCKETS);
+	if (n->srcl[i].id != id) {
+		if (n->srcl[i].id && n->srcl[i].tok + (n->now - n->srcl[i].t) * 2.0 < 8.0) {	/* the owner is busy: share its bucket */
+			n->srcl[i].tok += (n->now - n->srcl[i].t) * 2.0;
+			n->srcl[i].t = n->now;
+			if (n->srcl[i].tok < 1.0)
+				return 0;
+			n->srcl[i].tok -= 1.0;
+			return 1;
+		}
+		n->srcl[i].id = id;
 		n->srcl[i].tok = 8.0;
 		n->srcl[i].t = n->now;
 	}
@@ -268,7 +282,7 @@ static void cookie_reply(lw_node *n, uint16_t hs_id, const uint8_t ad[16], const
 	pkt[2] = (uint8_t)(hs_id >> 8);
 	lw_rand(pkt + 3, 24);
 	crypto_aead_lock(pkt + 27, pkt + 43, key, pkt + 3, ad, 16, ck, 16);
-	sendto(n->udp, pkt, sizeof pkt, 0, src, sl);
+	sendto(ufd(n, src->sa_family), pkt, sizeof pkt, 0, src, sl);
 	n->cookies_sent++;
 	crypto_wipe(key, 32);
 }
@@ -348,10 +362,14 @@ int hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 	if (lw_open0(kid, k, m + 2304, 48, h))
 		return -1;
 	mix(h, m + 2304, 48);
-	if (!(p = peer_by_key(n, kid)) && !(p = peer_for_unknown(n, kid)))
-		return -1;					/* not someone we know */
-	if (!p->have_bundle)
+	if (!(p = peer_by_key(n, kid)) && !(p = peer_for_unknown(n, kid))) {
+		dh(t, n->id.x_sk, m);				/* not someone we know: as much work as for someone we do, so the time says nothing */
 		return -1;
+	}
+	if (!p->have_bundle) {
+		dh(t, n->id.x_sk, m);
+		return -1;
+	}
 	if (dh(t, n->id.x_sk, p->x_pk))				/* ss */
 		return -1;
 	lw_kdf2(ck, t, 32, k);
@@ -389,7 +407,7 @@ int hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 	mix(h, resp + 1120, LW_MLKEM_CT);
 	lw_kdf1(ck, s3, 32);
 	lw_kdf2(ck, 0, 0, k);
-	my_idx = sess_new_idx(n);
+	my_idx = sess_new_idx(n, p);
 	put24(pl, my_idx);
 	pl[3] = 0;
 	lw_seal0(resp + 2208, k, pl, 4, h);
@@ -424,6 +442,10 @@ int hs_resp_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 	mac16(mac, n->mac1_key, m, 2228);
 	if (crypto_verify16(mac, m + 2228))
 		return -1;
+	budget_refill(n);
+	if (n->hs_tokens < 1.0)				/* the same budget as the INITs: a stream of forged answers cannot spend it without limit */
+		return -1;
+	n->hs_tokens -= 1.0;
 	for (i = 0; i < n->maxpeers; i++)
 		if (n->peers[i].used && n->peers[i].hs.active && n->peers[i].hs.hs_id == hs_id) {
 			p = &n->peers[i];
@@ -498,17 +520,25 @@ void hs_send(lw_node *n, int type, uint16_t hs_id, const uint8_t *m, size_t len,
 		if (to)
 			peer_out(n, to, pkt, 4 + c + 32);
 		else
-			sendto(n->udp, pkt, 4 + c + 32, 0, dst, dl);
+			sendto(ufd(n, dst->sa_family), pkt, 4 + c + 32, 0, dst, dl);
 	}
 }
 
+/* Fragments wait in a slot found by a keyed hash of the source: an attacker's packets can only push out other slots at random,
+ * so holding up one handshake's two fragments takes a flood, not a handful of packets. Four slots are tried from the hash. */
 static hs_slot *slot_for(lw_node *n, const struct sockaddr *src, socklen_t sl, int type, uint16_t id)
 {
-	int i, free_i = -1, old_i = 0;
+	uint8_t hv[8];
+	uint64_t h;
+	int i, k, free_i = -1, old_i = -1;
 
-	for (i = 0; i < 8; i++) {
-		hs_slot *s = &n->slots[i];
+	crypto_blake2b_keyed(hv, 8, (const uint8_t *)&n->hsalt, 8, (const uint8_t *)src, sl);
+	memcpy(&h, hv, 8);
+	for (k = 0; k < 4; k++) {
+		hs_slot *s;
 
+		i = (int)((h + (uint64_t)k) % HS_SLOTS);
+		s = &n->slots[i];
 		if (s->used && n->now - s->t > 1.0)
 			s->used = 0;
 		if (s->used && s->srclen == sl && !memcmp(&s->src, src, sl)) {
@@ -520,7 +550,7 @@ static hs_slot *slot_for(lw_node *n, const struct sockaddr *src, socklen_t sl, i
 		}
 		if (!s->used && free_i < 0)
 			free_i = i;
-		if (s->used && s->t < n->slots[old_i].t)
+		if (s->used && (old_i < 0 || s->t < n->slots[old_i].t))
 			old_i = i;
 	}
 	if (free_i < 0)
@@ -537,6 +567,19 @@ static hs_slot *slot_for(lw_node *n, const struct sockaddr *src, socklen_t sl, i
 		s->hs_id = id;
 		return s;
 	}
+}
+
+/* Is there a handshake of ours that an answer with this id could belong to? */
+static int hs_waiting(const lw_node *n, uint16_t id)
+{
+	int i;
+
+	if (n->role)					/* a switchboard asks no one but its registry */
+		return n->sb >= 0 && n->peers[n->sb].used && n->peers[n->sb].hs.active && n->peers[n->sb].hs.hs_id == id;
+	for (i = 0; i < n->maxpeers; i++)
+		if (n->peers[i].used && n->peers[i].hs.active && n->peers[i].hs.hs_id == id)
+			return 1;
+	return 0;
 }
 
 void hs_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
@@ -562,6 +605,8 @@ void hs_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr 
 		cookie_reply(n, id, pkt + len - 32, src, sl);
 		return;
 	}
+	if (type == T_HS_RESP && !hs_waiting(n, id))		/* an answer to nothing we asked: no slot for it */
+		goto bad;
 	c = len - 4 - 32;
 	s = slot_for(n, src, sl, type, id);
 	if (s->count && s->count != count)

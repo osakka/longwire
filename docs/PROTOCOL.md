@@ -30,8 +30,8 @@ Sometimes only a key id is known: a switchboard given as `host:port/lw1…`. The
 
 The handshake also needs the responder to know the *initiator's* bundle (for `skem(I)`). Nodes get that from `RING`,
 but a switchboard has never seen a node that is registering for the first time. So a node first *offers* its own
-bundle: `0x08 ‖ 0x02 ‖ bundle`. A switchboard holds an offered bundle in a cache of 16 (the oldest is recycled) for
-10 seconds, and admits a node only if the handshake that follows names a key it was offered, so the handshake cannot be
+bundle: `0x08 ‖ 0x02 ‖ bundle`. A switchboard holds an offered bundle for 10 seconds in a cache of 1,024 places found by the key id
+(a hash of the bundle, so nobody can aim an offer at another's place; two places are tried, and the older is recycled), and admits a node only if the handshake that follows names a key it was offered, so the handshake cannot be
 used to make it remember arbitrary keys. A request is 10 bytes and the answer about 1.25 KB, so a node answers at
 most 20 `HELLO` requests a second *in total*, and 2 a second (burst 4) from any one source address.
 
@@ -46,7 +46,8 @@ most 20 `HELLO` requests a second *in total*, and 2 a second (burst 4) from any 
    AEAD = ChaCha20-Poly1305 (RFC 8439)   nonce = 0⁴ ‖ counter   AD = bytes 0..11
 ```
 
-- `rx_index` is the *receiver's* session index (24 bits, random). It selects the key with no lookup by address, so
+- `rx_index` is the *receiver's* session index (24 bits, chosen by the receiver: random, with the low bits naming the peer slot it
+  is for, so the owner of a datagram is found in one step). It selects the key with no lookup by address, so
   a peer can roam between networks mid-session.
 - `counter` starts at 0 for each session and never repeats. The receiver keeps a **4096-packet sliding replay
   window** and checks it *after* the tag verifies.
@@ -88,7 +89,9 @@ Handshake messages are larger than one datagram (because of ML-KEM). Each one is
 at most 1248 bytes, once every 2 minutes). Every fragment carries its own tag, so a responder discards anything that
 doesn't prove knowledge of its key id *before* buffering a byte. (The whole-message `mac1` at the end of the
 handshake, checked after reassembly, can't serve for this: it sits in the last fragment.) A responder buffers at
-most **one** partial message per source address, for at most 1 s.
+most **one** partial message per source address, for at most 1 s, in one of 512 slots found by a per-boot keyed hash of the
+source, so an attacker's packets push out other slots only at random. An `HS_RESP` fragment gets a slot only if a handshake of ours
+is waiting for that `hs_id`, and a reassembled one draws on the same budget as an `HS_INIT`.
 
 **Cookies (DoS defence).** Each handshake costs a KEM decapsulation, so a responder counts them in a budget (50/s on
 a node, 2000/s on a switchboard). Once the budget is more than half spent, the responder is *under load*: an
@@ -104,7 +107,8 @@ The initiator decrypts it (the associated data is the tag of the fragment it sen
 sees), keeps the cookie for 120 s, and retries at once with `cmac` set; it accepts at most one cookie a second, so a
 bad reply cannot start a loop. Fragments that carry a valid cookie skip the global budget, so a flood from addresses
 that can't receive replies can't starve a real handshake. They are limited per source address instead (burst 8,
-2 per second). The `mac2` field at the end of the reassembled message is the same cookie MAC over the whole message
+2 per second; an IPv6 /64 is one source, and sources are told apart by a per-boot keyed hash so two addresses cannot be chosen to share a
+bucket). The cookie goes back out of the socket the fragment came in on, IPv6 included. The `mac2` field at the end of the reassembled message is the same cookie MAC over the whole message
 and is checked as well, but only while the node is under load. The `hs_id` is chosen by the initiator and echoed in the response,
 which is how a reply is matched to its attempt. Each retry builds a completely fresh handshake (new ephemerals, a
 larger `tai64n`), so a retransmission is never mistaken for a replay.

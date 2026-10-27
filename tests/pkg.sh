@@ -90,7 +90,12 @@ if command -v systemd-analyze > /dev/null; then
 		systemd-analyze verify --man=no "$T/units/$u" 2> "$T/sd.log"; rc=$?
 		! grep -qi "unknown\|invalid\|unit file .* is\|failed to parse\|bad " "$T/sd.log"; check $? "systemd reads $u without complaint (rc $rc)"
 	done
-	grep -q "AF_NETLINK" "$T/deb/usr/lib/systemd/system/longwire@.service" && grep -q "AF_NETLINK" "$T/deb/usr/lib/systemd/system/longwire-switchboard.service"; check $? "both services allow AF_NETLINK, which listing interface addresses needs"
+	grep '^RestrictAddressFamilies=' "$T/deb/usr/lib/systemd/system/longwire@.service" | grep -q "AF_NETLINK" && ! grep '^RestrictAddressFamilies=' "$T/deb/usr/lib/systemd/system/longwire-switchboard.service" | grep -q "AF_NETLINK"; check $? "the node allows AF_NETLINK, which listing interface addresses needs, and the switchboard does not"
+	for u in longwire-switchboard.service longwire@.service; do
+		f="$T/deb/usr/lib/systemd/system/$u"
+		grep -q '^Restart=always' "$f"; check $? "$u restarts itself whatever the exit status, so a stop over the socket is only a bounce"
+		grep -q '^SystemCallFilter=@system-service' "$f" && grep -q '^SystemCallErrorNumber=EPERM' "$f" && grep -q '^RestrictNamespaces=yes' "$f" && grep -q '^ProtectKernelModules=yes' "$f" && grep -q '^MemoryMax=' "$f" && grep -q '^UMask=0077' "$f"; check $? "$u is sandboxed: a system-call filter that fails with EPERM, no namespaces, no kernel modules, a memory limit, a private umask"
+	done
 	grep -q "StateDirectory=longwire/%i" "$T/deb/usr/lib/systemd/system/longwire@.service"; check $? "each node instance has a state directory of its own"
 fi
 [ $fails -eq 0 ] && echo "packages: all ok" || { echo "FAILED: $fails"; exit 1; }

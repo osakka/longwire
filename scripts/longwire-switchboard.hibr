@@ -8,7 +8,7 @@
 #   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
 #                        [--per-ip-hour N] [--rings-per-minute N] [--max-nodes N]
 #                        [--caller-id on|off] [--directory on|off]
-#                        [--release-after TIME] [--group NAME|GID]
+#                        [--release-after TIME] [--max-numbers N] [--group NAME|GID]
 #                        --registry HOST:PORT/KEY|none [--issue-codes [--public-switchboard KEY]] [--codes-per-ip-day N]
 #
 # --tokens FILE   registration needs a token: one per line, "TOKEN" or
@@ -21,6 +21,7 @@
 #                 for a private switchboard, which keeps its derived code (+0...). Required.
 # --release-after TIME   a number unheard for that long is released, then held back for as long again (default 365d;
 #                 days, or a suffix s, m, h or d). Its owner coming back in that time gets the same number.
+# --max-numbers N   the most numbers this switchboard gives out (default 100000: each is a bundle in memory and a line in numbers.log)
 # --issue-codes   this switchboard IS a registry: it gives codes to switchboards that register with it
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
@@ -41,30 +42,43 @@ issue_codes=
 public_sb=
 group=
 codes_per_ip_day=2
+max_numbers=100000
 release_after=365d
 
 mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
 
+need_value() {
+	[ $# -ge 2 ] && [ -n "$2" ] || { echo "longwire-switchboard: $1 needs a value" >&2; exit 2; }
+	case $2 in -*) echo "longwire-switchboard: $1 needs a value, and $2 is another option" >&2; exit 2 ;; esac
+}
+need_number() { case $2 in ''|*[!0-9]*) echo "longwire-switchboard: $1 wants a number, not '$2'" >&2; exit 2 ;; esac; }
+need_onoff() { case $2 in on|off) ;; *) echo "longwire-switchboard: $1 is on or off, not '$2'" >&2; exit 2 ;; esac; }
+
 while [ $# -gt 0 ]; do
 	case $1 in
-	--listen) listen=$2 ;;
-	--tokens) tokens=$2 ;;
-	--state) SB_DIR=$2 ;;
-	--per-ip-hour) per_ip_hour=$2 ;;
-	--rings-per-minute) rings_per_min=$2 ;;
-	--max-nodes) max_nodes=$2 ;;
-	--registry) registry=$2 ;;
-	--group) group=$2 ;;
+	-h|--help) sed -n '4,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 	--issue-codes) issue_codes=1; shift; continue ;;
-	--public-switchboard) public_sb=$2 ;;
-	--codes-per-ip-day) codes_per_ip_day=$2 ;;
-	--release-after) release_after=$2 ;;
-	--caller-id) caller_id=$2 ;;
-	--directory) directory=$2 ;;
-	-h|--help) sed -n '4,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+	--listen|--tokens|--state|--per-ip-hour|--rings-per-minute|--max-nodes|--max-numbers|--registry|--group|--public-switchboard|--codes-per-ip-day|--release-after|--caller-id|--directory)
+		need_value "$@" ;;		# a missing value is an error: --tokens with nothing after it must never mean "no tokens"
 	*) echo "longwire-switchboard: unknown option $1" >&2; exit 2 ;;
 	esac
-	shift 2 2>/dev/null || shift
+	case $1 in
+	--listen) listen=$2 ;;
+	--tokens) tokens=$2; [ -r "$tokens" ] || { echo "longwire-switchboard: --tokens $tokens: cannot read it" >&2; exit 2; } ;;
+	--state) SB_DIR=$2 ;;
+	--per-ip-hour) need_number "$@"; per_ip_hour=$2 ;;
+	--rings-per-minute) need_number "$@"; rings_per_min=$2 ;;
+	--max-nodes) need_number "$@"; max_nodes=$2 ;;
+	--max-numbers) need_number "$@"; max_numbers=$2 ;;
+	--registry) registry=$2 ;;
+	--group) group=$2 ;;
+	--public-switchboard) public_sb=$2 ;;
+	--codes-per-ip-day) need_number "$@"; codes_per_ip_day=$2 ;;
+	--release-after) release_after=$2 ;;
+	--caller-id) need_onoff "$@"; caller_id=$2 ;;
+	--directory) need_onoff "$@"; directory=$2 ;;
+	esac
+	shift 2
 done
 
 if [ -z "$registry" ]; then
@@ -73,32 +87,53 @@ if [ -z "$registry" ]; then
 	exit 2
 fi
 export LW_SOCK=${LW_SOCK:-$SB_DIR/ctl}		# after the options: --state moves the socket too
-mkdir -p "$SB_DIR" && chmod 700 "$SB_DIR"
-declare -A seen    # counters, keyed by what they count and the hour or minute
+umask 077				# the state directory, the seed and the token file are made private, from the first byte
+mkdir -p "$SB_DIR" && chmod 700 "$SB_DIR" || { echo "longwire-switchboard: cannot make $SB_DIR private" >&2; exit 1; }
+declare -A seen    # counters, keyed by what they count and the hour or minute: emptied every hour, and when it holds too much
+declare -A seend   # the same, keyed by the day
+hour_now=0
+day_now=0
 
-# Take a token out of the file: prints the reserved number, if it has one.
-# Fails when the token isn't there.
+# Called with the time at the start of each event: the counters never grow without end.
+tidy() {
+	local h=$(( $1 / 3600 )) d=$(( $1 / 86400 ))
+	if [ $h -ne $hour_now ] || [ ${#seen[@]} -gt 100000 ]; then seen=(); hour_now=$h; fi
+	if [ $d -ne $day_now ] || [ ${#seend[@]} -gt 100000 ]; then seend=(); day_now=$d; fi
+}
+
+# Take a token out of the file: prints the reserved number, if it has one. Fails when the token isn't there, or the file cannot be
+# written (a token must never be good twice). Blank lines and lines that begin with # are kept and are never tokens.
 spend_token() {
-	local want=$1 tok num found=1 out=
-	while read -r tok num; do
-		[ -n "$tok" ] || continue
+	local want=$1 line tok num found=1 out=
+	while IFS= read -r line; do
+		case $line in
+		''|'#'*) out="$out$line
+"; continue ;;
+		esac
+		tok=${line%% *}
+		num=
+		[ "$tok" != "$line" ] && num=${line#* }
 		if [ "$tok" = "$want" ] && [ $found -ne 0 ]; then
 			found=0
+			case $num in *[!0-9]*) num= ;; esac		# a reserved number is nine digits or nothing
 			[ -n "$num" ] && echo "$num"
 		else
-			out="$out$tok${num:+ $num}
+			out="$out$line
 "
 		fi
 	done < "$tokens"
-	[ $found -eq 0 ] && printf '%s' "$out" > "$tokens"
+	if [ $found -eq 0 ]; then			# written whole beside the file, then put in its place: a crash keeps every token
+		printf '%s' "$out" > "$tokens.new" && mv "$tokens.new" "$tokens" || return 1
+	fi
 	return $found
 }
 
 on_register() {
 	local now=$(date +%s) k n num
+	tidy $now
 	if [ "${e[switchboard]}" = true ]; then		# a switchboard asking this registry for its code: codes are scarce
-		k="code:${e[ip]%:*}:$((now / 86400))"
-		n=$(( ${seen[$k]:-0} + 1 )); seen[$k]=$n
+		k="code:${e[net]}"
+		n=$(( ${seend[$k]:-0} + 1 )); seend[$k]=$n
 		if [ $n -gt $codes_per_ip_day ]; then
 			lw sb reply "${e[id]}" refuse "too many codes asked for from this address today" > /dev/null
 		else
@@ -106,14 +141,14 @@ on_register() {
 		fi
 		return
 	fi
-	k="reg:${e[ip]%:*}:$((now / 3600))"
+	k="reg:${e[net]}"			# net is an IPv4 address, or an IPv6 /64: the engine works it out
 	n=$(( ${seen[$k]:-0} + 1 )); seen[$k]=$n
 	if [ $n -gt $per_ip_hour ]; then
 		lw sb reply "${e[id]}" refuse "too many registrations from this address" > /dev/null; return
 	fi
 	if [ -n "$tokens" ]; then
 		if num=$(spend_token "${e[token]}"); then
-			lw sb reply "${e[id]}" accept $num > /dev/null
+			if [ -n "$num" ]; then lw sb reply "${e[id]}" accept "$num" > /dev/null; else lw sb reply "${e[id]}" accept > /dev/null; fi
 		else
 			lw sb reply "${e[id]}" refuse "a valid token is needed to register here" > /dev/null
 		fi
@@ -123,10 +158,13 @@ on_register() {
 }
 
 on_dial() {
-	local now=$(date +%s) k n
-	k="ring:${e[to]}:$((now / 60))"
+	local now=$(date +%s) k n m
+	tidy $now
+	k="ring:${e[from]}:${e[to]}:$((now / 60))"		# one caller cannot use up a callee's rings for everyone else ...
 	n=$(( ${seen[$k]:-0} + 1 )); seen[$k]=$n
-	if [ $n -gt $rings_per_min ]; then
+	k="ringto:${e[to]}:$((now / 60))"			# ... which has a ceiling of its own, five times as high
+	m=$(( ${seen[$k]:-0} + 1 )); seen[$k]=$m
+	if [ $n -gt $rings_per_min ] || [ $m -gt $((rings_per_min * 5)) ]; then
 		lw sb reply "${e[id]}" refuse > /dev/null
 	else
 		lw sb reply "${e[id]}" accept > /dev/null
@@ -145,7 +183,7 @@ case "$release_after" in
 esac
 
 run lw key new "$SB_DIR/seed" > /dev/null
-run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" ${group:+--group "$group"} --release-after "$release_secs" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} > /dev/null
+run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" ${group:+--group "$group"} --release-after "$release_secs" --max-numbers "$max_numbers" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} > /dev/null
 addr=$(lw key address "$SB_DIR/seed")
 echo "switchboard  $addr   (give this full address to your nodes)"
 echo "listening    udp $listen    tokens: ${tokens:-open registration}"

@@ -102,7 +102,12 @@ static void record_eviction(lw_node *n, const uint8_t kid[32], uint64_t t)
 				n->line.ev[i].time = t;
 			return;
 		}
-	i = n->line.nev < 32 ? n->line.nev++ : 0;	/* full: the first slot goes */
+	if (n->line.nev < 32)
+		i = n->line.nev++;
+	else {					/* full: the oldest goes, so a flood of evictions of no one pushes out only the oldest */
+		memmove(&n->line.ev[0], &n->line.ev[1], 31 * sizeof n->line.ev[0]);
+		i = 31;
+	}
 	memcpy(n->line.ev[i].key_id, kid, 32);
 	n->line.ev[i].time = t;
 }
@@ -162,7 +167,7 @@ static int admit_verify(lw_node *n, const uint8_t *a, const uint8_t kid[32])
 			return 0;
 		return get64(a + 73) > evicted_at(n, kid);
 	}
-	if (n->line.managed && memcmp(a + 41, n->line.founder, 32))		/* a managed line takes no one else's */
+	if (n->line.managed && (memcmp(a + 41, n->line.founder, 32) || memcmp(a + 41, a + 8, 32)))	/* a managed line takes the operator's, and its founder's own: no member's word for another */
 		return 0;
 	if (!(by = mem_find(n, a + 41)))		/* the signer must be a member we have on record, connected or not */
 		return 0;
@@ -297,7 +302,7 @@ static void line_load(lw_node *n)
 		} else if (sscanf(l, "admit %399s", a) == 1 && strlen(a) == ADMIT_LEN * 2)
 			unhexn(a, n->line.admit, ADMIT_LEN);
 		else if ((got = sscanf(l, "member %9s %199s %199s %d %199s", a, b, c, &d, sbh)) >= 4 && strlen(b) == 64 && strlen(c) == 64 &&
-			 n->line.nm < LINE_MAX) {
+			 strlen(a) == NUMLEN && num_wire_ok((const uint8_t *)a) && n->line.nm < LINE_MAX) {
 			lw_member *m = &n->line.m[n->line.nm++];
 
 			memset(m, 0, sizeof *m);
@@ -499,6 +504,8 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 		return;
 	if (n->line.have)			/* already on a line: this is either ours again or a stranger's */
 		return;
+	if (n->cfg.has_admit && memcmp(pl + 72, n->cfg.admit + 41, 32))	/* given an operator's admit: that operator's line, and no other */
+		return;
 	home_kid(n, hk);
 	memset(&n->line, 0, sizeof n->line);
 	memcpy(n->line.id, pl, 8);
@@ -513,6 +520,8 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 
 		memcpy(num, e, NUMLEN);
 		num[NUMLEN] = 0;
+		if (!num_wire_ok(e))			/* a number is nine digits: it goes into events and the line file */
+			continue;
 		if (!memcmp(e + 74, hk, 32))		/* members of other switchboards arrive with federation */
 			mem_add(n, num, e + 9, e + 41, e[73], e + 74);
 	}
@@ -540,7 +549,7 @@ static void handle_member(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	char num[NUMLEN + 1];
 	uint8_t hk[32];
 
-	if (len < MEMBER_LEN + ADMIT_LEN || !n->line.have || !mem_find(n, p->key_id))
+	if (len < MEMBER_LEN + ADMIT_LEN || !n->line.have || !mem_find(n, p->key_id) || !num_wire_ok(pl))
 		return;
 	memcpy(num, pl, NUMLEN);
 	num[NUMLEN] = 0;
@@ -609,7 +618,12 @@ static void store_revoke(lw_node *n, const uint8_t *b)
 	for (i = 0; i < n->line.nrev; i++)
 		if (!memcmp(n->line.rev[i], b, 48))
 			return;
-	i = n->line.nrev < 32 ? n->line.nrev++ : 0;
+	if (n->line.nrev < 32)
+		i = n->line.nrev++;
+	else {
+		memmove(&n->line.rev[0], &n->line.rev[1], 31 * sizeof n->line.rev[0]);
+		i = 31;
+	}
 	memcpy(n->line.rev[i], b, EVICT_LEN);
 }
 

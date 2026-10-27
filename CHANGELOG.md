@@ -5,6 +5,22 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## Unreleased
 
+- **A switchboard built for strangers** ([ADR 0033](docs/adr/0033-a-switchboard-is-built-for-strangers.md)). Before putting one online
+  we attacked it: every parser a stranger's bytes reach was read by three readers, and the engine now runs under TCC's own bounds
+  checker against raw datagrams, a real handshake bent byte by byte, and a stranger's encrypted session (`tests/fuzz.sh`; a planted
+  bug is found in half a second, and 4 seeds of 150,000 iterations per stage were clean before the fixes). It found real problems,
+  three of them reproduced by a test that fails on the old code: **strangers could fill a switchboard's places for good** (a handshake
+  and then silence; 24 filled 24 and the next honest node was refused), **a registration token could write into the event the policy
+  script reads** (replacing the address its limit counted), and **a switchboard could connect a call nobody answered**. Fixed, with
+  the smaller ones: unconfirmed sessions lapse and unregistered ones give way when the table is full; numbers and refusal text from
+  a switchboard are checked and escaped; one decision and one call per asker; a 1,024-place hashed table for introductions and a
+  512-slot one for handshake fragments; a keyed per-source limit; IPv6 cookie replies; a one-step session lookup; a budget per
+  session (messages, registrations, dials); `--max-numbers` and an indexed registry; the script counts an IPv6 /64, empties its
+  counters, and refuses an option with its value missing; stricter names; pins written whole. The units are sandboxed (a system-call
+  filter checked against a trace of the node and switchboard, no namespaces, a memory limit, ...) and say **`Restart=always`**
+  (decided for the owner, one word to reverse: a group member's `stop` is now only a bounce). **Not verified, and said so in the
+  record:** the handshake has had no formal analysis or outside review, the vendored crypto no published known-answer vectors (X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 agree with independent implementations on 2,100 cases; ML-KEM was not cross-checked), the units no live
+  systemd, and open registration can be used up to `--max-numbers` by anyone with enough addresses (use `--tokens`).
 - **The services share their control socket with the group `longwire`** ([ADR 0032](docs/adr/0032-the-services-share-their-control-socket-with-a-group.md),
   amends 0004). `--group NAME|GID` gives a worker's control socket to a group at mode 0660, and then the file mode is the check; the
   two units run in the group with a runtime directory under `/run`, and the package makes the group (a `sysusers.d` file). The control

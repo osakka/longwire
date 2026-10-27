@@ -340,8 +340,9 @@ static void dhcp_watch(lw_node *n, const uint8_t *f, size_t len)
 		n->dhcp[slot].said = 0;
 	n->dhcp[slot].ip = src;
 	n->dhcp[slot].t = n->now;
-	if (other >= 0 && n->now - n->dhcp[slot].said >= 600) {
+	if (other >= 0 && n->now - n->dhcp[slot].said >= 600 && n->now - n->dhcp_say >= 30.0) {	/* and never more than one a half-minute: frames are free to forge */
 		n->dhcp[slot].said = n->now;
+		n->dhcp_say = n->now;
 		n->dhcp_conflicts++;
 		ev_emit(n, "{\"event\":\"dhcp-conflict\",\"servers\":[\"%u.%u.%u.%u\",\"%u.%u.%u.%u\"]}",
 			(unsigned)(src >> 24), (unsigned)(src >> 16 & 255), (unsigned)(src >> 8 & 255), (unsigned)(src & 255),
