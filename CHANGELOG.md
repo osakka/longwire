@@ -5,6 +5,9 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.0
 
+*Published:* the catalogue (`hibr-apps` `288c876`) and the packages (`hibr-apt` `c6e32da`, `hibr-rpm` `eab116d`, `hibr-arch` `784d551`). `make check` passed on the exact tree
+(`3a1187b`). Not tried: installing from those repositories on a clean machine, and the units under a live systemd.
+
 - **A connection is a saved profile, and the Control Panel turns it on** ([ADR 0034](docs/adr/0034-a-connection-is-a-profile.md)). 0.4.0
   left you typing the switchboard and token each time, in a command that sat in the foreground, with a pane that had no token field and
   a tap device you made by hand as root. Now: `longwire profile set home switchboard=… token=… attach=jack` (one 0600 file the command, the
