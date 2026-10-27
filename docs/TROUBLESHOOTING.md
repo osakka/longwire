@@ -98,7 +98,7 @@ Two of your line's members cannot reach each other directly and no member can re
 
 **There is no telephone on the menu bar.**
 It needs hibr 0.99.351 or newer. Then: the switch **Longwire on the Menu Bar** in the pane (or Control Panel → Menu Bar Items), and Refresh
-Desktop. With the Blit glyph set and an older hibr you see plain characters instead of Blit's telephone; that needs hibr 0.99.364 and Blit 0.2.44.
+Desktop. With the Blit glyph set and an older hibr you see plain characters instead of Blit's telephone; that needs hibr 0.99.364 and Blit 0.2.44 (the classic rotary phone: hibr 0.99.366 and Blit 0.2.45).
 
 **The pane says "Longwire is off" but a node runs.**
 A node started by another user (or a service) has another control socket. The pane finds a service node under `/run/longwire` if you

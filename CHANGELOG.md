@@ -14,7 +14,7 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
   code whose audits are not ours.
 - **Phone Style.** Blit has two sets of telephone icons (a modern handset, and a classic rotary phone from Blit 0.2.45); a **Phone Style** row in the pane (modern / classic, shown only where the
   glyph set draws telephones) picks one for both the menu bar telephone and the Control Strip, falling back to the modern set and then to characters. The icon names are agreed with the
-  `hibr` session (`GL[phoneoffc]` and the rest); until Blit 0.2.45 and a hibr that maps them are out, classic simply shows the modern phone.
+  `hibr` session (`GL[phoneoffc]` and the rest); Blit 0.2.45 and hibr 0.99.366, which maps them, are out; without them classic simply shows the modern phone.
 - **Fixes found while writing them.** The bundle `longwire` left out the command the pane runs, so the pane could not have turned anything on from a bundle install; the pane now `# needs:`
   `cli/longwire`, the bar item and the strip module need the pane, and the bundle lists all four. The switchboard script printed its address on standard output, which hibr holds back when it is
   redirected, so under a service it might not reach the journal; it is on standard error now. A stale comment in the Switchboard window said a service switchboard cannot be reached.

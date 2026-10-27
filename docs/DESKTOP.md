@@ -23,7 +23,7 @@ catalogue install longwire       # the command, the pane, the menu bar telephone
 ```
 
 Then **Refresh Desktop** (or log in again). The pane is under **Apps** in the Control Panel; the telephone is on the menu bar.
-The menu bar telephone needs hibr 0.99.351 or newer; the Blit telephone icons need 0.99.364 or newer and the Blit glyph set.
+The menu bar telephone needs hibr 0.99.351 or newer; the Blit telephone icons need 0.99.364 or newer and the Blit glyph set, and the classic rotary phone 0.99.366 with Blit 0.2.45.
 On an older hibr the pane and the command work and the telephone is simply absent.
 
 ## The Longwire pane
@@ -76,7 +76,7 @@ can use it if you are in the group `longwire`, but only the administrator turns 
 
 (In the plain-text glyph set it writes `tel -`, `tel ~`, `tel *`, `tel ! 312-…`. With the Blit glyph set and hibr 0.99.364 it is
 Blit's own telephone: outline when off, dashed while connecting, filled when on, with ring waves when ringing. **Phone Style** in the pane picks the
-modern handset or the classic rotary phone; with a Blit that lacks the classic set it shows the modern one.)
+modern handset or the classic rotary phone (classic needs hibr 0.99.366 and Blit 0.2.45; without them it shows the modern one).)
 
 **Click it** for a menu that depends on the state:
 
