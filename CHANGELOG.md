@@ -5,6 +5,10 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.4.0
 
+*Published:* the catalogue (`hibr-apps` `b44d5e8`: `cli/longwire`, `cli/longwire-switchboard`, the switchboard application and the pane) and the
+packages (`hibr-apt` `393b065`, `hibr-rpm` `109d744`, `hibr-arch` `211d968`). `make check` passed on the exact tree before publishing (`2c59160`).
+Not tried: installing from those repositories on a clean machine, and the units under a live systemd.
+
 - **A switchboard built for strangers** ([ADR 0033](docs/adr/0033-a-switchboard-is-built-for-strangers.md)). Before putting one online
   we attacked it: every parser a stranger's bytes reach was read by three readers, and the engine now runs under TCC's own bounds
   checker against raw datagrams, a real handshake bent byte by byte, and a stranger's encrypted session (`tests/fuzz.sh`; a planted
