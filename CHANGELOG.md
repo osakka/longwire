@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.9
 
+*Published:* the catalogue (`hibr-apps` `8dfdcd8`) and the packages (`hibr-apt` `0917c54`, `hibr-rpm` `ec7ce3b`, `hibr-arch` `86854bd`). `make check` passed (562 checks). Not tried: the real loop on the owner's desktop, and installing from the repositories on a clean machine.
+
 - **Traffic to the other end never goes into our own jack.** Found with the first real site node: a desktop whose jack had been given an address in the same network as the site node's card
   sent the packets that bring the tunnel up into the tunnel itself (`ip route get` said `dev lw0`), and the call kept starting and never connected. A node now sends everything for an address inside
   its jack's network through a second UDP socket tied to its real network device (the default route's, or `--underlay DEV`), which the jack's route cannot capture, and does not offer the address it
