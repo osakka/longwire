@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.8
 
+*Published:* the catalogue (`hibr-apps` `3238f6b`) and the packages (`hibr-apt` `779774f`, `hibr-rpm` `7244241`, `hibr-arch` `657ce48`). `make check` passed (547 checks). Not tried: a real device getting its address, and installing from the repositories on a clean machine.
+
 - **An address for the jack, so nobody runs `ip addr`.** A profile can carry `address = 10.77.0.2/24` (the pane's new **Address** row, or `longwire profile set home address=…`). The root helper that
   makes the jack puts the address on it (`longwire jack --address A.B.C.D/N`), after checking it, and **Turn on** / `longwire on` ask for the password only when the device does not already have it
   ([ADR 0036](docs/adr/0036-the-jack-gets-its-address-from-the-profile.md)). The helper is tested against a stand-in `ip` (`tests/jack.sh`), as an ordinary user; not tried on a real device. An address from a
