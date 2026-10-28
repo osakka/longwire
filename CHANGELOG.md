@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.15
 
+*Published:* the catalogue (`hibr-apps` `87eff9e`) and the packages (`hibr-apt` `55c2ce0`, `hibr-rpm` `aa18fe8`, `hibr-arch` `3ece90d`). `make check` passed (606 checks). Not tried: the Out of step rows on a real desktop, and installing from the repositories on a clean machine.
+
 - **Out-of-step warnings.** The scripts come from the catalogue and the engine from the package, and a running node keeps the engine it started with, so a fix could sit in one of the three and look as
   if it did nothing (it did, for hours). `longwire doctor` now says whether the scripts, the installed engine and the running node agree, and what to do if not (update the package; refresh the catalogue; turn the node
   off and on). `longwire show` and `longwire on` print the same warnings, and the Control Panel has an **Out of step** heading at the top with the same words. The engine answers `lw version` for this; an
