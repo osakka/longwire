@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.9
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.10
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -535,21 +535,22 @@ fn lwp_launch(p) {
 }
 
 fn lwp_ondone(int n, int st) {
-	local f line out= err=
+	local f line all= one
 
 	LWP_BUSY=0
-	f := dt_jobfile "$n" out
-	if [ -r "$f" ]; then
-		while IFS= read -r line; do out=$line; done < "$f"
-	fi
-	f := dt_jobfile "$n" err
-	if [ -r "$f" ]; then
-		while IFS= read -r line; do err=$line; done < "$f"
-	fi
+	for one in out err; do
+		f := dt_jobfile "$n" "$one"
+		[ -r "$f" ] || continue
+		while IFS= read -r line; do
+			line=${line#longwire: }
+			[ -n "$line" ] && all="${all:+$all | }$line"
+		done < "$f"
+	done
+	all=${all:0:300}
 	if [ "$st" = 0 ]; then
-		dt_notep low "%s" "${out#longwire: }"
+		dt_notep low "%s" "$all"
 	else
-		dt_notep high "Longwire did not turn on: %s" "${err:-${out:-exit $st}}"
+		dt_notep high "Longwire did not turn on: %s" "${all:-exit $st}"
 	fi
 	LWP_T=-100
 	return 0

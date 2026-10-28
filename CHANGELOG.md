@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.10
+
+- **Turn on with a slow switchboard is no longer "did not turn on".** If the node runs but the switchboard has not given it a number within the wait (now 15 s, not 8), `longwire on` says
+  "on, waiting for the switchboard to give a number" and succeeds; only a switchboard that says no (a refused token) or a node that does not start is a failure. The pane's note shows every line of what
+  the command said, not only the last one: a note reading ". on line d7c39a with 2 members" had hidden both the reason and the fact that the node was running.
+
 ## 0.5.9
 
 *Published:* the catalogue (`hibr-apps` `8dfdcd8`) and the packages (`hibr-apt` `0917c54`, `hibr-rpm` `ec7ce3b`, `hibr-arch` `86854bd`). `make check` passed (562 checks). Not tried: the real loop on the owner's desktop, and installing from the repositories on a clean machine.

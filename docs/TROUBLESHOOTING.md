@@ -25,6 +25,10 @@ or follow the two commands the message prints, as root, once.
 **Control Panel says "Could not start pkexec" or "Could not make the jack".**
 Same causes. Run `longwire jack` in a terminal to see the full instructions. If you cancelled the password dialog, press **Turn on** again.
 
+**`longwire: on (profile …), waiting for the switchboard to give a number`**
+The node is running but the switchboard has not answered yet (slow, unreachable, or a firewall on UDP 1877). `longwire show` says **dial tone** when it has; if it never does, check
+the address and the firewall, and `~/.longwire/log`.
+
 **`longwire: it did not start:` and some lines**
 Those are the end of `~/.longwire/log`. Common causes are a wrong switchboard address, a token the switchboard refuses (below), or a
 port already in use (`--listen`).

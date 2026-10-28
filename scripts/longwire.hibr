@@ -7,7 +7,7 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.9
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.10
 # modules: longwire
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
@@ -450,7 +450,7 @@ cmd_on() {
 	fi
 	: > "$LW_DIR/log"
 	nohup setsid "${LONGWIRE_HIBR:-hibr}" "$0" up --profile "$n" >> "$LW_DIR/log" 2>&1 < /dev/null &
-	for ((i = 0; i < 80; i++)); do			# up to 8 s for the switchboard to give a number
+	for ((i = 0; i < 150; i++)); do			# up to 15 s for the switchboard to give a number
 		if lw status > /dev/null 2>&1; then
 			json parse S "$(lw status)"
 			if [ -n "${S[number]:-}" ]; then echo "longwire: on, your number is ${S[number]}   (profile $n)"; return 0; fi
@@ -458,10 +458,16 @@ cmd_on() {
 		sleep 0.1
 	done
 	if lw status > /dev/null 2>&1; then
-		echo "longwire: on (profile $n), but the switchboard has not given a number yet:"
-	else
-		echo "longwire: it did not start:" >&2
+		if grep -q '^✗' "$LW_DIR/log" 2> /dev/null; then		# the switchboard said no: that is a failure, and the log says why
+			echo "longwire: on (profile $n), but the switchboard has not given a number:" >&2
+			tail -n 5 "$LW_DIR/log" >&2
+			return 1
+		fi
+		echo "longwire: on (profile $n), waiting for the switchboard to give a number (longwire show says when it has)"	# slow or unreachable: not a failure to start
+		tail -n 3 "$LW_DIR/log" >&2
+		return 0
 	fi
+	echo "longwire: it did not start:" >&2
 	tail -n 5 "$LW_DIR/log" >&2
 	return 1
 }

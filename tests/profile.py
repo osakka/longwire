@@ -113,6 +113,15 @@ def main():
     rc, out = lwc("jack", "--address", "127.0.0.1/8", "lo")
     check(rc == 0 and "lo is there, with 127.0.0.1/8" in out, f"jack with the address already there needs no password: {out!r}")
 
+    # A switchboard that does not answer: the node runs, so `on` is not a failure; it says it is waiting (it once said "did not turn on" and
+    # showed only the last line of the log).
+    rc, out = lwc("profile", "set", "quiet", f"switchboard=127.0.0.1:1999/{addr}", "attach=sock", f"interface={peer}")
+    rc, out = lwc("on", "quiet", timeout=60)
+    check(rc == 0 and "waiting for the switchboard" in out, f"a switchboard that does not answer: on says the node is on and waiting, and succeeds: rc={rc} {out[-200:]!r}")
+    rc, out = lwc("off")
+    until(lambda: lwc("status")[0] != 0, 10)
+    rc, out = lwc("profile", "remove", "quiet")
+
     # --- on, with a token the switchboard does not have ----------------------------------------------------------------
     rc, out = lwc("on", "bad", timeout=40)
     check(rc == 1 and "refused" in out.lower() and "valid token" in out, f"a bad token: on says it did not get a number, and why: {out[-160:]!r}")
