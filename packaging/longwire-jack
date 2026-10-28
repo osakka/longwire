@@ -1,13 +1,21 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# longwire-jack TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then bring it up.
+# longwire-jack [--address A.B.C.D/N] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
+# bring it up, with the address if one is given (so that nobody runs `ip addr` by hand).
 # This is the one privileged step a node on a single machine needs. A person never runs it by hand: `longwire jack` and the Control
 # Panel's Turn on run it through pkexec (polkit's action org.longwire.jack names this file), which asks for a password in the
 # desktop. pkexec sets PKEXEC_UID; run as root by hand, pass the user as the second argument. It makes nothing but a device called
-# lw0 to lw99, owned by that user, and does nothing else: the node itself never runs as root (docs/adr/0004).
+# lw0 to lw99, owned by that user, with an IPv4 address on it if asked, and does nothing else: the node itself never runs as root
+# (docs/adr/0004).
 set -eu
 
+addr=
+if [ "${1:-}" = "--address" ]; then
+	addr=${2:-}
+	[ $# -ge 2 ] || { echo "longwire-jack: --address wants A.B.C.D/N" >&2; exit 2; }
+	shift 2
+fi
 tap=${1:-lw0}
 uid=${PKEXEC_UID:-${2:-}}
 
@@ -20,8 +28,28 @@ case $uid in
 esac
 [ "$uid" -ne 0 ] || { echo "longwire-jack: a jack owned by root would need a node that runs as root" >&2; exit 2; }
 
+if [ -n "$addr" ]; then
+	# a plain IPv4 host address with a prefix of 8 to 30: four numbers up to 255, a slash, the prefix; not 0., 127., or above 223.
+	case $addr in
+	*[!0-9./]* | */*/* | */ | /* | *..* | .* | *.*.*.*.*) echo "longwire-jack: '$addr' is not an address like 10.77.0.2/24" >&2; exit 2 ;;
+	esac
+	ip4=${addr%/*}
+	pre=${addr#*/}
+	[ "$pre" != "$addr" ] && [ "${#pre}" -le 2 ] && [ "$pre" -ge 8 ] && [ "$pre" -le 30 ] || { echo "longwire-jack: the prefix of '$addr' is 8 to 30" >&2; exit 2; }
+	oldifs=$IFS
+	IFS=.
+	set -- $ip4
+	IFS=$oldifs
+	[ $# -eq 4 ] || { echo "longwire-jack: '$addr' is not an address like 10.77.0.2/24" >&2; exit 2; }
+	for o in "$@"; do
+		[ "${#o}" -ge 1 ] && [ "${#o}" -le 3 ] && [ "$o" -le 255 ] || { echo "longwire-jack: '$addr' is not an address like 10.77.0.2/24" >&2; exit 2; }
+	done
+	[ "$1" -ne 0 ] && [ "$1" -ne 127 ] && [ "$1" -le 223 ] || { echo "longwire-jack: '$addr' is not a usable host address" >&2; exit 2; }
+fi
+
 if [ ! -d "/sys/class/net/$tap" ]; then
 	ip tuntap add dev "$tap" mode tap user "$uid"
 fi
 ip link set "$tap" mtu 1400 up
-echo "longwire-jack: $tap is up, owned by user $uid"
+[ -z "$addr" ] || ip addr replace "$addr" dev "$tap"
+echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}"

@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.8
+
+- **An address for the jack, so nobody runs `ip addr`.** A profile can carry `address = 10.77.0.2/24` (the pane's new **Address** row, or `longwire profile set home address=…`). The root helper that
+  makes the jack puts the address on it (`longwire jack --address A.B.C.D/N`), after checking it, and **Turn on** / `longwire on` ask for the password only when the device does not already have it
+  ([ADR 0036](docs/adr/0036-the-jack-gets-its-address-from-the-profile.md)). The helper is tested against a stand-in `ip` (`tests/jack.sh`), as an ordinary user; not tried on a real device. An address from a
+  DHCP server on the line is still `dhclient lw0` by hand.
+
 ## 0.5.7
 
 *Published:* the catalogue (`hibr-apps` `e791bd8`) and the packages (`hibr-apt` `7da4c5c`, `hibr-rpm` `ab77048`, `hibr-arch` `d2fab86`). `make check` passed (509 checks). `make lint` also passes under TCC 0.9.28rc (the Cix packaging ran it). Not tried: installing from the repositories on a clean machine.

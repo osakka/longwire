@@ -98,6 +98,21 @@ def main():
     rc, out = lwc("profile", "rename", "bad2", "bad")
     check(rc == 0 and open(path).read() == before, "and back again, the file is byte for byte what it was")
 
+    # --- the address the jack gets -------------------------------------------------------------------------------------------
+    rc, out = lwc("profile", "set", "good", "address=10.77.0.2/24")
+    rc2, out2 = lwc("profile", "show", "good")
+    check(rc == 0 and "address = 10.77.0.2/24" in out2, f"a profile keeps the address of its jack: {out2!r}")
+    for a in ("banana", "10.77.0.2", "10.77.0.2/24;id", "10.77/24", "/24"):
+        rc, out = lwc("profile", "set", "good", f"address={a}")
+        check(rc == 2 and "address is like" in out, f"address {a!r} is refused plainly: {out!r}")
+    rc, out = lwc("profile", "set", "good", "address=")
+    rc2, out2 = lwc("profile", "show", "good")
+    check(rc == 0 and "address" not in out2, f"an empty address removes it: {out2!r}")
+    rc, out = lwc("jack", "--address")
+    check(rc == 2 and "usage" in out, f"jack --address with no value says how: {out!r}")
+    rc, out = lwc("jack", "--address", "127.0.0.1/8", "lo")
+    check(rc == 0 and "lo is there, with 127.0.0.1/8" in out, f"jack with the address already there needs no password: {out!r}")
+
     # --- on, with a token the switchboard does not have ----------------------------------------------------------------
     rc, out = lwc("on", "bad", timeout=40)
     check(rc == 1 and "refused" in out.lower() and "valid token" in out, f"a bad token: on says it did not get a number, and why: {out[-160:]!r}")

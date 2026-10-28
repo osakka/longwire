@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.7
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.8
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -172,7 +172,7 @@ fn lwp_profiles(force = "") {
 		default) LWP_PDEF=$eq ;;
 		profile) cur=$eq; LWP_PNAMES+=("$cur") ;;
 		token) [ -n "$cur" ] && LWP_PF["$cur.token"]=${#v} ;;
-		switchboard | attach | interface | name | listed | answer) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
+		switchboard | attach | interface | address | name | listed | answer) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
 		esac
 	done < "$f"
 }
@@ -244,6 +244,7 @@ fn longwire_rows(int w) {
 		lwp_row "$w" "$n" action "Token" "$tk" token; n=$((n + 1))
 		lwp_row "$w" "$n" set "Attach" "${LWP_PF[$p.attach]:-jack}" attach; n=$((n + 1))
 		lwp_row "$w" "$n" action "Interface" "${LWP_PF[$p.interface]:-lw0}" iface; n=$((n + 1))
+		[ "${LWP_PF[$p.attach]:-jack}" = jack ] && { lwp_row "$w" "$n" action "Address" "${LWP_PF[$p.address]:-none}" address; n=$((n + 1)); }
 		lwp_row "$w" "$n" action "Name" "${LWP_PF[$p.name]:-none}" name; n=$((n + 1))
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="List in the directory"; CP[$w][$n]["wtype"]=bool
 		CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.listed]-}" = yes ] && CP[$w][$n]["val"]=on
@@ -405,6 +406,7 @@ fn lwp_dialled(text, int? id = "") {
 
 fn lwp_setsb(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset switchboard "$text"; return 0; }
 fn lwp_setiface(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset interface "$text"; return 0; }
+fn lwp_setaddress(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset address "$text"; return 0; }
 fn lwp_setname(text, int? id = "") { lwp_pset name "$text"; return 0; }
 fn cp_set_lwpolicy(int? id = "", value = "") { lwp_setpolicy "$value"; }
 fn cp_set_lwppolicy(int? id = "", value = "") { lwp_pset answer "$value"; }
@@ -553,8 +555,13 @@ fn lwp_ondone(int n, int st) {
 	return 0
 }
 
+# Is the address already on the device? (Asked without privilege, so the password is only asked when it must be.)
+fn lwp_hasaddr(iface, addr) {
+	PATH=$PATH:/usr/sbin:/sbin ip -4 -o addr show dev "$iface" 2> /dev/null | grep -q " ${addr%/*}/"
+}
+
 fn lwp_turnon(int w) {
-	local p sb attach iface
+	local p sb attach iface addr
 
 	if ! command -v longwire > /dev/null; then
 		dt_notep high "longwire is not installed. Find it in the Catalogue (Commands)."
@@ -574,9 +581,10 @@ fn lwp_turnon(int w) {
 		return 1
 	fi
 	LWP_ON=$p
-	if [ "$attach" = jack ] && [ ! -d "/sys/class/net/$iface" ]; then
+	addr=${LWP_PF[$p.address]-}
+	if [ "$attach" = jack ] && { [ ! -d "/sys/class/net/$iface" ] || { [ -n "$addr" ] && ! lwp_hasaddr "$iface" "$addr"; }; }; then
 		LWP_BUSY=1
-		LWP_JOB := dt_ptyjob longwire jack lwp_jackdone lwp_pkprompt longwire jack "$iface"
+		LWP_JOB := dt_ptyjob longwire jack lwp_jackdone lwp_pkprompt longwire jack ${addr:+--address "$addr"} "$iface"
 		[ -n "$LWP_JOB" ] || { LWP_BUSY=0; dt_notep high "Could not start pkexec"; return 1; }
 		dt_notep low "Making the jack $iface${GL[ellipsis]}"
 		return 0
@@ -633,6 +641,7 @@ fn longwire_do(int w, k, int dir) {
 	sb) p := lwp_cur; dt_ask "Switchboard" "HOST:PORT/KEY" "${LWP_PF[$p.switchboard]-}" lwp_setsb "the switchboard's address, then / and its key" ;;
 	token) dt_ask "Token" "Token" "" lwp_settoken "the invite token your switchboard gave you; empty removes it. It is kept in a file only you can read" 1 ;;
 	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "for jack, the tap (lw0 to lw99, made for you); for splice, the NIC" ;;
+	address) p := lwp_cur; dt_ask "Address" "Address" "${LWP_PF[$p.address]-}" lwp_setaddress "this machine's address on the line, like 10.77.0.2/24 (every machine its own, in one subnet); empty to leave it alone" ;;
 	name) p := lwp_cur; dt_ask "Name" "Name" "${LWP_PF[$p.name]-}" lwp_setname "what callers see (a claim, not proof); empty for none" ;;
 	newprofile) dt_ask "New profile" "Name" "" lwp_newprofile "letters, digits, . _ -" ;;
 	renprofile) p := lwp_cur; dt_ask "Rename profile" "Name" "$p" lwp_renameprofile "the new name: letters, digits, . _ -" ;;

@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.7" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.8" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -161,6 +161,7 @@ The keys are
 .BR token ,
 .BR attach " (" jack " or " splice ),
 .BR interface ,
+.BR address ,
 .BR name ,
 .BR listed " (" yes " or " no ),
 and
@@ -180,21 +181,21 @@ Rename a profile. Its settings, its token and its place in the list stay, and so
 .BI "profile remove" " name"
 Delete a profile.
 .TP
-.BR jack " [" \fItap\fR ]
+.BR jack " [" \-\-address " " \fIA.B.C.D/N\fR "] [" \fItap\fR ]
 Make the tap device a single machine attaches to
 .RB ( lw0
 to
 .BR lw99 ,
 .B lw0
-by default) and give it to you.
+by default) and give it to you, with an IPv4 address if one is given.
 A small root helper does it through polkit, which asks for a password.
 The device does not survive a restart, so it is asked for again then.
 .B on
-does this by itself when the jack is missing.
+does this by itself when the jack, or its address, is missing.
 .TP
 .B setup splice \fInic\fR
 .TQ
-.B setup jack \fR[\fItap\fR]
+.B setup jack \fR[\fItap\fR [\fIaddr\fR]]
 Print the one-time privileged step for an attach mode, to run by hand.
 .SS Identity
 .TP

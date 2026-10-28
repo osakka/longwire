@@ -44,7 +44,8 @@ The page says **Longwire is off** and shows the connection:
 | **When a call rings** | how this machine answers: `ask`, `known`, `auto` or `never` (see below). |
 | **Longwire on the Menu Bar** | show or hide the telephone. |
 | **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. |
-| **Turn on** | does everything: makes the network device if it is missing (that asks for your password), starts the node in the background, and tells you your number. |
+| **Address** | this machine's address on the line, like `10.77.0.2/24` (jack profiles; every machine its own, in one subnet), put on the device for you. |
+| **Turn on** | does everything: makes the network device if it is missing, and puts the address on it (that asks for your password), starts the node in the background, and tells you your number. |
 | **New profile…** / **Rename profile** / **Remove profile** | keep several connections (home, office, a friend's switchboard) and switch between them. |
 
 The first profile you make becomes the default. When you press **Turn on** and the network device has to be made (the first time, and after each restart, because the device does

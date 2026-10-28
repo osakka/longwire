@@ -61,14 +61,16 @@ Do the same on B, with B's own token. B gets its own number, say `312-884-076`.
 
 ## 4. Give the devices an address
 
-longwire carries Ethernet frames; it does not hand out IP addresses. Until the Control Panel can do this for you *(planned: M4)*,
-give each machine's network device an address in one subnet (any private range). The address is lost when the device goes at a restart, so
-you do this again then:
+longwire carries Ethernet frames; it does not hand out IP addresses. Give each machine its own address in one subnet (any private range):
+in the Control Panel pane press **Address** and type `10.77.0.1/24` on A and `10.77.0.2/24` on B, or from a terminal
 
 ```
-sudo ip addr add 10.77.0.1/24 dev lw0        # on A
-sudo ip addr add 10.77.0.2/24 dev lw0        # on B
+longwire profile set home address=10.77.0.1/24        # on A
+longwire profile set home address=10.77.0.2/24        # on B
 ```
+
+**Turn on** (or `longwire on`) then puts it on the device, in the same password step that makes the device; after a restart, once more. By hand
+instead, as root: `ip addr add 10.77.0.1/24 dev lw0`.
 
 If a DHCP server sits on the other side (a router at a site you have bridged), ask it instead: `sudo dhclient lw0`.
 

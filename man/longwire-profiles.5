@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.7" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.8" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -40,6 +40,7 @@ profile home
   token = 5fe1c0ab...
   attach = jack
   interface = lw0
+  address = 10.77.0.2/24
   name = osakka
   listed = no
   answer = known
@@ -67,6 +68,11 @@ Needed the first time a machine registers; after that the switchboard knows its 
 The tap device (default
 .BR lw0 )
 or the NIC to splice.
+.TP
+.B address
+For a jack: this machine's address on the line, like 10.77.0.2/24, put on the device for you when the node is turned on.
+Every machine on a line needs its own, in one subnet.
+Empty leaves the device alone.
 .TP
 .B name
 The name announced to the nodes you call.
