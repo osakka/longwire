@@ -42,12 +42,25 @@ fn dump(int w) {
 '''
 
 
-def drive(env, body):
+def drive(env, body, ns=None):
     log = f"{T}/pane.log"
     open(log, "w").close()
     src = DRIVER % dict(log=log, pane=PANE, mod=MOD, body=body)
     e = dict(os.environ, **env, HIBR_MODPATH=os.path.dirname(MOD))
-    r = subprocess.run([HIBR, "-c", src], env=e, capture_output=True, text=True, timeout=30)
+    cmd = [HIBR, "-c", src]
+    if ns is not None:
+        cmd = ["nsenter", "-t", str(ns.pid), "-n"] + cmd
+    # output goes to files, not pipes: a node that Turn on starts keeps running in the background, and a pipe it inherited would never close
+    of, ef = f"{T}/drv.out", f"{T}/drv.err"
+    with open(of, "w") as fo, open(ef, "w") as fe:
+        proc = subprocess.Popen(cmd, env=e, stdout=fo, stderr=fe, stdin=subprocess.DEVNULL)
+        try:
+            proc.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            print("driver timed out; it had printed:", open(of).read()[-500:], open(ef).read()[-800:], flush=True)
+            raise
+    r = subprocess.CompletedProcess(cmd, proc.returncode, open(of).read(), open(ef).read())
     rows = [l[4:].split("|") for l in r.stdout.splitlines() if l.startswith("ROW ")]
     return rows, open(log).read().splitlines(), r
 
@@ -217,6 +230,44 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     check(flat.get(("set", "Profile"), [""])[0] == "work", f"a new profile becomes the one shown: {flat.get(('set', 'Profile'))}")
     rows, log, r = drive(envF, 'longwire_do 1 profile 1; n := lwp_cur; echo "NOW $n"')
     check("NOW work" in r.stdout, f"the profile row cycles from the default (home) to the other profile: {r.stdout.strip()[-30:]}")
+    # Turn on, end to end: a job runner that runs the command and then calls the callback, as the desktop's does (the stub used elsewhere
+    # returns at once and never runs it, which is how a callback that cannot run went unnoticed)
+    jobs = r'''
+DRV_JN=0; DRV_DIR=%s
+mkdir -p "$DRV_DIR"
+fn dt_job(kind, tag, then, ...cmd) {
+	local n st
+	DRV_JN=$((DRV_JN + 1)); n=$DRV_JN
+	"${cmd[@]}" > "$DRV_DIR/$n.out" 2> "$DRV_DIR/$n.err"
+	st=$?
+	"$then" "$n" "$st"
+	ret "$n"
+}
+fn dt_jobfile(int n, which = "out") { ret "$DRV_DIR/$n.$which"; }
+''' % f"{T}/jobs"
+    eh = f"{T}/e2ehome"
+    os.makedirs(eh)
+    envE = dict(HOME=eh, XDG_CONFIG_HOME=f"{eh}/cfg", LW_DIR=f"{eh}/lw", LW_SOCK=f"{eh}/lw/ctl", LONGWIRE_MOD=MOD, LONGWIRE_HIBR=HIBR,
+                PATH=f"{binp}:" + os.environ["PATH"])
+    sub = lambda *a: subprocess.run([HIBR, L.ROOT + "/scripts/longwire.hibr", *a], env=envE, capture_output=True, text=True)
+    sub("profile", "set", "good", f"switchboard=127.0.0.1:1877/{addr}", "attach=sock", f"interface={eh}/p:{eh}/h")
+    sub("profile", "set", "bad", "switchboard=127.0.0.1:1877/lw1notakey", "attach=sock", f"interface={eh}/p:{eh}/h")
+    rows, log, r = drive(envE, jobs + "longwire_do 1 on 1; echo done", ns)
+    notes = [l for l in log if l.startswith("NOTE")]
+    check(any(l.startswith("NOTE low") and "on, your number is" in l for l in notes) and "done" in r.stdout,
+          f"Turn on with the job runner running the callback: the note says the number it got: {notes} {r.stderr[-300:]}")
+    st = sub("status")
+    check(st.returncode == 0 and '"number"' in st.stdout, "...and the node is up")
+    sub("off")
+    until(lambda: sub("status").returncode != 0, 10)
+    sub("profile", "default", "bad")
+    rows, log, r = drive(envE, jobs + "longwire_do 1 on 1; echo done", ns)
+    notes = [l for l in log if l.startswith("NOTE")]
+    check(any(l.startswith("NOTE high") and "Longwire did not turn on:" in l and len(l.split("on:", 1)[1].strip()) > 5 for l in notes) and "done" in r.stdout,
+          f"Turn on that cannot work: the note says it did not, and why: {notes} {r.stderr[-300:]}")
+    sub("off")
+    until(lambda: sub("status").returncode != 0, 10)
+
     for n in (A, B, S):
         n.stop()
 

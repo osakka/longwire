@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.3
+
+- **Fixed: Turn on in the Control Panel showed an empty note titled "Desktop" and Longwire stayed off.** The callback that reports the result of `longwire on` used a variable it had
+  not declared, which hibr's strict mode refuses, so it stopped before it could say anything, whether the node had started or not. It now shows your number, or "Longwire did not turn on:" and
+  the reason the command gave. The earlier tests replaced the job runner, so they never ran this callback; a new test runs it as the desktop does, once with a switchboard that works and once
+  with a key that does not.
+
 ## 0.5.2
 
 *Published:* the catalogue (`hibr-apps` `10d9b0b`) and the packages (`hibr-apt` `8ddc209`, `hibr-rpm` `2561f2e`, `hibr-arch` `bbf7215`). `make check` passed on the tree before the last
