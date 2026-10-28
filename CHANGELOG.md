@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.6
 
+*Published:* the catalogue (`hibr-apps` `ddf965a`) and the packages (`hibr-apt` `978c18c`, `hibr-rpm` `d36557c`, `hibr-arch` `9a8d58f`). `make check` passed (509 checks). Not tried: `make lint` under TCC 0.9.28rc (only 0.9.27 is installed here), and installing from the repositories on a clean machine.
+
 - **`make lint` passes under newer TCC.** `engine/port.c` held the result of `strchr` on a `const char *` in a plain `char *`; TCC 0.9.28rc (the one Cix pins) rejects that
   ("assignment discards qualifiers"). It is now `const char *`. Found by the Cix packaging.
 
