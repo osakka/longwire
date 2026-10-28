@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.4" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.5" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -173,6 +173,9 @@ Set the token from standard input, so that it is never on a command line.
 .TP
 .BI "profile default" " name"
 Make a profile the default.
+.TP
+.BI "profile rename" " old new"
+Rename a profile. Its settings, its token and its place in the list stay, and so does being the default.
 .TP
 .BI "profile remove" " name"
 Delete a profile.

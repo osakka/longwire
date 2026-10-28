@@ -554,7 +554,7 @@ static void lw_fin(sh *s)
 }
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.4"
+#define LW_VERSION "0.5.5"
 #endif
 
 const hibr_bi lw_bi[] = { { "lw", m_lw, "longwire engine: start, stop, status, dial, pickup, key, sb" }, HIBR_BI_END };

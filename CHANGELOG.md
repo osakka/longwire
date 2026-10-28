@@ -3,6 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.5
+
+- **Rename a profile.** `longwire profile rename OLD NEW`, and a **Rename profile** row in the Control Panel pane. The settings, the token, the place in the list and being the default all stay; a name
+  already taken, a name that is not letters, digits, `.` `_` `-`, and a profile that is not there are refused plainly.
+
 ## 0.5.4
 
 *Published:* the catalogue (`hibr-apps` `dc5a595`) and the packages (`hibr-apt` `3dd9915`, `hibr-rpm` `71e33b1`, `hibr-arch` `a04dff8`). `make check` passed (498 checks). Not tried: installing from those repositories on a clean machine.

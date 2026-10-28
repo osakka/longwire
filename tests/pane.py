@@ -228,8 +228,12 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     rows, log, r = drive(envF, 'lwp_pset attach jack; lwp_newprofile "work"; lwp_pset switchboard "other:1877/lw1xyz"; dump 1')
     flat = {(x[0], x[1]): x[2:] for x in rows}
     check(flat.get(("set", "Profile"), [""])[0] == "work", f"a new profile becomes the one shown: {flat.get(('set', 'Profile'))}")
+    check(any(x[0] == "action" and x[1] == "Rename profile work" for x in rows), f"there is a Rename profile row for the profile shown: {[x[:2] for x in rows if x[0] == 'action']}")
     rows, log, r = drive(envF, 'longwire_do 1 profile 1; n := lwp_cur; echo "NOW $n"')
     check("NOW work" in r.stdout, f"the profile row cycles from the default (home) to the other profile: {r.stdout.strip()[-30:]}")
+    # rename the profile shown, then back (the rest of this file expects it to be called work)
+    rows, log, r = drive(envF, 'lwp_renameprofile "work2"; n := lwp_cur; echo "NOW $n"; lwp_renameprofile "work"; n := lwp_cur; echo "THEN $n"')
+    check("NOW work2" in r.stdout and "THEN work" in r.stdout and "THEN work2" not in r.stdout, f"renaming the profile shown keeps it the one shown: {r.stdout.strip()[-40:]}")
     # Turn on, end to end: a job runner that runs the command and then calls the callback, as the desktop's does (the stub used elsewhere
     # returns at once and never runs it, which is how a callback that cannot run went unnoticed)
     jobs = r'''

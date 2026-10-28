@@ -7,7 +7,7 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.4
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.5
 # modules: longwire
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
@@ -47,7 +47,7 @@ usage: longwire <command>
   watch                                       the node's events as sentences, as they happen (Ctrl-C leaves; the node goes on)
   down | off                                  stop the node
   on [PROFILE]                                start the node in the background, from a saved profile (the default one if none is named)
-  profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | remove NAME
+  profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME
                                               saved connections: switchboard, token, attach, interface, name, listed, answer
   jack [TAP]                                  make the tap device a single machine attaches to (lw0 by default); asks for a password once
   setup splice NIC | setup jack [TAP]         print the one-time privileged step for that attach mode, to run by hand
@@ -249,6 +249,21 @@ cmd_profile() {
 		profile_exists "$n" || { echo "longwire: no profile called '$n'" >&2; exit 1; }
 		PDEFAULT=$n
 		profiles_write ;;
+	rename)
+		n=${1:-}
+		local to=${2:-} i
+		[ $# -eq 2 ] || { echo "usage: longwire profile rename OLD NEW" >&2; exit 2; }
+		profile_exists "$n" || { echo "longwire: no profile called '$n'" >&2; exit 1; }
+		case $to in ''|*[!A-Za-z0-9._-]*) echo "longwire: a profile name is letters, digits, . _ -" >&2; exit 2 ;; esac
+		[ "$to" = "$n" ] && exit 0
+		profile_exists "$to" && { echo "longwire: there is already a profile called '$to'" >&2; exit 1; }
+		for i in "${!PNAMES[@]}"; do [ "${PNAMES[$i]}" = "$n" ] && PNAMES[$i]=$to; done		# same place in the list, same default
+		for k in switchboard token attach interface name listed answer; do
+			if [ -n "${PF[$n.$k]:-}" ]; then PF["$to.$k"]=${PF[$n.$k]}; fi
+			unset "PF[$n.$k]"
+		done
+		[ "$PDEFAULT" = "$n" ] && PDEFAULT=$to
+		profiles_write ;;
 	remove)
 		n=${1:-}
 		profile_exists "$n" || { echo "longwire: no profile called '$n'" >&2; exit 1; }
@@ -258,7 +273,7 @@ cmd_profile() {
 		for k in switchboard token attach interface name listed answer; do unset "PF[$n.$k]"; done
 		[ "$PDEFAULT" = "$n" ] && PDEFAULT=${PNAMES[0]:-}
 		profiles_write ;;
-	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | remove NAME" >&2; exit 2 ;;
+	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME" >&2; exit 2 ;;
 	esac
 }
 

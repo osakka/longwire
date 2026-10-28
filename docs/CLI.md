@@ -55,7 +55,7 @@ and on the other machine's `up` terminal:
 | `longwire id`, `longwire address`, `longwire bundle` | your key id (hex), your full address (`lw1…`), your public bundle (hex, for `--peer`) |
 | `longwire jack [TAP]` | make the tap device a single machine attaches to (`lw0` to `lw99`, `lw0` by default) and give it to you. A small root helper does it ([ADR 0034](adr/0034-a-connection-is-a-profile.md)): polkit asks for a password once, in a terminal or in the desktop. `on` does this by itself when the jack is missing |
 | `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode, to run by hand if you would rather |
-| `longwire profile list`, `show [NAME]`, `set NAME KEY=VALUE…`, `token NAME`, `default NAME`, `remove NAME` | the saved connections ([profiles](#profiles)) |
+| `longwire profile list`, `show [NAME]`, `set NAME KEY=VALUE…`, `token NAME`, `default NAME`, `rename OLD NEW`, `remove NAME` | the saved connections ([profiles](#profiles)) |
 | `longwire-switchboard [options]` | run a switchboard ([SWITCHBOARD](SWITCHBOARD.md)) |
 | `longwire` with no arguments | turn the node on from the default [profile](#profiles) if it is off, then say how it is (the same as `longwire on` and then `longwire show`). With no profile yet it says how to make one, and that Control Panel > Longwire does the same |
 | `longwire show` | how the node is, in a few lines and no JSON: your number, the switchboard, who is connected and what they have carried, the line, and any ring waiting (with the safety phrase) |

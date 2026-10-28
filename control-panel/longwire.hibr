@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.4
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.5
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -263,6 +263,7 @@ fn longwire_rows(int w) {
 			lwp_row "$w" "$n" action "Turn on" "" on; n=$((n + 1))
 		fi
 		lwp_row "$w" "$n" action "New profile${GL[ellipsis]}" "" newprofile; n=$((n + 1))
+		[ -n "$p" ] && { lwp_row "$w" "$n" action "Rename profile $p" "" renprofile; n=$((n + 1)); }
 		[ -n "$p" ] && { lwp_row "$w" "$n" action "Remove profile $p" "" rmprofile; n=$((n + 1)); }
 		ret "$n"
 		return 0
@@ -449,6 +450,22 @@ fn lwp_newprofile(text, int? id = "") {
 	return 0
 }
 
+fn lwp_renameprofile(text, int? id = "") {
+	local out old
+
+	text=${text//[[:space:]]/}
+	[ -n "$text" ] || return 0
+	old := lwp_cur
+	if out=$(longwire profile rename "$old" "$text" 2>&1); then
+		[ "$DT_LW_PROFILE" = "$old" ] && DT_LW_PROFILE=$text
+		lwp_profiles 1
+		cp_save
+	else
+		dt_notep high "%s" "$out"
+	fi
+	return 0
+}
+
 fn lwp_setpolicy(p) {
 	local f
 
@@ -618,6 +635,7 @@ fn longwire_do(int w, k, int dir) {
 	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "for jack, the tap (lw0 to lw99, made for you); for splice, the NIC" ;;
 	name) p := lwp_cur; dt_ask "Name" "Name" "${LWP_PF[$p.name]-}" lwp_setname "what callers see (a claim, not proof); empty for none" ;;
 	newprofile) dt_ask "New profile" "Name" "" lwp_newprofile "letters, digits, . _ -" ;;
+	renprofile) p := lwp_cur; dt_ask "Rename profile" "Name" "$p" lwp_renameprofile "the new name: letters, digits, . _ -" ;;
 	rmprofile)
 		p := lwp_cur
 		LWP_PEND_KIND=rmprofile
