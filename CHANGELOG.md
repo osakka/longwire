@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.11
 
+*Published:* the catalogue (`hibr-apps` `71bd2c5`) and the packages (`hibr-apt` `b4f65d2`, `hibr-rpm` `273190d`, `hibr-arch` `fcedaec`). `make check` passed (567 checks). Not tried: installing from the repositories on a clean machine.
+
 - **`longwire show` names the engine and the underlay.** The scripts (from the catalogue) and the engine (from the package) are updated separately, and a stale engine under new scripts had made a fix
   look as if it did not work. `show` now has an `engine` line with the version that is running (an engine older than 0.5.10 shows as "unknown"), and, when your jack has an address, an `underlay` line saying which
   device the traffic to peers in the jack's network leaves by, or that none could be had ([ADR 0037](docs/adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). The same are in `status` as
