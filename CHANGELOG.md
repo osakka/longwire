@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.12
 
+*Published:* the catalogue (`hibr-apps` `420417f`) and the packages (`hibr-apt` `94b098d`, `hibr-rpm` `b236b39`, `hibr-arch` `62b9be3`). `make check` passed (571 checks). Not tried: installing from the repositories on a clean machine.
+
 - **Fixed: events torn in two, in `longwire up`, `watch` and `find`.** The scripts read events with `read -t 1`, whose deadline covers the whole read: an event that began just before the second ran out was
   cut, the first half was thrown away, and the second half was read as an event of its own (`hibr: json: malformed input near ,"phrase":"…`). In `longwire up` that could lose a ring, which
   is the event the answer policy acts on. The first half is now kept and joined by the rest. A test (`tests/events.sh`) sends an event in two halves with a pause longer than the deadline through a stand-in control socket; it fails on the old script
