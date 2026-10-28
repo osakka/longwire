@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.3
 
+*Published:* the catalogue (`hibr-apps` `a256da7`) and the packages (`hibr-apt` `e8027f7`, `hibr-rpm` `744fbb0`, `hibr-arch` `e0579d6`). `make check` passed (497 checks). Not tried: installing from those repositories on a clean machine.
+
 - **Fixed: Turn on in the Control Panel showed an empty note titled "Desktop" and Longwire stayed off.** The callback that reports the result of `longwire on` used a variable it had
   not declared, which hibr's strict mode refuses, so it stopped before it could say anything, whether the node had started or not. It now shows your number, or "Longwire did not turn on:" and
   the reason the command gave. The earlier tests replaced the job runner, so they never ran this callback; a new test runs it as the desktop does, once with a switchboard that works and once
