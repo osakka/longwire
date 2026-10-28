@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.13
 
+*Published:* the catalogue (`hibr-apps` `2fe101a`) and the packages (`hibr-apt` `adc3425`, `hibr-rpm` `e071002`, `hibr-arch` `8fa0f84`). `make check` passed (586 checks). Not tried: the Node row on a real desktop with two real nodes, and installing from the repositories on a clean machine.
+
 - **Choosing among several nodes in the pane.** When more than one node answers on a machine (your own, and a service such as `longwire@eth0`), the pane has a **Node** row that picks which it shows and
   controls (the menu bar and the Control Strip follow it); a node that has gone gives way to the first that answers. The setting is kept with the other desktop settings.
 - **Tokens without `openssl`.** `longwire-switchboard token new [N]`, `token list` and `token remove TOKEN` make, show and take out registration tokens in the tokens file (mode 0600, rewritten whole beside itself),
