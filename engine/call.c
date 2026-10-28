@@ -16,6 +16,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "int.h"
+
+#ifndef LW_VERSION
+#define LW_VERSION "dev"
+#endif
 #include "words.h"
 
 /* ---- numbers: 8 random digits + a Damm check digit ------------------------ */
@@ -1744,12 +1748,12 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 	len = snprintf(o, cap,
 		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"mapped\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
-		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"cand_skipped\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
+		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"cand_skipped\":%llu,\"version\":\"%s\",\"underlay\":\"%s\",\"underlay_state\":\"%s\",\"jack_nets\":%d,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
 		kid, num, fullnum, nm, n->cfg.listed ? "true" : "false", sbs, refl, n->nat == 1 ? "easy" : n->nat == 2 ? "strict" : "unknown", mapped, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,
-		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, (unsigned long long)n->cand_skipped, site_role(n), site_members(n), n->site_sync_n,
+		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, (unsigned long long)n->cand_skipped, LW_VERSION, n->uudp >= 0 ? n->uudev : "", n->uudp >= 0 ? "open" : n->uudp == -2 ? "failed" : "unused", n->njnet, site_role(n), site_members(n), n->site_sync_n,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->hs_nocookie, (unsigned long long)n->hs_badmac2, (unsigned long long)n->cookies_got, (unsigned long long)n->reg_count,
 		(unsigned long long)(n->sb >= 0 ? n->peers[n->sb].rekeys : 0),
 		(n->sb_caps & CAPS_CALLERID) && (n->sb_caps & CAPS_DIRECTORY) ? "\"caller-id\",\"directory\"" : (n->sb_caps & CAPS_CALLERID) ? "\"caller-id\"" : (n->sb_caps & CAPS_DIRECTORY) ? "\"directory\"" : "",

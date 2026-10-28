@@ -7,7 +7,7 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.10
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.11
 # modules: longwire
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
@@ -312,6 +312,14 @@ cmd_show() {
 		echo "☎  waiting for a number from the switchboard${PDEFAULT:+    (profile $PDEFAULT)}"
 	fi
 	echo "   switchboard   ${S[switchboard]:-?}${S[nat]:+     NAT ${S[nat]}}"
+	echo "   engine        ${S[version]:-unknown (older than 0.5.10)}"
+	if [ "${S[jack_nets]:-0}" -gt 0 ]; then
+		case ${S[underlay_state]:-} in
+		open)   echo "   underlay      ${S[underlay]} (your jack has an address; traffic to peers in its network leaves by this device)" ;;
+		failed) echo "   underlay      none could be had: peers in your jack's own network are not reachable (docs/adr/0037)" ;;
+		*)      echo "   underlay      not needed yet (your jack has an address)" ;;
+		esac
+	fi
 	cnt := json len S .peers
 	for ((i = 0; i < ${cnt:-0}; i++)); do
 		num := json get S ".peers[$i].number"

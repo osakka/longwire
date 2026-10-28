@@ -6,6 +6,9 @@ Tokens are secrets: leave them out of what you send.
 
 ## Starting
 
+**Did the update take effect?** The scripts come from the catalogue (`catalogue refresh && catalogue install longwire`), the engine from the package
+(`sudo apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire show` has an `engine` line with the version that runs.
+
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
 Nothing is wrong. `longwire up` *is* the node: it stays in the foreground and prints events as they happen. Use another terminal for
 commands, or start it in the background with `longwire on`. Ctrl-C stops the node.

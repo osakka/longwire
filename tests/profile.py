@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Saved connections (ADR 0034). A switchboard that wants a token, and a person's `longwire` run only through its profile commands:
 # set a profile, turn the node on in the background and get a number, turn it off, and have `up` with nothing said use the default.
-import json, os, stat, subprocess, sys, time
+import json, os, re, stat, subprocess, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lwtest as L
@@ -199,6 +199,7 @@ def main():
     A.cmd("dial", num)
     time.sleep(4)
     rc, out = lwc("show")
+    check(re.search(r"engine +\d+\.\d+\.\d+", out) is not None, f"show names the engine version that runs (so nobody has to guess what is installed): {out[:200]!r}")
     check("RINGING" in out and anum in out and "safety phrase" in out, f"show names a ringing call, its caller and the phrase: {out!r}")
     w.terminate()
     try:

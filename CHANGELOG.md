@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.11
+
+- **`longwire show` names the engine and the underlay.** The scripts (from the catalogue) and the engine (from the package) are updated separately, and a stale engine under new scripts had made a fix
+  look as if it did not work. `show` now has an `engine` line with the version that is running (an engine older than 0.5.10 shows as "unknown"), and, when your jack has an address, an `underlay` line saying which
+  device the traffic to peers in the jack's network leaves by, or that none could be had ([ADR 0037](docs/adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). The same are in `status` as
+  `version`, `underlay`, `underlay_state` and `jack_nets`. The upgrade note: the package carries the engine (`sudo apt install --only-upgrade longwire`, then turn the node off and on, because a running
+  worker keeps the old engine); the catalogue carries the scripts.
+
 ## 0.5.10
 
 *Published:* the catalogue (`hibr-apps` `3dc4353`) and the packages (`hibr-apt` `0973b4e`, `hibr-rpm` `a27a28f`, `hibr-arch` `a6f85a3`). `make check` passed (563 checks). Not tried: installing from the repositories on a clean machine.

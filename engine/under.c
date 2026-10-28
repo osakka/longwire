@@ -137,6 +137,7 @@ int under_fd(lw_node *n)
 		close(fd);
 		return -1;
 	}
+	snprintf(n->uudev, sizeof n->uudev, "%s", dev);
 	n->uudp = fd;
 	return fd;
 }

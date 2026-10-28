@@ -247,6 +247,7 @@ struct lw_node {
 	} pmp;
 	int      udp6;
 	uint16_t udp6_port;	/* the IPv6 socket, if there is one: -1 otherwise */
+	char     uudev[32];		/* the device it is tied to */
 	int      uudp;			/* the underlay socket (under.c): -1 not opened yet, -2 none to be had */
 	lw_jnet  jnet[LW_JNETS];	/* the networks connected to our jack */
 	int      njnet;
