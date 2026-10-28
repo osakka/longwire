@@ -19,7 +19,7 @@
 
 strict
 
-app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.3
+app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.4
 # needs: control-panel/longwire
 
 # The switch (Control Panel > Longwire > Longwire on the Menu Bar, and Menu Bar Items) lives with the pane; the bar reads it.

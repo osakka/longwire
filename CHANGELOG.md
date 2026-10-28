@@ -3,6 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.4
+
+- **Fixed: Turn on said `lw start: need --splice NIC, --jack TAPNAME …`.** The pane shows a profile that never set **Attach** as "jack", but the node read an unset Attach as no attach mode at all. An unset
+  Attach now means jack everywhere, as the pane shows it. A new test starts a profile with no Attach and checks that it tries the tap.
+
 ## 0.5.3
 
 *Published:* the catalogue (`hibr-apps` `a256da7`) and the packages (`hibr-apt` `e8027f7`, `hibr-rpm` `744fbb0`, `hibr-arch` `e0579d6`). `make check` passed (497 checks). Not tried: installing from those repositories on a clean machine.

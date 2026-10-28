@@ -68,6 +68,13 @@ def main():
     rc, out = lwc("profile", "set", "bad name", "name=x")
     check(rc == 2, "and a name with a space")
 
+    # A profile that never set Attach is shown as "jack" by the pane, so it must mean jack to the node (it once meant nothing, and
+    # Turn on said "need --splice --jack or sock-port"). Here there is no such tap device, so the node says it cannot open the tap.
+    rc, out = lwc("profile", "set", "bare", sbarg, "interface=lwnone0")
+    rc, out = lwc("up", "--profile", "bare", timeout=40)
+    check("need --splice" not in out and ("tun" in out or "lwnone0" in out), f"a profile with no Attach attaches as a jack: {out[-200:]!r}")
+    rc, out = lwc("profile", "remove", "bare")
+
     # --- on, with a token the switchboard does not have ----------------------------------------------------------------
     rc, out = lwc("on", "bad", timeout=40)
     check(rc == 1 and "refused" in out.lower() and "valid token" in out, f"a bad token: on says it did not get a number, and why: {out[-160:]!r}")

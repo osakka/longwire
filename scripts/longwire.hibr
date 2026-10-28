@@ -7,7 +7,7 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.3
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.4
 # modules: longwire
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
@@ -186,7 +186,7 @@ profile_args() {
 	PANSWER=${PF[$n.answer]:-}
 	[ -n "${PF[$n.switchboard]:-}" ] && PARGS+=(--switchboard "${PF[$n.switchboard]}")
 	[ -n "${PF[$n.token]:-}" ] && PARGS+=(--token "${PF[$n.token]}")
-	case ${PF[$n.attach]:-} in
+	case ${PF[$n.attach]:-jack} in			# unset means jack, as the pane shows it
 	jack)   PARGS+=(--jack "${PF[$n.interface]:-lw0}") ;;
 	splice) PARGS+=(--splice "${PF[$n.interface]:-}") ;;
 	sock)   PARGS+=(--sock-port "${PF[$n.interface]:-}") ;;
@@ -415,7 +415,7 @@ cmd_on() {
 		exit 2
 	fi
 	profile_exists "$n" || { echo "longwire: no profile called '$n'  (longwire profile list)" >&2; exit 1; }
-	if [ "${PF[$n.attach]:-}" = jack ] && [ ! -d "/sys/class/net/${PF[$n.interface]:-lw0}" ]; then
+	if [ "${PF[$n.attach]:-jack}" = jack ] && [ ! -d "/sys/class/net/${PF[$n.interface]:-lw0}" ]; then
 		cmd_jack "${PF[$n.interface]:-lw0}" || exit 1			# made now, with a password if it must be
 	fi
 	: > "$LW_DIR/log"
