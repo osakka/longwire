@@ -32,7 +32,7 @@ lwp_rates
 sleep 0.3
 json parse LWP_S '{\"peers\":[{\"number\":\"111-111-111\",\"state\":\"up\",\"path\":\"direct\",\"age\":2,\"rx_bytes\":2000000,\"tx_bytes\":1000}]}'
 lwp_rates
-LWP_UP=1; LWP_T=\$SECONDS
+LWP_UP=1; LWP_T=\$((SECONDS + 5))
 n := longwire_rows 1
 for ((i = 0; i < n; i++)); do echo \"\${CP[1][\$i][kind]}|\${CP[1][\$i][text]}|\${CP[1][\$i][val]}\"; done" 2>&1)
 	case $out in

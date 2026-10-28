@@ -50,6 +50,10 @@ for i in 1 2 3; do openssl rand -hex 10; done | sudo tee /var/lib/longwire-switc
 The file belongs to the service's own user and nobody else can read it. (A group-readable file would let anyone in the group `longwire` read, and
 use, the tokens that have not been spent.) These steps have not been run under a live systemd by the author.
 
+The switchboard script can make, list and remove tokens itself, with no switchboard running and no `openssl`: `sudo longwire-switchboard token new 3 --tokens /var/lib/longwire-switchboard/tokens`
+prints three new tokens and adds them to the file (mode 0600); `token list` shows the unspent ones; `token remove TOKEN` takes one out. Run as root it leaves the file owned by root,
+so give it to the service again with the `chown` above.
+
 Open the firewall (`sudo ufw allow 1877:1878/udp`, or your own tool), read its address, and give each user a token:
 
 ```

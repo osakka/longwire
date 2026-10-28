@@ -45,6 +45,7 @@ The page says **Longwire is off** and shows the connection:
 | **Longwire on the Menu Bar** | show or hide the telephone. |
 | **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. |
 | **Address** | this machine's address on the line, like `10.77.0.2/24` (jack profiles; every machine its own, in one subnet), put on the device for you. |
+| **Node** | shown when more than one node answers on this machine (your own, and a service such as `longwire@eth0`): choose which this pane shows and controls. |
 | **Turn on** | does everything: makes the network device if it is missing, and puts the address on it (that asks for your password), starts the node in the background, and tells you your number. |
 | **New profile…** / **Rename profile** / **Remove profile** | keep several connections (home, office, a friend's switchboard) and switch between them. |
 

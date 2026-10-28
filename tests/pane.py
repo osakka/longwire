@@ -178,6 +178,18 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
           f"with no node of its own the pane reads a service node's socket and says so: {rows[:3]}")
     check(not any(x[3] == "stop" or x[3] == "policy" for x in rows),
           "...and offers neither to stop it nor to change its answer policy, which belong to the service")
+    # two nodes answer here: the person's own (A) and a service (B): a Node row chooses which the pane shows
+    envT = dict(HOME=f"{T}/nobody", LW_SOCK=A.sock, LW_RUN=f"{T}/run")
+    rows, log, r = drive(envT, 'dump 1 > /dev/null; dump 1')
+    nr = [x for x in rows if x[0] == "set" and x[1] == "Node"]
+    check(len(nr) == 1 and nr[0][2] == "this machine" and not any(x[1] == "Runs as" for x in rows), f"with two nodes the pane shows its own and has a Node row: {nr}")
+    rows, log, r = drive(envT, 'dump 1 > /dev/null; longwire_do 1 lwnode 1; LWP_T=-100; dump 1 > /dev/null; dump 1')
+    nr = [x for x in rows if x[0] == "set" and x[1] == "Node"]
+    check(len(nr) == 1 and nr[0][2] == "service svc" and any(x[1] == "Runs as" for x in rows), f"choosing the next node shows the service, read through its socket: {nr}")
+    rows, log, r = drive(dict(envT, DT_LW_NODE=f"{T}/run/longwire/gone/ctl"), 'dump 1 > /dev/null; dump 1')
+    check(any(x[0] == "set" and x[1] == "Node" and x[2] == "this machine" for x in rows), "a node that is gone gives way to the first that answers")
+    rows, log, r = drive(envS, 'dump 1 > /dev/null; dump 1')
+    check(not any(x[1] == "Node" for x in rows), "and with only one node there is no Node row")
     rows, log, r = drive(envS, 'dump 1 > /dev/null; lwp_run hangup; echo "RC $?"; lwp_run nonsense; echo "RC $?"')
     check("RC 0" in r.stdout and any(l.startswith("NOTE high") for l in log),
           f"a verb goes to that socket (a hang up works) and a failed one is reported: {r.stdout.strip()[-40:]!r} {[l for l in log if l.startswith('NOTE')][:1]}")

@@ -5,6 +5,7 @@
 # runs the mechanism (sessions, presence, introductions); this script is the
 # policy: who may register, and whose call may ring. See docs/SWITCHBOARD.md.
 #
+#   longwire-switchboard token new [N] | list | remove TOKEN   [--tokens FILE] [--state DIR]     (the invitations; no switchboard runs)
 #   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
 #                        [--per-ip-hour N] [--rings-per-minute N] [--max-nodes N]
 #                        [--caller-id on|off] [--directory on|off]
@@ -26,7 +27,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.12
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.13
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -44,6 +45,65 @@ group=
 codes_per_ip_day=2
 max_numbers=100000
 release_after=365d
+
+# `token`: make, list and remove registration tokens in the tokens file, for whoever runs the switchboard. It touches only that file (mode 0600, written whole beside
+# itself and moved into place, so a crash keeps every token) and needs no module and no running switchboard.
+tokens_cmd() {
+	local sub file= n i t line first
+	local pos=()
+	shift					# "token"
+	sub=${1:-}
+	[ $# -gt 0 ] && shift
+	while [ $# -gt 0 ]; do			# the options may come before or after the count or the token
+		case $1 in
+		--tokens) need_value "$@"; file=$2; shift 2 ;;
+		--state) need_value "$@"; SB_DIR=$2; shift 2 ;;
+		*) pos+=("$1"); shift ;;
+		esac
+	done
+	[ -n "$file" ] || file=$SB_DIR/tokens
+	umask 077
+	case $sub in
+	new)
+		n=${pos[0]:-1}
+		case $n in ''|*[!0-9]*) echo "longwire-switchboard: token new wants a count, not '$n'" >&2; exit 2 ;; esac
+		[ "$n" -ge 1 ] && [ "$n" -le 1000 ] || { echo "longwire-switchboard: token new makes 1 to 1000 at a time" >&2; exit 2; }
+		mkdir -p "$(dirname "$file")" || exit 1
+		for ((i = 0; i < n; i++)); do
+			t=$(od -An -N10 -tx1 /dev/urandom | tr -d ' \n')
+			[ ${#t} -eq 20 ] || { echo "longwire-switchboard: no random bytes to make a token from" >&2; exit 1; }
+			printf '%s\n' "$t" >> "$file" || exit 1
+			echo "$t"
+		done
+		chmod 600 "$file" ;;
+	list)
+		[ -r "$file" ] || { echo "longwire-switchboard: $file: cannot read it (no tokens made yet?)" >&2; exit 1; }
+		n=0
+		while IFS= read -r line; do
+			case $line in ''|'#'*) continue ;; esac
+			echo "$line"
+			n=$((n + 1))
+		done < "$file"
+		echo "($n unspent)" >&2 ;;
+	remove)
+		t=${pos[0]:-}
+		[ -n "$t" ] || { echo "usage: longwire-switchboard token remove TOKEN" >&2; exit 2; }
+		[ -r "$file" ] || { echo "longwire-switchboard: $file: cannot read it" >&2; exit 1; }
+		local out= found=0
+		while IFS= read -r line; do
+			first=${line%% *}
+			if [ "$first" = "$t" ]; then found=1; continue; fi
+			out="$out$line
+"
+		done < "$file"
+		[ $found -eq 1 ] || { echo "longwire-switchboard: that token is not in $file" >&2; exit 1; }
+		printf '%s' "$out" > "$file.new" && chmod 600 "$file.new" && mv "$file.new" "$file" || { echo "longwire-switchboard: cannot write $file" >&2; exit 1; }
+		echo "removed" ;;
+	*) echo "usage: longwire-switchboard token new [N] | list | remove TOKEN   [--tokens FILE] [--state DIR]" >&2; exit 2 ;;
+	esac
+}
+
+[ "${1:-}" = token ] && { tokens_cmd "$@"; exit 0; }
 
 mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
 

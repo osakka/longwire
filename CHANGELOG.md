@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.13
+
+- **Choosing among several nodes in the pane.** When more than one node answers on a machine (your own, and a service such as `longwire@eth0`), the pane has a **Node** row that picks which it shows and
+  controls (the menu bar and the Control Strip follow it); a node that has gone gives way to the first that answers. The setting is kept with the other desktop settings.
+- **Tokens without `openssl`.** `longwire-switchboard token new [N]`, `token list` and `token remove TOKEN` make, show and take out registration tokens in the tokens file (mode 0600, rewritten whole beside itself),
+  with no switchboard running. Tested by `tests/tokens.sh`. Not built: tokens in the switchboard application on the desktop (a switchboard is usually on another machine, and its file belongs to the service).
+- The pane's rate test no longer fails when the clock ticks over a second between two of its lines.
+
 ## 0.5.12
 
 *Published:* the catalogue (`hibr-apps` `420417f`) and the packages (`hibr-apt` `94b098d`, `hibr-rpm` `b236b39`, `hibr-arch` `62b9be3`). `make check` passed (571 checks). Not tried: installing from the repositories on a clean machine.

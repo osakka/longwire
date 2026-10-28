@@ -1,11 +1,15 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.12" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.13" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
 .B longwire-switchboard
 .BI \-\-registry " HOST:PORT/KEY" | none
 .RI [ options ]
+.br
+.B longwire-switchboard token
+.BR new " [" \fIN\fR "] | " list " | " remove " " \fITOKEN\fR
+.RB [ \-\-tokens " " \fIFILE\fR "] [" \-\-state " " \fIDIR\fR ]
 .SH DESCRIPTION
 The switchboard is the one public piece of a longwire deployment.
 A node registers with it and is given a short number;
@@ -102,6 +106,16 @@ Let that group use the control socket, mode 0660.
 The service uses the group
 .BR longwire .
 Members of the group can watch the switchboard; only the user it runs as can stop it or decide its registrations.
+.SH TOKENS
+.B token new
+makes
+.I N
+registration tokens (one if omitted, at most 1000), appends them to the tokens file and prints them.
+.B token list
+prints the unspent ones, and
+.B token remove
+takes one out (a token with a reserved number goes by its first word).
+They work on the tokens file only (mode 0600, rewritten whole beside itself), so no switchboard needs to run.
 .SH "RUNNING IT AS A SERVICE"
 The package ships
 .BR longwire-switchboard.service .

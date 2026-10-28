@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.12
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.13
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -23,14 +23,16 @@ DT_LW_PROFILE="${DT_LW_PROFILE-}"
 DT_LWBAR="${DT_LWBAR-1}"
 # Phone Style: modern (a handset) or classic (a rotary desk phone), for glyph sets that draw the telephone (Blit's); it is a row only where there is a choice.
 DT_LWSTYLE="${DT_LWSTYLE-modern}"
-command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE DT_LWBAR DT_LWSTYLE
+DT_LW_NODE="${DT_LW_NODE--}"
+command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE DT_LWBAR DT_LWSTYLE DT_LW_NODE
 
 LWP_POLICIES=(ask known auto never)
 LWP_STYLES=(modern classic)
 LWP_ATTACHES=(jack splice)
 
 # The last status read, and when. _rows runs every frame, and a read of the node is a round trip, so it is kept for a second.
-declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK=
+declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
+LWP_NODEA=()
 
 # Bytes a connection has carried, in the units a person reads: decimal, one place.
 fn lwp_bytes(n) {
@@ -85,28 +87,63 @@ fn lwp_rates() {
 	done
 }
 
-# Read the node's status into LWP_S, at most once a second. LWP_UP says whether there was a node to read.
+# Which nodes answer here: this machine's own (written "-") and the services under /run/longwire/INSTANCE/ctl, which the group longwire may use
+# (ADR 0032). Looked at every five seconds, or at once when there is none.
+fn lwp_nodes() {
+	local f
+
+	[ -z "$LWP_NODES" ] || [ $((SECONDS - LWP_NODEST)) -ge 5 ] || return 0
+	LWP_NODEST=$SECONDS
+	LWP_NODES=
+	LWP_NODEA=()
+	if lw status > /dev/null 2>&1; then
+		LWP_NODES=-
+		LWP_NODEA+=(-)
+	fi
+	for f in "${LW_RUN:-/run}"/longwire/*/ctl; do
+		[ -S "$f" ] || continue
+		if lw status --sock "$f" > /dev/null 2>&1; then
+			LWP_NODES="${LWP_NODES:+$LWP_NODES }$f"
+			LWP_NODEA+=("$f")
+		fi
+	done
+}
+
+# What a node is called in the pane.
+fn lwp_nodename(n) {
+	if [ "$n" = - ]; then
+		ret "this machine"
+	else
+		n=${n%/ctl}
+		ret "service ${n##*/}"
+	fi
+}
+
+# Read the status of the chosen node into LWP_S, at most once a second. LWP_UP says whether there was a node to read. With several nodes the
+# one chosen in the Node row is read (DT_LW_NODE); one that is gone gives way to the first that answers.
 fn lwp_poll() {
-	local st f
+	local st want f
 
 	[ $((SECONDS - LWP_T)) -ge 1 ] || return 0
 	LWP_T=$SECONDS
+	lwp_nodes
 	LWP_SOCK=
-	if st := lw status 2> /dev/null && json parse LWP_S "$st" 2> /dev/null; then
+	want=$DT_LW_NODE
+	case " $LWP_NODES " in
+	*" $want "*) ;;
+	*) want=${LWP_NODES%% *} ;;
+	esac
+	if [ -z "$want" ]; then
+		LWP_UP=0
+		return 0
+	fi
+	[ "$want" = - ] && f= || f=$want
+	if st := lw status ${f:+--sock "$f"} 2> /dev/null && json parse LWP_S "$st" 2> /dev/null; then
 		LWP_UP=1
+		LWP_SOCK=$f
 		lwp_rates
 		return 0
 	fi
-	# no node of our own: a service node's socket is in /run/longwire/INSTANCE/ctl, and the group longwire may use it (ADR 0032)
-	for f in "${LW_RUN:-/run}"/longwire/*/ctl; do
-		[ -S "$f" ] || continue
-		if st := lw status --sock "$f" 2> /dev/null && json parse LWP_S "$st" 2> /dev/null; then
-			LWP_UP=1
-			LWP_SOCK=$f
-			lwp_rates
-			return 0
-		fi
-	done
 	LWP_UP=0
 }
 
@@ -213,7 +250,7 @@ fn lwp_row(int w, int n, kind, text, val, key) {
 }
 
 fn longwire_rows(int w) {
-	local n=0 i cnt num name state p we call phr nm sw nat full path age yn pol rx tx rr tr rb tb tk
+	local n=0 i cnt num name state p we call phr nm sw nat full path age yn pol rx tx rr tr rb tb tk nodename
 
 	if ! need longwire 2> /dev/null; then
 		cp_absent "$w" "the longwire module"
@@ -275,6 +312,9 @@ fn longwire_rows(int w) {
 	sw := lwp_get .switchboard
 	nat := lwp_get .nat
 	lwp_row "$w" "$n" head "This node" "" none; n=$((n + 1))
+	case $LWP_NODES in			# more than one node answers here: choose which this pane shows
+	*" "*) nodename := lwp_nodename "${LWP_SOCK:--}"; lwp_row "$w" "$n" set "Node" "$nodename" lwnode; n=$((n + 1)) ;;
+	esac
 	lwp_row "$w" "$n" action "Number" "${num:-waiting for the switchboard}" none; n=$((n + 1))
 	lwp_row "$w" "$n" action "Name" "${name:-none}" none; n=$((n + 1))
 	lwp_row "$w" "$n" action "Switchboard" "$sw" none; n=$((n + 1))
@@ -651,6 +691,10 @@ fn longwire_do(int w, k, int dir) {
 		LWP_PEND_KIND=rmprofile
 		LWP_PEND_ARG=$p
 		dt_confirm "Remove the profile $p? Its token goes too." lwp_yes ;;
+	lwnode)
+		DT_LW_NODE := cp_next "${LWP_SOCK:--}" "$dir" "${LWP_NODEA[@]}"
+		LWP_T=-100
+		cp_save ;;
 	barswitch) cp_toggle DT_LWBAR; dt_has lwb_refresh && lwb_refresh ;;
 	lwstyle)
 		DT_LWSTYLE := cp_next "$DT_LWSTYLE" "$dir" "${LWP_STYLES[@]}"
