@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.5
 
+*Published:* the catalogue (`hibr-apps` `35da11f`) and the packages (`hibr-apt` `0715712`, `hibr-rpm` `ce39aef`, `hibr-arch` `cc71523`). `make check` passed (509 checks). Not tried: installing from those repositories on a clean machine.
+
 - **Rename a profile.** `longwire profile rename OLD NEW`, and a **Rename profile** row in the Control Panel pane. The settings, the token, the place in the list and being the default all stay; a name
   already taken, a name that is not letters, digits, `.` `_` `-`, and a profile that is not there are refused plainly.
 
