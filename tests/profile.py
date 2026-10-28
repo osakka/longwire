@@ -161,6 +161,16 @@ def main():
     w = subprocess.Popen(["nsenter", "-t", str(ns.pid), "-n", HIBR, ROOT + "/scripts/longwire.hibr", "watch"], env=env,
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     L.procs.append(w)
+    # wait until the watcher says it is watching (a loaded machine takes longer than a fixed pause to start hibr), then give it a moment to subscribe
+    head = ""
+    os.set_blocking(w.stdout.fileno(), False)
+    t0 = time.time()
+    while "watching" not in head and time.time() - t0 < 30:
+        try:
+            head += os.read(w.stdout.fileno(), 4096).decode()
+        except (BlockingIOError, OSError):
+            time.sleep(0.2)
+    os.set_blocking(w.stdout.fileno(), True)
     time.sleep(2)
     A.cmd("dial", num)
     time.sleep(4)
@@ -168,9 +178,9 @@ def main():
     check("RINGING" in out and anum in out and "safety phrase" in out, f"show names a ringing call, its caller and the phrase: {out!r}")
     w.terminate()
     try:
-        said = w.communicate(timeout=10)[0]
+        said = head + w.communicate(timeout=10)[0]
     except subprocess.TimeoutExpired:
-        w.kill(); said = w.communicate()[0]
+        w.kill(); said = head + w.communicate()[0]
     check("watching" in said and f"{anum} is calling" in said and "safety phrase" in said and "run: longwire pickup" in said,
           f"watch narrates the ring as sentences, with the phrase and what to run: {said.strip()[:200]!r}")
     A.cmd("hangup")

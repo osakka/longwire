@@ -3,6 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.6
+
+- **`make lint` passes under newer TCC.** `engine/port.c` held the result of `strchr` on a `const char *` in a plain `char *`; TCC 0.9.28rc (the one Cix pins) rejects that
+  ("assignment discards qualifiers"). It is now `const char *`. Found by the Cix packaging.
+
 ## 0.5.5
 
 *Published:* the catalogue (`hibr-apps` `35da11f`) and the packages (`hibr-apt` `0715712`, `hibr-rpm` `ce39aef`, `hibr-arch` `cc71523`). `make check` passed (509 checks). Not tried: installing from those repositories on a clean machine.

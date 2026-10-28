@@ -110,7 +110,7 @@ int port_open(lw_node *n, char *err, size_t errn)
 		return 0;
 	}
 	if (!strcmp(kind, "sock")) {
-		char *colon = strchr(arg, ':');
+		const char *colon = strchr(arg, ':');
 		struct sockaddr_un a;
 		int fd;
 

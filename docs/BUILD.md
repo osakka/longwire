@@ -83,7 +83,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.5
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.6
 # modules: longwire
 ```
 
