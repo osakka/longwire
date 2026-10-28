@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.7
+
+- **`make lint` under newer TCC, the rest of it.** TCC 0.9.28rc gives `strchr`/`strrchr` a `const` result when the argument is `const`; 0.5.6 fixed one such assignment and the Cix packaging
+  found a second (`engine/call.c`: `lw_resolve` and `sb_connect`). Every `strchr`, `strrchr`, `strstr`, `memchr` and `strpbrk` in `engine/` and `module/` was then read: the others take
+  buffers the code owns and may write, so they stay as they are. Only 0.9.27 is installed here, so this cannot be proven under 0.9.28rc from this machine.
+
 ## 0.5.6
 
 *Published:* the catalogue (`hibr-apps` `ddf965a`) and the packages (`hibr-apt` `978c18c`, `hibr-rpm` `d36557c`, `hibr-arch` `9a8d58f`). `make check` passed (509 checks). Not tried: `make lint` under TCC 0.9.28rc (only 0.9.27 is installed here), and installing from the repositories on a clean machine.

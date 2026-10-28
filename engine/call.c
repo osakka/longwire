@@ -220,7 +220,8 @@ void net_str(const struct sockaddr_storage *ss, char *out, size_t n)
 /* HOST:PORT or [IPV6]:PORT. A name with both kinds of address resolves to the IPv4 one. */
 int lw_resolve(const char *hp, struct sockaddr_storage *ss, socklen_t *sl)
 {
-	char host[96], *c = strrchr(hp, ':');
+	char host[96];
+	const char *c = strrchr(hp, ':');
 	struct addrinfo hint, *res, *r, *pick = 0;
 	size_t hl;
 
@@ -613,7 +614,8 @@ static int pin_remove(lw_node *n, const char *num)
 /* Register with a switchboard given as HOST:PORT/KEY (for a switchboard worker: the registry of codes). */
 int sb_connect(lw_node *n, const char *spec, char *err, size_t errn)
 {
-	char hp[200], *slash = strrchr(spec, '/');
+	char hp[200];
+	const char *slash = strrchr(spec, '/');
 	uint8_t kid[32];
 	lw_peer *p;
 
