@@ -7,7 +7,7 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.11
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.12
 # modules: longwire
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
@@ -374,6 +374,25 @@ EOM
 }
 
 # The node's events as sentences, as they happen. It only listens: Ctrl-C leaves and the node goes on.
+# The next event line from fd 5, waiting at most a second (hibr runs a trap only between commands, so a blocking read would hold TERM). `read -t` is a
+# deadline for the whole read: a line that starts just before it is cut, and what was taken is kept in EVPART and joined by the rest on the next call, so no
+# event is lost or torn in two. Returns 142 when there is no whole line yet, the line in EVLINE.
+EVPART=
+EVLINE=
+next_event() {
+	local more rc
+	read -r -t 1 -u 5 more
+	rc=$?
+	if [ $rc -eq 142 ]; then
+		EVPART=$EVPART$more
+		return 142
+	fi
+	[ $rc -ne 0 ] && return $rc
+	EVLINE=$EVPART$more
+	EVPART=
+	return 0
+}
+
 cmd_watch() {
 	local rc line
 	lw status > /dev/null 2>&1 || { echo "longwire: it is off.  longwire on" >&2; exit 1; }
@@ -381,11 +400,15 @@ cmd_watch() {
 	exec 5</dev/longwire/events || exit 1
 	say "·  watching (Ctrl-C leaves; the node goes on)"
 	while :; do
-		read -r -t 1 -u 5 line
+		next_event
 		rc=$?
 		[ $rc -eq 142 ] && continue
 		[ $rc -ne 0 ] && break
-		json parse e "$line"
+		line=$EVLINE
+		if ! json parse e "$line" 2> /dev/null; then			# say what came, so that a bad one can be looked at
+			say "·  an event could not be read: ${line:0:300}"
+			continue
+		fi
 		case ${e[event]} in
 		watching) ;;
 		ring) announce ring; [ "${e[admit]}" = true ] || say "   run: longwire pickup | longwire reject" ;;
@@ -517,10 +540,11 @@ cmd_up() {
 	exec 5</dev/longwire/events || exit 1
 	# hibr runs a trap between commands, never inside a blocking read: wake once a second so TERM is prompt.
 	while :; do
-		read -r -t 1 -u 5 line
+		next_event
 		rc=$?
 		[ $rc -eq 142 ] && continue
 		[ $rc -ne 0 ] && break
+		line=$EVLINE
 		json parse e "$line"
 		case ${e[event]} in
 		ring) announce ring; on_ring "$answer" ;;
@@ -533,14 +557,15 @@ cmd_up() {
 # Ask the switchboard's directory for a name or a full address, and print its answer (JSON). The answer arrives as an
 # event, so listen first and ask second.
 cmd_find() {
-	local i rc
+	local i rc line
 	exec 5</dev/longwire/events || exit 1
 	run lw lookup "$1" > /dev/null
 	for i in 1 2 3 4 5 6 7 8; do
-		read -r -t 1 -u 5 line
+		next_event
 		rc=$?
 		[ $rc -eq 142 ] && continue
 		[ $rc -ne 0 ] && break
+		line=$EVLINE
 		json parse e "$line"
 		[ "${e[event]}" = found ] && { echo "$line"; return 0; }
 	done

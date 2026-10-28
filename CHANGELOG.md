@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.12
+
+- **Fixed: events torn in two, in `longwire up`, `watch` and `find`.** The scripts read events with `read -t 1`, whose deadline covers the whole read: an event that began just before the second ran out was
+  cut, the first half was thrown away, and the second half was read as an event of its own (`hibr: json: malformed input near ,"phrase":"…`). In `longwire up` that could lose a ring, which
+  is the event the answer policy acts on. The first half is now kept and joined by the rest. A test (`tests/events.sh`) sends an event in two halves with a pause longer than the deadline through a stand-in control socket; it fails on the old script
+  and passes on the new. `watch` also prints the raw text of an event it still cannot read, so a bad one can be looked at.
+
 ## 0.5.11
 
 *Published:* the catalogue (`hibr-apps` `71bd2c5`) and the packages (`hibr-apt` `b4f65d2`, `hibr-rpm` `273190d`, `hibr-arch` `fcedaec`). `make check` passed (567 checks). Not tried: installing from the repositories on a clean machine.

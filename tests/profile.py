@@ -201,6 +201,8 @@ def main():
     rc, out = lwc("show")
     check(re.search(r"engine +\d+\.\d+\.\d+", out) is not None, f"show names the engine version that runs (so nobody has to guess what is installed): {out[:200]!r}")
     check("RINGING" in out and anum in out and "safety phrase" in out, f"show names a ringing call, its caller and the phrase: {out!r}")
+    rc, out = lwc("pickup")
+    time.sleep(4)
     w.terminate()
     try:
         said = head + w.communicate(timeout=10)[0]
@@ -208,6 +210,7 @@ def main():
         w.kill(); said = head + w.communicate()[0]
     check("watching" in said and f"{anum} is calling" in said and "safety phrase" in said and "run: longwire pickup" in said,
           f"watch narrates the ring as sentences, with the phrase and what to run: {said.strip()[:200]!r}")
+    check("connected to" in said and "malformed" not in said, f"and narrates the connection, with no parse error: {said.strip()[-400:]!r}")
     A.cmd("hangup")
     A.stop()
     lwc("off")
