@@ -9,7 +9,7 @@
 
 strict
 
-app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.13
+app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.14
 # needs: control-panel/longwire
 command -v cs_module > /dev/null && cs_module lwstrip Longwire 1
 
@@ -33,7 +33,7 @@ fn lwstrip_draw(int row, int col) {
 		esac
 		if dt_has lwb_icon; then		# where the glyph set draws the state in the telephone (Blit's colour icons), that is the picture
 			local ic
-			ic := lwb_icon
+			ic := lwb_icon small
 			[ -n "$ic" ] && g=$ic
 		fi
 	fi

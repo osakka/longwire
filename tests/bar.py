@@ -132,6 +132,26 @@ def main():
     log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + "lwstrip_draw 1 4")
     check(any(l.startswith("CONSOLE put 1 4 \U00100030") for l in log), f"the strip follows the style: {log}")
 
+    # Phone Icon Size: the large icon, two codepoints side by side, when asked for and present; the one-cell one otherwise; the strip always the one-cell one
+    big = 'GL[phoneoff2]=$\'\\U00100023\\U00100024\'; GL[phonewait2]=$\'\\U00100025\\U00100026\'; GL[phoneon2]=$\'\\U00100027\\U00100028\'; '
+    bigc = 'GL[phoneoffc2]=$\'\\U0010002B\\U0010002C\'; GL[phoneonc2]=$\'\\U0010002F\\U00100030\'; '
+    log, r = drive(dict(nobody, DT_LWSIZE="large"), base + big + "lwb_tick")
+    check("BARITEM lwb|\U00100023\U00100024" in log, f"Phone Icon Size large: the bar draws the two-cell modern telephone: {[l for l in log if l.startswith('BARITEM')]} {r.stderr[-200:]}")
+    log, r = drive(dict(nobody, DT_LWSIZE="small"), base + big + "lwb_tick")
+    check("BARITEM lwb|\U00100020" in log, "small (the default): the one-cell telephone though the large one is there")
+    log, r = drive(nobody, base + big + "lwb_tick")
+    check("BARITEM lwb|\U00100020" in log, "and with no size said, small")
+    log, r = drive(dict(nobody, DT_LWSIZE="large"), base + "lwb_tick")
+    check("BARITEM lwb|\U00100020" in log, "large asked for but the glyph set has none: the one-cell one, not nothing")
+    log, r = drive(dict(nobody, DT_LWSIZE="large", DT_LWSTYLE="classic"), base + classic + big + bigc + "lwb_tick")
+    check("BARITEM lwb|\U0010002B\U0010002C" in log, f"large and classic: the large classic one: {[l for l in log if l.startswith('BARITEM')]}")
+    log, r = drive(dict(nobody, DT_LWSIZE="large", DT_LWSTYLE="classic"), base + classic + big + "lwb_tick")
+    check("BARITEM lwb|\U00100030" in log, "large and classic, but only the small classic exists: the classic style is kept, in one cell")
+    log, r = drive(dict(nobody, DT_LWSIZE="large"), base + big + 'LWB_ST=ring; LWB_RINGNUM=111-222-333; t := lwb_text; echo "RING [$t]"')
+    check("RING [\U00100027\U00100028 111-222-333]" in r.stdout, f"a large ring with no large ring icon is the large filled one with the caller: {r.stdout.strip()}")
+    log, r = drive(dict(nobody, DT_LWSIZE="large"), base + big + "lwstrip_draw 1 4")
+    check(any(l.startswith("CONSOLE put 1 4 \U00100020") for l in log), f"the Control Strip has room for one cell, so it keeps the small icon: {log}")
+
     # a profile exists: the menu offers Turn On
     envP = dict(nobody, HOME=f"{T}/withprofile", XDG_CONFIG_HOME=f"{T}/withprofile/cfg", LW_SOCK=f"{T}/none2.sock", LW_DIR=f"{T}/withprofile/lw",
                 LONGWIRE_MOD=MOD)

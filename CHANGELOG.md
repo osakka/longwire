@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.14
+
+- **Phone Icon Size.** The menu bar telephone can be one cell (**small**, the default) or **large**, two cells wide, written as two codepoints side by side as Blit 0.2.48 draws them (modern U+100023 to U+10002A, classic
+  U+10002B to U+100032). The pane has a **Phone Icon Size** row, shown only where the glyph set has the large icons (`GL[phoneoff2]` and the rest, `GL[phoneoffc2]` for the classic ones: hibr's glyph table has to map them);
+  what is asked for is used when it exists, otherwise the same style in one cell, then the modern one; the Control Strip has one cell and always uses the small icon. Tested with stand-in glyph tables; not seen on a real desktop.
+
 ## 0.5.13
 
 *Published:* the catalogue (`hibr-apps` `2fe101a`) and the packages (`hibr-apt` `adc3425`, `hibr-rpm` `e071002`, `hibr-arch` `8fa0f84`). `make check` passed (586 checks). Not tried: the Node row on a real desktop with two real nodes, and installing from the repositories on a clean machine.
