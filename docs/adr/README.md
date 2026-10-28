@@ -45,6 +45,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0034](0034-a-connection-is-a-profile.md) | A connection is a profile, and the Control Panel turns it on | accepted |
 | [0035](0035-longwire-on-the-menu-bar.md) | Longwire on the menu bar and the Control Strip | accepted |
 | [0036](0036-the-jack-gets-its-address-from-the-profile.md) | The jack gets its address from the profile | accepted |
+| [0037](0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md) | Traffic to the other end never goes into our own jack | accepted |
 
 ---
 

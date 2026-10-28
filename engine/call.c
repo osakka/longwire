@@ -292,6 +292,11 @@ void sa_cand(const struct sockaddr *sa, lw_cand *c)
 
 /* ---- candidates: where the other side may reach us --------------------------- */
 
+static int is_jack(const lw_node *n)
+{
+	return !strcmp(n->cfg.port_kind, "jack");
+}
+
 static int gather(lw_node *n, lw_cand *out, int max)
 {
 	struct ifaddrs *ifa, *i;
@@ -305,6 +310,8 @@ static int gather(lw_node *n, lw_cand *out, int max)
 		const struct sockaddr_in *a;
 		const uint8_t *ip;
 
+		if (is_jack(n) && !strcmp(i->ifa_name, n->cfg.port_arg))	/* an address on our own jack is on the far side of the tunnel: no use to the other end */
+			continue;
 		if (i->ifa_addr && i->ifa_addr->sa_family == AF_INET6 && (i->ifa_flags & IFF_UP) && n->udp6 >= 0) {
 			const struct sockaddr_in6 *a6 = (const void *)i->ifa_addr;
 
@@ -359,7 +366,7 @@ static int cands_put(lw_node *n, uint8_t *p, const lw_cand *c, int nc)
 }
 
 /* returns bytes consumed, or -1; entries of a kind we do not know are skipped */
-static int cands_get(const uint8_t *p, size_t len, lw_cand *c, int *nc, int *strict)
+static int cands_get(lw_node *n, const uint8_t *p, size_t len, lw_cand *c, int *nc, int *strict)
 {
 	int i, k, o = 1, w, known;
 
@@ -370,11 +377,26 @@ static int cands_get(const uint8_t *p, size_t len, lw_cand *c, int *nc, int *str
 		*strict = p[0] & CANDS_STRICT ? 1 : 0;
 	if (k > MAXCANDS)
 		return -1;
+	jnets_fresh(n);
 	*nc = 0;
 	for (i = 0; i < k; i++) {
 		if ((w = cand_get(p + o, len - o, &c[*nc], &known)) < 0)
 			return -1;
 		o += w;
+		if (known && jack_net_has(n, c[*nc].fam, c[*nc].ip) && !(c[*nc].fam == 4 && under_fd(n) >= 0)) {
+			char ab[64] = "";
+
+			n->cand_skipped++;
+			if (c[*nc].fam == 4)
+				snprintf(ab, sizeof ab, "%u.%u.%u.%u", c[*nc].ip[0], c[*nc].ip[1], c[*nc].ip[2], c[*nc].ip[3]);
+			else
+				inet_ntop(AF_INET6, c[*nc].ip, ab, sizeof ab);
+			if (n->now - n->cand_skip_said > 60.0) {		/* said now and then, not for every ring */
+				n->cand_skip_said = n->now;
+				ev_emit(n, "{\"event\":\"address-skipped\",\"address\":\"%s\",\"port\":%u}", ab, c[*nc].port);
+			}
+			continue;
+		}
 		*nc += known;
 	}
 	return o;
@@ -399,7 +421,7 @@ void hello_offer(lw_node *n, const struct sockaddr *dst, socklen_t dl)
 	b[0] = T_HELLO;
 	b[1] = 2;
 	memcpy(b + 2, n->id.bundle, LW_BUNDLE);
-	sendto(ufd(n, dst->sa_family), b, sizeof b, 0, dst, dl);
+	usend(n, ufd(n, dst->sa_family), b, sizeof b, dst, dl);
 }
 
 unsigned offer_home(const lw_node *n, const uint8_t kid[32])
@@ -831,10 +853,10 @@ static void punch_send(lw_node *n, lw_call *c)
 		socklen_t al;
 
 		cand_sa(&c->pc[i], &a, &al);
-		sendto(ufd(n, a.ss_family), pk, sizeof pk, 0, (struct sockaddr *)&a, al);
+		usend(n, ufd(n, a.ss_family), pk, sizeof pk, (struct sockaddr *)&a, al);
 	}
 	if (c->have_verified)		/* answer from where it really came from */
-		sendto(c->peer >= 0 ? peer_fd(n, &n->peers[c->peer]) : ufd(n, c->verified.ss_family), pk, sizeof pk, 0, (struct sockaddr *)&c->verified, c->verified_len);
+		usend(n, c->peer >= 0 ? peer_fd(n, &n->peers[c->peer]) : ufd(n, c->verified.ss_family), pk, sizeof pk, (struct sockaddr *)&c->verified, c->verified_len);
 }
 
 /* ECHO (docs/PROTOCOL.md section 4). A switchboard answers on its second port with the address it sees the asker at; a node
@@ -1121,7 +1143,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			memcpy(num, pl + 8, NUMLEN);
 			num[NUMLEN] = 0;
 			memcpy(reply, pl, 8);
-			if ((cn = cands_get(pl + base, len - base, cc, &nc, 0)) < 0)
+			if ((cn = cands_get(n, pl + base, len - base, cc, &nc, 0)) < 0)
 				return;
 			{
 				size_t al;
@@ -1219,7 +1241,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			}
 			if (c->state != CALL_OUT && (c->state != CALL_RINGING || !c->answered))	/* nothing connects to a ring that was not answered */
 				return;
-			if (cands_get(pl + o + LW_BUNDLE, len - o - LW_BUNDLE, cc, &nc, &gostrict) < 0)
+			if (cands_get(n, pl + o + LW_BUNDLE, len - o - LW_BUNDLE, cc, &nc, &gostrict) < 0)
 				return;
 			lw_h(kid, pl + o, LW_BUNDLE);
 			fmt_number(f, num);
@@ -1722,12 +1744,12 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 	len = snprintf(o, cap,
 		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"mapped\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
-		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
+		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"cand_skipped\":%llu,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
 		kid, num, fullnum, nm, n->cfg.listed ? "true" : "false", sbs, refl, n->nat == 1 ? "easy" : n->nat == 2 ? "strict" : "unknown", mapped, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,
-		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, site_role(n), site_members(n), n->site_sync_n,
+		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, (unsigned long long)n->cand_skipped, site_role(n), site_members(n), n->site_sync_n,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->hs_nocookie, (unsigned long long)n->hs_badmac2, (unsigned long long)n->cookies_got, (unsigned long long)n->reg_count,
 		(unsigned long long)(n->sb >= 0 ? n->peers[n->sb].rekeys : 0),
 		(n->sb_caps & CAPS_CALLERID) && (n->sb_caps & CAPS_DIRECTORY) ? "\"caller-id\",\"directory\"" : (n->sb_caps & CAPS_CALLERID) ? "\"caller-id\"" : (n->sb_caps & CAPS_DIRECTORY) ? "\"directory\"" : "",

@@ -96,6 +96,13 @@ Replace `eth0` with the NIC on the LAN (the instance name after the `@` is the N
 `LW_SOCK=/run/longwire/eth0/ctl longwire show` if you are in the group `longwire` (`sudo usermod -aG longwire YOU`, then log in again).
 Members of that group can dial, hang up and evict through the socket; they cannot stop the service or read a key.
 
+**A machine that joins the bridged network.** A machine with a jack that takes an address in the network you bridge would send its own packets for the site box
+into the tunnel. longwire sends them out through a socket of their own, tied to the machine's real network device (the default route's, or `--underlay DEV`), so
+the call comes up with no route added by hand ([ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). Two things can still stop it: a kernel before 5.7
+(only root may tie a socket to a device; `longwire watch` then says the address is not used) and strict reverse-path filtering on the joining machine
+(`rp_filter=1` drops the site box's replies because it believes the site box is behind the jack; `2` or `0` is fine). Where neither can be changed, give the site box
+an address outside the bridged network (a second, not-bridged leg with `--listen ADDR:PORT`) or a forwarded public port.
+
 If two boxes sit on one LAN segment, they elect one to forward and the other stands by, so frames are not carried twice. Give them the same
 site key if they are not on one line (`--site-key FILE`, [ARCHITECTURE](ARCHITECTURE.md)).
 

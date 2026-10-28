@@ -190,6 +190,11 @@ typedef struct pin {
 
 struct board;
 
+#define LW_JNETS 8
+typedef struct lw_jnet {		/* a network connected to the jack: address and mask, one family */
+	uint8_t fam, net[16], mask[16];
+} lw_jnet;
+
 struct lw_node {
 	lw_cfg   cfg;
 	lw_id    id;
@@ -242,6 +247,11 @@ struct lw_node {
 	} pmp;
 	int      udp6;
 	uint16_t udp6_port;	/* the IPv6 socket, if there is one: -1 otherwise */
+	int      uudp;			/* the underlay socket (under.c): -1 not opened yet, -2 none to be had */
+	lw_jnet  jnet[LW_JNETS];	/* the networks connected to our jack */
+	int      njnet;
+	double   jnet_at;
+	char     jnet_dev[32];
 	int      udp2;			/* a switchboard's second port (udp_port + 1): answers ECHO, so a node can tell its NAT's mapping type */
 	int      nat;			/* 0 not measured, 1 easy (same mapping toward both ports), 2 strict (a new mapping per destination) */
 	uint8_t  echo_nonce[8];
@@ -251,7 +261,8 @@ struct lw_node {
 	double   dhcp_say;		/* when a dhcp-conflict was last announced */
 	struct { uint32_t ip; double t, said; } dhcp[4];	/* servers whose offers were seen lately (ARCHITECTURE section 3) */
 	uint64_t dhcp_conflicts;
-	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize;
+	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize, cand_skipped;
+	double cand_skip_said;		/* when a skipped address was last announced */
 	uint16_t frag_id;
 	struct { uint32_t ip; uint8_t mac[6]; double t; } arp[256];
 	struct { uint8_t ip[16]; uint8_t mac[6]; double t; } nd[256];	/* IPv6 neighbours learned from neighbour discovery */
@@ -376,6 +387,13 @@ void sa_cand(const struct sockaddr *sa, lw_cand *c);
 void spray_close(lw_node *n);
 void spray_reap(lw_node *n);
 int  spray_is(const lw_node *n, int fd);
+/* under.c */
+void jnets_refresh(lw_node *n);
+void jnets_fresh(lw_node *n);
+int  jack_net_has(const lw_node *n, int fam, const uint8_t *ip);
+int  jack_net_sa(const lw_node *n, const struct sockaddr *sa);
+int  under_fd(lw_node *n);
+ssize_t usend(lw_node *n, int fd, const void *b, size_t len, const struct sockaddr *sa, socklen_t sl);
 void spray_adopt(lw_node *n, lw_peer *p);
 void spray_step(lw_node *n, lw_call *c);
 void punch_pkt(lw_node *n, const lw_call *c, uint8_t pk[33]);

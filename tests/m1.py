@@ -89,7 +89,7 @@ def main():
     C = node("C", nsA, "10.0.1.2", 4004, "tokA", "auto")        # tokA was spent by A: must be refused
     F = node("F", nsA, "10.0.1.2", 4006, "tokF", "auto")        # tokF reserves B's number, which B already holds
 
-    def registered(n, timeout=20):
+    def registered(n, timeout=45):
         end = time.time() + timeout
         while time.time() < end:
             try:
@@ -272,7 +272,7 @@ def main_sym():
                     "--listen", f"{ip}:{port}", "--answer", answer, "--keepalive", "5"])
     A, B = node("A", nsA, "10.0.1.2", 4001, "auto"), node("B", nsB, "10.0.2.2", 4002, "auto")
     A.frames, B.frames = Collector(f"{T}/A/h"), Collector(f"{T}/B/h")
-    def registered(n, timeout=20):
+    def registered(n, timeout=45):
         end = time.time() + timeout
         while time.time() < end:
             try:

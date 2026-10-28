@@ -200,6 +200,7 @@ engine/                      plain C99: never includes hibr.h, so the Android ap
   relay.c                    relaying: the route table, wrapped datagrams, relay requests, path upgrade
   spray.c                    port spray: a strict NAT end opens many sockets, the easy end probes, the socket that is hit becomes that peer's
   pmp.c                      NAT-PMP: ask the home router to keep a port open, offered as a candidate
+  under.c                    the underlay socket: traffic for an address inside the jack's own network leaves through a socket tied to the real device, not into the jack (ADR 0037)
   port.c                     local ports: splice, jack, sock, none
   caps.c                     clears every capability set once the port is open
   ctl.c                      the control socket and the event stream

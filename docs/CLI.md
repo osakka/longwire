@@ -123,6 +123,7 @@ registers at a switchboard that wants one; after that the switchboard knows the 
 | `--direct-retry S` | how often a relayed peer tries for a direct path (60, doubling to 600) |
 | `--keepalive S`, `--rekey S` | keepalive interval (25) and rekey interval (120), in seconds |
 | `--sb-rekey S` | the rekey interval of a switchboard session (600), the same on the node and the switchboard: a switchboard holds thousands of sessions, and they carry only control messages |
+| `--underlay DEV` | the network device to reach peers by when your jack has an address in their network (default: the default route's); [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md) |
 | `--cand-loopback` | offer 127.x as a call candidate: tests, and two nodes on one host |
 | `--seed FILE`, `--sock PATH`, `--state DIR` | where the identity, control socket and pins live (default `~/.longwire/`) |
 | `--group NAME\|GID` | give the control socket to that group at mode 0660, so its members can use it ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); the services use `longwire`. An unknown group stops the start |
@@ -184,7 +185,7 @@ script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `dh
 different key than before), `site` (a splice box became `active` or `standby`), and for lines `line-joined` (with `line`,
 `members`), `member-joined`, `member-left` and `member-evicted` (each with `number`), `evicted` (you were put off the
 line), `line-partial` (with `members` and `up`: the mesh is still incomplete 30 seconds after joining) and
-`line-complete`. The node script turns them into the sentences above; the desktop will turn them into dialogs
+`line-complete`, and `address-skipped` (with the address and the port: an address of the other end lies inside the jack's own network and no other road to it could be had, so it is not used; [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). The node script turns them into the sentences above; the desktop will turn them into dialogs
 *(planned: M4)*.
 
 ## Scripting it yourself: the `lw` builtin

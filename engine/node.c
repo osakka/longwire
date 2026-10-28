@@ -161,7 +161,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 		return 0;
 	}
 	n->cfg = *cfg;
-	n->udp = n->udp2 = n->udp6 = n->port_fd = n->ctl_fd = -1;
+	n->udp = n->udp2 = n->udp6 = n->port_fd = n->ctl_fd = n->uudp = -1;
 	n->rekey_after = cfg->rekey_after > 0 ? cfg->rekey_after : 120;
 	n->sb_rekey = cfg->sb_rekey > 0 ? cfg->sb_rekey : 600;
 	n->keepalive = cfg->keepalive > 0 ? cfg->keepalive : 25;
@@ -273,6 +273,8 @@ void lw_node_release(lw_node *n)
 		close(n->udp);
 	if (n->udp2 >= 0)
 		close(n->udp2);
+	if (n->uudp >= 0)
+		close(n->uudp);
 	if (n->udp6 >= 0)
 		close(n->udp6);
 	if (n->port_fd >= 0)
@@ -297,13 +299,13 @@ static void close_inherited(const lw_node *n)
 
 	if (!d) {
 		for (fd = 3; fd < max && fd < 65536; fd++)
-			if (fd != n->udp && fd != n->udp2 && fd != n->udp6 && fd != n->port_fd && fd != n->ctl_fd)
+			if (fd != n->udp && fd != n->udp2 && fd != n->udp6 && fd != n->uudp && fd != n->port_fd && fd != n->ctl_fd)
 				close(fd);
 		return;
 	}
 	while ((e = readdir(d))) {
 		fd = atoi(e->d_name);
-		if (fd > 2 && fd != dfd && fd != n->udp && fd != n->udp2 && fd != n->udp6 && fd != n->port_fd && fd != n->ctl_fd)
+		if (fd > 2 && fd != dfd && fd != n->udp && fd != n->udp2 && fd != n->udp6 && fd != n->uudp && fd != n->port_fd && fd != n->ctl_fd)
 			close(fd);
 	}
 	closedir(d);
@@ -334,7 +336,7 @@ void node_dispatch(lw_node *n, const uint8_t *buf, size_t r, const struct sockad
 
 int lw_node_serve(lw_node *n)
 {
-	struct pollfd *pf = malloc((size_t)(5 + SPRAY_N + n->maxpeers) * sizeof *pf);
+	struct pollfd *pf = malloc((size_t)(6 + SPRAY_N + n->maxpeers) * sizeof *pf);
 	int nf, k;
 	uint8_t buf[2048];
 	static uint8_t big[65600];		/* a NIC may hand us a 64 KB coalesced frame */
@@ -361,9 +363,11 @@ int lw_node_serve(lw_node *n)
 		pf[3].fd = n->udp2;			/* a negative descriptor is ignored by poll */
 		pf[4].fd = n->udp6;
 		nf = 5;
-		for (k = 0; k < n->nspray && nf < 5 + SPRAY_N; k++)	/* sockets opened to be found (spray.c) */
+		if (n->uudp >= 0)			/* the underlay socket (under.c) */
+			pf[nf++].fd = n->uudp;
+		for (k = 0; k < n->nspray && nf < 6 + SPRAY_N; k++)	/* sockets opened to be found (spray.c) */
 			pf[nf++].fd = n->spray_fd[k];
-		for (k = 0; k < n->maxpeers && nf < 5 + SPRAY_N + 256; k++)
+		for (k = 0; k < n->maxpeers && nf < 6 + SPRAY_N + 256; k++)
 			if (n->peers[k].used && n->peers[k].sfd)
 				pf[nf++].fd = n->peers[k].sfd;
 		for (k = 0; k < nf; k++)
@@ -371,6 +375,7 @@ int lw_node_serve(lw_node *n)
 		if (poll(pf, (nfds_t)nf, 100) < 0 && errno != EINTR)
 			break;
 		n->now = lw_now();
+		jnets_fresh(n);				/* the jack's networks, once a second (under.c) */
 		for (k = 4; k < nf; k++)
 			if (pf[k].revents & POLLIN) {
 				int fd = pf[k].fd;

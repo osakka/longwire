@@ -3,6 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.9
+
+- **Traffic to the other end never goes into our own jack.** Found with the first real site node: a desktop whose jack had been given an address in the same network as the site node's card
+  sent the packets that bring the tunnel up into the tunnel itself (`ip route get` said `dev lw0`), and the call kept starting and never connected. A node now sends everything for an address inside
+  its jack's network through a second UDP socket tied to its real network device (the default route's, or `--underlay DEV`), which the jack's route cannot capture, and does not offer the address it
+  has on its own jack. Without a device to tie it to (before Linux 5.7, or no default route) the address is left out and said so (`longwire watch`, `longwire show`, `cand_skipped` in `status`).
+  See [ADR 0037](docs/adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md) for the two ways it can still fail (strict reverse-path filtering, old kernels). Tested without privilege with the loopback
+  interface standing in for the jack and the device (`tests/jacknet.sh`); not tried with a real tap and the real loop, which the owner's desktop and the site node will show. The registration wait in `tests/m1.py` is now 45 s, not 20: it failed twice on a loaded machine and passed alone.
+
 ## 0.5.8
 
 *Published:* the catalogue (`hibr-apps` `3238f6b`) and the packages (`hibr-apt` `779774f`, `hibr-rpm` `7244241`, `hibr-arch` `657ce48`). `make check` passed (547 checks). Not tried: a real device getting its address, and installing from the repositories on a clean machine.

@@ -352,7 +352,13 @@ static int do_start(sh *s, int ac, char **av, int role)
 			}
 		} else if (!strcmp(a, "--direct-retry"))
 			c->direct_retry = atoi(v);
-		else if (!strcmp(a, "--keepalive"))
+		else if (!strcmp(a, "--underlay")) {
+			if (!v || strlen(v) >= sizeof c->underlay) {
+				hibr_fail(s, "lw start: --underlay wants a network device name");
+				goto out;
+			}
+			snprintf(c->underlay, sizeof c->underlay, "%s", v);
+		} else if (!strcmp(a, "--keepalive"))
 			c->keepalive = atoi(v);
 		else if (!strcmp(a, "--peer") && !role) {
 			char *at;
@@ -554,7 +560,7 @@ static void lw_fin(sh *s)
 }
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.8"
+#define LW_VERSION "0.5.9"
 #endif
 
 const hibr_bi lw_bi[] = { { "lw", m_lw, "longwire engine: start, stop, status, dial, pickup, key, sb" }, HIBR_BI_END };

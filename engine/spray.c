@@ -16,6 +16,12 @@ int ufd(const lw_node *n, int family)
 
 int peer_fd(const lw_node *n, const lw_peer *p)
 {
+	if (p && !p->sfd && n->njnet && p->ep.ss_family == AF_INET && jack_net_sa(n, (const struct sockaddr *)&p->ep)) {
+		int u = under_fd((lw_node *)n);		/* an address inside the jack's own network: not through the jack (under.c) */
+
+		if (u >= 0)
+			return u;
+	}
 	return p && p->sfd ? p->sfd : ufd(n, p ? p->ep.ss_family : AF_INET);
 }
 

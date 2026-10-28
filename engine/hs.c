@@ -282,7 +282,7 @@ static void cookie_reply(lw_node *n, uint16_t hs_id, const uint8_t ad[16], const
 	pkt[2] = (uint8_t)(hs_id >> 8);
 	lw_rand(pkt + 3, 24);
 	crypto_aead_lock(pkt + 27, pkt + 43, key, pkt + 3, ad, 16, ck, 16);
-	sendto(ufd(n, src->sa_family), pkt, sizeof pkt, 0, src, sl);
+	usend(n, ufd(n, src->sa_family), pkt, sizeof pkt, src, sl);
 	n->cookies_sent++;
 	crypto_wipe(key, 32);
 }
@@ -520,7 +520,7 @@ void hs_send(lw_node *n, int type, uint16_t hs_id, const uint8_t *m, size_t len,
 		if (to)
 			peer_out(n, to, pkt, 4 + c + 32);
 		else
-			sendto(ufd(n, dst->sa_family), pkt, 4 + c + 32, 0, dst, dl);
+			usend(n, ufd(n, dst->sa_family), pkt, 4 + c + 32, dst, dl);
 	}
 }
 

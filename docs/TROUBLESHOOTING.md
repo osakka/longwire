@@ -86,6 +86,12 @@ Check a firewall on the machine is not dropping traffic on `lw0`.
 The jack's MTU is 1400 so a frame fits one datagram. If you made the device by hand, set `mtu 1400` (`longwire setup jack` prints it).
 The cipher alone runs near 290 Mbit/s per core under the project's compiler; end to end it has been measured only in the test suite.
 
+**A call keeps starting and never connects, after you gave your jack an address in the same network as the other end.** (The other side logs the same number joining the line again
+and again.) `ip route get ADDRESS` on your machine, with ADDRESS the other end's address in that network, says `dev lw0`: your own packets for it go into the tunnel. longwire sends them
+out through a socket tied to your real network device instead (ADR 0037), so this should not happen. If it does: `longwire watch` says `⚠ not using ADDRESS` when it could not (a kernel
+before 5.7, or no default route: name the device with `--underlay DEV`); or the replies are dropped by strict reverse-path filtering (`sysctl net.ipv4.conf.all.rp_filter` and the
+one for the real device are `1`: set them to `2`). The way out that always works is an address on the other end that is outside the bridged network ([OPERATING](OPERATING.md), "Run a site").
+
 **`⚠ two DHCP servers answer on this line`**
 Two machines on the line are both handing out leases, and clients may get clashing addresses. Turn one off.
 

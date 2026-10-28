@@ -7,7 +7,7 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.8
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.9
 # modules: longwire
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
@@ -88,6 +88,7 @@ announce() {
 	member-evicted)   say "·  ${e[number]} was evicted from the line" ;;
 	evicted)          say "⚠  you were evicted from line ${e[line]}" ;;
 	line-partial)     say "⚠  the line is not a full mesh: ${e[up]} of ${e[members]} members reachable (frames between the others are not forwarded)" ;;
+	address-skipped)  say "⚠  not using ${e[address]}:${e[port]} to reach the other end: it is inside your jack's own network and there is no other road to it (docs/TROUBLESHOOTING.md)" ;;
 	line-complete)    say "·  the line is a full mesh (${e[members]} members)" ;;
 	connected)        if [ "${e[path]}" = relay ]; then say "✓  connected to ${e[number]} through a relay (${e[via]}): no direct path yet, still trying"
 	                  else say "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"; fi
@@ -322,6 +323,8 @@ cmd_show() {
 		[ -n "$num" ] || continue
 		echo "   connected     $num  $st${path:+ $path}${age:+, $(human_age "${age%.*}")}  in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
 	done
+	t := json get S .cand_skipped
+	[ "${t:-0}" -gt 0 ] && echo "   ⚠  ${t} address(es) of the other end are inside your jack's own network and could not be reached another way, so they are not used (longwire watch names them)"
 	t := json type S .line
 	if [ "$t" = object ]; then
 		id := json get S .line.id

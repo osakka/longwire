@@ -77,7 +77,7 @@ void peer_out(lw_node *n, lw_peer *p, const uint8_t *buf, size_t len)
 		return;
 	}
 	if (p->probe_len && n->now < p->probe_until)
-		sendto(ufd(n, p->probe_ep.ss_family), buf, len, 0, (struct sockaddr *)&p->probe_ep, p->probe_len);
+		usend(n, ufd(n, p->probe_ep.ss_family), buf, len, (struct sockaddr *)&p->probe_ep, p->probe_len);
 	r = &n->peers[p->via_peer];
 	if (!r->used || memcmp(r->key_id, p->via_kid, 32) || len > sizeof w - 4)
 		return;
