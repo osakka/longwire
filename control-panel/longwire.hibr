@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.14
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.15
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -35,6 +35,9 @@ LWP_ATTACHES=(jack splice)
 # The last status read, and when. _rows runs every frame, and a read of the node is a round trip, so it is kept for a second.
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.15}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_NOTEA=()
+LWP_NOTEST=-100
 
 # Bytes a connection has carried, in the units a person reads: decimal, one place.
 fn lwp_bytes(n) {
@@ -149,6 +152,41 @@ fn lwp_poll() {
 	LWP_UP=0
 }
 
+# Versions are a.b.c. 0 if the first is older than the second; an empty first one is older than anything.
+fn lwp_ver_lt(a, b) {
+	local a1 a2 a3 b1 b2 b3 r
+
+	[ -n "$a" ] || return 0
+	a1=${a%%.*}; r=${a#*.}; a2=${r%%.*}; a3=${r#*.}
+	b1=${b%%.*}; r=${b#*.}; b2=${r%%.*}; b3=${r#*.}
+	case $a1$a2$a3$b1$b2$b3 in *[!0-9]*) return 1 ;; esac
+	[ $((a1 * 1000000 + a2 * 1000 + a3)) -lt $((b1 * 1000000 + b2 * 1000 + b3)) ]
+}
+
+# What is out of step between the pane, the installed engine and the running node, in words (the same as `longwire doctor`); looked at every ten seconds.
+fn lwp_notes() {
+	local mod run v
+
+	[ $((SECONDS - LWP_NOTEST)) -ge 10 ] || return 0
+	LWP_NOTEST=$SECONDS
+	LWP_NOTEA=()
+	mod=
+	if v := lw version 2> /dev/null; then
+		mod=$v
+	fi
+	if [ -z "$mod" ] || lwp_ver_lt "$mod" "$LWP_SELF"; then
+		LWP_NOTEA+=("The longwire package (${mod:-older than 0.5.15}) is older than this pane ($LWP_SELF): update the package (apt, dnf or pacman)")
+	elif lwp_ver_lt "$LWP_SELF" "$mod"; then
+		LWP_NOTEA+=("This pane ($LWP_SELF) is older than the installed engine ($mod): catalogue refresh, then install longwire")
+	fi
+	if [ "$LWP_UP" = 1 ]; then
+		run := lwp_get .version
+		if [ "$run" != "$mod" ]; then
+			LWP_NOTEA+=("The running node has engine ${run:-older than 0.5.10}, the installed one is ${mod:-older than 0.5.15}: turn it off and on")
+		fi
+	fi
+}
+
 # Whether longwire runs here as a service, under another user: read-only, and looked at every ten seconds.
 fn lwp_service() {
 	local u rest
@@ -252,14 +290,21 @@ fn lwp_row(int w, int n, kind, text, val, key) {
 }
 
 fn longwire_rows(int w) {
-	local n=0 i cnt num name state p we call phr nm sw nat full path age yn pol rx tx rr tr rb tb tk nodename
+	local n=0 i cnt num name state p we call phr nm sw nat full path age yn pol rx tx rr tr rb tb tk nodename note
 
 	if ! need longwire 2> /dev/null; then
 		cp_absent "$w" "the longwire module"
 		ret 1
 	fi
 	lwp_poll
+	lwp_notes
 	dt_want 1000
+	if [ "${#LWP_NOTEA[@]}" -gt 0 ]; then
+		lwp_row "$w" "$n" head "Out of step" "" none; n=$((n + 1))
+		for note in "${LWP_NOTEA[@]}"; do
+			lwp_row "$w" "$n" action "$note" "" none; n=$((n + 1))
+		done
+	fi
 	if [ "$LWP_UP" != 1 ]; then
 		lwp_service
 		lwp_row "$w" "$n" head "Longwire is off" "" none; n=$((n + 1))

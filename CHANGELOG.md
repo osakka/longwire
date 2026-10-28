@@ -3,11 +3,18 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.15
+
+- **Out-of-step warnings.** The scripts come from the catalogue and the engine from the package, and a running node keeps the engine it started with, so a fix could sit in one of the three and look as
+  if it did nothing (it did, for hours). `longwire doctor` now says whether the scripts, the installed engine and the running node agree, and what to do if not (update the package; refresh the catalogue; turn the node
+  off and on). `longwire show` and `longwire on` print the same warnings, and the Control Panel has an **Out of step** heading at the top with the same words. The engine answers `lw version` for this; an
+  engine older than 0.5.15 does not know it, which is itself read as "older". Tested by `tests/doctor.sh`, a stand-in control socket in `tests/events.py`, and the pane tests.
+
 ## 0.5.14
 
-*Published:* the catalogue (`hibr-apps` `2388745`) and the packages (`hibr-apt` `065ffbb`, `hibr-rpm` `ed55a3e`, `hibr-arch` `4c9e9dc`). `make check` passed (597 checks). The row appears once hibr 0.99.373 (which maps the large glyphs) and Blit 0.2.48 are installed. Not tried: installing from the repositories on a clean machine.
+*Published:* the catalogue (`hibr-apps` `2388745`) and the packages (`hibr-apt` `065ffbb`, `hibr-rpm` `ed55a3e`, `hibr-arch` `4c9e9dc`). `make check` passed (597 checks). The row appears once hibr 0.99.373 (which maps the large glyphs) and Blit 0.3.0 are installed. Not tried: installing from the repositories on a clean machine.
 
-- **Phone Icon Size.** The menu bar telephone can be one cell (**small**, the default) or **large**, two cells wide, written as two codepoints side by side as Blit 0.2.48 draws them (modern U+100023 to U+10002A, classic
+- **Phone Icon Size.** The menu bar telephone can be one cell (**small**, the default) or **large**, two cells wide, written as two codepoints side by side as Blit 0.3.0 draws them (modern U+100023 to U+10002A, classic
   U+10002B to U+100032). The pane has a **Phone Icon Size** row, shown only where the glyph set has the large icons (`GL[phoneoff2]` and the rest, `GL[phoneoffc2]` for the classic ones: hibr's glyph table has to map them);
   what is asked for is used when it exists, otherwise the same style in one cell, then the modern one; the Control Strip has one cell and always uses the small icon. Tested with stand-in glyph tables; not seen on a real desktop.
 

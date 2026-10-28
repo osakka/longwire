@@ -22,6 +22,10 @@
 #include <unistd.h>
 #include "../engine/lw.h"
 
+#ifndef LW_VERSION
+#define LW_VERSION "0.5.15"
+#endif
+
 static void default_sock(char *out, size_t n)
 {
 	const char *e = getenv("LW_SOCK"), *h = getenv("HOME");
@@ -87,7 +91,7 @@ static int ask(sh *s, const char *sock, const char *req, int fail_on_error)
 
 static int usage(sh *s)
 {
-	hibr_fail(s, "usage: lw start|stop|status|dial|pickup|reject|hangup|unpin|evict|peers|key|sb ...  (see docs/CLI.md)");
+	hibr_fail(s, "usage: lw start|stop|status|dial|pickup|reject|hangup|unpin|evict|peers|key|sb|version ...  (see docs/CLI.md)");
 	return HIBR_FAIL;
 }
 
@@ -507,6 +511,12 @@ int m_lw(sh *s, int ac, char **av)
 	}
 	if (!strcmp(av[1], "key"))
 		return do_key(s, ac, av);
+	if (!strcmp(av[1], "version")) {		/* the engine installed here: the scripts compare it with themselves and with the running node */
+		hibr_ret(s, LW_VERSION);
+		if (!s->bind)
+			printf("%s\n", LW_VERSION);
+		return HIBR_OK;
+	}
 	if (!strcmp(av[1], "plan") && ac >= 3) {		/* the numbering plan, for tests and for operators planning ahead */
 		char code[10];
 
@@ -558,10 +568,6 @@ static void lw_fin(sh *s)
 {
 	hibr_unscheme(s, "longwire");
 }
-
-#ifndef LW_VERSION
-#define LW_VERSION "0.5.14"
-#endif
 
 const hibr_bi lw_bi[] = { { "lw", m_lw, "longwire engine: start, stop, status, dial, pickup, key, sb" }, HIBR_BI_END };
 HIBR_MODULE("longwire", LW_VERSION, "longwire L2 mesh VPN engine", lw_bi, lw_ini, lw_fin);

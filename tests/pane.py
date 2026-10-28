@@ -178,6 +178,14 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
           f"with no node of its own the pane reads a service node's socket and says so: {rows[:3]}")
     check(not any(x[3] == "stop" or x[3] == "policy" for x in rows),
           "...and offers neither to stop it nor to change its answer policy, which belong to the service")
+    # out of step: no heading when the pane, the engine and the node agree; one that names the package when the pane is newer than it
+    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), "dump 1")
+    check(not any(x[1] == "Out of step" for x in rows), "a pane, an engine and (no) node that agree show no 'Out of step' rows")
+    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", LONGWIRE_SELF_VERSION="9.9.9"), "dump 1")
+    check(any(x[0] == "head" and x[1] == "Out of step" for x in rows) and any("is older than this pane (9.9.9)" in x[1] for x in rows), f"a pane newer than the installed package says to update the package: {[x[1] for x in rows[:3]]}")
+    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=A.sock), "dump 1 > /dev/null; dump 1")
+    check(not any(x[1] == "Out of step" for x in rows), "and a running node of the same version is no mismatch")
+
     # two nodes answer here: the person's own (A) and a service (B): a Node row chooses which the pane shows
     envT = dict(HOME=f"{T}/nobody", LW_SOCK=A.sock, LW_RUN=f"{T}/run")
     rows, log, r = drive(envT, 'dump 1 > /dev/null; dump 1')

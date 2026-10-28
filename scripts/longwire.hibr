@@ -7,8 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.14
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.15
 # modules: longwire
+
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.15}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -44,6 +46,7 @@ usage: longwire <command>
   answer [ask|known|auto|never]               show, or change, how the running node answers rings
   (nothing)                                   turn the node on from the default profile if it is off, then say how it is
   show                                        how the node is, in a few lines (no JSON)
+  doctor                                      say whether the scripts, the installed engine and the running node are the same version
   watch                                       the node's events as sentences, as they happen (Ctrl-C leaves; the node goes on)
   down | off                                  stop the node
   on [PROFILE]                                start the node in the background, from a saved profile (the default one if none is named)
@@ -296,8 +299,58 @@ human_age() {
 }
 
 # How the node is, in a few lines: the number, the switchboard, who is connected and what they have carried, the line, any ring.
+# Versions are a.b.c. 0 if the first is older than the second, 1 if not; an empty first one is older than anything.
+ver_lt() {
+	local a=$1 b=$2 a1 a2 a3 b1 b2 b3 r
+	[ -n "$a" ] || return 0
+	a1=${a%%.*}; r=${a#*.}; a2=${r%%.*}; a3=${r#*.}
+	b1=${b%%.*}; r=${b#*.}; b2=${r%%.*}; b3=${r#*.}
+	case $a1$a2$a3$b1$b2$b3 in *[!0-9]*) return 1 ;; esac
+	[ $((a1 * 1000000 + a2 * 1000 + a3)) -lt $((b1 * 1000000 + b2 * 1000 + b3)) ]
+}
+
+# What is out of step, in words, one line each; nothing when all three agree. The scripts come from the catalogue and the engine from the package, and a
+# running node keeps the engine it started with, so a fix can sit in one of the three and look as if it did nothing. $1 is the running node's version
+# ("" if it runs but does not say: older than 0.5.10; "-" if none runs).
+engine_notes() {
+	local run=${1-} mod
+	[ $# -ge 1 ] || run=-
+	mod=$(lw version 2> /dev/null) || mod=
+	if [ -z "$mod" ] || ver_lt "$mod" "$SELF_VERSION"; then
+		echo "the longwire package (${mod:-older than 0.5.15}) is older than these scripts ($SELF_VERSION): sudo apt install --only-upgrade longwire   (the hibr repository carries it for apt, dnf and pacman)"
+	elif ver_lt "$SELF_VERSION" "$mod"; then
+		echo "these scripts ($SELF_VERSION) are older than the installed engine ($mod): catalogue refresh && catalogue install longwire"
+	fi
+	if [ "$run" != - ] && [ "$run" != "$mod" ]; then
+		echo "the running node has engine ${run:-older than 0.5.10}, the installed one is ${mod:-older than 0.5.15}: longwire off, then longwire on"
+	fi
+}
+
+# The running node's version as engine_notes wants it: its own, "" if it does not say, "-" if none runs.
+run_version() {
+	local s v
+	if s=$(lw status 2> /dev/null); then
+		json parse RV "$s" 2> /dev/null || { echo ""; return 0; }
+		v=${RV[version]:-}
+		echo "$v"
+	else
+		echo "-"
+	fi
+}
+
+cmd_doctor() {
+	local notes line
+	notes=$(engine_notes "$(run_version)")
+	if [ -z "$notes" ]; then
+		echo "longwire: the scripts, the installed engine and the running node agree ($SELF_VERSION)"
+		return 0
+	fi
+	printf '%s\n' "$notes" | while IFS= read -r line; do echo "⚠  $line"; done
+	return 1
+}
+
 cmd_show() {
-	local i cnt n num st path age rx tx t members id calls we state nm phr
+	local i cnt n num st path age rx tx t members id calls we state nm phr notes line
 
 	if ! lw status > /dev/null 2>&1; then
 		echo "longwire is off.   longwire on   turns it on"
@@ -313,6 +366,8 @@ cmd_show() {
 	fi
 	echo "   switchboard   ${S[switchboard]:-?}${S[nat]:+     NAT ${S[nat]}}"
 	echo "   engine        ${S[version]:-unknown (older than 0.5.10)}"
+	notes=$(engine_notes "${S[version]:-}")
+	[ -z "$notes" ] || printf '%s\n' "$notes" | while IFS= read -r line; do echo "   ⚠  $line"; done
 	if [ "${S[jack_nets]:-0}" -gt 0 ]; then
 		case ${S[underlay_state]:-} in
 		open)   echo "   underlay      ${S[underlay]} (your jack has an address; traffic to peers in its network leaves by this device)" ;;
@@ -463,12 +518,16 @@ cmd_jack() {
 
 # Start the node in the background and say how it went: the number it was given, or why not.
 cmd_on() {
-	local n=${1:-} i
+	local n=${1:-} i notes line
 	if lw status > /dev/null 2>&1; then
 		json parse S "$(lw status)"
 		echo "longwire: already on${S[number]:+: your number is ${S[number]}}"
+		notes=$(engine_notes "${S[version]:-}")
+		[ -z "$notes" ] || printf '%s\n' "$notes" | while IFS= read -r line; do echo "longwire: ⚠  $line" >&2; done
 		return 0
 	fi
+	notes=$(engine_notes -)
+	[ -z "$notes" ] || printf '%s\n' "$notes" | while IFS= read -r line; do echo "longwire: ⚠  $line" >&2; done
 	profiles_read
 	[ -n "$n" ] || n=$PDEFAULT
 	if [ -z "$n" ]; then
@@ -661,6 +720,7 @@ operator)
 bundle)  run lw key new "$LW_SEED" > /dev/null; run lw key bundle "$LW_SEED" ;;
 "")      cmd_here ;;
 show)    cmd_show ;;
+doctor)  cmd_doctor ;;
 watch)   cmd_watch ;;
 help|-h|--help) usage ;;
 *)

@@ -7,7 +7,7 @@ Tokens are secrets: leave them out of what you send.
 ## Starting
 
 **Did the update take effect?** The scripts come from the catalogue (`catalogue refresh && catalogue install longwire`), the engine from the package
-(`sudo apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire show` has an `engine` line with the version that runs.
+(`sudo apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
 
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
 Nothing is wrong. `longwire up` *is* the node: it stays in the foreground and prints events as they happen. Use another terminal for

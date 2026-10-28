@@ -42,13 +42,15 @@ The page says **Longwire is off** and shows the connection:
 | **Name** | what callers see when you ring them. A claim, never proof. |
 | **List in the directory** | on: others can find you by name on the switchboard. Off by default. |
 | **When a call rings** | how this machine answers: `ask`, `known`, `auto` or `never` (see below). |
-| **Phone Icon Size** | **small** (one cell, the default) or **large** (two cells wide). Shown only where the glyph set has large telephones (Blit 0.2.48 on); the Control Strip always uses the small one. |
+| **Phone Icon Size** | **small** (one cell, the default) or **large** (two cells wide). Shown only where the glyph set has large telephones (Blit 0.3.0 on); the Control Strip always uses the small one. |
 | **Longwire on the Menu Bar** | show or hide the telephone. |
 | **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. |
 | **Address** | this machine's address on the line, like `10.77.0.2/24` (jack profiles; every machine its own, in one subnet), put on the device for you. |
 | **Node** | shown when more than one node answers on this machine (your own, and a service such as `longwire@eth0`): choose which this pane shows and controls. |
 | **Turn on** | does everything: makes the network device if it is missing, and puts the address on it (that asks for your password), starts the node in the background, and tells you your number. |
 | **New profile…** / **Rename profile** / **Remove profile** | keep several connections (home, office, a friend's switchboard) and switch between them. |
+
+When the pane, the installed engine and the running node are not the same version it says so at the top (**Out of step**), with what to do; the scripts come from the catalogue and the engine from the package, and a running node keeps its old engine until it is turned off and on.
 
 The first profile you make becomes the default. When you press **Turn on** and the network device has to be made (the first time, and after each restart, because the device does
 not survive one), a dialog asks for your administrator password. It is only for making the device, and polkit remembers an approval for a few minutes. If `pkexec` is not

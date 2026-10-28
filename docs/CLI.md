@@ -63,6 +63,7 @@ and on the other machine's `up` terminal:
 | `longwire dial lw1…` | call a full address, through the directory. Fails plainly if the switchboard has none or the node is not listed |
 | `longwire who NUMBER` | what this node knows of a number (JSON): its key id and full address, whether it is pinned, on your line, connected (and by what path), and the safety phrase of a live call. It asks nobody, so a number never called, pinned or listed is "not known here" |
 | `longwire answer [POLICY]` | show, or change, the [answer policy](#answer-policy) of the running node. It takes effect on the next ring; a call already ringing is judged by the policy it arrived under. `up` sets it again from `--answer` (default `ask`) |
+| `longwire doctor` | says whether the scripts (from the catalogue), the installed engine (from the package) and the running node (which keeps the engine it started with) are the same version, and what to do if not; `show`, `on` and the pane say the same when they find a mismatch |
 | `longwire watch` | the node's events as sentences, as they happen (a ring shows the safety phrase and what to run). It only listens: Ctrl-C leaves and the node goes on |
 | `longwire shell NUMBER` | dial, then a shell whose only network is the line *(planned: M5)* |
 | `longwire key export`, `longwire key import` | the identity as 33 words from the safety-phrase list (32 for the seed, one of checksum), and back. `export` prints to the terminal only; `import` reads the words on standard input, checks the checksum, and refuses to overwrite an identity. The same words give the same key and so the same number. They *are* the identity: keep them like the seed file |
@@ -203,6 +204,7 @@ verb works from any hibr process, through the worker's control socket (`~/.longw
 | `lw status` | the JSON above, also in `$RET` |
 | `lw key new\|id\|address\|bundle\|export\|import SEEDFILE` | create or read an identity |
 | `lw key authority SEEDFILE`, `lw key admit\|evict SEEDFILE LINEID KEYID` | an operator's public key; a signed admit or eviction (hex) |
+| `lw version` | the version of the installed engine (the scripts compare it with themselves and with the running node) |
 | `lw plan N` | the N-th assigned switchboard code of the numbering plan, counting from 0 (for operators and tests) |
 | `lw sb start [options]`, `lw sb reply ID accept\|refuse [ARG...]` | the switchboard worker, and the script's decisions |
 | `lw who NUM` | what this node knows of a number (JSON) |

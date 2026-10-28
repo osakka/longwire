@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.14" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.15" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -72,6 +72,10 @@ your number, the switchboard, who is connected and what they have carried, the l
 .TP
 .B status
 What the node is doing, as JSON.
+.TP
+.B doctor
+Say whether the scripts (from the hibr catalogue), the installed engine (from the package) and the running node agree on the version, and what to do if not.
+A running node keeps the engine it started with, so after an upgrade it must be turned off and on.
 .TP
 .B watch
 The node's events as sentences, as they happen.
