@@ -5,11 +5,11 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.7
 
-*Published:* the catalogue (`hibr-apps` `e791bd8`) and the packages (`hibr-apt` `7da4c5c`, `hibr-rpm` `ab77048`, `hibr-arch` `d2fab86`). `make check` passed (509 checks). Not tried: `make lint` under TCC 0.9.28rc, and installing from the repositories on a clean machine.
+*Published:* the catalogue (`hibr-apps` `e791bd8`) and the packages (`hibr-apt` `7da4c5c`, `hibr-rpm` `ab77048`, `hibr-arch` `d2fab86`). `make check` passed (509 checks). `make lint` also passes under TCC 0.9.28rc (the Cix packaging ran it). Not tried: installing from the repositories on a clean machine.
 
 - **`make lint` under newer TCC, the rest of it.** TCC 0.9.28rc gives `strchr`/`strrchr` a `const` result when the argument is `const`; 0.5.6 fixed one such assignment and the Cix packaging
   found a second (`engine/call.c`: `lw_resolve` and `sb_connect`). Every `strchr`, `strrchr`, `strstr`, `memchr` and `strpbrk` in `engine/` and `module/` was then read: the others take
-  buffers the code owns and may write, so they stay as they are. Only 0.9.27 is installed here, so this cannot be proven under 0.9.28rc from this machine.
+  buffers the code owns and may write, so they stay as they are. Only 0.9.27 is installed here; the Cix packaging confirmed it under 0.9.28rc.
 
 ## 0.5.6
 
