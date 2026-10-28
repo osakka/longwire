@@ -5,6 +5,10 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.2
 
+*Published:* the catalogue (`hibr-apps` `10d9b0b`) and the packages (`hibr-apt` `8ddc209`, `hibr-rpm` `2561f2e`, `hibr-arch` `bbf7215`). `make check` passed on the tree before the last
+documentation-only edits (494 checks, `4c581fe`); the package test was run again on the exact packages published. Not tried: installing from those repositories on a clean machine, and the
+units under a live systemd.
+
 - **Documentation, properly.** Four manual pages (`man longwire`, `longwire-switchboard`, `longwire-profiles`, `longwire-security`) installed with the package, and five guides:
   [QUICKSTART](docs/QUICKSTART.md) (two machines on one line, on the desktop or the command line), [DESKTOP](docs/DESKTOP.md) (the pane, the menu bar telephone, the strip, the Switchboard window),
   [OPERATING](docs/OPERATING.md) (run a switchboard or a site, identity and backups, upgrades), [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) (a message or a symptom, its cause, the fix) and
