@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.4
 
+*Published:* the catalogue (`hibr-apps` `dc5a595`) and the packages (`hibr-apt` `3dd9915`, `hibr-rpm` `71e33b1`, `hibr-arch` `a04dff8`). `make check` passed (498 checks). Not tried: installing from those repositories on a clean machine.
+
 - **Fixed: Turn on said `lw start: need --splice NIC, --jack TAPNAME …`.** The pane shows a profile that never set **Attach** as "jack", but the node read an unset Attach as no attach mode at all. An unset
   Attach now means jack everywhere, as the pane shows it. A new test starts a profile with no Attach and checks that it tries the tap.
 
