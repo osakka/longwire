@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.18
 
+*Published:* the catalogue (`hibr-apps` `97f8f0b`) and the packages (`hibr-apt` `992109e`, `hibr-rpm` `fac116a`, `hibr-arch` `b1e95d2`). `make check` passed (656 checks).
+
 - **A security contact and a disclosure policy.** [SECURITY](docs/SECURITY.md#reporting-a-problem) and `man longwire-security` now say where to report a flaw (the maintainer's address, for now), what to send, that details stay private for
   90 days or until a fix, and that a reply is best effort. Documentation only; the design of the committed safety phrase is [ADR 0040](docs/adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md).
 
