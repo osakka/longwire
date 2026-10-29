@@ -48,6 +48,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0037](0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md) | Traffic to the other end never goes into our own jack | accepted |
 | [0038](0038-the-jack-may-ask-a-dhcp-server.md) | The jack may ask a DHCP server | accepted |
 | [0039](0039-a-site-node-from-the-pane.md) | A site node from the pane | accepted |
+| [0040](0040-the-safety-phrase-is-committed-before-it-is-shown.md) | The safety phrase is committed to before it is shown | accepted; the design is built in M8 *(planned: M8)* |
 
 ---
 

@@ -47,8 +47,7 @@ are worth knowing:
   does not make the attack impossible.
 - **After the first call it is moot.** The key is pinned. If the same number later answers with another key, the call is dropped and you
   are warned.
-- **If the switchboard is yours, none of this matters.** A longer phrase, committed to before it is shown, is a planned improvement
-  *(planned: M8)*.
+- **If the switchboard is yours, none of this matters.** A longer phrase, committed to before it is shown, so that there is nothing to search offline, is designed ([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)) and planned *(planned: M8)*.
 
 ## Why the design is sound (as far as design can be)
 
