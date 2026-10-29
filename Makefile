@@ -50,6 +50,7 @@ check: all lint
 	sh tests/jacknet.sh
 	sh tests/events.sh
 	sh tests/doctor.sh
+	sh tests/site.sh
 	sh tests/tokens.sh
 	sh tests/bar.sh
 	sh tests/man.sh
@@ -75,6 +76,9 @@ install: all
 	install -m 755 packaging/longwire-jack $(DESTDIR)$(PREFIX)/lib/longwire/jack
 	sed -e 's|/usr/lib/longwire/jack|$(PREFIX)/lib/longwire/jack|' packaging/org.longwire.jack.policy \
 		> $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.jack.policy && chmod 644 $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.jack.policy
+	install -m 755 packaging/longwire-site $(DESTDIR)$(PREFIX)/lib/longwire/site
+	sed -e 's|/usr/lib/longwire/site|$(PREFIX)/lib/longwire/site|' packaging/org.longwire.site.policy \
+		> $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.site.policy && chmod 644 $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.site.policy
 	install -m 644 README.md COPYING CHANGELOG.md docs/*.md $(DESTDIR)$(PREFIX)/share/doc/longwire/
 	for s in 1 5 7; do for p in man/*.$$s; do \
 		gzip -9n < $$p > $(DESTDIR)$(PREFIX)/share/man/man$$s/$$(basename $$p).gz && chmod 644 $(DESTDIR)$(PREFIX)/share/man/man$$s/$$(basename $$p).gz; done; done

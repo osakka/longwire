@@ -58,7 +58,7 @@ mode 0600 in a 0700 directory, the Control Panel and `longwire profile token` ta
 `profile set` and `up --token` do put it there), and `show` and the pane print only its length. A token is an invitation, not an identity: it lets one machine register once, and the seed is stored elsewhere and never enters
 the file. Anyone who can read your home directory can read your tokens, as they could read your SSH config.
 
-The one new privileged piece is `/usr/lib/longwire/jack`, run through `pkexec` (polkit asks for an administrator's password once per
+There are two privileged pieces, both run through `pkexec` and both polkit actions that ask for an administrator's password. The second, `/usr/lib/longwire/site` ([ADR 0039](adr/0039-a-site-node-from-the-pane.md)), writes `/etc/longwire/NIC.conf` and enables `longwire@NIC`: it reads one line of options from a file the user owns, accepts only `--switchboard`, `--token`, `--name`, `--answer` and `--listed`, each checked (no spaces or marks that could carry a second option), refuses `lo`, jacks and cards that do not exist, and gives the user access to the service's control socket with an ACL. A person who can run it can start a site node on any real card, which is what the action is for; the node it starts is the unit's own, with only `CAP_NET_RAW`. The first is `/usr/lib/longwire/jack`, run through `pkexec` (polkit asks for an administrator's password once per
 session). It can only create a tap device called `lw0` to `lw99`, owned by the user polkit says asked, and bring it up. The node
 itself still never runs as root and still holds no capability. Not tested: `pkexec` behind the desktop's pseudo-terminal job with a real
 polkit agent, and the helper on a machine with `/dev/net/tun`.

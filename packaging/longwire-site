@@ -1,0 +1,100 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# longwire-site NIC ARGSFILE [UID]  -- as root, make this machine a site node for the network card NIC: write /etc/longwire/NIC.conf from the options in
+# ARGSFILE (one line of them), enable and start longwire@NIC, and let the user who asked use its control socket. The Control Panel's Turn on runs it
+# through pkexec (polkit's action org.longwire.site names this file) when a profile splices a card, so that nobody edits a service file by hand.
+# longwire-site --stop NIC          stops and disables longwire@NIC.
+#
+# The user's file is read once and checked word by word: only --switchboard, --token, --name, --answer and --listed get through, each with a value of
+# the shape it must have, so a person who may run this can start a site node and nothing else. The node itself still runs unprivileged
+# with CAP_NET_RAW alone (docs/adr/0004, the unit's own limits).
+set -eu
+
+fail() { echo "longwire-site: $*" >&2; exit "${2:-2}"; }
+
+if [ "${1:-}" = "--stop" ]; then
+	nic=${2:-}
+	case $nic in '' | *[!A-Za-z0-9_.-]* | lo | lw[0-9]*) fail "not a card I may stop: '$nic'" ;; esac
+	[ ${#nic} -le 15 ] || fail "not a card name: '$nic'"
+	systemctl disable --now "longwire@$nic.service"
+	echo "longwire-site: longwire@$nic is stopped and will not start again at boot"
+	exit 0
+fi
+
+nic=${1:-}
+file=${2:-}
+uid=${PKEXEC_UID:-${3:-}}
+case $nic in '' | *[!A-Za-z0-9_.-]* | lo | lw[0-9]*) fail "not a card I may splice: '$nic' (a real network card, not lo or a jack)" ;; esac
+[ ${#nic} -le 15 ] || fail "not a card name: '$nic'"
+[ -d "${LONGWIRE_SYSNET:-/sys/class/net}/$nic" ] || fail "there is no network card called $nic" 3
+case $uid in '' | *[!0-9]*) fail "no user to give the control socket to (pass a uid, or run it through pkexec)" ;; esac
+[ "$uid" -ne 0 ] || [ -n "${LONGWIRE_SITE_ROOT_OK:-}" ] || fail "a site node's control socket goes to a user, not root"
+[ -f "$file" ] && [ ! -L "$file" ] || fail "$file: not a plain file"
+[ "$(stat -c %u "$file")" = "$uid" ] || fail "$file: not the user's own file"
+[ "$(stat -c %s "$file")" -le 2048 ] || fail "$file: too long"
+
+line=$(head -n 1 "$file")			# read once; everything after this is the copy
+set -f
+# shellcheck disable=SC2086
+set -- $line
+set +f
+out=
+while [ $# -gt 0 ]; do
+	opt=$1
+	case $opt in
+	--listed) out="$out --listed"; shift; continue ;;
+	--switchboard | --token | --name | --answer) ;;
+	*) fail "option '$opt' is not one a site node takes from here" ;;
+	esac
+	[ $# -ge 2 ] || fail "$opt wants a value"
+	val=$2
+	case $opt in
+	--switchboard)
+		case $val in
+		*[!A-Za-z0-9.:_/-]* | '' | */ | /*) fail "--switchboard wants HOST:PORT/KEY" ;;
+		*:*/*) ;;
+		*) fail "--switchboard wants HOST:PORT/KEY" ;;
+		esac ;;
+	--token)
+		case $val in
+		'' | '#'* | *[!\!-~]* | *'"'* | *'\'* | *'$'* | *'%'* | *'`'*) fail "that token has a character a service file cannot carry" ;;
+		esac ;;
+	--name)
+		case $val in
+		'' | *[!A-Za-z0-9._-]*) fail "--name for a site node is letters, digits, . _ - (no spaces)" ;;
+		esac
+		[ ${#val} -le 32 ] || fail "--name is too long" ;;
+	--answer)
+		case $val in ask | known | auto | never) ;; *) fail "--answer is ask, known, auto or never" ;; esac ;;
+	esac
+	out="$out $opt $val"
+	shift 2
+done
+
+conf=${LONGWIRE_ETC:-/etc/longwire}/$nic.conf
+umask 077
+mkdir -p "$(dirname "$conf")"
+printf 'ARGS="%s"\n' "${out# }" > "$conf.new"
+chmod 600 "$conf.new"
+mv "$conf.new" "$conf"
+if systemctl is-active --quiet "longwire@$nic.service"; then
+	systemctl restart "longwire@$nic.service"
+else
+	systemctl enable --now "longwire@$nic.service"
+fi
+
+run=${LONGWIRE_RUN_DIR:-/run/longwire}/$nic
+i=0
+while [ ! -S "$run/ctl" ] && [ $i -lt 150 ]; do		# up to 15 s for the service to open its control socket
+	sleep 0.1
+	i=$((i + 1))
+done
+[ -S "$run/ctl" ] || fail "longwire@$nic started, but its control socket did not appear (systemctl status longwire@$nic)" 4
+if command -v setfacl > /dev/null; then			# the user need not log in again to be in the group longwire
+	setfacl -m "u:$uid:x" "$run"
+	setfacl -m "u:$uid:rw" "$run/ctl"
+	echo "longwire-site: longwire@$nic is running; user $uid may use its control socket"
+else
+	echo "longwire-site: longwire@$nic is running; join the group longwire (sudo usermod -aG longwire YOU) and log in again to use it from the desktop"
+fi

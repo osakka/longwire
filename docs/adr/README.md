@@ -47,6 +47,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0036](0036-the-jack-gets-its-address-from-the-profile.md) | The jack gets its address from the profile | accepted |
 | [0037](0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md) | Traffic to the other end never goes into our own jack | accepted |
 | [0038](0038-the-jack-may-ask-a-dhcp-server.md) | The jack may ask a DHCP server | accepted |
+| [0039](0039-a-site-node-from-the-pane.md) | A site node from the pane | accepted |
 
 ---
 

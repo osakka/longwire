@@ -186,6 +186,12 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=A.sock), "dump 1 > /dev/null; dump 1")
     check(not any(x[1] == "Out of step" for x in rows), "and a running node of the same version is no mismatch")
 
+    # a service node has a Stop the service row, which asks first and then runs the helper with --stop
+    rows, log, r = drive(envS, 'dump 1 > /dev/null; dump 1')
+    check(any(x[3] == "stopsvc" and x[1] == "Stop the service" for x in rows), f"a service node has a Stop the service row: {[x[1] for x in rows if x[0] == 'action'][:8]}")
+    rows, log, r = drive(envS, 'dump 1 > /dev/null; longwire_do 1 stopsvc 1; $DRV_CMD')
+    check(any(l.startswith("CONFIRM Stop the site node on svc") for l in log) and any(l == "PTYJOB longwire site --stop svc" for l in log), f"it asks, and on yes runs `longwire site --stop svc`: {log}")
+
     # two nodes answer here: the person's own (A) and a service (B): a Node row chooses which the pane shows
     envT = dict(HOME=f"{T}/nobody", LW_SOCK=A.sock, LW_RUN=f"{T}/run")
     rows, log, r = drive(envT, 'dump 1 > /dev/null; dump 1')
@@ -264,7 +270,11 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     rows, log, r = drive(envF, 'lwp_pset address ""; lwp_pset interface lw9; dump 1')
     check(any(x[0] == "action" and x[1] == "Address" and x[2] == "none" for x in rows), f"an empty address shows as none: {[x[:3] for x in rows if x[0] == 'action']}")
     rows, log, r = drive(envF, 'lwp_pset attach splice; longwire_do 1 on 1')
-    check(any(l.startswith("NOTE high") and "setup splice" in l for l in log), f"splice says the one-time step: {log}")
+    check(any(l == "PTYJOB longwire site lw9 home" for l in log), f"splice asks for a site node for the card, through the site helper (one password): {log}")
+    rows, log, r = drive(envF, 'LWP_SITE=svc9; lwp_sitedone 7 0; echo "NODE $DT_LW_NODE"')
+    check(r.stdout.strip().endswith("/longwire/svc9/ctl") and any(l.startswith("NOTE low Site node running") for l in log), f"when it is made, the pane has a note and follows the service: {r.stdout.strip()[-60:]} {log}")
+    rows, log, r = drive(envF, 'LWP_SITE=; lwp_sitedone 7 1; echo "NODE [$DT_LW_NODE]"')
+    check(any(l.startswith("NOTE high Could not %s the site node") and " stop " in l for l in log), f"and when stopping fails, it says so: {log}")
     rows, log, r = drive(envF, 'lwp_pset attach jack; lwp_newprofile "work"; lwp_pset switchboard "other:1877/lw1xyz"; dump 1')
     flat = {(x[0], x[1]): x[2:] for x in rows}
     check(flat.get(("set", "Profile"), [""])[0] == "work", f"a new profile becomes the one shown: {flat.get(('set', 'Profile'))}")

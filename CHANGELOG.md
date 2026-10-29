@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.17
+
+- **A site node from the pane.** A profile with Attach = splice no longer ends in a note about a terminal command. **Turn on** asks for your administrator password once and a second root helper
+  (`/usr/lib/longwire/site`, polkit action `org.longwire.site`) writes `/etc/longwire/CARD.conf` and starts the service `longwire@CARD` with the profile's switchboard, token, name, answer policy and `listed`; the
+  pane then follows the service through its **Node** row, and **Stop the service** stops it. From a terminal: `longwire site CARD [PROFILE]` and `longwire site --stop CARD`. The options reach the helper in a file only the
+  user can read (the token never shows in the process list), and the helper lets through five options only, each checked ([ADR 0039](docs/adr/0039-a-site-node-from-the-pane.md)). Tested against stand-ins for
+  `systemctl` and `setfacl` (`tests/site.sh`), the script and the pane against a stand-in helper, and the packages (`tests/pkg.sh`). Not tried: a real service, a real card, polkit's dialog.
+
 ## 0.5.16
 
 *Published:* the catalogue (`hibr-apps` `ec37821`) and the packages (`hibr-apt` `9897f6c`, `hibr-rpm` `63a6f81`, `hibr-arch` `0677460`). `make check` passed (620 checks). Not tried: a real DHCP lease, and installing from the repositories on a clean machine.

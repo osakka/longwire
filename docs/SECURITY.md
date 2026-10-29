@@ -58,7 +58,7 @@ are worth knowing:
   and its tests run under it ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)).
 - **Least privilege.** The node never runs as root. Bridging a whole site needs one capability, granted by the service manager and
   dropped as soon as the network port is open. A single machine uses a tap device it owns; the root helper that creates the device
-  can do only that. The services run as a transient user with no home, a system-call filter and a memory limit; the switchboard holds no capabilities, and a site node only `CAP_NET_RAW`.
+  (and puts an IPv4 address on it, or starts a DHCP client that takes the address and route only) can do only that. A second helper, run through polkit from the Control Panel, starts a site node as a service; it reads the options from a file only the user can write and lets through five options with values of the shape each must have. The services run as a transient user with no home, a system-call filter and a memory limit; the switchboard holds no capabilities, and a site node only `CAP_NET_RAW`.
 - **The secret never leaves the worker.** Your identity is one 32-byte seed. It is read inside the engine, never put in a shell
   variable, never sent over the control socket, locked in memory where the operating system allows it, and a crash writes no core file. Registration tokens are kept in a file only
   you can read, and the Control Panel and `longwire profile token` take one without putting it on a command line (which any user on the

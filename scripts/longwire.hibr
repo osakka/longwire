@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.16
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.17
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.16}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.17}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -53,6 +53,7 @@ usage: longwire <command>
   profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME
                                               saved connections: switchboard, token, attach, interface, name, listed, answer
   jack [--address A.B.C.D/N] [TAP]            make the tap device a single machine attaches to (lw0 by default), with an address if asked; asks for a password once
+  site NIC [PROFILE] | site --stop NIC        make this machine a site node for the card NIC from a profile (a service, after one password); or stop it
   setup splice NIC | setup jack [TAP [ADDR]]  print the one-time privileged step for that attach mode, to run by hand
   key export | import                         the identity as 33 words, and back (import reads them on stdin)
   revoke EVICTION                             carry the operator's signed eviction (hex, or a file) to the line
@@ -529,6 +530,61 @@ cmd_jack() {
 	fi
 }
 
+# A site node on this machine: a service (longwire@NIC) that splices the card NIC, made by a root helper (packaging/longwire-site) that polkit lets the desktop's user
+# run after one password. The options go to the helper in a file only the user can read (the token stays out of the process list); the helper checks them word by word.
+site_helper() {
+	local f
+	for f in "${LONGWIRE_SITE:-}" /usr/lib/longwire/site /usr/local/lib/longwire/site; do
+		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+	done
+	return 1
+}
+
+cmd_site() {
+	local helper nic profile argsf line uid
+	if ! helper=$(site_helper); then
+		echo "longwire: the site helper is not installed (the longwire package has it). By hand: longwire setup splice NIC" >&2
+		return 1
+	fi
+	if ! command -v pkexec > /dev/null && [ "$(id -u)" != 0 ]; then
+		echo "longwire: there is no pkexec to ask for the password with. By hand: longwire setup splice NIC" >&2
+		return 1
+	fi
+	if [ "${1:-}" = --stop ]; then
+		nic=${2:-}
+		[ -n "$nic" ] || { echo "usage: longwire site --stop NIC" >&2; exit 2; }
+		if [ "$(id -u)" = 0 ]; then "$helper" --stop "$nic"; else pkexec "$helper" --stop "$nic"; fi
+		return
+	fi
+	nic=${1:-}
+	[ -n "$nic" ] || { echo "usage: longwire site NIC [PROFILE]  |  longwire site --stop NIC" >&2; exit 2; }
+	profiles_read
+	profile=${2:-$PDEFAULT}
+	[ -n "$profile" ] && profile_exists "$profile" || { echo "longwire: no profile${profile:+ called $profile}  (longwire profile list)" >&2; exit 1; }
+	[ -n "${PF[$profile.switchboard]:-}" ] || { echo "longwire: profile $profile has no switchboard" >&2; exit 1; }
+	line="--switchboard ${PF[$profile.switchboard]}"
+	[ -z "${PF[$profile.token]:-}" ] || line="$line --token ${PF[$profile.token]}"
+	case ${PF[$profile.name]:-} in
+	'') ;;
+	*[!A-Za-z0-9._-]*) echo "longwire: the name '${PF[$profile.name]}' has a space or a mark a service cannot carry: the site node goes without it" >&2 ;;
+	*) line="$line --name ${PF[$profile.name]}" ;;
+	esac
+	[ -z "${PF[$profile.answer]:-}" ] || line="$line --answer ${PF[$profile.answer]}"
+	[ "${PF[$profile.listed]:-}" != yes ] || line="$line --listed"
+	umask 077
+	mkdir -p "$LW_DIR" && chmod 700 "$LW_DIR"
+	argsf=$LW_DIR/site-args
+	printf '%s\n' "$line" > "$argsf" && chmod 600 "$argsf" || { echo "longwire: cannot write $argsf" >&2; return 1; }
+	if [ "$(id -u)" = 0 ]; then
+		"$helper" "$nic" "$argsf" "${SUDO_UID:-}"
+	else
+		pkexec "$helper" "$nic" "$argsf"
+	fi
+	uid=$?
+	rm -f "$argsf"
+	return $uid
+}
+
 # Start the node in the background and say how it went: the number it was given, or why not.
 cmd_on() {
 	local n=${1:-} i notes line
@@ -734,6 +790,7 @@ operator)
 bundle)  run lw key new "$LW_SEED" > /dev/null; run lw key bundle "$LW_SEED" ;;
 "")      cmd_here ;;
 show)    cmd_show ;;
+site)    cmd_site "$@" ;;
 doctor)  cmd_doctor ;;
 watch)   cmd_watch ;;
 help|-h|--help) usage ;;

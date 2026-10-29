@@ -30,6 +30,7 @@ bsdtar -xf "$ARC" -C "$T/arch" 2> /dev/null
 for f in usr/bin/longwire usr/bin/longwire-switchboard usr/lib/hibr/longwire.so \
 	 usr/lib/systemd/system/longwire-switchboard.service usr/lib/systemd/system/longwire@.service usr/lib/sysusers.d/longwire.conf \
 	 usr/lib/longwire/jack usr/share/polkit-1/actions/org.longwire.jack.policy \
+	 usr/lib/longwire/site usr/share/polkit-1/actions/org.longwire.site.policy \
 	 usr/share/man/man1/longwire.1.gz usr/share/man/man1/longwire-switchboard.1.gz usr/share/man/man5/longwire-profiles.5.gz usr/share/man/man7/longwire-security.7.gz; do
 	[ -e "$T/deb/$f" ] && [ -e "$T/rpm/$f" ] && [ -e "$T/arch/$f" ]; check $? "all three hold $f"
 done
@@ -40,6 +41,8 @@ for d in deb rpm arch; do (cd "$T/$d" && find usr -type f -perm /022 | grep -v .
 # --- the jack: the one privileged step of a single machine, run through pkexec; polkit's action names exactly the file that is installed
 grep -q 'exec.path">/usr/lib/longwire/jack<' "$T/deb/usr/share/polkit-1/actions/org.longwire.jack.policy" && [ -x "$T/deb/usr/lib/longwire/jack" ]; check $? "the polkit action names the helper that is installed, and the helper is executable"
 cmp -s "$T/deb/usr/lib/longwire/jack" packaging/longwire-jack; check $? "the helper in the package is packaging/longwire-jack"
+grep -q 'exec.path">/usr/lib/longwire/site<' "$T/deb/usr/share/polkit-1/actions/org.longwire.site.policy" && [ -x "$T/deb/usr/lib/longwire/site" ]; check $? "the site action names the site helper that is installed, and it is executable"
+cmp -s "$T/deb/usr/lib/longwire/site" packaging/longwire-site; check $? "the helper in the package is packaging/longwire-site"
 a=$(sha256sum < "$T/deb/usr/lib/hibr/longwire.so"); b=$(sha256sum < "$T/rpm/usr/lib/hibr/longwire.so"); c=$(sha256sum < "$T/arch/usr/lib/hibr/longwire.so")
 [ "$a" = "$b" ] && [ "$b" = "$c" ]; check $? "the module is the same file in all three"
 cmp -s "$T/deb/usr/bin/longwire" packaging/launcher.sh && cmp -s "$T/deb/usr/bin/longwire-switchboard" packaging/launcher.sh; check $? "the two launchers are the launcher"

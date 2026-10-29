@@ -37,7 +37,7 @@ The page says **Longwire is off** and shows the connection:
 | **Profile** | the saved connection being shown. Click it (or use the arrows) to switch to another. |
 | **Switchboard** | where to register: `HOST:PORT/KEY`, the address, a slash, and the switchboard's key (`lw1…`). |
 | **Token** | the invitation your switchboard gave you, if it wants one. It is typed into a masked box and kept in a file only you can read. The row shows `none` or `set (14 characters)`, never the token itself. |
-| **Attach** | **jack** for one machine, **splice** for a whole site. Splice needs a one-time step; the pane tells you the command. |
+| **Attach** | **jack** for one machine, **splice** for a whole site. Splice makes this machine a site node: **Turn on** asks for your administrator password once and starts the service `longwire@CARD` (the helper `longwire site`); the pane then follows it through the **Node** row, and **Stop the service** stops it. |
 | **Interface** | for a jack, the network device (`lw0`; it is made for you); for a splice, the network card. |
 | **Name** | what callers see when you ring them. A claim, never proof. |
 | **List in the directory** | on: others can find you by name on the switchboard. Off by default. |

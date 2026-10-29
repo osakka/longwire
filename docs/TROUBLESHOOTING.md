@@ -32,6 +32,12 @@ Same causes. Run `longwire jack` in a terminal to see the full instructions. If 
 The node is running but the switchboard has not answered yet (slow, unreachable, or a firewall on UDP 1877). `longwire show` says **dial tone** when it has; if it never does, check
 the address and the firewall, and `~/.longwire/log`.
 
+**Control Panel says "Could not make the site node" (splice), or `longwire: the site helper is not installed`**
+A splice profile makes this machine a site node: a service, `longwire@CARD`, written and started by `/usr/lib/longwire/site` after your administrator password. The helper says why it refused:
+`there is no network card called …` (check **Interface**: a real card, not `lo` or a jack), `option '…' is not one a site node takes` or `that token has a character a service file cannot carry` (the token or name has a
+mark a service file cannot hold: a name is letters, digits and `. _ -`), or `its control socket did not appear` (`systemctl status longwire@CARD` and `journalctl -u longwire@CARD`). Without `pkexec` or the helper, do it by
+hand: `longwire setup splice CARD`. Not having ACL tools means the pane cannot reach the service until you join the group `longwire` and log in again.
+
 **`longwire: it did not start:` and some lines**
 Those are the end of `~/.longwire/log`. Common causes are a wrong switchboard address, a token the switchboard refuses (below), or a
 port already in use (`--listen`).

@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.16" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.17" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -197,6 +197,18 @@ The device does not survive a restart, so it is asked for again then.
 .B on
 does this by itself when the jack, or its address, is missing.
 .TP
+.B site \fInic\fR [\fIprofile\fR]
+.TQ
+.B site \-\-stop \fInic\fR
+Make this machine a site node for the network card
+.IR nic :
+a service,
+.BR longwire@ \fInic\fR,
+started by a root helper after one password, with the profile's switchboard, token, name, answer policy and
+.BR listed .
+.B \-\-stop
+stops and disables it.
+.TP
 .B setup splice \fInic\fR
 .TQ
 .B setup jack \fR[\fItap\fR [\fIaddr\fR]]
@@ -370,6 +382,13 @@ See
 .TP
 .I /usr/lib/longwire/jack
 The root helper that makes the tap device, run through polkit.
+.TP
+.I /usr/lib/longwire/site
+The root helper that makes this machine a site node (writes
+.I /etc/longwire/NIC.conf
+and starts
+.BR longwire@NIC ),
+run through polkit.
 .TP
 .I /etc/longwire/NIC.conf
 Arguments of the service

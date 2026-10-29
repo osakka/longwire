@@ -54,6 +54,7 @@ and on the other machine's `up` terminal:
 | `longwire down` | stop the node |
 | `longwire id`, `longwire address`, `longwire bundle` | your key id (hex), your full address (`lw1…`), your public bundle (hex, for `--peer`) |
 | `longwire jack [--address A.B.C.D/N] [TAP]` | make the tap device a single machine attaches to (`lw0` to `lw99`, `lw0` by default) and give it to you, with an IPv4 address if one is given ([ADR 0036](adr/0036-the-jack-gets-its-address-from-the-profile.md)). A small root helper does it ([ADR 0034](adr/0034-a-connection-is-a-profile.md)): polkit asks for a password once, in a terminal or in the desktop. `on` does this by itself when the jack, or its address, is missing |
+| `longwire site NIC [PROFILE]`, `longwire site --stop NIC` | make this machine a site node for the card NIC from a profile: a service (`longwire@NIC`) written and started by a root helper after one password, with the profile's switchboard, token, name, answer policy and `listed`; a name with a space is left out. `--stop` stops and disables it ([ADR 0039](adr/0039-a-site-node-from-the-pane.md)) |
 | `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode, to run by hand if you would rather |
 | `longwire profile list`, `show [NAME]`, `set NAME KEY=VALUE…`, `token NAME`, `default NAME`, `rename OLD NEW`, `remove NAME` | the saved connections ([profiles](#profiles)) |
 | `longwire-switchboard [options]` | run a switchboard ([SWITCHBOARD](SWITCHBOARD.md)) |
