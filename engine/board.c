@@ -659,6 +659,12 @@ static void send_code(lw_node *n, lw_peer *p, const char *code)
 static void refuse(lw_node *n, lw_peer *p, const char *why)
 {
 	ctl_msg_send(n, p, M_REFUSED, (const uint8_t *)why, strlen(why));
+	strike(n, p, 2.0, "registration refused");		/* a refusal is the shape of a guess at a token (docs/adr/0043) */
+}
+
+int board_known_key(lw_node *n, const uint8_t kid[32])
+{
+	return n->bd && reg_by_key(n->bd, kid) != 0;
 }
 
 static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char *name, int listed)
@@ -867,10 +873,14 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 	net_str(&p->ep, net, sizeof net);
 	switch (msg) {
 	case M_REGISTER:
-		if (len < 1 || (size_t)pl[0] + 1 > len)
+		if (len < 1 || (size_t)pl[0] + 1 > len) {
+			strike(n, p, 1.0, "a malformed registration");
 			return;
-		if (p->last_reg && n->now - p->last_reg < 5.0)	/* a registration is a write to disk: one in five seconds from a session */
+		}
+		if (p->last_reg && n->now - p->last_reg < 5.0) {	/* a registration is a write to disk: one in five seconds from a session */
+			strike(n, p, 0.5, "registered faster than the limit");
 			return;
+		}
 		p->last_reg = n->now;
 		{					/* a token is visible text: it goes into the token file, and into an event the script parses */
 			size_t k;
@@ -1058,6 +1068,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			r->dial_tok = 20.0;
 		if (r->dial_tok < 1.0) {
 			rejected(n, p->key_id, 0, R_POLICY, num);	/* with the number, so the caller knows which call it was */
+			strike(n, p, 1.0, "dialled faster than the limit");
 			return;
 		}
 		r->dial_tok -= 1.0;
@@ -1072,7 +1083,10 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 				admit = 0;
 		}
 		if (!(ce = reg_by_number(b, num))) {
-			rejected(n, p->key_id, 0, miss_ok(n, r) ? R_UNKNOWN : R_POLICY, num);
+			int ok_ = miss_ok(n, r);
+
+			rejected(n, p->key_id, 0, ok_ ? R_UNKNOWN : R_POLICY, num);
+			strike(n, p, 1.0, ok_ ? "dialled a number that does not exist" : "dialled many numbers that do not exist");
 			return;
 		}
 		if (ce == r) {
@@ -1175,6 +1189,7 @@ void board_timers(lw_node *n)
 	int i;
 
 	registration_timers(n);			/* with the registry of codes, if we have one */
+	ban_timers(n);
 	if (n->now >= b->sweep_at) {
 		long iv = release_after(n) / 10;
 
@@ -1238,6 +1253,17 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 
 	if (!strncmp(line, "nodes", 5) && (line[5] == 0 || line[5] == ' '))
 		return nodes_json(n, atoi(line + 5), out, cap);
+	if (!strcmp(line, "bans"))
+		return ban_json(n, out, cap);
+	if (!strncmp(line, "unban ", 6)) {
+		char a[80];
+		int lifted;
+
+		if (sscanf(line + 6, "%79s", a) != 1)
+			return snprintf(out, cap, "{\"error\":\"unban wants a key id (eight digits or more of it) or all\"}\n");
+		lifted = ban_clear(n, a);
+		return snprintf(out, cap, "{\"lifted\":%d}\n", lifted);
+	}
 	if (sscanf(line, "reply %d %15s %79[^\n]", &id, verdict, arg) < 2)
 		return snprintf(out, cap, "{\"error\":\"unknown request\"}\n");
 	for (i = 0; i < MAXPEND; i++) {
@@ -1289,8 +1315,9 @@ int board_status_json(lw_node *n, char *o, size_t cap)
 	return snprintf(o, cap,
 		"{\"node\":\"switchboard\",\"key_id\":\"%s\",\"address\":\"%s\",\"uptime\":%d,\"numbers\":%d,\"online\":%d,"
 		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu,\"code\":\"%s\",\"code_refused\":\"%s\",\"codes_issued\":%d,"
-		"\"max_nodes\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"cookies_got\":%llu}\n",
+		"\"max_nodes\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"cookies_got\":%llu,\"strikes_given\":%llu,\"bans_issued\":%llu,\"net_bans_issued\":%llu,\"ban_refused\":%llu}\n",
 		kid, addr, (int)(n->now - n->started), b->n, online_n, calls,
 		n->cfg.policy_script ? "script" : "open", (unsigned long long)n->drop_garbage, n->home_code, n->reg_why, b->ncodes, n->maxpeers,
-		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->cookies_got);
+		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->cookies_got,
+		(unsigned long long)n->strikes_given, (unsigned long long)n->bans_issued, (unsigned long long)n->net_bans_issued, (unsigned long long)n->bans_refused);
 }

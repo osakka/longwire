@@ -362,6 +362,11 @@ int hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 	if (lw_open0(kid, k, m + 2304, 48, h))
 		return -1;
 	mix(h, m + 2304, 48);
+	if (n->role && (ban_active(n, kid) || (ban_net_blocked(n, (const struct sockaddr_storage *)(const void *)src) && !board_known_key(n, kid)))) {
+		n->bans_refused++;				/* a banned key, or a new one from a banned network: as much work as for anyone, and no answer */
+		dh(t, n->id.x_sk, m);
+		return -1;
+	}
 	if (!(p = peer_by_key(n, kid)) && !(p = peer_for_unknown(n, kid))) {
 		dh(t, n->id.x_sk, m);				/* not someone we know: as much work as for someone we do, so the time says nothing */
 		return -1;

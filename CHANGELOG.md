@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.24
+
+- **Strikes and bans on a switchboard** ([ADR 0043](docs/adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)). A session that has passed the handshake and keeps failing (a wrong token counts two, a number that does not exist one, a message over the session's budget a fraction) earns strikes, which leak away with time; at
+  `--strikes` (default 10 in `--strike-window` 600 s) its **key** is banned for `--ban-for` (900 s, doubling at each repeat up to `--ban-max`, 86400 s), its session ends, and its handshake is refused like any unknown key's. Several different banned keys from one network (`--net-ban-keys`, default 5 per /24 or /64) refuse *new*
+  identities from it; the nodes already registered behind it are unaffected. The rule that keeps it from being a weapon: **nothing before the handshake is ever counted**, so a spoofed address cannot get anyone banned. Fixed tables that never grow, everything expiring, a ceiling on bans an hour (`--ban-ceiling`), and `--never-ban KEY|ADDR/PREFIX`
+  (empty by default: nobody is exempt unless you say so). All of it settable, `--strikes 0` turns it off. `longwire-switchboard bans list` and `bans clear [KEY|all]`; the `ban` and `net-ban` events; counters in the status. Tested at the level of the tables under TCC's bounds checker (thresholds, leak, doubling, the cap, never-ban, networks, the ceiling, a
+  flood of 200,000 identities that cannot push out a live ban: `tests/ban.sh`) and on a real switchboard (a wrong token earns a ban, a good node is untouched, 800 garbage and wrong-key packets earn nothing, the ban ends, the operator lifts it: `tests/ban2.sh`). Bans live in memory, so a restart forgets them. Not tried: a long real attack.
+
 ## 0.5.23
 
 *Published:* the catalogue (`hibr-apps` `75ebf5f`) and the packages (`hibr-apt` `c6e9415`, `hibr-rpm` `e6d5988`, `hibr-arch` `ca356c6`). `make check` passed (674 checks).

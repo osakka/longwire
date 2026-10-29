@@ -70,6 +70,8 @@ Nodes use `--switchboard YOUR.HOST:1877/lw1q7m…k2a`.
   use; a machine that has registered once is recognised by its key afterwards. Add one with
   `openssl rand -hex 10 | please tee -a /var/lib/longwire-switchboard/tokens`. The file must be in the state directory: the service cannot
   write `/etc`.
+- **Strikes and bans.** On by default (10 strikes in 10 minutes, a 15-minute first ban doubling to a day; `--strikes 0` turns it off). Add your own nodes with `--never-ban ADDR/PREFIX` or `--never-ban KEY` if you ever lock yourself out (`longwire-switchboard bans clear all` also lifts everything at once).
+  Details and why they cannot be turned against your users: [SWITCHBOARD](SWITCHBOARD.md).
 - **Limits.** Defaults are 1,024 sessions (`--max-nodes`), 100,000 numbers (`--max-numbers`) and 20 registrations per source per hour; the unit's
   memory limit is 1 GB, which suits the defaults. Raise the limit with the numbers.
 - **Back up the seed.** `/var/lib/longwire-switchboard/seed` is the switchboard's identity. Every node pins its address, so losing it

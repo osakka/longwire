@@ -169,7 +169,7 @@ void ctl_accept(lw_node *n)
 			(void)!write(c, out, (size_t)len);
 		return;				/* the connection stays open */
 	}
-	if (n->cfg.ctl_group && cr.uid != geteuid() && cr.uid != 0 && (!strcmp(line, "stop") || !strncmp(line, "reply ", 6))) {	/* the group runs the node; the service's owner stops it and decides its policy */
+	if (n->cfg.ctl_group && cr.uid != geteuid() && cr.uid != 0 && (!strcmp(line, "stop") || !strncmp(line, "reply ", 6) || !strncmp(line, "unban ", 6))) {	/* the group runs the node; the service's owner stops it and decides its policy */
 		len = snprintf(out, sizeof out, "{\"error\":\"only the user this runs as may do that (systemctl stops a service)\"}\n");
 		(void)!write(c, out, (size_t)len);
 		close(c);

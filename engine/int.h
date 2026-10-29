@@ -293,6 +293,8 @@ struct lw_node {
 	int      subs[MAXSUBS];
 	int      subs_owner[MAXSUBS];	/* the watcher runs as the user the worker runs as: it may be told what a group member may not */
 	struct board *bd;
+	struct banset *bn;			/* strikes and bans (ban.c) */
+	uint64_t strikes_given, bans_issued, net_bans_issued, bans_refused, bans_suppressed;
 	double   hello_tokens, hello_t;
 	struct { struct sockaddr_storage a; socklen_t l; double tok, t; } hello_src[16];	/* a budget for each asker, too */
 	double   hs_tokens, hs_t;	/* handshake budget: past half spent, the node is under load and wants cookies */
@@ -401,6 +403,15 @@ void sa_cand(const struct sockaddr *sa, lw_cand *c);
 void spray_close(lw_node *n);
 void spray_reap(lw_node *n);
 int  spray_is(const lw_node *n, int fd);
+/* ban.c */
+void strike(lw_node *n, lw_peer *p, double w, const char *why);
+int  ban_active(lw_node *n, const uint8_t kid[32]);
+int  ban_net_blocked(lw_node *n, const struct sockaddr_storage *ep);
+void ban_timers(lw_node *n);
+void ban_free(lw_node *n);
+int  ban_json(lw_node *n, char *o, size_t cap);
+int  ban_clear(lw_node *n, const char *arg);
+int  board_known_key(lw_node *n, const uint8_t kid[32]);
 /* under.c */
 void jnets_refresh(lw_node *n);
 void jnets_fresh(lw_node *n);

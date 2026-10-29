@@ -48,6 +48,8 @@ check: all lint
 	sh tests/profile.sh
 	sh tests/jack.sh
 	sh tests/sas.sh
+	sh tests/ban.sh
+	sh tests/ban2.sh
 	sh tests/jacknet.sh
 	sh tests/events.sh
 	sh tests/doctor.sh

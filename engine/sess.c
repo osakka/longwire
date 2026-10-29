@@ -211,6 +211,7 @@ void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 			p->msg_t = n->now;
 			if (p->msg_tok < 1.0) {
 				n->drop_flood++;
+				strike(n, p, 0.25, "sent control messages faster than the limit");
 				return;
 			}
 			p->msg_tok -= 1.0;

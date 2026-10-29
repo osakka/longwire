@@ -7,6 +7,7 @@
  */
 #define _GNU_SOURCE
 #include "hibr.h"
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
@@ -23,7 +24,7 @@
 #include "../engine/lw.h"
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.23"
+#define LW_VERSION "0.5.24"
 #endif
 
 static void default_sock(char *out, size_t n)
@@ -87,6 +88,51 @@ static int ask(sh *s, const char *sock, const char *req, int fail_on_error)
 	if (!s->bind)
 		printf("%s\n", buf);
 	return HIBR_OK;
+}
+
+/* --never-ban: a key id (64 hex digits), or an address with a prefix: 192.0.2.0/24, 2001:db8::/32. */
+static int never_parse(const char *v, lw_never *w)
+{
+	char a[64];
+	const char *sl = strchr(v, '/');
+	size_t al;
+
+	memset(w, 0, sizeof *w);
+	if (strlen(v) == 64) {
+		size_t i;
+
+		for (i = 0; i < 32; i++) {
+			unsigned x;
+			char h[3] = { v[2 * i], v[2 * i + 1], 0 };
+			char *e;
+
+			x = (unsigned)strtoul(h, &e, 16);
+			if (*e)
+				return -1;
+			w->kid[i] = (uint8_t)x;
+		}
+		w->kind = 1;
+		return 0;
+	}
+	if (!sl)
+		return -1;
+	al = (size_t)(sl - v);
+	if (al == 0 || al >= sizeof a)
+		return -1;
+	memcpy(a, v, al);
+	a[al] = 0;
+	w->bits = atoi(sl + 1);
+	if (inet_pton(AF_INET, a, w->net) == 1 && w->bits >= 0 && w->bits <= 32) {
+		w->kind = 2;
+		w->fam = 4;
+		return 0;
+	}
+	if (inet_pton(AF_INET6, a, w->net) == 1 && w->bits >= 0 && w->bits <= 128) {
+		w->kind = 2;
+		w->fam = 6;
+		return 0;
+	}
+	return -1;
 }
 
 static int usage(sh *s)
@@ -247,8 +293,16 @@ static int do_start(sh *s, int ac, char **av, int role)
 		snprintf(c->seed_path, sizeof c->seed_path, "%s/.longwire/seed", h ? h : ".");
 	}
 	c->role = role;
-	if (role)
+	if (role) {
 		snprintf(c->port_kind, sizeof c->port_kind, "none");
+		c->strikes = 10;			/* strikes and bans: on, with these defaults (docs/adr/0043); 0 turns them off */
+		c->strike_window = 600;
+		c->ban_for = 900;
+		c->ban_max = 86400;
+		c->net_keys = 5;
+		c->net_for = 900;
+		c->ban_ceiling = 1000;
+	}
 	for (i = 2; i < ac; i++) {
 		const char *a = av[i], *v = i + 1 < ac ? av[i + 1] : 0;
 
@@ -333,6 +387,27 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->release_after = atol(v);
 		else if (!strcmp(a, "--max-numbers") && role)
 			c->max_numbers = atoi(v);
+		else if (!strcmp(a, "--strikes") && role)
+			c->strikes = atoi(v);
+		else if (!strcmp(a, "--strike-window") && role)
+			c->strike_window = atoi(v);
+		else if (!strcmp(a, "--ban-for") && role)
+			c->ban_for = atoi(v);
+		else if (!strcmp(a, "--ban-max") && role)
+			c->ban_max = atoi(v);
+		else if (!strcmp(a, "--net-ban-keys") && role)
+			c->net_keys = atoi(v);
+		else if (!strcmp(a, "--net-ban-for") && role)
+			c->net_for = atoi(v);
+		else if (!strcmp(a, "--ban-ceiling") && role)
+			c->ban_ceiling = atoi(v);
+		else if (!strcmp(a, "--never-ban") && role) {
+			if (c->n_never >= 16 || never_parse(v, &c->never[c->n_never])) {
+				hibr_fail(s, "lw start: --never-ban wants a key id (64 hex digits) or an address with a prefix (192.0.2.0/24, 2001:db8::/32); at most 16");
+				goto out;
+			}
+			c->n_never++;
+		}
 		else if (!strcmp(a, "--authority") && !role) {
 			if (strlen(v) != 64 || unhex(v, c->authority, 32)) {
 				hibr_fail(s, "lw start: --authority wants the operator's public key (64 hex digits)");
@@ -478,6 +553,12 @@ int m_lw(sh *s, int ac, char **av)
 					o = (int)sizeof req - 2;
 			}
 			snprintf(req + o, sizeof req - (size_t)o, "\n");
+			return ask(s, sock, req, 1);
+		}
+		if (!strcmp(av[2], "bans"))
+			return ask(s, sock, "bans\n", 1);
+		if (!strcmp(av[2], "unban") && ac >= 4) {
+			snprintf(req, sizeof req, "unban %s\n", av[3]);
 			return ask(s, sock, req, 1);
 		}
 		if (!strcmp(av[2], "nodes")) {		/* lw sb nodes [FROM]: a page of the registry */

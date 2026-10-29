@@ -271,6 +271,7 @@ void lw_node_release(lw_node *n)
 		return;
 	if (n->udp >= 0)
 		close(n->udp);
+	ban_free(n);
 	if (n->udp2 >= 0)
 		close(n->udp2);
 	if (n->uudp >= 0)

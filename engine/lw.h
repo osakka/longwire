@@ -30,6 +30,12 @@ typedef struct lw_peercfg {
 	char endpoint[128];		/* "host:port", empty = wait for them */
 } lw_peercfg;
 
+typedef struct lw_never {
+	int     kind;			/* 1 a key id, 2 an address with a prefix */
+	int     fam, bits;		/* (an address) 4 or 6, and how many bits of it count */
+	uint8_t kid[32], net[16];
+} lw_never;
+
 typedef struct lw_cfg {
 	char seed_path[256];
 	char ctl_path[256];
@@ -56,6 +62,9 @@ typedef struct lw_cfg {
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	char underlay[32];		/* the network device to reach the world by when the jack has the other end's network ("": the default route's) */
 	int  require_sas;		/* refuse a call whose other end cannot do the committed safety phrase (a switchboard could be stripping it) */
+	int  strikes, strike_window, ban_for, ban_max, net_keys, net_for, ban_ceiling;	/* switchboard: strikes and bans (docs/adr/0043); strikes 0: off */
+	int  n_never;
+	lw_never never[16];		/* never struck: a key id or an address with a prefix */
 	int  cand_loopback;		/* offer 127.x as a candidate: tests and same-host use */
 	int  policy_script;		/* switchboard: wait for the script's verdicts */
 	int  maxpeers;			/* default 32 (switchboard: 1024) */

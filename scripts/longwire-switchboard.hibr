@@ -6,10 +6,12 @@
 # policy: who may register, and whose call may ring. See docs/SWITCHBOARD.md.
 #
 #   longwire-switchboard token new [N] | list | remove TOKEN   [--tokens FILE] [--state DIR]     (the invitations; no switchboard runs)
+#   longwire-switchboard bans list | clear [KEY|all]   [--state DIR]                                (the bans of the running switchboard)
 #   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
 #                        [--per-ip-hour N] [--rings-per-minute N] [--max-nodes N]
 #                        [--caller-id on|off] [--directory on|off]
 #                        [--release-after TIME] [--max-numbers N] [--group NAME|GID]
+#                        [--strikes N] [--strike-window S] [--ban-for S] [--ban-max S] [--net-ban-keys N] [--net-ban-for S] [--ban-ceiling N] [--never-ban KEY|ADDR/PREFIX]...
 #                        --registry HOST:PORT/KEY|none [--issue-codes [--public-switchboard KEY]] [--codes-per-ip-day N]
 #
 # --tokens FILE   registration needs a token: one per line, "TOKEN" or
@@ -20,6 +22,12 @@
 #                 a node only appears in either if it asked to).
 # --registry      the registry of switchboard codes, which gives this switchboard its short code (+1, +20, ...); "none"
 #                 for a private switchboard, which keeps its derived code (+0...). Required.
+# --strikes N     failures on an authenticated session within --strike-window seconds (default 600) that earn a ban (default 10; 0 turns bans off). A refused
+#                 registration counts 2, a dial of a number that does not exist 1, a message over the session's budget a fraction. Nothing before the handshake
+#                 ever counts: a spoofed address cannot get anyone banned. --ban-for S the first ban (default 900), doubling at each repeat up to --ban-max S
+#                 (default 86400). --net-ban-keys N different banned keys from one /24 (IPv6: /64) within the window refuse new identities from that network for
+#                 --net-ban-for S (default 900); those already registered are not affected. --ban-ceiling N most bans an hour (default 1000). --never-ban KEY|ADDR/PREFIX
+#                 (repeatable) is never struck: nobody is exempt unless you say so.
 # --release-after TIME   a number unheard for that long is released, then held back for as long again (default 365d;
 #                 days, or a suffix s, m, h or d). Its owner coming back in that time gets the same number.
 # --max-numbers N   the most numbers this switchboard gives out (default 100000: each is a bundle in memory and a line in numbers.log)
@@ -27,7 +35,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.23
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.24
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -44,7 +52,15 @@ public_sb=
 group=
 codes_per_ip_day=2
 max_numbers=100000
+bargs=()			# strikes and bans: handed to the engine as given; its defaults apply to what is not said
 release_after=365d
+
+need_value() {
+	[ $# -ge 2 ] && [ -n "$2" ] || { echo "longwire-switchboard: $1 needs a value" >&2; exit 2; }
+	case $2 in -*) echo "longwire-switchboard: $1 needs a value, and $2 is another option" >&2; exit 2 ;; esac
+}
+need_number() { case $2 in ''|*[!0-9]*) echo "longwire-switchboard: $1 wants a number, not '$2'" >&2; exit 2 ;; esac; }
+need_onoff() { case $2 in on|off) ;; *) echo "longwire-switchboard: $1 is on or off, not '$2'" >&2; exit 2 ;; esac; }
 
 # `token`: make, list and remove registration tokens in the tokens file, for whoever runs the switchboard. It touches only that file (mode 0600, written whole beside
 # itself and moved into place, so a crash keeps every token) and needs no module and no running switchboard.
@@ -105,20 +121,38 @@ tokens_cmd() {
 
 [ "${1:-}" = token ] && { tokens_cmd "$@"; exit 0; }
 
+# `bans`: what the running switchboard has banned, and lifting bans. The same control socket as the rest; lifting is the owner's alone.
+bans_cmd() {
+	local sub arg= pos=()
+	shift					# "bans"
+	sub=${1:-}
+	[ $# -gt 0 ] && shift
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--state) need_value "$@"; SB_DIR=$2; shift 2 ;;
+		*) pos+=("$1"); shift ;;
+		esac
+	done
+	mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
+	export LW_SOCK=${LW_SOCK:-$SB_DIR/ctl}
+	case $sub in
+	list|"") lw sb bans || { echo "longwire-switchboard: ${ERRMSG:-failed}" >&2; exit 1; } ;;
+	clear) arg=${pos[0]:-all}
+	       lw sb unban "$arg" || { echo "longwire-switchboard: ${ERRMSG:-failed}" >&2; exit 1; } ;;
+	*) echo "usage: longwire-switchboard bans list | clear [KEY|all]   [--state DIR]" >&2; exit 2 ;;
+	esac
+}
+
+[ "${1:-}" = bans ] && { bans_cmd "$@"; exit 0; }
+
 mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
 
-need_value() {
-	[ $# -ge 2 ] && [ -n "$2" ] || { echo "longwire-switchboard: $1 needs a value" >&2; exit 2; }
-	case $2 in -*) echo "longwire-switchboard: $1 needs a value, and $2 is another option" >&2; exit 2 ;; esac
-}
-need_number() { case $2 in ''|*[!0-9]*) echo "longwire-switchboard: $1 wants a number, not '$2'" >&2; exit 2 ;; esac; }
-need_onoff() { case $2 in on|off) ;; *) echo "longwire-switchboard: $1 is on or off, not '$2'" >&2; exit 2 ;; esac; }
 
 while [ $# -gt 0 ]; do
 	case $1 in
 	-h|--help) sed -n '4,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 	--issue-codes) issue_codes=1; shift; continue ;;
-	--listen|--tokens|--state|--per-ip-hour|--rings-per-minute|--max-nodes|--max-numbers|--registry|--group|--public-switchboard|--codes-per-ip-day|--release-after|--caller-id|--directory)
+	--listen|--tokens|--state|--per-ip-hour|--rings-per-minute|--max-nodes|--max-numbers|--registry|--group|--public-switchboard|--codes-per-ip-day|--release-after|--caller-id|--directory|--strikes|--strike-window|--ban-for|--ban-max|--net-ban-keys|--net-ban-for|--ban-ceiling|--never-ban)
 		need_value "$@" ;;		# a missing value is an error: --tokens with nothing after it must never mean "no tokens"
 	*) echo "longwire-switchboard: unknown option $1" >&2; exit 2 ;;
 	esac
@@ -135,6 +169,8 @@ while [ $# -gt 0 ]; do
 	--public-switchboard) public_sb=$2 ;;
 	--codes-per-ip-day) need_number "$@"; codes_per_ip_day=$2 ;;
 	--release-after) release_after=$2 ;;
+	--strikes|--strike-window|--ban-for|--ban-max|--net-ban-keys|--net-ban-for|--ban-ceiling) need_number "$@"; bargs+=("$1" "$2") ;;
+	--never-ban) bargs+=("$1" "$2") ;;			# a key id or an address with a prefix; the engine checks it
 	--caller-id) need_onoff "$@"; caller_id=$2 ;;
 	--directory) need_onoff "$@"; directory=$2 ;;
 	esac
@@ -246,7 +282,7 @@ case "$release_after" in
 esac
 
 run lw key new "$SB_DIR/seed" > /dev/null
-run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" ${group:+--group "$group"} --release-after "$release_secs" --max-numbers "$max_numbers" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} > /dev/null
+run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" ${group:+--group "$group"} --release-after "$release_secs" --max-numbers "$max_numbers" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} "${bargs[@]}" > /dev/null
 addr=$(lw key address "$SB_DIR/seed")
 # on stderr, which hibr does not hold back: under a service these lines reach the journal when they are printed, not when a buffer fills
 echo "switchboard  $addr   (give this full address to your nodes)" >&2

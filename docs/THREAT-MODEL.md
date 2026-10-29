@@ -93,7 +93,7 @@ read; the engine runs under TCC's bounds checker against raw datagrams, a bent r
 before an answer, a registry with no end and a walk for every message) each have a test that failed before the fix.
 
 What limits remain are limits, not defences. A flood from many real addresses costs a key-encapsulation each, within the budget
-(2,000 a second on a switchboard). Open registration can be used up to `--max-numbers` by anyone with enough addresses: a switchboard
+(2,000 a second on a switchboard). A session that has passed the handshake and keeps failing (wrong tokens, numbers that do not exist, messages over its budget) earns **strikes**, then a **ban on its key**; several banned keys from one network refuse new identities from it. Nothing before the handshake counts, because a spoofed source could then get others banned ([ADR 0043](adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)). Open registration can be used up to `--max-numbers` by anyone with enough addresses: a switchboard
 that matters should hand out tokens. Raw bandwidth is for the network in front of it.
 
 ## Known gaps today

@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.23" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.24" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
@@ -10,6 +10,11 @@ longwire-switchboard \- the longwire rendezvous server: gives nodes their number
 .B longwire-switchboard token
 .BR new " [" \fIN\fR "] | " list " | " remove " " \fITOKEN\fR
 .RB [ \-\-tokens " " \fIFILE\fR "] [" \-\-state " " \fIDIR\fR ]
+.br
+.B longwire-switchboard bans
+.BR list " | " clear
+.RB [ \fIKEY\fR | all ]
+.RB [ \-\-state " " \fIDIR\fR ]
 .SH DESCRIPTION
 The switchboard is the one public piece of a longwire deployment.
 A node registers with it and is given a short number;
@@ -76,6 +81,36 @@ The most numbers it will give out (default 100000).
 Each is a bundle of about 1.3 KB in memory and a line in
 .IR numbers.log .
 .TP
+.BI \-\-strikes " N"
+Failures on an authenticated session, within
+.BR \-\-strike\-window
+seconds (default 600), that earn a ban (default 10; 0 turns bans off).
+A refused registration counts two, a dial of a number that does not exist one, a message over the session's budget a fraction.
+Nothing before the handshake ever counts: a spoofed address cannot get anyone banned.
+.TP
+.BI \-\-strike\-window " S"
+Seconds over which strikes leak away (default 600).
+.TP
+.BI \-\-ban\-for " S"
+The first ban of a key (default 900), doubling at each repeat.
+.TP
+.BI \-\-ban\-max " S"
+The longest a ban gets (default 86400).
+.TP
+.BI \-\-net\-ban\-keys " N"
+Different banned keys from one /24 (IPv6: /64) within the window that refuse
+.I new
+identities from that network (default 5); those already registered behind it are not affected.
+.TP
+.BI \-\-net\-ban\-for " S"
+How long that network is refused (default 900).
+.TP
+.BI \-\-ban\-ceiling " N"
+The most bans an hour (default 1000), so that a flood cannot make the switchboard refuse everybody.
+.TP
+.BI \-\-never\-ban " KEY|ADDR/PREFIX"
+Never struck: a key id (64 hex digits) or an address with a prefix (192.0.2.0/24, 2001:db8::/32). Repeatable, at most 16. Nobody is exempt unless you say so.
+.TP
 .BI \-\-registry " HOST:PORT/KEY" "\fR | \fPnone"
 The registry of switchboard codes, which gives this switchboard its short code.
 .TP
@@ -116,6 +151,15 @@ prints the unspent ones, and
 .B token remove
 takes one out (a token with a reserved number goes by its first word).
 They work on the tokens file only (mode 0600, rewritten whole beside itself), so no switchboard needs to run.
+.SH BANS
+.B bans list
+prints, as JSON, what the running switchboard has banned and its settings;
+.B bans clear
+lifts one ban (a key id, or the first eight digits or more of it) or
+.BR all ,
+and may only be done by the user the switchboard runs as.
+See
+.IR /usr/share/doc/longwire/SWITCHBOARD.md .
 .SH "RUNNING IT AS A SERVICE"
 The package ships
 .BR longwire-switchboard.service .

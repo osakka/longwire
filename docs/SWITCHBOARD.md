@@ -81,7 +81,12 @@ script's verdict before refusing:
 - `dial`: a registered node rings another (`id`, `from`, `to`, `ip`, `net`). The script answers `lw sb reply ID accept` or
   `lw sb reply ID refuse`.
 
-A key that is already registered gets its number back without asking. The shipped `longwire-switchboard` script
+A key that is already registered gets its number back without asking.
+
+**Strikes and bans** ([ADR 0043](adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)). A switchboard on the internet is hit by people guessing tokens, probing numbers and sending nonsense. Only what an attacker cannot fake is punished: nothing before the handshake counts (a source
+address is spoofable, and a ban on it would be a weapon against your own users); a failure counts only on a session that got through the handshake, and what is banned is that session's **key**. A refused registration is two strikes, a dial of a number that does not exist one, a message over the session's
+budget a fraction; strikes leak away, so honest mistakes never add up. A banned key's session ends and its handshake is refused (it looks like any unknown key) for `--ban-for` seconds, doubling on repeats. Several different banned keys from one network refuse *new* identities from it, never the ones
+already registered behind it. Fixed tables, a ceiling on bans an hour and everything expiring keep this from being a way to take the switchboard down. `longwire-switchboard bans list` shows them and `bans clear [KEY|all]` lifts them (only the user it runs as). The `ban` and `net-ban` events tell the script. The shipped `longwire-switchboard` script
 answers with this policy:
 
 | Option | Default | Does |
@@ -93,6 +98,14 @@ answers with this policy:
 | `--state DIR` | `~/.longwire/switchboard` | the seed, the control socket, `numbers.log`, `names.log` |
 | `--max-nodes N` | 1024 | how many node sessions the worker holds at once (at most 65,536). When they are all taken, a session that never registered gives way to a new one; a registered one never does |
 | `--max-numbers N` | 100000 | the most numbers it will give out. Each is a bundle (1.3 KB) in memory and a line in `numbers.log`; past it a registration is refused with a plain message |
+| `--strikes N` | 10 | failures on an authenticated session within `--strike-window` that earn a ban; 0 turns bans off ([ADR 0043](adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)) |
+| `--strike-window S` | 600 | seconds over which strikes leak away: slow trickles never add up |
+| `--ban-for S` | 900 | the first ban of a key, doubling at each repeat |
+| `--ban-max S` | 86400 | the longest a ban gets |
+| `--net-ban-keys N` | 5 | different banned keys from one /24 (IPv6: /64) within the window that refuse *new identities* from that network |
+| `--net-ban-for S` | 900 | how long that network is refused (doubling, capped by `--ban-max`) |
+| `--ban-ceiling N` | 1000 | most bans an hour, so that a flood cannot make the switchboard refuse everybody |
+| `--never-ban KEY\|ADDR/PREFIX` | none | never struck (repeatable, 16 at most): a key id (64 hex digits) or an address with a prefix. Nobody is exempt unless you say so |
 | `--registry HOST:PORT/KEY\|none` | required | the registry of switchboard codes, which gives this switchboard its short code. `none` for a private switchboard, which keeps its derived code. Required until the project's registry is running |
 | `--issue-codes` | off | this switchboard is a registry: switchboards register with it for a code (`codes.log` in `--state` holds who has which) |
 | `--public-switchboard KEY` | none | on a registry: the switchboard (`lw1…` or hex) that is given the code `+1` |

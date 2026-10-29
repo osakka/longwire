@@ -157,7 +157,7 @@ def main():
 
     S1.stop()
     time.sleep(1)
-    S1b = Node("S1", ns, "longwire-switchboard.hibr", ["--registry", "none", "--listen", "127.0.0.1:1877"])
+    S1b = Node("S1", ns, "longwire-switchboard.hibr", ["--registry", "none", "--listen", "127.0.0.1:1877", "--strikes", "0"])	# (the rationing of number probes is tested here without a ban on top of it: ban.py has that)
     until(lambda: os.path.exists(S1b.sock), 15)
     why = refused(weird, "--listed", port=4013)
     check(why is not None and "listed by another node" in why, f"the binding survived a restart of the switchboard: {why!r}")
