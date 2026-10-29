@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.19
 
+*Published:* the catalogue (`hibr-apps` `06c4429`) and the packages (`hibr-apt` `2105e6b`, `hibr-rpm` `e9d6c28`, `hibr-arch` `5b91cd5`). `make check` passed (656 checks). Not tried: the root helpers as hibr scripts under a real `pkexec` (the owner ran the earlier `sh` helper through `pkexec` with success), and installing from the repositories on a clean machine.
+
 - **The helpers and the launcher are hibr scripts.** `/usr/lib/longwire/jack`, `/usr/lib/longwire/site` and `/usr/bin/longwire` (the launcher) were `sh`; they are now native hibr, with strict variables and regular
   expressions for what they check ([ADR 0041](docs/adr/0041-the-helpers-and-the-launcher-are-hibr-scripts.md)). As root, hibr consults only its install directory for modules, and `pkexec` cleans the environment. The DHCP hook is a hibr script too, run
   by the hibr that made it (`$HIBR`). A site node's token is now checked against a short whitelist of characters (letters, digits and `. _ ~ + = , : @ / -`); another character is refused with a plain message.
