@@ -9,7 +9,7 @@
 
 strict
 
-app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.20
+app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.21
 # needs: control-panel/longwire
 command -v cs_module > /dev/null && cs_module lwstrip Longwire 1
 

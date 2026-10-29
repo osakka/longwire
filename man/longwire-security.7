@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SECURITY 7 "October 2026" "longwire 0.5.20" "longwire manual"
+.TH LONGWIRE-SECURITY 7 "October 2026" "longwire 0.5.21" "longwire manual"
 .SH NAME
 longwire-security \- what longwire protects, what it does not, and how far it has been checked
 .SH DESCRIPTION
@@ -34,10 +34,13 @@ After the first call the key is pinned: a different key behind the same number d
 .RB ( "KEY CHANGED" ).
 .TP
 .B The safety phrase
-Both ends show the same six words, derived from both keys.
-The person called sees them on the ring, the caller when the call connects: compare them on another channel at once, and hang up if they differ.
-A match is good evidence that nobody is between you.
-The phrase is 48 bits with no commitment, so a switchboard that is itself the attacker has a search to do, of the order of 2^24 key pairs, but not an impossible one.
+Both ends show the same eight words a moment after the call connects.
+The caller commits to a random number before the callee speaks, the callee adds one, the caller reveals, and the words come from both numbers, both keys and the session,
+so a switchboard in the middle has no offline search and one try per call (about 2^-64).
+Compare them on another channel at once, and hang up if they differ.
+The call is already on the line while you compare; an older node gets the old, weaker phrase, and
+.B \-\-require\-sas
+refuses such a call.
 .TP
 .B A hostile switchboard
 It never has a frame, a seed or a private key, and it cannot make you accept a call.

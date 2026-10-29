@@ -93,8 +93,8 @@ On **A** the telephone shows `☎ ◉ 312-884-076` and a dialog appears (on the 
 
 ### Pick up, then check the safety phrase
 
-**Pick up** in the dialog, or `longwire pickup`. Both sides print `✓ connected`, with the path (`direct` is the good one) and the six-word
-safety phrase. The person called saw those words when the phone rang; the caller sees them now, because only now do the keys exist.
+**Pick up** in the dialog, or `longwire pickup`. Both sides print `✓ connected`, with the path (`direct` is the good one), and a moment later the eight-word
+safety phrase. Neither side has it before, because it is made from numbers the two ends exchange once the call is up.
 
 **Compare the words on another channel at once** (a message, a phone call). If they match, you have good evidence that nobody is between
 you. If they differ, **hang up at once** (`longwire hangup`): the other machine is already on your line. The phrase is short, and a

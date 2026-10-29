@@ -47,6 +47,7 @@ check: all lint
 	sh tests/group.sh
 	sh tests/profile.sh
 	sh tests/jack.sh
+	sh tests/sas.sh
 	sh tests/jacknet.sh
 	sh tests/events.sh
 	sh tests/doctor.sh

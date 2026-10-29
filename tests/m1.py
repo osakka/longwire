@@ -129,8 +129,8 @@ def main():
     rcd, out = A.cmd("dial", rb["number"])
     check(rcd == 0, f"dial accepted: {out}")
     ring = B.w.wait("ring", 10, after=mkB)
-    check(ring is not None and ring["from"] == ra["number"] and ring["known"] is False and len(ring["phrase"].split()) == 6,
-          f"B rings: from {ring and ring['from']}, first call, phrase '{ring and ring['phrase']}'")
+    check(ring is not None and ring["from"] == ra["number"] and ring["known"] is False and ring["phrase"] == "",
+          f"B rings: from {ring and ring['from']}, first call, and no phrase yet (it comes once connected): '{ring and ring['phrase']}'")
     time.sleep(1.2)
     check(B.w.wait("connected", 0.1, after=mkB) is None, "B's 'ask' policy waits for a person: nothing connects by itself")
     rcp, out = B.cmd("pickup")
@@ -138,7 +138,9 @@ def main():
     ca = A.w.wait("connected", 20, after=mkA); cb = B.w.wait("connected", 20, after=mkB)
     check(bool(ca and cb), "both sides report connected through the NATs")
     if ca and cb:
-        check(ca["phrase"] == cb["phrase"] == ring["phrase"], "the safety phrase is the same on both screens and on the ring")
+        sas_a, sas_b = A.w.wait("sas", 20, after=mkA), B.w.wait("sas", 20, after=mkB)
+        check(sas_a and sas_b and sas_a["phrase"] == sas_b["phrase"] and len(sas_a["phrase"].split()) == 8 and sas_a["legacy"] is False and sas_b["legacy"] is False,
+              f"the committed safety phrase is the same eight words on both screens: {sas_a and sas_a['phrase']!r} / {sas_b and sas_b['phrase']!r}")
         check(ca["ep"].startswith("192.0.2.102:") and cb["ep"].startswith("192.0.2.101:"),
               f"the path is NAT-to-NAT: A talks to {ca['ep']}, B to {cb['ep']}")
     s = router.stats
@@ -306,7 +308,8 @@ def main_sym():
             ca, cb = A.w.wait("connected", 40, after=mkA), B.w.wait("connected", 40, after=mkB)
             check(ca is not None and cb is not None, f"{label}: both ends connect directly through a strict NAT ({time.time() - t0:.1f} s)")
             if ca and cb:
-                check(ca["path"] == "direct" and cb["path"] == "direct" and ca["phrase"] == cb["phrase"], "...direct, with the same safety phrase on both screens")
+                sas_a, sas_b = A.w.wait("sas", 20, after=mkA), B.w.wait("sas", 20, after=mkB)
+                check(ca["path"] == "direct" and cb["path"] == "direct" and sas_a and sas_b and sas_a["phrase"] == sas_b["phrase"], "...direct, with the same safety phrase on both screens")
                 check(ca["ep"].startswith("192.0.2.102:"), f"...A talks to B's public address: {ca['ep']}")
             A.frames.drain(); B.frames.drain()
             N = 100

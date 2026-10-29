@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.21
+
+- **The committed safety phrase** ([ADR 0040](docs/adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)). The phrase is now eight words (64 bits) made from a number the caller commits to before the callee speaks, a number the callee adds, both key ids and a value only the two ends of
+  the session share, so a switchboard that puts itself between two nodes has no offline search (it was about 2^24 pairs) and one try per call at about 2^-64. It appears a moment after the call connects, on both ends, as the `sas` event (`longwire watch`, `show`, the pane);
+  **the ring no longer shows a phrase**, and the pane's and the bar's dialogs say it comes once connected. The exchange is four small messages inside the direct session; the switchboard is not involved and is unchanged. A node that does not answer within five
+  seconds is taken to be older and gets the old six-word phrase, marked as the weaker kind; `--require-sas` refuses such a call. **Both ends need 0.5.21 for the new phrase.** Not built: holding an unconfirmed call off the line until the words are confirmed *(planned: M8)*.
+  Tested one end at a time under TCC's bounds checker (`tests/sas.sh`) and end to end in the call tests; not model-checked.
+
 ## 0.5.20
 
 *Published:* the catalogue (`hibr-apps` `2fbab21`) and the packages (`hibr-apt` `f6d3882`, `hibr-rpm` `9336a37`, `hibr-arch` `17d7fa0`). `make check` passed (669 checks). Not tried: removing a real jack, and installing from the repositories on a clean machine.

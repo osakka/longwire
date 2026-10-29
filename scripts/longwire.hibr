@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.20
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.21
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.20}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.21}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -83,7 +83,8 @@ announce() {
 	                  else
 	                       if [ -n "${e[name]}" ]; then say "☎  ${e[from]} is calling, and says it is \"${e[name]}\" (a claim: only the safety phrase proves anything)"
 	                       else say "☎  ${e[from]} is calling"; fi
-	                       say "   safety phrase: ${e[phrase]}"
+	                       if [ -n "${e[phrase]}" ]; then say "   safety phrase: ${e[phrase]}   (the old, weaker kind: the other end is older)"
+	                       else say "   the safety phrase comes once you are connected: compare it with theirs"; fi
 	                       [ "${e[known]}" = true ] || say "   first call from this number"; fi ;;
 	found)            [ "${e[directory]}" = true ] || say "·  this switchboard has no directory" ;;
 	line-joined)      say "·  on line ${e[line]} with ${e[members]} members" ;;
@@ -96,7 +97,10 @@ announce() {
 	line-complete)    say "·  the line is a full mesh (${e[members]} members)" ;;
 	connected)        if [ "${e[path]}" = relay ]; then say "✓  connected to ${e[number]} through a relay (${e[via]}): no direct path yet, still trying"
 	                  else say "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"; fi
-	                  say "   safety phrase: ${e[phrase]}" ;;
+	                  [ "${e[path]}" != relay ] || say "   safety phrase: ${e[phrase]}   (a relayed call: the old, weaker kind)" ;;
+	sas)              if [ "${e[legacy]}" = true ]; then say "   safety phrase: ${e[phrase]}   (the old, weaker kind: the other end is older). Compare it with theirs; hang up if it differs"
+	                  else say "   safety phrase: ${e[phrase]}   Compare it with theirs now; hang up if it differs"; fi ;;
+	sas-failed)       say "✗  the safety phrase could not be agreed with ${e[number]}: ${e[reason]}. The call was ended" ;;
 	path)             say "·  ${e[number]} is now ${e[path]} (${e[ep]}): the relay is no longer needed" ;;
 	call-failed)      say "✗  call failed: ${e[reason]}" ;;
 	call-lost)        say "✗  lost the call to ${e[number]}: ${e[reason]}" ;;
@@ -387,6 +391,8 @@ cmd_show() {
 		tx := json get S ".peers[$i].tx_bytes"
 		[ -n "$num" ] || continue
 		echo "   connected     $num  $st${path:+ $path}${age:+, $(human_age "${age%.*}")}  in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
+		phr := json get S ".peers[$i].phrase"
+		[ -z "$phr" ] || echo "                 safety phrase: $phr"
 	done
 	t := json get S .cand_skipped
 	[ "${t:-0}" -gt 0 ] && echo "   ⚠  ${t} address(es) of the other end are inside your jack's own network and could not be reached another way, so they are not used (longwire watch names them)"
@@ -404,7 +410,7 @@ cmd_show() {
 			num := json get S ".calls[$i].number"
 			nm := json get S ".calls[$i].name"
 			phr := json get S ".calls[$i].phrase"
-			echo "   RINGING       $num${nm:+ (\"$nm\", a claim)}   safety phrase: $phr   -> longwire pickup | longwire reject"
+			echo "   RINGING       $num${nm:+ (\"$nm\", a claim)}   ${phr:+safety phrase: $phr}${phr:-the safety phrase comes once you are connected}   -> longwire pickup | longwire reject"
 		fi
 	done
 }

@@ -128,6 +128,7 @@ registers at a switchboard that wants one; after that the switchboard knows the 
 | `--keepalive S`, `--rekey S` | keepalive interval (25) and rekey interval (120), in seconds |
 | `--sb-rekey S` | the rekey interval of a switchboard session (600), the same on the node and the switchboard: a switchboard holds thousands of sessions, and they carry only control messages |
 | `--underlay DEV` | the network device to reach peers by when your jack has an address in their network (default: the default route's); [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md) |
+| `--require-sas` | refuse a call (other than a mesh call to a fellow member) whose other end does not do the committed safety phrase within five seconds, instead of showing the old, weaker phrase ([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)) |
 | `--cand-loopback` | offer 127.x as a call candidate: tests, and two nodes on one host |
 | `--seed FILE`, `--sock PATH`, `--state DIR` | where the identity, control socket and pins live (default `~/.longwire/`) |
 | `--group NAME\|GID` | give the control socket to that group at mode 0660, so its members can use it ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); the services use `longwire`. An unknown group stops the start |
@@ -149,9 +150,9 @@ Under `ask`, `known` and `auto` alike, a caller **vouched for by a member of you
 picked up without a prompt: that is how a line's mesh builds itself. A node you have not met, or that was evicted from
 the line, is never admitted that way: an evicted node is refused outright.
 
-The **safety phrase** is six words from the hash of the two key ids, and appears on the ring and again when the call
-connects, the same on both screens. Reading it to each other over another channel defeats a lying switchboard on the
-first call. A number is pinned to its key once the call is up, so a wrong phrase never leaves a pin to undo
+The **safety phrase** is eight words, committed to by the caller before the callee speaks and derived from both nonces, both key ids and the session
+([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)). It appears a moment after the call connects (the `sas` event), the same on both screens; the ring shows none. Reading it to each other over another channel defeats a lying switchboard on the
+first call. An older node gets the old six-word phrase, marked as the weaker kind (`legacy`); `--require-sas` refuses such a call. A number is pinned to its key once the call is up, so a wrong phrase never leaves a pin to undo
 ([ADR 0009](adr/0009-the-first-ring-asks-and-a-key-is-pinned-once-the-call-is-up.md)).
 
 ## Status
@@ -189,7 +190,7 @@ script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `dh
 different key than before), `site` (a splice box became `active` or `standby`), and for lines `line-joined` (with `line`,
 `members`), `member-joined`, `member-left` and `member-evicted` (each with `number`), `evicted` (you were put off the
 line), `line-partial` (with `members` and `up`: the mesh is still incomplete 30 seconds after joining) and
-`line-complete`, and `address-skipped` (with the address and the port: an address of the other end lies inside the jack's own network and no other road to it could be had, so it is not used; [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). The node script turns them into the sentences above; the desktop will turn them into dialogs
+`line-complete`, `sas` (the safety phrase, once the exchange is done; it says whether it is the old kind) and `sas-failed` (the exchange failed and the call was ended), and `address-skipped` (with the address and the port: an address of the other end lies inside the jack's own network and no other road to it could be had, so it is not used; [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). The node script turns them into the sentences above; the desktop will turn them into dialogs
 *(planned: M4)*.
 
 ## Scripting it yourself: the `lw` builtin

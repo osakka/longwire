@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.20
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.21
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -36,7 +36,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.20}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.21}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -393,7 +393,7 @@ fn longwire_rows(int w) {
 		phr := lwp_get ".calls[$i].phrase"
 		if [ "$state" = ringing ] && [ "$we" != true ]; then
 			lwp_row "$w" "$n" action "$num rings${nm:+ ($nm, a claim)}" "pick up?" "ring:$call"; n=$((n + 1))
-			lwp_row "$w" "$n" action "  safety phrase" "$phr" none; n=$((n + 1))
+			lwp_row "$w" "$n" action "  safety phrase" "${phr:-comes once connected}" none; n=$((n + 1))
 			lwp_row "$w" "$n" action "  decline" "" "rej:$call"; n=$((n + 1))
 		elif [ "$state" != up ]; then
 			lwp_row "$w" "$n" action "$num" "$state" "hang:$num"; n=$((n + 1))
@@ -787,7 +787,7 @@ fn lwp_ring(call) {
 		nm := lwp_get ".calls[$i].name"
 		LWP_PEND_KIND=pickup
 		LWP_PEND_ARG=$call
-		dt_confirm "$num${nm:+ ($nm, a claim)} rings. Safety phrase: $phr. Pick up?" lwp_yes
+		dt_confirm "$num${nm:+ ($nm, a claim)} rings. ${phr:+Safety phrase: $phr. }${phr:-The safety phrase comes once you are connected: compare it with theirs. }Pick up?" lwp_yes
 		return 0
 	done
 	dt_notep low "That call has ended."

@@ -185,7 +185,7 @@ def main():
     bar = [l for l in log if l.startswith("BARITEM")]
     check(bar and "◉" in bar[-1] and num["A"] in bar[-1], f"a ring: the bar shows the ringing mark and who: {bar}")
     check(len([l for l in log if l.startswith("NOTE high") and "is calling" in l]) == 1, "...a note, once, however many frames pass")
-    check(len([l for l in log if l.startswith("CONFIRM")]) == 1 and ring["phrase"] in "".join(log), "...and one dialog, with the safety phrase in the question")
+    check(len([l for l in log if l.startswith("CONFIRM")]) == 1 and "comes once you are connected" in "".join(log), "...and one dialog, which says the safety phrase comes once connected")
     check(any(l.startswith("ITEM Pick up") for l in log), "...and the menu offers to pick up")
     log, r = drive(envB, "lwb_tick; $DRV_CMD")
     check(B.w.wait("connected", 20, after=mk) is not None, "answering yes from the bar's dialog picks up and the call connects")

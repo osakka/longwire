@@ -99,7 +99,7 @@ def main():
     check(ea is not None and ea["path"] == "relay" and ea["via"] == nb, f"A reaches C through B: {ea and (ea['path'], ea.get('via'))}")
     check(ec is not None and ec["path"] == "relay" and ec["via"] == nb, f"C reaches A through B: {ec and (ec['path'], ec.get('via'))}")
     if ea and ec:
-        check(ea["phrase"] == ec["phrase"], "the two ends agree on the safety phrase: the handshake is theirs, not the relay's")
+        check(ea["phrase"] == ec["phrase"] and ea["legacy"] is True, "the two ends agree on the (old, key-id) safety phrase of a relayed call: the handshake is theirs, not the relay's")
     pa = {p["number"]: p for p in A.status()["peers"]}
     check(nc in pa and pa[nc]["path"] == "relay" and pa[nc]["state"] == "up", "A's status shows C as a relayed peer that is up")
     check(until(lambda: A.status()["line"]["up"] == 3 and not A.status()["line"]["partial"], 15) is not None,

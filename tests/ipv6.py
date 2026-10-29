@@ -78,7 +78,8 @@ def main():
     check(cc is not None and cd is not None, "C calls D and they connect, though no IPv4 address of either reaches the other")
     if cc:
         check(cc["path"] == "direct" and cc["ep"].startswith("[fd00::b]:"), f"...directly, over IPv6: {cc['ep']}")
-        check(cc["phrase"] == cd["phrase"], "...with the same safety phrase on both screens")
+        sc, sd = C.w.wait("sas", 20, after=mk), D.w.wait("sas", 20, after=mkd)
+        check(sc and sd and sc["phrase"] == sd["phrase"] and len(sc["phrase"].split()) == 8, "...with the same safety phrase on both screens")
     MC, MD = bytes.fromhex("020000000c01"), bytes.fromhex("020000000d01")
     from lwnat import Collector
     fc, fd_ = Collector(f"{T}/C/h"), Collector(f"{T}/D/h")

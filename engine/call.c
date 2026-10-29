@@ -187,6 +187,49 @@ void phrase_of(char *out, size_t cap, const uint8_t a[32], const uint8_t b[32])
 		o += snprintf(out + o, cap - (size_t)o, "%s%s", i ? " " : "", LW_WORDS[h[i]]);
 }
 
+/* ---- the committed safety phrase (docs/adr/0040) ------------------------------------------------------------------
+ * The caller commits to a random nonce in the dial; the callee adds its own in the answer; the caller reveals after the session is up, and both
+ * derive eight words from the two nonces, the two key ids and a value only the two ends of this session share. A node in the middle holds two
+ * sessions and had to commit before it knew the other nonce: there is nothing to search offline. */
+
+static void sas_commit(uint8_t out[32], const uint8_t na[16], const uint8_t caller_kid[32])
+{
+	uint8_t b[16 + 32];
+
+	memcpy(b, na, 16);
+	memcpy(b + 16, caller_kid, 32);
+	lw_h2(out, "lw-sas-commit", 13, b, sizeof b);
+}
+
+/* What both ends of a session know and nobody else does: its two keys, in an order both ends agree on. */
+static void sas_bind_of(uint8_t out[32], const lw_sess *s)
+{
+	uint8_t b[64];
+	int lo = memcmp(s->k_send, s->k_recv, 32) < 0;
+
+	memcpy(b, lo ? s->k_send : s->k_recv, 32);
+	memcpy(b + 32, lo ? s->k_recv : s->k_send, 32);
+	lw_h2(out, "lw-sas-bind", 11, b, sizeof b);
+	crypto_wipe(b, sizeof b);
+}
+
+static void sas_words(lw_sas *s, const uint8_t caller_kid[32], const uint8_t callee_kid[32])
+{
+	uint8_t b[16 + 16 + 32 + 32 + 32], h[32];
+	int i, o = 0;
+
+	memcpy(b, s->na, 16);
+	memcpy(b + 16, s->nb, 16);
+	memcpy(b + 32, caller_kid, 32);
+	memcpy(b + 64, callee_kid, 32);
+	memcpy(b + 96, s->bind, 32);
+	lw_h2(h, "lw-sas", 6, b, sizeof b);
+	s->words[0] = 0;
+	for (i = 0; i < 8; i++)
+		o += snprintf(s->words + o, sizeof s->words - (size_t)o, "%s%s", i ? " " : "", LW_WORDS[h[i]]);
+	s->state = 1;
+}
+
 void addr_str(const struct sockaddr_storage *ss, char *out, size_t n)
 {
 	char h[INET6_ADDRSTRLEN];
@@ -992,6 +1035,174 @@ lw_peer *peer_by_number(lw_node *n, const char *num)
 }
 
 /* A call is up: the two ends find out whether either holds a line. */
+/* The committed safety phrase runs inside the session, a few messages after the call connects (docs/adr/0040):
+ *   caller -> callee   0 commit(32)      H(na, caller's key id): bound before the callee has said anything
+ *   callee -> caller   1 nb(16)          a nonce the caller could not have chosen
+ *   caller -> callee   2 na(16)          the reveal; the callee checks it against the commit
+ *   callee -> caller   3                 acknowledged
+ * Both then derive eight words from na, nb, the two key ids and the session's own binding. A node that is in the middle of two sessions had to commit
+ * before it knew the other nonce, so it has no search to run. A node that does not answer within five seconds is taken to be older: the old phrase. */
+#define SAS_WAIT 5.0
+
+static void sas_ev(lw_node *n, lw_peer *p)
+{
+	char f[16];
+
+	fmt_number(f, p->number);
+	ev_emit(n, "{\"event\":\"sas\",\"number\":\"%s\",\"phrase\":\"%s\",\"legacy\":%s}", f, p->sas.words, p->sas.mode == 1 ? "false" : "true");
+}
+
+static void sas_fail(lw_node *n, lw_peer *p, const char *why)
+{
+	uint8_t lv = 0;
+	char f[16];
+	int i, idx = (int)(p - n->peers);
+
+	fmt_number(f, p->number);
+	ev_emit(n, "{\"event\":\"sas-failed\",\"number\":\"%s\",\"reason\":\"%s\"}", f, why);
+	p->sas.state = 2;
+	ctl_msg_send(n, p, M_BYE, &lv, 1);
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state != CALL_IDLE && n->calls[i].peer == idx)
+			call_end(&n->calls[i]);
+	peer_drop(n, p);
+}
+
+/* The other end did not do the committed phrase (or a hostile switchboard made it look so): the old phrase from the two key ids, said to be old. */
+static void sas_legacy(lw_node *n, lw_peer *p)
+{
+	if (n->cfg.require_sas && !p->sas.auto_) {
+		sas_fail(n, p, "the other end cannot do the committed safety phrase (--require-sas)");
+		return;
+	}
+	p->sas.mode = 2;
+	p->sas.state = 1;
+	if (p->sas.caller)
+		phrase_of(p->sas.words, sizeof p->sas.words, n->id.key_id, p->key_id);
+	else
+		phrase_of(p->sas.words, sizeof p->sas.words, p->key_id, n->id.key_id);
+	sas_ev(n, p);
+}
+
+/* The session of a call is up: the exchange starts (the caller speaks first). */
+static void sas_start(lw_node *n, lw_peer *pe, lw_call *c)
+{
+	memset(&pe->sas, 0, sizeof pe->sas);
+	pe->sas.mode = 1;
+	pe->sas.caller = c->we_caller;
+	pe->sas.auto_ = c->auto_;
+	pe->sas.born = n->now;
+	sas_bind_of(pe->sas.bind, &pe->cur);
+	if (c->we_caller) {
+		uint8_t m[33];
+
+		lw_rand(pe->sas.na, 16);
+		pe->sas.have_na = 1;
+		m[0] = 0;
+		sas_commit(m + 1, pe->sas.na, n->id.key_id);
+		ctl_msg_send(n, pe, M_SAS, m, sizeof m);
+		pe->sas.tries = 1;
+		pe->sas.next = n->now + 1.0;
+	}
+}
+
+static void sas_input(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
+{
+	uint8_t m[17];
+
+	if (len < 1 || p->sas.mode != 1)
+		return;
+	switch (pl[0]) {
+	case 0:						/* the commitment (callee) */
+		if (len < 33 || p->sas.caller)
+			return;
+		if (!p->sas.have_c) {
+			memcpy(p->sas.c, pl + 1, 32);
+			p->sas.have_c = 1;
+			lw_rand(p->sas.nb, 16);
+			p->sas.have_nb = 1;
+		}
+		m[0] = 1;				/* said again, so are we: the caller repeats until it hears */
+		memcpy(m + 1, p->sas.nb, 16);
+		ctl_msg_send(n, p, M_SAS, m, sizeof m);
+		break;
+	case 1:						/* the callee's nonce (caller) */
+		if (len < 17 || !p->sas.caller || p->sas.have_nb || !p->sas.have_na)
+			return;
+		memcpy(p->sas.nb, pl + 1, 16);
+		p->sas.have_nb = 1;
+		sas_words(&p->sas, n->id.key_id, p->key_id);
+		sas_ev(n, p);
+		m[0] = 2;
+		memcpy(m + 1, p->sas.na, 16);
+		ctl_msg_send(n, p, M_SAS, m, sizeof m);
+		p->sas.tries = 1;
+		p->sas.next = n->now + 1.0;
+		break;
+	case 2: {					/* the reveal (callee) */
+		uint8_t chk[32], ok = 3;
+
+		if (len < 17 || p->sas.caller || !p->sas.have_c)
+			return;
+		if (p->sas.state == 1) {		/* a repeat */
+			ctl_msg_send(n, p, M_SAS, &ok, 1);
+			return;
+		}
+		sas_commit(chk, pl + 1, p->key_id);
+		if (crypto_verify32(chk, p->sas.c)) {
+			sas_fail(n, p, "the caller's reveal does not match what it committed to");
+			return;
+		}
+		memcpy(p->sas.na, pl + 1, 16);
+		p->sas.have_na = 1;
+		sas_words(&p->sas, p->key_id, n->id.key_id);
+		sas_ev(n, p);
+		ctl_msg_send(n, p, M_SAS, &ok, 1);
+		break;
+	}
+	case 3:						/* acknowledged (caller) */
+		p->sas.tries = 99;
+		break;
+	}
+}
+
+void sas_timers(lw_node *n)
+{
+	int i;
+
+	for (i = 0; i < n->maxpeers; i++) {
+		lw_peer *p = &n->peers[i];
+
+		if (!p->used || p->sas.mode != 1 || !p->cur.valid)
+			continue;
+		if (p->sas.caller) {
+			uint8_t m[33];
+
+			if (!p->sas.have_nb) {
+				if (n->now - p->sas.born > SAS_WAIT) {
+					sas_legacy(n, p);
+				} else if (n->now >= p->sas.next) {
+					m[0] = 0;
+					sas_commit(m + 1, p->sas.na, n->id.key_id);
+					ctl_msg_send(n, p, M_SAS, m, sizeof m);
+					p->sas.next = n->now + 1.0;
+				}
+			} else if (p->sas.tries < 15 && n->now >= p->sas.next) {
+				m[0] = 2;
+				memcpy(m + 1, p->sas.na, 16);
+				ctl_msg_send(n, p, M_SAS, m, 17);
+				p->sas.tries++;
+				p->sas.next = n->now + 1.0;
+			}
+		} else if (p->sas.state == 0) {
+			if (!p->sas.have_c && n->now - p->sas.born > SAS_WAIT)
+				sas_legacy(n, p);
+			else if (p->sas.have_c && n->now - p->sas.born > 20.0)
+				sas_fail(n, p, "the caller did not reveal its half of the safety phrase");
+		}
+	}
+}
+
 void call_peer_up(lw_node *n, lw_peer *p, int dialer)
 {
 	p->dialer = dialer;
@@ -1209,7 +1420,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			memcpy(c->pc, cc, sizeof cc);
 			c->npc = nc;
 			c->deadline = n->now + 60.0;
-			phrase_of(ph, sizeof ph, kid, n->id.key_id);
+			ph[0] = 0;			/* the phrase does not exist yet: it needs both nonces and the session (docs/adr/0040) */
 			{
 				char hx[17], kh[65];
 
@@ -1319,6 +1530,10 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 		peer_drop(n, p);
 		return;
 	}
+	if (msg == M_SAS) {
+		sas_input(n, p, pl, len);
+		return;
+	}
 	if (msg >= M_LINEHELLO && msg <= M_LINEKEY && msg != M_RELAY_REQ && msg != M_RELAY_OK)
 		line_msg(n, p, msg, pl, len);
 	else if (msg == M_RELAY_REQ || msg == M_RELAY_OK || msg == M_RELAY_NO)
@@ -1369,6 +1584,7 @@ void node_timers(lw_node *n)
 	int i;
 
 	registration_timers(n);
+	sas_timers(n);
 	pmp_timers(n);
 	spray_reap(n);
 	if (n->look.active && n->now - n->look.t > 5.0) {
@@ -1424,10 +1640,8 @@ void node_timers(lw_node *n)
 
 				fmt_number(f, c->number);
 				addr_str(&pe->ep, ep, sizeof ep);
-				if (c->we_caller)			/* (caller, callee) on both screens: the same six words */
-					phrase_of(ph, sizeof ph, n->id.key_id, pk);
-				else
-					phrase_of(ph, sizeof ph, pk, n->id.key_id);
+				sas_start(n, pe, c);			/* the committed phrase follows in a moment (sas) */
+				ph[0] = 0;
 				pin_add(n, c->number, pk);		/* the session is proven; the number now belongs to this key */
 				c->state = CALL_UP;
 				ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"direct\",\"ep\":\"%s\",\"phrase\":\"%s\"}", f, ep, ph);
@@ -1476,7 +1690,7 @@ void node_timers(lw_node *n)
 			p->announced = 1;
 			fmt_number(fv, v->number);
 			phrase_of(ph, sizeof ph, p->dial ? n->id.key_id : p->key_id, p->dial ? p->key_id : n->id.key_id);
-			ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"relay\",\"via\":\"%s\",\"phrase\":\"%s\"}", f, fv, ph);
+			ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"relay\",\"via\":\"%s\",\"phrase\":\"%s\",\"legacy\":true}", f, fv, ph);
 			call_peer_up(n, p, p->dial);
 		}
 		if (p->announced && !p->cur.valid) {
@@ -1637,12 +1851,16 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			m = line_member(n, kid);
 		lw_address(addr, kid);
 		lw_hex(kh, kid, 32);
-		if (p && p->cur.valid)
-			phrase_of(ph, sizeof ph, p->dial ? n->id.key_id : p->key_id, p->dial ? p->key_id : n->id.key_id);
+		if (p && p->cur.valid) {
+			if (p->sas.mode == 1)			/* the committed phrase: its words once the reveal is in, nothing before */
+				snprintf(ph, sizeof ph, "%s", p->sas.state == 1 ? p->sas.words : "");
+			else
+				phrase_of(ph, sizeof ph, p->dial ? n->id.key_id : p->key_id, p->dial ? p->key_id : n->id.key_id);
+		}
 		len = snprintf(out, cap, "{\"number\":\"%s\",\"you\":%s,\"key_id\":\"%s\",\"address\":\"%s\",\"pinned\":%s,\"line_member\":%s,"
-			"\"connected\":%s,\"path\":\"%s\",\"phrase\":\"%s\"}\n", f, kid == n->id.key_id ? "true" : "false", kh, addr,
+			"\"connected\":%s,\"path\":\"%s\",\"phrase\":\"%s\",\"legacy\":%s}\n", f, kid == n->id.key_id ? "true" : "false", kh, addr,
 			pinned ? "true" : "false", m ? "true" : "false", p && p->cur.valid ? "true" : "false",
-			p && p->cur.valid ? (p->relayed ? "relay" : "direct") : "", ph);
+			p && p->cur.valid ? (p->relayed ? "relay" : "direct") : "", ph, p && p->cur.valid && p->sas.mode == 1 ? "false" : "true");
 		return len;
 	}
 	if (!strncmp(line, "unpin ", 6)) {
@@ -1771,13 +1989,13 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		addr_str(&p->ep, ep, sizeof ep);
 		len += snprintf(o + len, cap - (size_t)len,
 			"%s{\"key_id\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"path\":\"%s\",\"ep\":\"%s\",\"age\":%d,"
-			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu}",
+			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu,\"phrase\":\"%s\",\"legacy\":%s}",
 			any ? "," : "", kid, f, sess_state(p), p->relayed ? "relay" : "direct", ep,
 			p->cur.valid ? (int)(n->now - p->cur.born) : -1,
 			(unsigned long long)p->rx_frames, (unsigned long long)p->tx_frames,
 			(unsigned long long)p->rx_bytes, (unsigned long long)p->tx_bytes,
 			(unsigned long long)p->rekeys, (unsigned long long)p->drop_auth,
-			(unsigned long long)p->drop_replay);
+			(unsigned long long)p->drop_replay, p->sas.state == 1 ? p->sas.words : "", p->sas.mode == 1 ? "false" : "true");
 		any = 1;
 	}
 	len += snprintf(o + len, cap - (size_t)len, "],\"calls\":[");
@@ -1796,7 +2014,8 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 			uint8_t ck[32];
 
 			lw_h(ck, k->bundle, LW_BUNDLE);
-			phrase_of(ph, sizeof ph, ck, n->id.key_id);
+			(void)ck;
+			ph[0] = 0;				/* the committed phrase comes once connected */
 		}
 		len += snprintf(o + len, cap - (size_t)len, "%s{\"call\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"we_called\":%s,\"mesh\":%s,\"name\":\"%s\",\"phrase\":\"%s\"}",
 				any ? "," : "", hx, f, SN[k->state], k->we_caller ? "true" : "false", k->auto_ ? "true" : "false", cn, ph);

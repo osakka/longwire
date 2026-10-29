@@ -27,7 +27,7 @@ inside another layer you already trust.
 | **A stolen key does not unlock yesterday's traffic** (forward secrecy) | The keys that seal traffic are made fresh by each handshake, renewed every two minutes, and erased. Learning your long-term key later does not recover them. |
 | **Only the people you chose can join** | The first call from a number *asks you*, by default. A machine joins a line only if you picked it up, or a member of the line vouched for it (on a line with an operator, only the operator's signature admits). Every member is then trusted like a host on your LAN: see below. Tokens keep strangers off a switchboard. |
 | **The other end is who it says it is** | Each side proves it holds a key that matches its number. After the first call that key is *pinned*: if the same number ever answers with a different key, the call is dropped and you are warned (`KEY CHANGED`), like SSH's changed-host-key warning. |
-| **You can check it yourself** | Both ends show the same six-word *safety phrase*, derived from both keys. Compare it on another channel as soon as the call connects. A match is good evidence nobody is between you, with limits that matter: [see below](#the-safety-phrase-honestly). |
+| **You can check it yourself** | Both ends show the same eight-word *safety phrase*, committed to before either end could pick it. Compare it on another channel as soon as the call connects. A match is good evidence nobody is between you, with limits that matter: [see below](#the-safety-phrase-honestly). |
 | **A hostile server cannot read your traffic** | The switchboard introduces two nodes and steps aside. It never has a frame, a seed or a private key, and it cannot make you accept a call. It *can* give a node the wrong key for a number on a call you have never made before; once a key is pinned, or the phrase compared, it cannot ([below](#the-safety-phrase-honestly)). |
 | **Junk is cheap to drop** | A packet that does not prove it knows the receiver's public key id is dropped before any costly work, and under load only senders who can receive replies get work done for them. A flood from many real addresses still costs a key operation each, within a budget ([known residue](#known-residue)). |
 
@@ -36,18 +36,17 @@ inside another layer you already trust.
 The phrase is the one check a person can make that does not depend on trusting the software or the switchboard. It has limits, and they
 are worth knowing:
 
-- **It is short.** Six words from a list of 256: 48 bits, taken from a hash of the two key ids. There is no commitment step.
-- **It is seen late by one side.** The person called sees it when the phone rings. The caller sees it only when the call connects,
-  which is after the callee has picked up and the other machine is already on the line. So you compare *after* connecting, and **hang up
-  at once if the words differ**.
-- **A malicious switchboard has work to do, not an impossible job.** To sit between two nodes it must give each a substitute key of its
-  own, and it chooses both. It only needs a pair that produces the same six words on both sides: a search of the order of 2^24 key pairs,
-  not 2^48. That is within reach of a determined attacker with modest computing. So the phrase reliably catches interference by anyone
-  else, and by a switchboard that does not go to that trouble; against a switchboard that is itself the attacker it raises the cost and
-  does not make the attack impossible.
+- **It is committed to, not just derived.** The caller sends a commitment to a random number before the callee has said anything; the callee answers with a random number of its own; the caller then reveals; and the eight words (64 bits) come from
+  both numbers, both key ids and a value only the two ends of that very session share ([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)). A switchboard that puts itself between two nodes holds two sessions with two different
+  values, and had to commit before it knew the other number: there is nothing to search offline. Each attempt is one call somebody sees, and it succeeds with probability about 2^-64. (Before 0.5.21 the phrase was six words from the two key ids and a
+  switchboard could grind substitute keys offline, a search of about 2^24 pairs.)
+- **You compare it after connecting.** The phrase needs the session, so it appears a moment after the call connects, on both ends (the ring shows none). Compare it on another channel and **hang up at once if the words differ**. The call is already on the line
+  at that point; holding the call off the line until the words are confirmed is not built *(planned: M8)*.
+- **An older node gets the old phrase.** If the other end does not answer the exchange within five seconds, it is taken to be an older version and the old six-word phrase is shown, marked as the weaker kind. Something on the path that drops the exchange's
+  messages can force that. `--require-sas` refuses such a call (a mesh call to a fellow member, which the line's signatures already admit, is exempt); use it once your nodes are up to date.
 - **After the first call it is moot.** The key is pinned. If the same number later answers with another key, the call is dropped and you
   are warned.
-- **If the switchboard is yours, none of this matters.** A longer phrase, committed to before it is shown, so that there is nothing to search offline, is designed ([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)) and planned *(planned: M8)*.
+- **If the switchboard is yours, none of this matters.**
 
 ## Why the design is sound (as far as design can be)
 

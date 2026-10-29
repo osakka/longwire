@@ -23,6 +23,7 @@
 #define M_RELAY_REQ 0x06	/* to_key_id(32): please carry my packets to this member */
 #define M_RELAY_OK  0x07	/* role(1) peer_key_id(32) route(3) peer_bundle(1249) */
 #define M_BYE      0x08		/* leave(1) */
+#define M_SAS      0x0b		/* the committed safety phrase (docs/adr/0040), inside the session: kind(1) then 0 commit(32) from the caller, 1 nonce(16) from the callee, 2 reveal(16) from the caller, 3 acknowledged */
 #define M_RELAY_NO  0x0a	/* peer_key_id(32) */
 /* node <-> switchboard */
 #define M_REGISTER 0x20		/* token_len(1) token */

@@ -57,6 +57,18 @@ typedef struct frag {		/* frames being put back together, per peer */
 	struct { int used; uint16_t id; int total, got; double t; uint8_t buf[FRAME_MAX]; } s[4];
 } frag;
 
+typedef struct lw_sas {			/* the committed safety phrase of one call (docs/adr/0040) */
+	int      mode;			/* 0 no call of ours made this peer, 1 the committed phrase, 2 the old one (the other end did not answer: it is older, or something drops its messages) */
+	int      caller, state;		/* state: 0 waiting, 1 the phrase is known, 2 refused */
+	int      auto_;			/* a mesh call to a fellow member: --require-sas does not apply */
+	uint8_t  na[16], nb[16], c[32];	/* the caller's nonce and its commitment, the callee's nonce */
+	int      have_na, have_nb, have_c;
+	uint8_t  bind[32];		/* what both ends of this session share and a node in the middle does not */
+	int      tries;
+	double   next, born;
+	char     words[120];
+} lw_sas;
+
 typedef struct lw_peer {
 	int      used;
 	int      have_bundle;		/* a peer known only by key id (the switchboard) has none yet */
@@ -95,6 +107,7 @@ typedef struct lw_peer {
 	int      sfd;			/* a socket of its own, if a path was found by spraying (0: the node's) */
 	uint64_t rx_frames, tx_frames, rx_bytes, tx_bytes;
 	uint64_t rekeys, drop_auth, drop_replay;
+	lw_sas   sas;			/* the phrase of the call that made this peer */
 } lw_peer;
 
 typedef struct lw_route {		/* at a relay: a route between two members */
@@ -438,6 +451,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 void node_timers(lw_node *n);
 int  node_cmd(lw_node *n, const char *line, char *out, size_t cap);
 int  call_dial(lw_node *n, const char *num9, int auto_, char *err, size_t errn);
+void sas_timers(lw_node *n);
 void call_peer_up(lw_node *n, lw_peer *p, int dialer);	/* a call came up: the line handshake starts */
 int  call_for_number(lw_node *n, const char *num9);	/* is there a call (any state) with this number */
 const uint8_t *peer_ed_pub(const lw_peer *p);

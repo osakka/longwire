@@ -55,6 +55,7 @@ typedef struct lw_cfg {
 	int  has_admit;
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	char underlay[32];		/* the network device to reach the world by when the jack has the other end's network ("": the default route's) */
+	int  require_sas;		/* refuse a call whose other end cannot do the committed safety phrase (a switchboard could be stripping it) */
 	int  cand_loopback;		/* offer 127.x as a candidate: tests and same-host use */
 	int  policy_script;		/* switchboard: wait for the script's verdicts */
 	int  maxpeers;			/* default 32 (switchboard: 1024) */

@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.20" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.21" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -307,6 +307,9 @@ Ask the home router to keep a port open (default on).
 .BI \-\-direct\-retry " S"
 How often a relayed peer tries for a direct path.
 .TP
+.B \-\-require\-sas
+Refuse a call whose other end does not do the committed safety phrase, instead of showing the old, weaker phrase (a mesh call to a fellow member is exempt).
+.TP
 .BI \-\-underlay " DEV"
 The network device to reach peers by when the jack has an address in their network (default: the default route's).
 The node sends such traffic through a socket tied to that device, so it does not go into the jack.
@@ -352,11 +355,12 @@ A node vouched for by a member of your line, or holding the operator's admit,
 is answered under every policy except
 .BR never .
 .PP
-Both ends show the same six-word
-.IR "safety phrase" :
-the person called sees it when the phone rings, the caller when the call connects.
-Compare it on another channel as soon as you are connected, and hang up at once if the words differ.
-It is short (48 bits); see
+Both ends show the same eight-word
+.IR "safety phrase" ,
+a moment after the call connects (the ring shows none):
+it is committed to before either end could pick it, and tied to the session.
+Compare it on another channel, and hang up at once if the words differ.
+An older node gets the old six-word phrase, marked as the weaker kind; see
 .BR longwire-security (7).
 .SH FILES
 .TP

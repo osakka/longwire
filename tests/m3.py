@@ -79,10 +79,13 @@ def main():
     sa, sbb = N["a"].status()["line"], N["b"].status()["line"]
     check(sa["id"] == sbb["id"] and sbb["founder"] is True and sa["founder"] is False, f"same line {sa['id']}; b is the founder")
     import json
-    rc, out = N["a"].cmd("who", num["b"])
-    w = json.loads(out) if rc == 0 else {}
+    for _ in range(50):			# the committed phrase follows the connection by a few messages
+        rc, out = N["a"].cmd("who", num["b"])
+        w = json.loads(out) if rc == 0 else {}
+        if w.get("phrase"): break
+        time.sleep(0.2)
     check(w.get("connected") is True and w.get("path") == "direct" and w.get("line_member") is True and w.get("pinned") is True
-          and w.get("address", "").startswith("lw1") and len(w.get("phrase", "").split()) == 6 and w.get("key_id") == N["b"].status()["key_id"],
+          and w.get("address", "").startswith("lw1") and len(w.get("phrase", "").split()) == 8 and w.get("key_id") == N["b"].status()["key_id"],
           f"who shows b to a: connected, direct, pinned, on the line, with its full address and safety phrase ({out[:90]}...)")
     mem = [l.split() for l in open(f"{L.T}/na/lw/lines").read().splitlines() if l.startswith("member ")]
     check(len(mem) == 2 and all(len(m) == 6 and len(m[5]) == 64 and m[5] == mem[0][5] for m in mem),
