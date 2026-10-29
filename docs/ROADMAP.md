@@ -98,7 +98,7 @@ and then dial and pick up entirely from the hibr desktop.
   TCC's assembler is verified), an optional AEGIS-256 suite, real path-MTU probing, and a proper end-to-end benchmark
 
 **M8: 1.0.** Done when an independent report has no open high-severity findings.
-- A published security contact and a disclosure policy, with the project's public home; a longer safety phrase committed to before it is shown (today 48 bits, no commitment); a formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto (X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 are cross-checked against other implementations now; ML-KEM is not) and a script that
+- A security contact at the project's own address and a public home for reports (today: a personal address and a written disclosure policy in [SECURITY](SECURITY.md#reporting-a-problem)); a longer safety phrase committed to before it is shown (today 48 bits, no commitment); a formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto (X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 are cross-checked against other implementations now; ML-KEM is not) and a script that
   fetches and verifies the vendored sources; fuzzing of the parsers the harness does not reach yet (the line operator's signed
   messages, a relay's second hop, the state files; what it does reach is in [ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md));
   timing tests; reproducible builds; an external review

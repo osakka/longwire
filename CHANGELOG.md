@@ -3,6 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.18
+
+- **A security contact and a disclosure policy.** [SECURITY](docs/SECURITY.md#reporting-a-problem) and `man longwire-security` now say where to report a flaw (the maintainer's address, for now), what to send, that details stay private for
+  90 days or until a fix, and that a reply is best effort. Documentation only; the design of the committed safety phrase is [ADR 0040](docs/adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md).
+
 ## 0.5.17
 
 *Published:* the catalogue (`hibr-apps` `80abc69`) and the packages (`hibr-apt` `695134e`, `hibr-rpm` `7ed4b32`, `hibr-arch` `48df562`). `make check` passed (656 checks). Not tried: a real service, a real card, polkit's dialog, and installing from the repositories on a clean machine.

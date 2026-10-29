@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SECURITY 7 "October 2026" "longwire 0.5.17" "longwire manual"
+.TH LONGWIRE-SECURITY 7 "October 2026" "longwire 0.5.18" "longwire manual"
 .SH NAME
 longwire-security \- what longwire protects, what it does not, and how far it has been checked
 .SH DESCRIPTION
@@ -93,6 +93,11 @@ Evict a lost device.
 Put only trusted people in the group
 .BR longwire .
 Keep the packages and the scripts updated.
+.SH "REPORTING A FLAW"
+Write to osakka@gmail.com with "longwire security" in the subject, with the version
+.RB ( "longwire doctor" )
+and how to repeat it, and keep the details private for 90 days or until a fix is published.
+Never send a token, a seed or the 33 words of a real identity.
 .SH "SEE ALSO"
 .BR longwire (1),
 .BR longwire-switchboard (1),

@@ -151,5 +151,13 @@ and [THREAT-MODEL](THREAT-MODEL.md):
 
 ## Reporting a problem
 
-If you find a security flaw, please tell the maintainer directly and give them time to fix it before you publish it. A published
-security contact and a disclosure policy come with the project's public home *(planned: M8)*.
+If you find a security flaw, please write to **osakka@gmail.com** with "longwire security" in the subject, and give the maintainer time to fix it before you
+publish it. This is a personal address and the interim contact: a project address and a public home for reports come with the project's public home *(planned: M8)*.
+
+What to expect, and what to send:
+
+- **Send** what you saw and how to repeat it: the version (`longwire doctor` prints it), the command or packets that trigger it, and what happened. Please do not send tokens, seeds or the 33 words of a real identity.
+- **Coordinated disclosure.** Please keep the details private for 90 days, or until a fixed release is published, whichever is first. A flaw being exploited now is the exception: say so, and it comes first.
+- **A reply.** This is a small project with one maintainer, so a reply is best effort, not a promise of a time. If you hear nothing in two weeks, write again.
+- **Credit.** A fix says what was found and, if you wish, by whom, in the [CHANGELOG](../CHANGELOG.md).
+- **Not a flaw:** what this page already lists as not checked or not protected ([above](#what-has-not-been-done-and-what-that-means-for-you)). A better answer to those is welcome as an idea, in a normal message.
