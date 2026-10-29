@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.16
 
+*Published:* the catalogue (`hibr-apps` `ec37821`) and the packages (`hibr-apt` `9897f6c`, `hibr-rpm` `63a6f81`, `hibr-arch` `0677460`). `make check` passed (620 checks). Not tried: a real DHCP lease, and installing from the repositories on a clean machine.
+
 - **The jack may ask a DHCP server.** `address = dhcp` in a profile (the pane's **Address** row, or `longwire jack --address dhcp`): the root helper that makes the jack also starts a DHCP client on it in the same
   password step (`dhclient`, else `dhcpcd`, else `udhcpc`), which keeps asking until the line answers. It takes the address and the network route only: a hook removes the default route, the name servers and the rest,
   so a line cannot take over where the machine's traffic goes. A client of ours from before is stopped first; `on` and the pane ask without privilege whether one runs, so there is no second password
