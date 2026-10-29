@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.21
 
+*Published:* the catalogue (`hibr-apps` `3c51b1b`) and the packages (`hibr-apt` `864c12e`, `hibr-rpm` `28114be`, `hibr-arch` `8299be8`). `make check` passed (685 checks). Not tried: a call between 0.5.21 and an older node on a real network, and installing from the repositories on a clean machine.
+
 - **The committed safety phrase** ([ADR 0040](docs/adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)). The phrase is now eight words (64 bits) made from a number the caller commits to before the callee speaks, a number the callee adds, both key ids and a value only the two ends of
   the session share, so a switchboard that puts itself between two nodes has no offline search (it was about 2^24 pairs) and one try per call at about 2^-64. It appears a moment after the call connects, on both ends, as the `sas` event (`longwire watch`, `show`, the pane);
   **the ring no longer shows a phrase**, and the pane's and the bar's dialogs say it comes once connected. The exchange is four small messages inside the direct session; the switchboard is not involved and is unchanged. A node that does not answer within five
