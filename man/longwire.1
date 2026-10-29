@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.19" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.20" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -184,6 +184,9 @@ Rename a profile. Its settings, its token and its place in the list stay, and so
 .TP
 .BI "profile remove" " name"
 Delete a profile.
+.TP
+.BR jack " " \-\-remove " [" \fItap\fR ]
+Take the jack away, with a DHCP client of ours on it; only one that is the user's own.
 .TP
 .BR jack " [" \-\-address " " \fIA.B.C.D/N\fR | dhcp "] [" \fItap\fR ]
 Make the tap device a single machine attaches to

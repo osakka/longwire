@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.20
+
+- **Take the jack away when you turn off, if you want.** The network device (the jack) stays after Turn off by default, so that the next Turn on needs no password; that is a choice now ([ADR 0042](docs/adr/0042-the-jack-stays-unless-asked.md)). A profile with `keep_jack = no`
+  (the pane's **Keep the jack when turned off** row) makes `longwire off` and the pane's Turn off remove it, with its DHCP client, through the same helper (`longwire jack --remove`; only a jack that is the user's own). Tested against stand-ins
+  (`tests/jack.sh`, `tests/events.py`, `tests/pane.py`); not on a real device.
+
 ## 0.5.19
 
 *Published:* the catalogue (`hibr-apps` `06c4429`) and the packages (`hibr-apt` `2105e6b`, `hibr-rpm` `e9d6c28`, `hibr-arch` `5b91cd5`). `make check` passed (656 checks). Not tried: the root helpers as hibr scripts under a real `pkexec` (the owner ran the earlier `sh` helper through `pkexec` with success), and installing from the repositories on a clean machine.

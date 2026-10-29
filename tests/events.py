@@ -27,6 +27,8 @@ def main():
                 line += x
             if line.startswith(b"status"):
                 c.sendall(b'{"node":"up","number":"123-456-789","full":"123-456-789"}\n')
+            elif line.startswith(b"stop"):
+                c.sendall(b'{"node":"stopping"}\n')
             elif line.startswith(b"watch"):
                 c.sendall(b'{"event":"watching"}\n')
                 time.sleep(0.3)
@@ -61,6 +63,23 @@ def main():
     r2 = subprocess.run([HIBR, ROOT + "/scripts/longwire.hibr", "doctor"], env=env, capture_output=True, text=True, timeout=30)
     out2 = r2.stdout + r2.stderr
     check(r2.returncode == 1 and "running node has engine older than 0.5.10" in out2, f"doctor names a running node that does not say its version (an older engine): {out2!r}")
+    # `longwire off` for a profile that says keep_jack=no takes the jack away after the node has stopped (the helper is a stand-in that writes down what it was asked)
+    os.makedirs(d + "/cfg/longwire", exist_ok=True)
+    open(d + "/cfg/longwire/profiles", "w").write("default j\n\nprofile j\n  switchboard = x:1/y\n  attach = jack\n  interface = lo\n  keep_jack = no\n")
+    helper = d + "/fake-helper"
+    open(helper, "w").write("#!/bin/sh\necho \"helper $*\" >> " + d + "/helper.log\n")
+    os.chmod(helper, 0o755)
+    os.makedirs(d + "/bin", exist_ok=True)
+    open(d + "/bin/pkexec", "w").write('#!/bin/sh\nexec "$@"\n')
+    os.chmod(d + "/bin/pkexec", 0o755)
+    env3 = dict(env, LONGWIRE_JACK=helper, PATH=d + "/bin:" + env.get("PATH", ""))
+    r3 = subprocess.run([HIBR, ROOT + "/scripts/longwire.hibr", "off"], env=env3, capture_output=True, text=True, timeout=30)
+    hl = open(d + "/helper.log").read() if os.path.exists(d + "/helper.log") else ""
+    check("helper --remove lo" in hl, f"off with keep_jack=no asks the helper to remove the jack: rc={r3.returncode} {hl!r} {r3.stderr[-200:]}")
+    os.remove(d + "/helper.log") if os.path.exists(d + "/helper.log") else None
+    open(d + "/cfg/longwire/profiles", "w").write("default j\n\nprofile j\n  switchboard = x:1/y\n  attach = jack\n  interface = lo\n")
+    r4 = subprocess.run([HIBR, ROOT + "/scripts/longwire.hibr", "off"], env=env3, capture_output=True, text=True, timeout=30)
+    check(not os.path.exists(d + "/helper.log"), "and with the default (keep it) it does not")
     stop.set()
     finish("events")
 

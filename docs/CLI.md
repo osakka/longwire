@@ -53,6 +53,7 @@ and on the other machine's `up` terminal:
 | `longwire status` | what the node is doing, as JSON ([fields](#status)) |
 | `longwire down` | stop the node |
 | `longwire id`, `longwire address`, `longwire bundle` | your key id (hex), your full address (`lw1…`), your public bundle (hex, for `--peer`) |
+| `longwire jack --remove [TAP]` | take the jack away (stopping a DHCP client of ours on it first); only a jack that is yours. A profile with `keep_jack = no` does this at every `off` |
 | `longwire jack [--address A.B.C.D/N] [TAP]` | make the tap device a single machine attaches to (`lw0` to `lw99`, `lw0` by default) and give it to you, with an IPv4 address if one is given ([ADR 0036](adr/0036-the-jack-gets-its-address-from-the-profile.md)). A small root helper does it ([ADR 0034](adr/0034-a-connection-is-a-profile.md)): polkit asks for a password once, in a terminal or in the desktop. `on` does this by itself when the jack, or its address, is missing |
 | `longwire site NIC [PROFILE]`, `longwire site --stop NIC` | make this machine a site node for the card NIC from a profile: a service (`longwire@NIC`) written and started by a root helper after one password, with the profile's switchboard, token, name, answer policy and `listed`; a name with a space is left out. `--stop` stops and disables it ([ADR 0039](adr/0039-a-site-node-from-the-pane.md)) |
 | `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode, to run by hand if you would rather |
@@ -84,6 +85,7 @@ profile home
   token = 5fe1c0ab…
   attach = jack                      jack | splice
   interface = lw0                    the tap, or the NIC to splice
+  keep_jack = yes                    yes (the default): Turn off leaves the jack, so the next Turn on needs no password; no: Turn off removes it
   address = 10.77.0.2/24             this machine's address on the line (jack only; every machine its own, one subnet), or `dhcp`
   name = osakka
   listed = no

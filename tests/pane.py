@@ -281,6 +281,19 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     check(any(x[0] == "action" and x[1] == "Rename profile work" for x in rows), f"there is a Rename profile row for the profile shown: {[x[:2] for x in rows if x[0] == 'action']}")
     rows, log, r = drive(envF, 'longwire_do 1 profile 1; n := lwp_cur; echo "NOW $n"')
     check("NOW work" in r.stdout, f"the profile row cycles from the default (home) to the other profile: {r.stdout.strip()[-30:]}")
+    # Keep the jack when turned off: a row for jack profiles, yes by default; with no, turning off removes the jack through the helper (one more password)
+    rows, log, r = drive(envF, 'lwp_pset keep_jack yes; dump 1')
+    kr = [x for x in rows if x[1] == "Keep the jack when turned off"]
+    check(len(kr) == 1 and kr[0][2] == "on", f"a jack profile has a 'Keep the jack when turned off' row, on by default: {kr}")
+    rows, log, r = drive(envF, 'lwp_pset interface lo; longwire_do 1 keepjack 1; dump 1')
+    kr = [x for x in rows if x[1] == "Keep the jack when turned off"]
+    check(len(kr) == 1 and kr[0][2] == "off", f"the row turns it off: {kr}")
+    rows, log, r = drive(envF, 'lwp_pset interface lo; lwp_pset keep_jack no; LWP_PEND_KIND=stop; lwp_yes')
+    check(any(l == "PTYJOB longwire jack --remove lo" for l in log), f"turning off with keep_jack no removes the jack, through the helper: {log}")
+    rows, log, r = drive(envF, 'lwp_pset interface lo; lwp_pset keep_jack yes; LWP_PEND_KIND=stop; lwp_yes')
+    check(not any("PTYJOB" in l for l in log), f"and with the default it leaves it: {log}")
+    rows, log, r = drive(envF, 'lwp_pset keep_jack yes; lwp_pset interface lw9')
+
     # rename the profile shown, then back (the rest of this file expects it to be called work)
     rows, log, r = drive(envF, 'lwp_renameprofile "work2"; n := lwp_cur; echo "NOW $n"; lwp_renameprofile "work"; n := lwp_cur; echo "THEN $n"')
     check("NOW work2" in r.stdout and "THEN work" in r.stdout and "THEN work2" not in r.stdout, f"renaming the profile shown keeps it the one shown: {r.stdout.strip()[-40:]}")

@@ -110,5 +110,26 @@ out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p address
 [ $rc = 0 ] && ok "a profile may say address=dhcp" || bad "profile dhcp: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p address=dhcp2 2>&1); rc=$?
 [ $rc = 2 ] && ok "but not address=dhcp2" || bad "profile dhcp2: rc=$rc $out"
+
+echo "-- jack --remove: take the jack away, if it is the user's own"
+mkdir -p "$T/sysnet/lw7" "$T/sysnet/lw8"
+echo 1000 > "$T/sysnet/lw7/owner"; echo 4242 > "$T/sysnet/lw8/owner"
+export LONGWIRE_SYSNET=$T/sysnet
+run --remove lw7 1000
+[ $rc = 0 ] && grep -q "ip link delete lw7" "$LWJ_LOG" && ok "--remove deletes the jack that is the user's own" || bad "remove: rc=$rc $out $(cat "$LWJ_LOG")"
+run --remove lw8 1000
+[ $rc = 3 ] && ! grep -q "link delete" "$LWJ_LOG" && ok "and refuses one that belongs to somebody else" || bad "remove other: rc=$rc $out $(cat "$LWJ_LOG")"
+run --remove lw5 1000
+[ $rc = 0 ] && echo "$out" | grep -q "nothing to remove" && ok "a jack that is not there is not an error" || bad "remove absent: rc=$rc $out"
+run --remove eth0 1000
+[ $rc = 2 ] && ok "and --remove never touches a real card" || bad "remove eth0: rc=$rc $out"
+run --remove --dhcp lw7 1000
+[ $rc = 2 ] && ok "--remove with --dhcp is refused" || bad "remove+dhcp: rc=$rc $out"
+cp /bin/sleep "$T/dhclient"; "$T/dhclient" 60 & pid2=$!
+mkdir -p "$RUN"; echo $pid2 > "$RUN/dhcp-lw7.pid"; touch "$RUN/dhcp-hook-lw7"
+mkdir -p "$T/sysnet/lw7"; echo 1000 > "$T/sysnet/lw7/owner"
+run --remove lw7 1000
+[ ! -e "$RUN/dhcp-lw7.pid" ] && [ ! -e "$RUN/dhcp-hook-lw7" ] && ok "its DHCP files go with it, and its client is stopped" || bad "remove files: $(ls "$RUN")"
+sleep 0.2; kill -0 $pid2 2> /dev/null && { bad "the DHCP client is still running"; kill $pid2; } || ok "(the client of ours is gone)"
 [ $fail = 0 ] && echo "all jack checks passed"
 exit $fail

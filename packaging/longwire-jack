@@ -1,6 +1,7 @@
 #!/usr/bin/hibr
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
+# longwire-jack --remove TAP [UID] -- the other way: stop the DHCP client of ours on TAP, if any, and delete the device, if it is the user's own.
 # longwire-jack [--address A.B.C.D/N | --dhcp] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
 # bring it up, with the address if one is given, or with a DHCP client started on it (so that nobody runs `ip addr` or `dhclient` by hand). The
 # client keeps asking until the line answers, so the tunnel need not be up yet; it sets the address and the network route only, never a
@@ -21,6 +22,7 @@ fn fail(msg, int code = 2) {
 
 addr=
 dhcp=
+remove=
 while [ $# -gt 0 ]; do
 	case $1 in
 	--address)
@@ -28,16 +30,43 @@ while [ $# -gt 0 ]; do
 		addr=$2
 		shift 2 ;;
 	--dhcp) dhcp=1; shift ;;
+	--remove) remove=1; shift ;;
 	*) break ;;
 	esac
 done
 [ -z "$addr" ] || [ -z "$dhcp" ] || fail "an address or --dhcp, not both"
+[ -z "$remove" ] || [ -z "$addr$dhcp" ] || fail "--remove takes no address and no --dhcp"
 tap=${1:-lw0}
 uid=${PKEXEC_UID:-${2:-}}
 
 [[ $tap =~ ^lw[0-9]{1,2}$ ]] || fail "a jack is called lw0 to lw99, not '$tap'"
 [[ $uid =~ ^[0-9]+$ ]] || fail "no user to give it to (pass a uid, or run it through pkexec)"
 [ "$uid" -ne 0 ] || fail "a jack owned by root would need a node that runs as root"
+
+if [ -n "$remove" ]; then
+	sys=${LONGWIRE_SYSNET:-/sys/class/net}
+	[ -d "$sys/$tap" ] || { echo "longwire-jack: $tap is not there; nothing to remove"; exit 0; }
+	owner=
+	read -r owner < "$sys/$tap/owner" 2> /dev/null
+	[ "$owner" = "$uid" ] || fail "$tap is not this user's jack (owner ${owner:-unknown}); not removing it" 3
+	rundir=${LONGWIRE_RUN:-/run/longwire}
+	pidf=$rundir/dhcp-$tap.pid
+	if [ -r "$pidf" ]; then			# a DHCP client of ours on it: stop it first
+		old=
+		read -r old < "$pidf"
+		if [[ $old =~ ^[0-9]+$ ]]; then
+			comm=
+			read -r comm < "/proc/$old/comm" 2> /dev/null
+			case $comm in dhclient | dhcpcd | udhcpc) kill "$old" 2> /dev/null ;; esac
+		fi
+	elif command -v dhcpcd > /dev/null; then
+		dhcpcd -k "$tap" > /dev/null 2>&1
+	fi
+	rm -f "$pidf" "$rundir/dhcp-hook-$tap" "$rundir/dhcp-$tap.leases"
+	ip link delete "$tap" || exit 1
+	echo "longwire-jack: $tap is removed"
+	exit 0
+fi
 
 if [ -n "$addr" ]; then
 	# a plain IPv4 host address with a prefix of 8 to 30: four numbers up to 255, no leading zeros, a slash, the prefix; not 0., 127., or above 223.

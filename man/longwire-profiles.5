@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.19" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.20" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -41,6 +41,7 @@ profile home
   attach = jack
   interface = lw0
   address = 10.77.0.2/24
+  keep_jack = yes
   name = osakka
   listed = no
   answer = known
@@ -76,6 +77,10 @@ The word
 .B dhcp
 instead asks a DHCP server on the line, through a client (dhclient, dhcpcd or udhcpc) that the same step starts; it takes the address and the network route only, never a default route or name servers.
 Empty leaves the device alone.
+.TP
+.B keep_jack
+.BR yes " (the default) or " no .
+With yes, turning the node off leaves the jack, so the next time needs no password; with no, it removes the jack too.
 .TP
 .B name
 The name announced to the nodes you call.

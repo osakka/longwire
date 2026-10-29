@@ -45,6 +45,7 @@ The page says **Longwire is off** and shows the connection:
 | **Phone Icon Size** | **small** (one cell, the default) or **large** (two cells wide). Shown only where the glyph set has large telephones (Blit 0.3.0 on); the Control Strip always uses the small one. |
 | **Longwire on the Menu Bar** | show or hide the telephone. |
 | **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. |
+| **Keep the jack when turned off** | on (the default): Turn off stops the node and leaves the network device, so the next Turn on asks for no password. Off: Turn off removes the device too (and a DHCP client of ours on it), at the price of the password again when you turn on. Jack profiles only. |
 | **Address** | this machine's address on the line, like `10.77.0.2/24` (jack profiles; every machine its own, in one subnet), or `dhcp` to ask a DHCP server on the line; put on the device for you. |
 | **Node** | shown when more than one node answers on this machine (your own, and a service such as `longwire@eth0`): choose which this pane shows and controls. |
 | **Turn on** | does everything: makes the network device if it is missing, and puts the address on it (that asks for your password), starts the node in the background, and tells you your number. |

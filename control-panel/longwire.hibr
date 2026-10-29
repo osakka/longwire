@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.19
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.20
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -36,7 +36,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.19}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.20}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -250,7 +250,7 @@ fn lwp_profiles(force = "") {
 		default) LWP_PDEF=$eq ;;
 		profile) cur=$eq; LWP_PNAMES+=("$cur") ;;
 		token) [ -n "$cur" ] && LWP_PF["$cur.token"]=${#v} ;;
-		switchboard | attach | interface | address | name | listed | answer) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
+		switchboard | attach | interface | address | keep_jack | name | listed | answer) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
 		esac
 	done < "$f"
 }
@@ -330,6 +330,11 @@ fn longwire_rows(int w) {
 		lwp_row "$w" "$n" set "Attach" "${LWP_PF[$p.attach]:-jack}" attach; n=$((n + 1))
 		lwp_row "$w" "$n" action "Interface" "${LWP_PF[$p.interface]:-lw0}" iface; n=$((n + 1))
 		[ "${LWP_PF[$p.attach]:-jack}" = jack ] && { lwp_row "$w" "$n" action "Address" "${LWP_PF[$p.address]:-none}" address; n=$((n + 1)); }
+		if [ "${LWP_PF[$p.attach]:-jack}" = jack ]; then
+			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keep the jack when turned off"; CP[$w][$n]["wtype"]=bool
+			CP[$w][$n]["val"]=on; [ "${LWP_PF[$p.keep_jack]-}" = no ] && CP[$w][$n]["val"]=off
+			CP[$w][$n]["key"]=keepjack; n=$((n + 1))
+		fi
 		lwp_row "$w" "$n" action "Name" "${LWP_PF[$p.name]:-none}" name; n=$((n + 1))
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="List in the directory"; CP[$w][$n]["wtype"]=bool
 		CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.listed]-}" = yes ] && CP[$w][$n]["val"]=on
@@ -476,7 +481,9 @@ fn lwp_yes() {
 	pickup) lwp_run pickup "$LWP_PEND_ARG" ;;
 	hangup) lwp_run hangup "$LWP_PEND_ARG" ;;
 	evict) lwp_run evict "$LWP_PEND_ARG" ;;
-	stop) lwp_run stop ;;
+	stop)
+		lwp_run stop
+		lwp_dropjack ;;
 	rmprofile)
 		longwire profile remove "$LWP_PEND_ARG" > /dev/null 2>&1
 		lwp_profiles 1 ;;
@@ -627,6 +634,37 @@ fn lwp_jackdone(int n, int st) {
 	return 0
 }
 
+# After turning off, a profile that says keep_jack=no takes the jack away too: one more password, unless one was given a moment ago.
+fn lwp_dropjack() {
+	local p iface
+
+	p := lwp_cur
+	[ -n "$p" ] || return 0
+	[ "${LWP_PF[$p.keep_jack]-}" = no ] && [ "${LWP_PF[$p.attach]:-jack}" = jack ] || return 0
+	iface=${LWP_PF[$p.interface]:-lw0}
+	[ -d "/sys/class/net/$iface" ] || return 0
+	LWP_SITE=
+	LWP_BUSY=1
+	LWP_JOB := dt_ptyjob longwire jack lwp_jackgone lwp_pkprompt longwire jack --remove "$iface"
+}
+
+fn lwp_jackgone(int n, int st) {
+	local why=
+
+	LWP_JOB=
+	LWP_BUSY=0
+	LWP_T=-100
+	if [ "$st" = 0 ]; then
+		dt_notep low "The jack is removed"
+	elif [ -n "${DTJ[$n]["cancelled"]}" ]; then
+		dt_notep low "Cancelled: the jack stays"
+	else
+		why := dt_joblast "$n"
+		dt_notep high "Could not remove the jack: %s" "${why:-exit $st}"
+	fi
+	return 0
+}
+
 # The site node was asked for (or stopped) and the job has ended: follow the service, or say why not.
 fn lwp_sitedone(int n, int st) {
 	local why=
@@ -773,6 +811,9 @@ fn longwire_do(int w, k, int dir) {
 		v=${LWP_PF[$p.attach]:-jack}
 		v := cp_next "$v" "$dir" "${LWP_ATTACHES[@]}"
 		lwp_pset attach "$v" ;;
+	keepjack)
+		p := lwp_cur
+		if [ "${LWP_PF[$p.keep_jack]-}" = no ]; then lwp_pset keep_jack yes; else lwp_pset keep_jack no; fi ;;
 	listed)
 		p := lwp_cur
 		if [ "${LWP_PF[$p.listed]-}" = yes ]; then lwp_pset listed no; else lwp_pset listed yes; fi ;;
