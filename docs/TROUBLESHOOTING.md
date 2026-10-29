@@ -7,7 +7,7 @@ Tokens are secrets: leave them out of what you send.
 ## Starting
 
 **Did the update take effect?** The scripts come from the catalogue (`catalogue refresh && catalogue install longwire`), the engine from the package
-(`sudo apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
+(`please apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
 
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
 Nothing is wrong. `longwire up` *is* the node: it stays in the foreground and prints events as they happen. Use another terminal for
@@ -22,7 +22,7 @@ There is no saved connection. Fill in the Control Panel form, or `longwire profi
 
 **`longwire: the jack helper is not installed (the longwire package has it)` / `there is no pkexec to ask for the password with`**
 A single machine needs a network device (the *jack*). `longwire jack` makes it after one password, through the helper
-`/usr/lib/longwire/jack` and polkit's `pkexec`. If the package is missing the helper, upgrade it; if `pkexec` is missing, install polkit;
+`/usr/lib/longwire/jack` and polkit's `pkexec`. If the package is missing the helper, upgrade it; if `pkexec` is missing, install it (`please apt install pkexec`, or `sudo apt install pkexec` on a machine that has no `please` yet);
 or follow the two commands the message prints, as root, once.
 
 **Control Panel says "Could not start pkexec" or "Could not make the jack".**
@@ -43,7 +43,7 @@ Those are the end of `~/.longwire/log`. Common causes are a wrong switchboard ad
 port already in use (`--listen`).
 
 **`unknown option --max-numbers` (or any option) from a script**
-The script is newer than the engine. Upgrade the package first: `sudo apt install --only-upgrade longwire`, then restart.
+The script is newer than the engine. Upgrade the package first: `please apt install --only-upgrade longwire`, then restart.
 
 ## Registering
 
@@ -92,7 +92,7 @@ Reject. Either it is the wrong number or someone is in the middle. Do not pick u
 **`ping` does not reply.**
 longwire carries Ethernet frames; it does not give addresses. Both ends need an address in one subnet: `ip addr show lw0` on each. Set it in the
 pane (**Address**, like `10.77.0.2/24`) or with `longwire profile set home address=10.77.0.2/24`, and turn on again (a password is asked if the device
-does not have it yet); every machine needs its own. Or by hand, `sudo ip addr add 10.77.0.1/24 dev lw0`, or `address=dhcp` in the profile if a DHCP server is on the line (it needs `dhclient`, `dhcpcd` or `udhcpc` installed: `longwire-jack: no DHCP client found` says so; the lease takes the address and route only, never a default route or name servers).
+does not have it yet); every machine needs its own. Or by hand, `please ip addr add 10.77.0.1/24 dev lw0`, or `address=dhcp` in the profile if a DHCP server is on the line (it needs `dhclient`, `dhcpcd` or `udhcpc` installed: `longwire-jack: no DHCP client found` says so; the lease takes the address and route only, never a default route or name servers).
 Check a firewall on the machine is not dropping traffic on `lw0`.
 
 **Big transfers stall or are slow.**
@@ -122,7 +122,7 @@ Desktop. With the Blit glyph set and an older hibr you see plain characters inst
 
 **The pane says "Longwire is off" but a node runs.**
 A node started by another user (or a service) has another control socket. The pane finds a service node under `/run/longwire` if you
-are in the group `longwire`: `sudo usermod -aG longwire YOU`, then log in again.
+are in the group `longwire`: `please usermod -aG longwire YOU`, then log in again.
 
 **A call rings but I hear nothing.**
 A ring is heard while the desktop runs. If it is not running, the node still applies its policy (`auto` and `known` answer by themselves; under `ask` the ring waits a minute and then times out); use `longwire watch` to see rings.
@@ -132,14 +132,14 @@ A ring is heard while the desktop runs. If it is not running, the node still app
 **The service will not start.**
 `journalctl -u longwire-switchboard -n 50` (or `longwire@eth0`). The usual causes: the arguments file is missing
 (`/etc/longwire/switchboard.conf`, `/etc/longwire/eth0.conf`), the script is not installed for the machine
-(`sudo catalogue --system install cli/longwire-switchboard`, or `cli/longwire`), a token file named in `--tokens` does not exist yet
+(`catalogue --system install cli/longwire-switchboard`, or `cli/longwire`), a token file named in `--tokens` does not exist yet
 (create it in the state directory), or an option has no value.
 
 **Nodes cannot reach the switchboard.**
 Open UDP 1877 and 1878. From a node: its status line says **dial tone** when it can.
 
 **I lost the switchboard's address.**
-`sudo hibr -c 'mod load longwire; lw key address /var/lib/longwire-switchboard/seed'`.
+`please hibr -c 'mod load longwire; lw key address /var/lib/longwire-switchboard/seed'`.
 
 **I lost my seed / moved to a new machine.**
 `longwire key import` and type the 33 words you exported. You get the same number back when you register. With no words, the number is gone.

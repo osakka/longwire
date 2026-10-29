@@ -1,6 +1,6 @@
 # Operating longwire
 
-For whoever runs a switchboard, a site, or a machine that should stay on. Commands assume Debian-style paths and `sudo`; the
+For whoever runs a switchboard, a site, or a machine that should stay on. Commands assume Debian-style paths and `please`, hibr's `sudo`: it runs a command as root through polkit (and is `sudo` underneath on macOS), and Control Panel > Administrative Access sets who may and with whose password; the
 rpm and pacman packages put the same files in the same places. For background on what each piece does, see
 [ARCHITECTURE](ARCHITECTURE.md); for what protects what, [SECURITY](SECURITY.md).
 
@@ -31,35 +31,35 @@ The switchboard gives nodes their numbers and introduces two nodes that want to 
 is enough, but it must be reachable from the internet on **UDP 1877 and 1878** (1878 answers the NAT-type check).
 
 ```
-sudo apt install longwire
-sudo catalogue --system install cli/longwire-switchboard
-sudo mkdir -p /etc/longwire
-echo 'ARGS="--listen 1877 --registry none --tokens /var/lib/longwire-switchboard/tokens"' | sudo tee /etc/longwire/switchboard.conf
-sudo systemctl enable --now longwire-switchboard
+please apt install longwire
+catalogue --system install cli/longwire-switchboard
+please mkdir -p /etc/longwire
+echo 'ARGS="--listen 1877 --registry none --tokens /var/lib/longwire-switchboard/tokens"' | please tee /etc/longwire/switchboard.conf
+please systemctl enable --now longwire-switchboard
 ```
 
 The service retries every couple of seconds until the token file exists, which is expected: the same start creates its state
 directory. Then make the tokens (one per machine you want to let in, plus a spare):
 
 ```
-sudo install -m 0600 /dev/null /var/lib/longwire-switchboard/tokens
-sudo chown "$(stat -c %u /var/lib/private/longwire-switchboard)" /var/lib/longwire-switchboard/tokens
-for i in 1 2 3; do openssl rand -hex 10; done | sudo tee /var/lib/longwire-switchboard/tokens
+please install -m 0600 /dev/null /var/lib/longwire-switchboard/tokens
+please chown "$(stat -c %u /var/lib/private/longwire-switchboard)" /var/lib/longwire-switchboard/tokens
+for i in 1 2 3; do openssl rand -hex 10; done | please tee /var/lib/longwire-switchboard/tokens
 ```
 
 The file belongs to the service's own user and nobody else can read it. (A group-readable file would let anyone in the group `longwire` read, and
 use, the tokens that have not been spent.) These steps have not been run under a live systemd by the author.
 
-The switchboard script can make, list and remove tokens itself, with no switchboard running and no `openssl`: `sudo longwire-switchboard token new 3 --tokens /var/lib/longwire-switchboard/tokens`
+The switchboard script can make, list and remove tokens itself, with no switchboard running and no `openssl`: `please longwire-switchboard token new 3 --tokens /var/lib/longwire-switchboard/tokens`
 prints three new tokens and adds them to the file (mode 0600); `token list` shows the unspent ones; `token remove TOKEN` takes one out. Run as root it leaves the file owned by root,
 so give it to the service again with the `chown` above.
 
-Open the firewall (`sudo ufw allow 1877:1878/udp`, or your own tool), read its address, and give each user a token:
+Open the firewall (`please ufw allow 1877:1878/udp`, or your own tool), read its address, and give each user a token:
 
 ```
-sudo journalctl -u longwire-switchboard -n 10 --no-pager | grep switchboard
+please journalctl -u longwire-switchboard -n 10 --no-pager | grep switchboard
 # switchboard  lw1q7m…k2a   (give this full address to your nodes)
-sudo hibr -c 'mod load longwire; lw key address /var/lib/longwire-switchboard/seed'    # the same, any time, from its identity file
+please hibr -c 'mod load longwire; lw key address /var/lib/longwire-switchboard/seed'    # the same, any time, from its identity file
 ```
 
 Nodes use `--switchboard YOUR.HOST:1877/lw1q7m…k2a`.
@@ -68,13 +68,13 @@ Nodes use `--switchboard YOUR.HOST:1877/lw1q7m…k2a`.
   (see [SWITCHBOARD](SWITCHBOARD.md)).
 - **Tokens.** Open registration (no `--tokens`) lets anyone take a number. For a switchboard that matters, use tokens. A token is spent on first
   use; a machine that has registered once is recognised by its key afterwards. Add one with
-  `openssl rand -hex 10 | sudo tee -a /var/lib/longwire-switchboard/tokens`. The file must be in the state directory: the service cannot
+  `openssl rand -hex 10 | please tee -a /var/lib/longwire-switchboard/tokens`. The file must be in the state directory: the service cannot
   write `/etc`.
 - **Limits.** Defaults are 1,024 sessions (`--max-nodes`), 100,000 numbers (`--max-numbers`) and 20 registrations per source per hour; the unit's
   memory limit is 1 GB, which suits the defaults. Raise the limit with the numbers.
 - **Back up the seed.** `/var/lib/longwire-switchboard/seed` is the switchboard's identity. Every node pins its address, so losing it
-  means re-pointing every node. Copy it somewhere private (`sudo cp … ~/switchboard-seed.backup; chmod 600 …`) and never share it.
-- **Watch it.** `sudo journalctl -u longwire-switchboard -f` for the log. As a member of the group `longwire`, `LW_SOCK=/run/longwire-switchboard/ctl longwire status`
+  means re-pointing every node. Copy it somewhere private (`please cp … ~/switchboard-seed.backup; chmod 600 …`) and never share it.
+- **Watch it.** `please journalctl -u longwire-switchboard -f` for the log. As a member of the group `longwire`, `LW_SOCK=/run/longwire-switchboard/ctl longwire status`
   prints its figures, and the **Switchboard** window on the desktop shows it live. Only the user the service runs as can stop it or decide its registrations.
 - **What it sees.** That a node is online, its public address, who rings whom and when, and the names nodes chose to give it. It keeps
   numbers and listed names on disk (`numbers.log`, `names.log`) and no call history. See [SWITCHBOARD](SWITCHBOARD.md).
@@ -85,11 +85,11 @@ A site box sits on a LAN and makes that LAN part of the line. It needs one capab
 and the node drops as soon as the port is open.
 
 ```
-sudo apt install longwire
-sudo catalogue --system install cli/longwire
-echo 'ARGS="--switchboard HOST:1877/lw1… --token YOURTOKEN --answer known"' | sudo tee /etc/longwire/eth0.conf
-sudo chmod 600 /etc/longwire/eth0.conf
-sudo systemctl enable --now longwire@eth0
+please apt install longwire
+catalogue --system install cli/longwire
+echo 'ARGS="--switchboard HOST:1877/lw1… --token YOURTOKEN --answer known"' | please tee /etc/longwire/eth0.conf
+please chmod 600 /etc/longwire/eth0.conf
+please systemctl enable --now longwire@eth0
 ```
 
 A token on the service's command line is visible to other users on the machine in the process list while it is there, so use it for the
@@ -97,7 +97,7 @@ first start only: once the node has registered, the switchboard knows its key, a
 
 Replace `eth0` with the NIC on the LAN (the instance name after the `@` is the NIC). Each instance has its own identity and state
 (`/var/lib/longwire/eth0/`), so two NICs are two nodes. Use the node from a terminal or the desktop with
-`LW_SOCK=/run/longwire/eth0/ctl longwire show` if you are in the group `longwire` (`sudo usermod -aG longwire YOU`, then log in again).
+`LW_SOCK=/run/longwire/eth0/ctl longwire show` if you are in the group `longwire` (`please usermod -aG longwire YOU`, then log in again).
 Members of that group can dial, hang up and evict through the socket; they cannot stop the service or read a key.
 
 **A machine that joins the bridged network.** A machine with a jack that takes an address in the network you bridge would send its own packets for the site box
@@ -161,10 +161,10 @@ after a year unheard). Anyone who has the words *is* you; do not email them.
 The module and the scripts come from two places and must stay in step:
 
 ```
-sudo apt update && sudo apt install --only-upgrade longwire     # the engine, the launchers, the helper, the man pages
+please apt update && please apt install --only-upgrade longwire     # the engine, the launchers, the helper, the man pages
 catalogue refresh && catalogue update                            # the scripts, the pane, the menu bar telephone
-sudo catalogue --system update                                   # the same, for scripts installed for the whole machine
-sudo systemctl restart longwire-switchboard                      # or longwire@NIC, for a service
+catalogue --system update                                   # the same, for scripts installed for the whole machine
+please systemctl restart longwire-switchboard                      # or longwire@NIC, for a service
 ```
 
 A script newer than the module can fail with `unknown option` (for example, `--max-numbers` against an older module): upgrade the package
@@ -173,10 +173,10 @@ first.
 ## Remove
 
 ```
-sudo systemctl disable --now longwire-switchboard longwire@eth0   # whichever you ran
+please systemctl disable --now longwire-switchboard longwire@eth0   # whichever you ran
 catalogue remove longwire                                         # the bundle: the command, the pane, the telephone and the strip module
-sudo catalogue --system remove cli/longwire cli/longwire-switchboard   # the scripts installed for the whole machine
-sudo apt remove longwire
+catalogue --system remove cli/longwire cli/longwire-switchboard   # the scripts installed for the whole machine
+please apt remove longwire
 ```
 
 This keeps your identity and profiles (`~/.longwire`, `~/.config/longwire`, `/var/lib/longwire*`). Delete them only if you mean to give

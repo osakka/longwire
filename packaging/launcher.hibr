@@ -33,7 +33,7 @@ fn find_script() {
 if ! script := find_script; then
 	echo "$name: its script is not installed. Fetch it from the catalogue:" >&2
 	echo "$name:     catalogue install cli/$name        (for this user)" >&2
-	echo "$name:     sudo catalogue --system install cli/$name        (for the machine, and for the services)" >&2
+	echo "$name:     catalogue --system install cli/$name        (for the machine, and for the services)" >&2
 	exit 127
 fi
 exec "$HIBR" "$script" "$@"			# $HIBR: the hibr this was started under, not whichever comes first on PATH

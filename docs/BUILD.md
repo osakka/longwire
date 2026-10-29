@@ -47,14 +47,14 @@ optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is pa
 | launchers + services | `packaging/launcher.hibr` (twice), `packaging/systemd/` | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
 
 ```
-sudo apt install longwire                       # a laptop: the module and the launchers (or dnf / pacman)
+please apt install longwire                       # a laptop: the module and the launchers (or dnf / pacman)
 catalogue install cli/longwire                  # the node script, from hibr's catalogue
 longwire up --switchboard …
 
-sudo apt install longwire                       # a site box
-sudo catalogue --system install cli/longwire    # a root-owned script for the service
-echo 'ARGS="--switchboard HOST:PORT/KEY --answer known"' | sudo tee /etc/longwire/eth0.conf
-sudo systemctl enable --now longwire@eth0       # the node, splicing eth0
+please apt install longwire                       # a site box
+catalogue --system install cli/longwire    # a root-owned script for the service
+echo 'ARGS="--switchboard HOST:PORT/KEY --answer known"' | please tee /etc/longwire/eth0.conf
+please systemctl enable --now longwire@eth0       # the node, splicing eth0
 ```
 
 `make packages` builds all three into `build/pkg`: the deb first (`packaging/deb/build-deb.sh`, from `make install` into a
@@ -77,13 +77,13 @@ with the pane and the app.
 **The group `longwire`.** The package makes a group of that name, and both services give their control socket to it (mode 0660, in
 `/run/longwire/NIC/ctl` and `/run/longwire-switchboard/ctl`). A person in the group can use the services from the hibr desktop (the pane
 and the switchboard application find those sockets themselves) and from the command line (`LW_SOCK=/run/longwire/eth0/ctl longwire peers`); join
-with `sudo usermod -aG longwire NAME` and log in again. Being in it means being allowed to dial, hang up and evict on that
+with `please usermod -aG longwire NAME` and log in again. Being in it means being allowed to dial, hang up and evict on that
 node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)). The `longwire setup splice` unit below runs as you, so your own pane already reaches its socket and it needs no group. Not run: the units under a live systemd.
 
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.22
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.23
 # modules: longwire
 ```
 

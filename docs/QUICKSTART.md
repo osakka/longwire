@@ -13,7 +13,7 @@ they do the same thing and share one saved connection, so you can mix them.
 - **A switchboard** both can reach. There is no public one to borrow, so you run your own: see [OPERATING](OPERATING.md)
   ("Run a switchboard", about five minutes on any small server). You will need three things from it:
   its address `HOST:1877`, its **key** (it prints `lw1…` when it starts), and, if you gave it tokens, **one token for each machine**.
-- **Your administrator password** on each machine, to make the network device. It is asked for through polkit (`pkexec`) the first time, and again after a
+- **Your administrator password** on each machine, to make the network device. It is asked for through polkit (`pkexec`; you can tune it in Control Panel > Administrative Access) the first time, and again after a
   restart, because the device does not survive one.
 
 ## 1. Install
@@ -21,7 +21,7 @@ they do the same thing and share one saved connection, so you can mix them.
 On each machine:
 
 ```
-sudo apt install longwire             # or: sudo dnf install longwire, sudo pacman -S longwire
+please apt install longwire             # or: please dnf install longwire, please pacman -S longwire
 catalogue refresh
 catalogue install longwire            # the command, the Control Panel pane, the menu bar telephone and the Control Strip module
 ```

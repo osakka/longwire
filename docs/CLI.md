@@ -215,7 +215,7 @@ verb works from any hibr process, through the worker's control socket (`~/.longw
 | `lw lookup NAME\|lw1…` | ask the directory; the answer arrives as a `found` event |
 
 **`lw start` is one-way for the calling process.** Clearing capabilities also sets `no_new_privs` on the hibr process that
-ran it. In a long-lived interactive shell that means `sudo` and other setuid programs stop working afterwards. A node
+ran it. In a long-lived interactive shell that means `please`, `pkexec` and other setuid programs stop working afterwards. A node
 script run as a service never notices; in a shell you use for other things, run `longwire up` from a subshell or under
 `hold`. A failed `lw` verb puts its reason in `$ERRMSG`.
 

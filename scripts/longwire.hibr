@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.22
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.23
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.22}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.23}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -323,7 +323,7 @@ engine_notes() {
 	[ $# -ge 1 ] || run=-
 	mod=$(lw version 2> /dev/null) || mod=
 	if [ -z "$mod" ] || ver_lt "$mod" "$SELF_VERSION"; then
-		echo "the longwire package (${mod:-older than 0.5.15}) is older than these scripts ($SELF_VERSION): sudo apt install --only-upgrade longwire   (the hibr repository carries it for apt, dnf and pacman)"
+		echo "the longwire package (${mod:-older than 0.5.15}) is older than these scripts ($SELF_VERSION): please apt install --only-upgrade longwire   (the hibr repository carries it for apt, dnf and pacman)"
 	elif ver_lt "$SELF_VERSION" "$mod"; then
 		echo "these scripts ($SELF_VERSION) are older than the installed engine ($mod): catalogue refresh && catalogue install longwire"
 	fi

@@ -15,7 +15,7 @@
 
 strict
 
-app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.22
+app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.23
 # modules: longwire
 command -v dt_app > /dev/null && dt_app switchboard "Switchboard" 24 76 once "☎"
 
@@ -371,7 +371,7 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 			sw_put "$id" 4 2 "longwire-switchboard.service is running here, as another user."
 			sw_put "$id" 5 2 "Its control socket is open to the group longwire; you are not in it, or have not logged in since."
 			console pen "$DT_DIM" "$DT_FACE"
-			sw_put "$id" 7 2 "Join it with: sudo usermod -aG longwire YOURNAME   (then log in again)"
+			sw_put "$id" 7 2 "Join it with: please usermod -aG longwire YOURNAME   (then log in again)"
 		else
 			console pen "$DT_DIM" "$DT_FACE"
 			sw_put "$id" 4 2 "Start one with: longwire-switchboard --registry none"

@@ -1,7 +1,7 @@
 # longwire site node, splicing the LAN on the NIC named after the @:  systemctl enable --now longwire@eth0
 # Configure /etc/longwire/eth0.conf with one line, for example
 #     ARGS="--switchboard HOST:PORT/KEY --answer known"
-# The script comes from the catalogue, for the machine:  sudo catalogue --system install cli/longwire
+# The script comes from the catalogue, for the machine:  catalogue --system install cli/longwire
 # AF_NETLINK is for listing the interface addresses (candidates); each instance has a state directory of its own, so two NICs
 # are two identities. The script is read from the machine's scope only: this service's own writable home is never searched.
 # The control socket is /run/longwire/%i/ctl, mode 0660, group longwire: the people in that group (usermod -aG longwire NAME) can

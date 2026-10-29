@@ -102,5 +102,5 @@ if command -v setfacl > /dev/null; then			# the user need not log in again to be
 	setfacl -m "u:$uid:rw" "$run/ctl" || exit 1
 	echo "longwire-site: longwire@$nic is running; user $uid may use its control socket"
 else
-	echo "longwire-site: longwire@$nic is running; join the group longwire (sudo usermod -aG longwire YOU) and log in again to use it from the desktop"
+	echo "longwire-site: longwire@$nic is running; join the group longwire (please usermod -aG longwire YOU) and log in again to use it from the desktop"
 fi

@@ -17,7 +17,7 @@ They share one saved connection (a **profile**), so a change in one shows in the
 ## Install
 
 ```
-sudo apt install longwire        # or dnf, or pacman: the engine, the launchers, the network-device helper, man pages
+please apt install longwire        # or dnf, or pacman: the engine, the launchers, the network-device helper, man pages
 catalogue refresh
 catalogue install longwire       # the command, the pane, the menu bar telephone and the strip module, together
 ```
@@ -53,7 +53,7 @@ The page says **Longwire is off** and shows the connection:
 When the pane, the installed engine and the running node are not the same version it says so at the top (**Out of step**), with what to do; the scripts come from the catalogue and the engine from the package, and a running node keeps its old engine until it is turned off and on.
 
 The first profile you make becomes the default. When you press **Turn on** and the network device has to be made (the first time, and after each restart, because the device does
-not survive one), a dialog asks for your administrator password. It is only for making the device, and polkit remembers an approval for a few minutes. If `pkexec` is not
+not survive one), a dialog asks for your administrator password. It is only for making the device, and polkit remembers an approval for a few minutes. Who is asked, with whose password, whether it is remembered, and whether a group gets it with no password at all, is set in **Control Panel > Administrative Access**, where longwire's two actions (*Create the network device longwire uses on this computer*, `org.longwire.jack`, and *Make this computer a longwire site node*, `org.longwire.site`) are listed beside every other package's; longwire ships no rule of its own. If `pkexec` is not
 installed, or the password is refused, the pane says it could not make the jack and why; `longwire jack` in a terminal prints the full
 instructions, including the two commands to run by hand as root.
 
@@ -113,7 +113,7 @@ One glyph on the Control Strip, coloured by the theme: **dim** when off, the the
 Only for someone who runs a switchboard. It is a live view of it: how full it is (nodes, handshake load), the nodes with the names
 they gave, and the calls being set up right now (who is ringing whom, for a few seconds). It shows no node's address or key (only the switchboard's own address and code in its heading), keeps no
 history, and decides nothing; the switchboard's script does that. It shows a switchboard you started yourself, or one an
-administrator runs as a service if you are in the group `longwire` (`sudo usermod -aG longwire YOURNAME`, then log in again).
+administrator runs as a service if you are in the group `longwire` (`please usermod -aG longwire YOURNAME`, then log in again).
 
 ## The answer policy, in one table
 

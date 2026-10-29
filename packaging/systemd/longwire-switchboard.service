@@ -2,7 +2,7 @@
 # Configure /etc/longwire/switchboard.conf with one line, for example
 #     ARGS="--listen 1877 --registry none"
 # then   systemctl enable --now longwire-switchboard
-# The script comes from the catalogue, for the machine:  sudo catalogue --system install cli/longwire-switchboard
+# The script comes from the catalogue, for the machine:  catalogue --system install cli/longwire-switchboard
 # This is the service that faces the internet. Restart=always: whatever makes the worker exit (a crash, a kill) must only ever be a bounce; `systemctl stop` still
 # stops it, and a member of the group cannot stop the worker over its socket (only the user it runs as can). No AF_NETLINK: listing interface addresses is
 # for a node's candidates, and a switchboard does without. The system-call filter is systemd's @system-service, and every call

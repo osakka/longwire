@@ -83,7 +83,7 @@ and then dial and pick up entirely from the hibr desktop.
 - *Built:* `longwire` with no arguments, `longwire show` and `longwire watch` (no JSON); automatic choice of attach mode *(planned: M4)*
 - *Built:* an address for the jack from the pane or the profile, put on by the same root helper that makes the device ([ADR 0036](adr/0036-the-jack-gets-its-address-from-the-profile.md)); an address from a DHCP server on the line (`address = dhcp`: a DHCP client started by the same helper, without a default route or name servers, [ADR 0038](adr/0038-the-jack-may-ask-a-dhcp-server.md))
 
-**M5: No privilege, more Unix.** Done when a user with no sudo anywhere joins a line with `longwire shell`.
+**M5: No privilege, more Unix.** Done when a user with no please anywhere joins a line with `longwire shell`.
 - A Homebrew formula, once the module builds on macOS; `longwire shell` (user namespaces); FreeBSD and OpenBSD tap and BPF splice; macOS BPF splice; documented invocations
   for init systems other than systemd
 
