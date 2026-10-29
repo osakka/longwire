@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.23
 
+*Published:* the catalogue (`hibr-apps` `75ebf5f`) and the packages (`hibr-apt` `c6e9415`, `hibr-rpm` `e6d5988`, `hibr-arch` `ca356c6`). `make check` passed (674 checks).
+
 - **`please`, not `sudo`; no password asked for twice.** hibr now runs commands as root with `please` (polkit's `pkexec` underneath; `sudo` on macOS), and `catalogue --system` asks for the password itself through the polkit action `org.hibr.catalogue`. Every command in the guides, the
   messages the launcher and `longwire doctor` print, the units' comments and the helper's hints now say `please`, and `sudo catalogue --system …` is simply `catalogue --system …`. The two longwire polkit actions (`org.longwire.jack`, `org.longwire.site`) are listed in **Control Panel > Administrative Access**, where
   who is asked, with whose password, whether it is remembered and whether a group gets it with no password are set; longwire ships no rule of its own. Documentation and messages only.
