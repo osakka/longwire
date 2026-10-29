@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.16
+
+- **The jack may ask a DHCP server.** `address = dhcp` in a profile (the pane's **Address** row, or `longwire jack --address dhcp`): the root helper that makes the jack also starts a DHCP client on it in the same
+  password step (`dhclient`, else `dhcpcd`, else `udhcpc`), which keeps asking until the line answers. It takes the address and the network route only: a hook removes the default route, the name servers and the rest,
+  so a line cannot take over where the machine's traffic goes. A client of ours from before is stopped first; `on` and the pane ask without privilege whether one runs, so there is no second password
+  ([ADR 0038](docs/adr/0038-the-jack-may-ask-a-dhcp-server.md)). Tested against stand-in clients (`tests/jack.sh`); not tried against a real lease.
+
 ## 0.5.15
 
 *Published:* the catalogue (`hibr-apps` `87eff9e`) and the packages (`hibr-apt` `55c2ce0`, `hibr-rpm` `aa18fe8`, `hibr-arch` `3ece90d`). `make check` passed (606 checks). Not tried: the Out of step rows on a real desktop, and installing from the repositories on a clean machine.
@@ -14,7 +21,7 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.14
 
-*Published:* the catalogue (`hibr-apps` `2388745`) and the packages (`hibr-apt` `065ffbb`, `hibr-rpm` `ed55a3e`, `hibr-arch` `4c9e9dc`). `make check` passed (597 checks). The row appears once hibr 0.99.373 (which maps the large glyphs) and Blit 0.3.0 are installed. Not tried: installing from the repositories on a clean machine.
+*Published:* the catalogue (`hibr-apps` `2388745`) and the packages (`hibr-apt` `065ffbb`, `hibr-rpm` `ed55a3e`, `hibr-arch` `4c9e9dc`). `make check` passed (597 checks). The row appears once hibr 0.99.374 (which maps the large glyphs) and Blit 0.3.0 are installed. Not tried: installing from the repositories on a clean machine.
 
 - **Phone Icon Size.** The menu bar telephone can be one cell (**small**, the default) or **large**, two cells wide, written as two codepoints side by side as Blit 0.3.0 draws them (modern U+100023 to U+10002A, classic
   U+10002B to U+100032). The pane has a **Phone Icon Size** row, shown only where the glyph set has the large icons (`GL[phoneoff2]` and the rest, `GL[phoneoffc2]` for the classic ones: hibr's glyph table has to map them);

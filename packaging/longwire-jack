@@ -1,8 +1,10 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# longwire-jack [--address A.B.C.D/N] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
-# bring it up, with the address if one is given (so that nobody runs `ip addr` by hand).
+# longwire-jack [--address A.B.C.D/N | --dhcp] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
+# bring it up, with the address if one is given, or with a DHCP client started on it (so that nobody runs `ip addr` or `dhclient` by hand). The
+# client keeps asking until the line answers, so the tunnel need not be up yet; it sets the address and the network route only, never a
+# default route or a name server, so that a line cannot take over the machine's traffic.
 # This is the one privileged step a node on a single machine needs. A person never runs it by hand: `longwire jack` and the Control
 # Panel's Turn on run it through pkexec (polkit's action org.longwire.jack names this file), which asks for a password in the
 # desktop. pkexec sets PKEXEC_UID; run as root by hand, pass the user as the second argument. It makes nothing but a device called
@@ -11,11 +13,18 @@
 set -eu
 
 addr=
-if [ "${1:-}" = "--address" ]; then
-	addr=${2:-}
-	[ $# -ge 2 ] || { echo "longwire-jack: --address wants A.B.C.D/N" >&2; exit 2; }
-	shift 2
-fi
+dhcp=
+while [ $# -gt 0 ]; do
+	case $1 in
+	--address)
+		[ $# -ge 2 ] || { echo "longwire-jack: --address wants A.B.C.D/N" >&2; exit 2; }
+		addr=$2
+		shift 2 ;;
+	--dhcp) dhcp=1; shift ;;
+	*) break ;;
+	esac
+done
+[ -z "$addr" ] || [ -z "$dhcp" ] || { echo "longwire-jack: an address or --dhcp, not both" >&2; exit 2; }
 tap=${1:-lw0}
 uid=${PKEXEC_UID:-${2:-}}
 
@@ -52,4 +61,45 @@ if [ ! -d "/sys/class/net/$tap" ]; then
 fi
 ip link set "$tap" mtu 1400 up
 [ -z "$addr" ] || ip addr replace "$addr" dev "$tap"
-echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}"
+if [ -n "$dhcp" ]; then
+	rundir=${LONGWIRE_RUN:-/run/longwire}
+	mkdir -p "$rundir" && chmod 755 "$rundir"
+	pidf=$rundir/dhcp-$tap.pid
+	hook=$rundir/dhcp-hook-$tap
+	if [ -r "$pidf" ]; then			# a client of ours from before: stop it, so there is one
+		old=$(cat "$pidf" 2> /dev/null)
+		case $old in
+		'' | *[!0-9]*) ;;
+		*) case $(cat "/proc/$old/comm" 2> /dev/null) in dhclient | dhcpcd | udhcpc) kill "$old" 2> /dev/null || true ;; esac ;;
+		esac
+		rm -f "$pidf"
+	fi
+	# the system's own script does the work (address, network route) once the hook has taken out the default route, the name servers and the rest
+	mkhook() {
+		real=$1
+		[ -x "$real" ] || { echo "longwire-jack: the DHCP client's script $real is not there" >&2; exit 3; }
+		printf '#!/bin/sh\nunset new_routers new_domain_name_servers new_domain_search new_domain_name new_ntp_servers new_static_routes new_classless_static_routes router dns domain search ntpsrv staticroutes\nexec %s "$@"\n' "$real" > "$hook"
+		chmod 755 "$hook"
+	}
+	if command -v dhclient > /dev/null; then
+		real=${LONGWIRE_DHCP_SCRIPT:-}
+		[ -n "$real" ] || for real in /sbin/dhclient-script /usr/sbin/dhclient-script; do [ -x "$real" ] && break; done
+		mkhook "$real"
+		dhclient -nw -pf "$pidf" -lf "$rundir/dhcp-$tap.leases" -sf "$hook" "$tap"
+		client=dhclient
+	elif command -v dhcpcd > /dev/null; then
+		dhcpcd -k "$tap" > /dev/null 2>&1 || true
+		dhcpcd -b -G -C resolv.conf -C ntp.conf "$tap"
+		client=dhcpcd
+	elif command -v udhcpc > /dev/null; then
+		real=${LONGWIRE_DHCP_SCRIPT:-}
+		[ -n "$real" ] || for real in /usr/share/udhcpc/default.script /etc/udhcpc/default.script; do [ -x "$real" ] && break; done
+		mkhook "$real"
+		udhcpc -b -i "$tap" -p "$pidf" -s "$hook"
+		client=udhcpc
+	else
+		echo "longwire-jack: no DHCP client found: install isc-dhcp-client, dhcpcd or udhcpc (busybox)" >&2
+		exit 3
+	fi
+fi
+echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}"

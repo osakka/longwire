@@ -86,7 +86,7 @@ Reject. Either it is the wrong number or someone is in the middle. Do not pick u
 **`ping` does not reply.**
 longwire carries Ethernet frames; it does not give addresses. Both ends need an address in one subnet: `ip addr show lw0` on each. Set it in the
 pane (**Address**, like `10.77.0.2/24`) or with `longwire profile set home address=10.77.0.2/24`, and turn on again (a password is asked if the device
-does not have it yet); every machine needs its own. Or by hand, `sudo ip addr add 10.77.0.1/24 dev lw0`, or `sudo dhclient lw0` if a DHCP server is on the line.
+does not have it yet); every machine needs its own. Or by hand, `sudo ip addr add 10.77.0.1/24 dev lw0`, or `address=dhcp` in the profile if a DHCP server is on the line (it needs `dhclient`, `dhcpcd` or `udhcpc` installed: `longwire-jack: no DHCP client found` says so; the lease takes the address and route only, never a default route or name servers).
 Check a firewall on the machine is not dropping traffic on `lw0`.
 
 **Big transfers stall or are slow.**

@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.15
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.16
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -35,7 +35,7 @@ LWP_ATTACHES=(jack splice)
 # The last status read, and when. _rows runs every frame, and a read of the node is a round trip, so it is kept for a second.
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.15}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.16}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -652,6 +652,14 @@ fn lwp_ondone(int n, int st) {
 
 # Is the address already on the device? (Asked without privilege, so the password is only asked when it must be.)
 fn lwp_hasaddr(iface, addr) {
+	local pid=
+
+	if [ "$addr" = dhcp ]; then			# a DHCP client of ours is running on it, or it has an IPv4 address
+		read -r pid < "${LONGWIRE_RUN:-/run/longwire}/dhcp-$iface.pid" 2> /dev/null
+		[ -n "$pid" ] && [ -d "/proc/$pid" ] && return 0
+		PATH=$PATH:/usr/sbin:/sbin ip -4 -o addr show dev "$iface" 2> /dev/null | grep -q ' inet '
+		return
+	fi
 	PATH=$PATH:/usr/sbin:/sbin ip -4 -o addr show dev "$iface" 2> /dev/null | grep -q " ${addr%/*}/"
 }
 
@@ -736,7 +744,7 @@ fn longwire_do(int w, k, int dir) {
 	sb) p := lwp_cur; dt_ask "Switchboard" "HOST:PORT/KEY" "${LWP_PF[$p.switchboard]-}" lwp_setsb "the switchboard's address, then / and its key" ;;
 	token) dt_ask "Token" "Token" "" lwp_settoken "the invite token your switchboard gave you; empty removes it. It is kept in a file only you can read" 1 ;;
 	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "for jack, the tap (lw0 to lw99, made for you); for splice, the NIC" ;;
-	address) p := lwp_cur; dt_ask "Address" "Address" "${LWP_PF[$p.address]-}" lwp_setaddress "this machine's address on the line, like 10.77.0.2/24 (every machine its own, in one subnet); empty to leave it alone" ;;
+	address) p := lwp_cur; dt_ask "Address" "Address" "${LWP_PF[$p.address]-}" lwp_setaddress "this machine's address on the line, like 10.77.0.2/24 (every machine its own, in one subnet), or dhcp to ask a DHCP server on the line; empty to leave it alone" ;;
 	name) p := lwp_cur; dt_ask "Name" "Name" "${LWP_PF[$p.name]-}" lwp_setname "what callers see (a claim, not proof); empty for none" ;;
 	newprofile) dt_ask "New profile" "Name" "" lwp_newprofile "letters, digits, . _ -" ;;
 	renprofile) p := lwp_cur; dt_ask "Rename profile" "Name" "$p" lwp_renameprofile "the new name: letters, digits, . _ -" ;;

@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.15
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.16
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.15}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.16}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -232,7 +232,7 @@ cmd_profile() {
 			case $v in *[[:cntrl:]]*) echo "longwire: $k has a control character" >&2; exit 2 ;; esac
 			case $k in
 			switchboard|token|name|interface) ;;
-			address) case $v in ""|[0-9]*.[0-9]*.[0-9]*.[0-9]*/[0-9]*) case $v in *[!0-9./]*) echo "longwire: address is like 10.77.0.2/24" >&2; exit 2 ;; esac ;; *) echo "longwire: address is like 10.77.0.2/24" >&2; exit 2 ;; esac ;;
+			address) case $v in dhcp|"") ;; [0-9]*.[0-9]*.[0-9]*.[0-9]*/[0-9]*) case $v in *[!0-9./]*) echo "longwire: address is like 10.77.0.2/24, or dhcp" >&2; exit 2 ;; esac ;; *) echo "longwire: address is like 10.77.0.2/24, or dhcp" >&2; exit 2 ;; esac ;;
 			attach) case $v in jack|splice|sock|"") ;; *) echo "longwire: attach is jack or splice" >&2; exit 2 ;; esac ;;
 			listed) case $v in yes|no|"") ;; *) echo "longwire: listed is yes or no" >&2; exit 2 ;; esac ;;
 			answer) case $v in ask|known|auto|never|"") ;; *) echo "longwire: answer is ask, known, auto or never" >&2; exit 2 ;; esac ;;
@@ -428,7 +428,6 @@ EOM
 	cmd_show
 }
 
-# The node's events as sentences, as they happen. It only listens: Ctrl-C leaves and the node goes on.
 # The next event line from fd 5, waiting at most a second (hibr runs a trap only between commands, so a blocking read would hold TERM). `read -t` is a
 # deadline for the whole read: a line that starts just before it is cut, and what was taken is kept in EVPART and joined by the rest on the next call, so no
 # event is lost or torn in two. Returns 142 when there is no whole line yet, the line in EVLINE.
@@ -448,6 +447,7 @@ next_event() {
 	return 0
 }
 
+# The node's events as sentences, as they happen. It only listens: Ctrl-C leaves and the node goes on.
 cmd_watch() {
 	local rc line
 	lw status > /dev/null 2>&1 || { echo "longwire: it is off.  longwire on" >&2; exit 1; }
@@ -483,21 +483,34 @@ jack_helper() {
 	return 1
 }
 
-# Is the address (A.B.C.D/N) on the device already? Asked without privilege, so that a password is only needed when it is not.
+# Is the address (A.B.C.D/N) on the device already? Asked without privilege, so that a password is only needed when it is not. For "dhcp": a client of ours
+# is running on it, or it already has an IPv4 address.
 jack_has_addr() {
+	if [ "$2" = dhcp ]; then
+		local pid
+		read -r pid < "${LONGWIRE_RUN:-/run/longwire}/dhcp-$1.pid" 2> /dev/null
+		[ -n "${pid:-}" ] && [ -d "/proc/$pid" ] && return 0
+		PATH=$PATH:/usr/sbin:/sbin ip -4 -o addr show dev "$1" 2> /dev/null | grep -q ' inet '
+		return
+	fi
 	PATH=$PATH:/usr/sbin:/sbin ip -4 -o addr show dev "$1" 2> /dev/null | grep -q " ${2%/*}/"
 }
 
 cmd_jack() {
-	local addr= tap helper
+	local addr= tap helper mode=
 	if [ "${1:-}" = --address ]; then
-		[ $# -ge 2 ] || { echo "usage: longwire jack [--address A.B.C.D/N] [TAP]" >&2; exit 2; }
+		[ $# -ge 2 ] || { echo "usage: longwire jack [--address A.B.C.D/N | dhcp] [TAP]" >&2; exit 2; }
 		addr=$2
 		shift 2
 	fi
+	[ "$addr" = dhcp ] && mode=--dhcp
 	tap=${1:-lw0}
 	if [ -d "/sys/class/net/$tap" ] && { [ -z "$addr" ] || jack_has_addr "$tap" "$addr"; }; then
-		echo "longwire: the jack $tap is there${addr:+, with $addr}"
+		if [ "$addr" = dhcp ]; then
+			echo "longwire: the jack $tap is there, with DHCP"
+		else
+			echo "longwire: the jack $tap is there${addr:+, with $addr}"
+		fi
 		return 0
 	fi
 	if ! helper=$(jack_helper); then
@@ -506,9 +519,9 @@ cmd_jack() {
 		return 1
 	fi
 	if [ "$(id -u)" = 0 ]; then
-		"$helper" ${addr:+--address "$addr"} "$tap" "${SUDO_UID:-}"
+		"$helper" ${mode:-${addr:+--address "$addr"}} "$tap" "${SUDO_UID:-}"
 	elif command -v pkexec > /dev/null; then
-		pkexec "$helper" ${addr:+--address "$addr"} "$tap"
+		pkexec "$helper" ${mode:-${addr:+--address "$addr"}} "$tap"
 	else
 		echo "longwire: there is no pkexec to ask for the password with. By hand, once, as root:" >&2
 		cmd_setup jack "$tap" ${addr:+"$addr"} >&2
@@ -660,8 +673,9 @@ EOF
 		cat <<EOF
 # once, as root: a tap device you own, then the node runs as you with no privilege at all
 ip tuntap add dev ${2:-lw0} mode tap user $(id -un)
-ip link set ${2:-lw0} mtu 1400 up${3:+
-ip addr add $3 dev ${2:-lw0}}
+ip link set ${2:-lw0} mtu 1400 up${3:+$([ "$3" = dhcp ] && echo "
+dhclient -nw ${2:-lw0}      # (or dhcpcd -b -G ${2:-lw0}, or udhcpc -b -i ${2:-lw0}: not the default route or the name servers of a line)" || echo "
+ip addr add $3 dev ${2:-lw0}")}
 # then: longwire up --jack ${2:-lw0} ...
 EOF
 		;;

@@ -83,7 +83,7 @@ profile home
   token = 5fe1c0ab…
   attach = jack                      jack | splice
   interface = lw0                    the tap, or the NIC to splice
-  address = 10.77.0.2/24             this machine's address on the line (jack only; every machine its own, one subnet)
+  address = 10.77.0.2/24             this machine's address on the line (jack only; every machine its own, one subnet), or `dhcp`
   name = osakka
   listed = no
   answer = known

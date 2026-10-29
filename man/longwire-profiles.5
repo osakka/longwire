@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.15" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.16" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -72,6 +72,9 @@ or the NIC to splice.
 .B address
 For a jack: this machine's address on the line, like 10.77.0.2/24, put on the device for you when the node is turned on.
 Every machine on a line needs its own, in one subnet.
+The word
+.B dhcp
+instead asks a DHCP server on the line, through a client (dhclient, dhcpcd or udhcpc) that the same step starts; it takes the address and the network route only, never a default route or name servers.
 Empty leaves the device alone.
 .TP
 .B name
