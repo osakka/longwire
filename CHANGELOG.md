@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.17
 
+*Published:* the catalogue (`hibr-apps` `80abc69`) and the packages (`hibr-apt` `695134e`, `hibr-rpm` `7ed4b32`, `hibr-arch` `48df562`). `make check` passed (656 checks). Not tried: a real service, a real card, polkit's dialog, and installing from the repositories on a clean machine.
+
 - **A site node from the pane.** A profile with Attach = splice no longer ends in a note about a terminal command. **Turn on** asks for your administrator password once and a second root helper
   (`/usr/lib/longwire/site`, polkit action `org.longwire.site`) writes `/etc/longwire/CARD.conf` and starts the service `longwire@CARD` with the profile's switchboard, token, name, answer policy and `listed`; the
   pane then follows the service through its **Node** row, and **Stop the service** stops it. From a terminal: `longwire site CARD [PROFILE]` and `longwire site --stop CARD`. The options reach the helper in a file only the
