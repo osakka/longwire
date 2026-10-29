@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.24
 
+*Published:* the catalogue (`hibr-apps` `d9bf1e7`) and the packages (`hibr-apt` `b31a1a6`, `hibr-rpm` `7b217a2`, `hibr-arch` `dac2582`). `make check` passed (709 checks). A switchboard that is updated gets the bans with their defaults on; `--strikes 0` turns them off.
+
 - **Strikes and bans on a switchboard** ([ADR 0043](docs/adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)). A session that has passed the handshake and keeps failing (a wrong token counts two, a number that does not exist one, a message over the session's budget a fraction) earns strikes, which leak away with time; at
   `--strikes` (default 10 in `--strike-window` 600 s) its **key** is banned for `--ban-for` (900 s, doubling at each repeat up to `--ban-max`, 86400 s), its session ends, and its handshake is refused like any unknown key's. Several different banned keys from one network (`--net-ban-keys`, default 5 per /24 or /64) refuse *new*
   identities from it; the nodes already registered behind it are unaffected. The rule that keeps it from being a weapon: **nothing before the handshake is ever counted**, so a spoofed address cannot get anyone banned. Fixed tables that never grow, everything expiring, a ceiling on bans an hour (`--ban-ceiling`), and `--never-ban KEY|ADDR/PREFIX`
