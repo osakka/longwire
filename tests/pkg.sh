@@ -45,7 +45,7 @@ grep -q 'exec.path">/usr/lib/longwire/site<' "$T/deb/usr/share/polkit-1/actions/
 cmp -s "$T/deb/usr/lib/longwire/site" packaging/longwire-site; check $? "the helper in the package is packaging/longwire-site"
 a=$(sha256sum < "$T/deb/usr/lib/hibr/longwire.so"); b=$(sha256sum < "$T/rpm/usr/lib/hibr/longwire.so"); c=$(sha256sum < "$T/arch/usr/lib/hibr/longwire.so")
 [ "$a" = "$b" ] && [ "$b" = "$c" ]; check $? "the module is the same file in all three"
-cmp -s "$T/deb/usr/bin/longwire" packaging/launcher.sh && cmp -s "$T/deb/usr/bin/longwire-switchboard" packaging/launcher.sh; check $? "the two launchers are the launcher"
+cmp -s "$T/deb/usr/bin/longwire" packaging/launcher.hibr && cmp -s "$T/deb/usr/bin/longwire-switchboard" packaging/launcher.hibr; check $? "the two launchers are the launcher"
 
 # --- what they say they need: the oldest hibr the suite has been run against (HIBR_MIN), and the version they carry
 hv=$(cat HIBR_MIN)
@@ -69,17 +69,17 @@ done
 # --- the launcher finds a script the way the catalogue places it, and says what to do when there is none
 mkdir -p "$T/home/.local/share/hibr/cli" "$T/none"
 printf '#!/usr/bin/env hibr\necho "ran with: $*"\n' > "$T/home/.local/share/hibr/cli/longwire.hibr"
-out=$(HOME="$T/home" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" sh "$T/deb/usr/bin/longwire" up --now 2>&1)
+out=$(HOME="$T/home" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire" up --now 2>&1)
 [ "$out" = "ran with: up --now" ]; check $? "the launcher runs the script the catalogue put in its cli folder: $out"
 mkdir -p "$T/home3/.local/share/hibr/apps/Network" && cp "$T/home/.local/share/hibr/cli/longwire.hibr" "$T/home3/.local/share/hibr/apps/Network/longwire.hibr"
-out=$(HOME="$T/home3" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" sh "$T/deb/usr/bin/longwire" x 2>&1)
+out=$(HOME="$T/home3" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire" x 2>&1)
 [ "$out" = "ran with: x" ]; check $? "...and one installed as an app, in a submenu folder, is found too"
-out=$(HOME="$T/home" XDG_CONFIG_HOME="$T/none" XDG_DATA_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" sh "$T/deb/usr/bin/longwire-switchboard" 2>&1); rc=$?
+out=$(HOME="$T/home" XDG_CONFIG_HOME="$T/none" XDG_DATA_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire-switchboard" 2>&1); rc=$?
 [ $rc -eq 127 ] && echo "$out" | grep -q "catalogue install cli/longwire-switchboard"; check $? "with no script it says how to get it, and exits 127"
 
 # --- the real thing, end to end: the launcher, the real script, the module from the package
 out=$(HOME="$T/home2" XDG_CONFIG_HOME="$T/none" LONGWIRE_SCRIPTS="$PWD/scripts" LONGWIRE_MOD="$T/deb/usr/lib/hibr/longwire.so" \
-	PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" sh "$T/deb/usr/bin/longwire" id 2>&1)
+	PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire" id 2>&1)
 [ ${#out} -eq 64 ]; check $? "longwire id through the launcher and the packaged module gives a key id"
 
 # --- the group that may use the services' control sockets (ADR 0032): a sysusers.d file, and each package makes the group

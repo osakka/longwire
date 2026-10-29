@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.19
+
+- **The helpers and the launcher are hibr scripts.** `/usr/lib/longwire/jack`, `/usr/lib/longwire/site` and `/usr/bin/longwire` (the launcher) were `sh`; they are now native hibr, with strict variables and regular
+  expressions for what they check ([ADR 0041](docs/adr/0041-the-helpers-and-the-launcher-are-hibr-scripts.md)). As root, hibr consults only its install directory for modules, and `pkexec` cleans the environment. The DHCP hook is a hibr script too, run
+  by the hibr that made it (`$HIBR`). A site node's token is now checked against a short whitelist of characters (letters, digits and `. _ ~ + = , : @ / -`); another character is refused with a plain message.
+- **The packages recommend what the jack step needs.** `pkexec` (polkit) and `ip` (iproute2) are recommended, a DHCP client and the ACL tools suggested. A machine without `pkexec` said "there is no pkexec to ask for the password with"; install it
+  (Debian: `sudo apt install pkexec`, older Ubuntu: `policykit-1`; Fedora: `polkit`; Arch: `polkit`) or make the jack by hand with the two commands that message prints.
+
 ## 0.5.18
 
 *Published:* the catalogue (`hibr-apps` `97f8f0b`) and the packages (`hibr-apt` `992109e`, `hibr-rpm` `fac116a`, `hibr-arch` `b1e95d2`). `make check` passed (656 checks).

@@ -67,8 +67,8 @@ install: all
 		$(DESTDIR)$(PREFIX)/lib/longwire $(DESTDIR)$(PREFIX)/share/polkit-1/actions $(DESTDIR)$(PREFIX)/share/doc/longwire \
 		$(DESTDIR)$(PREFIX)/share/man/man1 $(DESTDIR)$(PREFIX)/share/man/man5 $(DESTDIR)$(PREFIX)/share/man/man7
 	install -m 755 $(B)/longwire.so $(DESTDIR)$(PREFIX)/lib/hibr/longwire.so
-	install -m 755 packaging/launcher.sh $(DESTDIR)$(PREFIX)/bin/longwire
-	install -m 755 packaging/launcher.sh $(DESTDIR)$(PREFIX)/bin/longwire-switchboard
+	install -m 755 packaging/launcher.hibr $(DESTDIR)$(PREFIX)/bin/longwire
+	install -m 755 packaging/launcher.hibr $(DESTDIR)$(PREFIX)/bin/longwire-switchboard
 	for u in longwire-switchboard.service longwire@.service; do \
 		sed -e 's|/usr/bin/|$(PREFIX)/bin/|g' -e 's|/usr/lib/hibr/|$(PREFIX)/lib/hibr/|g' packaging/systemd/$$u \
 			> $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u && chmod 644 $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u; done

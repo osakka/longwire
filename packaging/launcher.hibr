@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/hibr
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # The launcher: /usr/bin/longwire and /usr/bin/longwire-switchboard are this file, twice. The package ships the module;
@@ -8,11 +8,13 @@
 # as an app is found too, after those.
 #
 # LONGWIRE_SCRIPTS (a directory) goes first when set: for a test, or a checkout.
+# It is a hibr script like the rest of longwire (docs/adr/0041); the script it finds is run by the same hibr that runs this.
 
 name=${0##*/}
 want=$name.hibr
 
-find_script() {
+fn find_script() {
+	local d f
 	for d in "${LONGWIRE_SCRIPTS:-}" \
 		 "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/cli" \
 		 "${HIBR_SYSDIR:-/var/lib/hibr}/cli" \
@@ -22,16 +24,16 @@ find_script() {
 		 /usr/share/hibr/apps; do
 		[ -n "$d" ] || continue
 		for f in "$d/$want" "$d"/*/"$want"; do		# the catalogue may file an app in a submenu folder
-			[ -f "$f" ] && { echo "$f"; return 0; }
+			[ -f "$f" ] && { ret "$f"; return 0; }
 		done
 	done
 	return 1
 }
 
-script=$(find_script) || {
+if ! script := find_script; then
 	echo "$name: its script is not installed. Fetch it from the catalogue:" >&2
 	echo "$name:     catalogue install cli/$name        (for this user)" >&2
 	echo "$name:     sudo catalogue --system install cli/$name        (for the machine, and for the services)" >&2
 	exit 127
-}
-exec hibr "$script" "$@"
+fi
+exec "$HIBR" "$script" "$@"			# $HIBR: the hibr this was started under, not whichever comes first on PATH

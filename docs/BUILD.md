@@ -44,7 +44,7 @@ optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is pa
 | 1. switchboard | `scripts/longwire-switchboard.hibr` | **hibr catalogue** command `cli/longwire-switchboard` | the same |
 | 1b. switchboard app | `apps/switchboard.hibr`, its own entry, the catalogue's `switchboard` in the `apps` kind | the desktop's `apps` kind | a desktop scan root |
 | 2b. control panel pane | `control-panel/longwire.hibr`, its own entry, the catalogue's `longwire` in the `control-panel` kind | the desktop's `control-panel` kind | a desktop scan root |
-| launchers + services | `packaging/launcher.sh` (twice), `packaging/systemd/` | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
+| launchers + services | `packaging/launcher.hibr` (twice), `packaging/systemd/` | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
 
 ```
 sudo apt install longwire                       # a laptop: the module and the launchers (or dnf / pacman)
@@ -83,7 +83,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.18
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.19
 # modules: longwire
 ```
 

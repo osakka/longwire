@@ -3,6 +3,7 @@
 # The site helper (packaging/longwire-site): what it writes and starts, and what it refuses. Run as an ordinary user with stand-ins for systemctl and
 # setfacl and a made-up network card, so nothing on this machine changes.
 cd "$(dirname "$0")/.." || exit 1
+HIBR=$(readlink -f "${HIBR:-../hibr/build/hibr}")
 H=$PWD/packaging/longwire-site
 T=$(mktemp -d /tmp/lwsite.XXXXXX) || exit 1
 trap 'rm -rf "$T"' EXIT
@@ -30,7 +31,7 @@ s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.bind(sys.argv[1]); s.li
 PY
 sock=$!
 sleep 0.5
-run() { : > "$LWS_LOG"; out=$(sh "$H" "$@" 2>&1); rc=$?; }
+run() { : > "$LWS_LOG"; out=$("$HIBR" "$H" "$@" 2>&1); rc=$?; }
 args=$T/args
 
 echo "-- site: the privileged helper"
@@ -49,7 +50,7 @@ echo "-- site: what it refuses (nothing is written or started)"
 refuse() {		# description, expected message part, then the helper's arguments
 	d=$1; m=$2; shift 2
 	rm -f "$T/etc/"*.conf; : > "$LWS_LOG"
-	out=$(sh "$H" "$@" 2>&1); rc=$?
+	out=$("$HIBR" "$H" "$@" 2>&1); rc=$?
 	[ $rc != 0 ] && echo "$out" | grep -q "$m" && [ ! -e "$T/etc/eth9.conf" ] && ! grep -q "enable\|restart" "$LWS_LOG" && ok "$d" || bad "$d: rc=$rc $out"
 }
 printf -- '--exec-start /bin/sh\n' > $T/a1;                       refuse "an option that is not on the list" "not one a site node takes" eth9 $T/a1 $uid
@@ -69,7 +70,6 @@ refuse "no user" "no user" eth9 $T/ok1
 ln -sf $T/ok1 $T/link;                                            refuse "a symbolic link" "not a plain file" eth9 $T/link $uid
 
 echo "-- longwire site: the script hands the helper a file, not a command line"
-HIBR=${HIBR:-../hibr/build/hibr}
 cat > "$T/fake-site" <<'FS'
 #!/bin/sh
 echo "site $*" >> "$LWS_LOG"

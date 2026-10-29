@@ -54,7 +54,8 @@ Architecture: $ARCH
 Maintainer: osakka <osakka@gmail.com>
 Installed-Size: $size
 Depends: libc6 (>= $glibc), hibr (>= $HMIN)
-Recommends: ca-certificates
+Recommends: ca-certificates, pkexec | policykit-1, iproute2
+Suggests: isc-dhcp-client | dhcpcd-base | udhcpc, acl
 Section: net
 Priority: optional
 Description: layer-2 mesh VPN engine for hibr, with post-quantum handshakes

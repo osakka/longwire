@@ -58,6 +58,7 @@ pkgdesc='Layer-2 mesh VPN engine for hibr, with post-quantum handshakes'
 arch=('$CARCH')
 license=('GPL-3.0-or-later')
 depends=('glibc' 'hibr>=$HVER')
+optdepends=('polkit: the password step that makes the network device (pkexec)' 'iproute2: the network device and its address' 'dhcpcd: an address from a DHCP server on the line' 'acl: reach a site node you started without logging in again')
 install=longwire.install
 options=(!strip !debug)
 

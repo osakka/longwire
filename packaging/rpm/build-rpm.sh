@@ -44,6 +44,8 @@ Summary:        Layer-2 mesh VPN engine for hibr, with post-quantum handshakes
 License:        GPL-3.0-or-later
 BuildArch:      $ARCH
 Requires:       hibr >= $HVER
+Recommends:     polkit, iproute
+Suggests:       dhcp-client, acl
 
 %description
 longwire joins sites, and single machines, into one Ethernet segment over the

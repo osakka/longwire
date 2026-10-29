@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/hibr
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # longwire-jack [--address A.B.C.D/N | --dhcp] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
@@ -10,96 +10,107 @@
 # desktop. pkexec sets PKEXEC_UID; run as root by hand, pass the user as the second argument. It makes nothing but a device called
 # lw0 to lw99, owned by that user, with an IPv4 address on it if asked, and does nothing else: the node itself never runs as root
 # (docs/adr/0004).
-set -eu
+#
+# It is a hibr script like the rest of longwire (docs/adr/0041). As root, hibr consults only its install directory for modules and reads
+# nothing of the caller's environment for them; pkexec cleans the environment besides. The LONGWIRE_* variables below are for the tests.
+
+fn fail(msg, int code = 2) {
+	echo "longwire-jack: $msg" >&2
+	exit $code
+}
 
 addr=
 dhcp=
 while [ $# -gt 0 ]; do
 	case $1 in
 	--address)
-		[ $# -ge 2 ] || { echo "longwire-jack: --address wants A.B.C.D/N" >&2; exit 2; }
+		[ $# -ge 2 ] || fail "--address wants A.B.C.D/N"
 		addr=$2
 		shift 2 ;;
 	--dhcp) dhcp=1; shift ;;
 	*) break ;;
 	esac
 done
-[ -z "$addr" ] || [ -z "$dhcp" ] || { echo "longwire-jack: an address or --dhcp, not both" >&2; exit 2; }
+[ -z "$addr" ] || [ -z "$dhcp" ] || fail "an address or --dhcp, not both"
 tap=${1:-lw0}
 uid=${PKEXEC_UID:-${2:-}}
 
-case $tap in
-lw[0-9] | lw[0-9][0-9]) ;;
-*) echo "longwire-jack: a jack is called lw0 to lw99, not '$tap'" >&2; exit 2 ;;
-esac
-case $uid in
-'' | *[!0-9]*) echo "longwire-jack: no user to give it to (pass a uid, or run it through pkexec)" >&2; exit 2 ;;
-esac
-[ "$uid" -ne 0 ] || { echo "longwire-jack: a jack owned by root would need a node that runs as root" >&2; exit 2; }
+[[ $tap =~ ^lw[0-9]{1,2}$ ]] || fail "a jack is called lw0 to lw99, not '$tap'"
+[[ $uid =~ ^[0-9]+$ ]] || fail "no user to give it to (pass a uid, or run it through pkexec)"
+[ "$uid" -ne 0 ] || fail "a jack owned by root would need a node that runs as root"
 
 if [ -n "$addr" ]; then
-	# a plain IPv4 host address with a prefix of 8 to 30: four numbers up to 255, a slash, the prefix; not 0., 127., or above 223.
-	case $addr in
-	*[!0-9./]* | */*/* | */ | /* | *..* | .* | *.*.*.*.*) echo "longwire-jack: '$addr' is not an address like 10.77.0.2/24" >&2; exit 2 ;;
-	esac
-	ip4=${addr%/*}
-	pre=${addr#*/}
-	[ "$pre" != "$addr" ] && [ "${#pre}" -le 2 ] && [ "$pre" -ge 8 ] && [ "$pre" -le 30 ] || { echo "longwire-jack: the prefix of '$addr' is 8 to 30" >&2; exit 2; }
-	oldifs=$IFS
-	IFS=.
-	set -- $ip4
-	IFS=$oldifs
-	[ $# -eq 4 ] || { echo "longwire-jack: '$addr' is not an address like 10.77.0.2/24" >&2; exit 2; }
-	for o in "$@"; do
-		[ "${#o}" -ge 1 ] && [ "${#o}" -le 3 ] && [ "$o" -le 255 ] || { echo "longwire-jack: '$addr' is not an address like 10.77.0.2/24" >&2; exit 2; }
-	done
-	[ "$1" -ne 0 ] && [ "$1" -ne 127 ] && [ "$1" -le 223 ] || { echo "longwire-jack: '$addr' is not a usable host address" >&2; exit 2; }
+	# a plain IPv4 host address with a prefix of 8 to 30: four numbers up to 255, no leading zeros, a slash, the prefix; not 0., 127., or above 223.
+	octet='(0|[1-9][0-9]{0,2})'
+	[[ $addr =~ ^$octet\.$octet\.$octet\.$octet/([0-9]{1,2})$ ]] || fail "'$addr' is not an address like 10.77.0.2/24"
+	o1=${M[1]}; o2=${M[2]}; o3=${M[3]}; o4=${M[4]}; pre=${M[5]}
+	[ "$o1" -le 255 ] && [ "$o2" -le 255 ] && [ "$o3" -le 255 ] && [ "$o4" -le 255 ] || fail "'$addr' is not an address like 10.77.0.2/24"
+	[ "$pre" -ge 8 ] && [ "$pre" -le 30 ] || fail "the prefix of '$addr' is 8 to 30"
+	[ "$o1" -ne 0 ] && [ "$o1" -ne 127 ] && [ "$o1" -le 223 ] || fail "'$addr' is not a usable host address"
 fi
 
 if [ ! -d "/sys/class/net/$tap" ]; then
-	ip tuntap add dev "$tap" mode tap user "$uid"
+	ip tuntap add dev "$tap" mode tap user "$uid" || exit 1
 fi
-ip link set "$tap" mtu 1400 up
-[ -z "$addr" ] || ip addr replace "$addr" dev "$tap"
+ip link set "$tap" mtu 1400 up || exit 1
+if [ -n "$addr" ]; then
+	ip addr replace "$addr" dev "$tap" || exit 1
+fi
+
+client=
 if [ -n "$dhcp" ]; then
 	rundir=${LONGWIRE_RUN:-/run/longwire}
-	mkdir -p "$rundir" && chmod 755 "$rundir"
+	mkdir -p "$rundir" && chmod 755 "$rundir" || exit 1
 	pidf=$rundir/dhcp-$tap.pid
 	hook=$rundir/dhcp-hook-$tap
 	if [ -r "$pidf" ]; then			# a client of ours from before: stop it, so there is one
-		old=$(cat "$pidf" 2> /dev/null)
-		case $old in
-		'' | *[!0-9]*) ;;
-		*) case $(cat "/proc/$old/comm" 2> /dev/null) in dhclient | dhcpcd | udhcpc) kill "$old" 2> /dev/null || true ;; esac ;;
-		esac
+		old=
+		read -r old < "$pidf"
+		if [[ $old =~ ^[0-9]+$ ]]; then
+			comm=
+			read -r comm < "/proc/$old/comm" 2> /dev/null
+			case $comm in dhclient | dhcpcd | udhcpc) kill "$old" 2> /dev/null ;; esac
+		fi
 		rm -f "$pidf"
 	fi
-	# the system's own script does the work (address, network route) once the hook has taken out the default route, the name servers and the rest
-	mkhook() {
-		real=$1
-		[ -x "$real" ] || { echo "longwire-jack: the DHCP client's script $real is not there" >&2; exit 3; }
-		printf '#!/bin/sh\nunset new_routers new_domain_name_servers new_domain_search new_domain_name new_ntp_servers new_static_routes new_classless_static_routes router dns domain search ntpsrv staticroutes\nexec %s "$@"\n' "$real" > "$hook"
+
+	# The system's own script does the work (address, network route) once this hook has taken out the default route, the name servers and
+	# the rest. The hook is a hibr script too: its interpreter is the one running now.
+	fn mkhook(real) {
+		local me
+		[ -x "$real" ] || fail "the DHCP client's script $real is not there" 3
+		me=$HIBR			# the hibr this was started under, not whichever comes first on PATH
+		printf '#!%s\nunset new_routers new_domain_name_servers new_domain_search new_domain_name new_ntp_servers new_static_routes new_classless_static_routes router dns domain search ntpsrv staticroutes\nexec %s "$@"\n' "$me" "$real" > "$hook" || exit 1
 		chmod 755 "$hook"
 	}
+
+	real=
 	if command -v dhclient > /dev/null; then
 		real=${LONGWIRE_DHCP_SCRIPT:-}
-		[ -n "$real" ] || for real in /sbin/dhclient-script /usr/sbin/dhclient-script; do [ -x "$real" ] && break; done
+		if [ -z "$real" ]; then
+			for f in /sbin/dhclient-script /usr/sbin/dhclient-script; do
+				[ -x "$f" ] && { real=$f; break; }
+			done
+		fi
 		mkhook "$real"
-		dhclient -nw -pf "$pidf" -lf "$rundir/dhcp-$tap.leases" -sf "$hook" "$tap"
+		dhclient -nw -pf "$pidf" -lf "$rundir/dhcp-$tap.leases" -sf "$hook" "$tap" || exit 1
 		client=dhclient
 	elif command -v dhcpcd > /dev/null; then
-		dhcpcd -k "$tap" > /dev/null 2>&1 || true
-		dhcpcd -b -G -C resolv.conf -C ntp.conf "$tap"
+		dhcpcd -k "$tap" > /dev/null 2>&1
+		dhcpcd -b -G -C resolv.conf -C ntp.conf "$tap" || exit 1
 		client=dhcpcd
 	elif command -v udhcpc > /dev/null; then
 		real=${LONGWIRE_DHCP_SCRIPT:-}
-		[ -n "$real" ] || for real in /usr/share/udhcpc/default.script /etc/udhcpc/default.script; do [ -x "$real" ] && break; done
+		if [ -z "$real" ]; then
+			for f in /usr/share/udhcpc/default.script /etc/udhcpc/default.script; do
+				[ -x "$f" ] && { real=$f; break; }
+			done
+		fi
 		mkhook "$real"
-		udhcpc -b -i "$tap" -p "$pidf" -s "$hook"
+		udhcpc -b -i "$tap" -p "$pidf" -s "$hook" || exit 1
 		client=udhcpc
 	else
-		echo "longwire-jack: no DHCP client found: install isc-dhcp-client, dhcpcd or udhcpc (busybox)" >&2
-		exit 3
+		fail "no DHCP client found: install isc-dhcp-client, dhcpcd or udhcpc (busybox)" 3
 	fi
 fi
 echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}"

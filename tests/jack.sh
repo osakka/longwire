@@ -3,6 +3,7 @@
 # The jack helper (packaging/longwire-jack): what it runs as root, and what it refuses. It is run here as an ordinary user with a stand-in
 # `ip` that only writes down what it was asked, so nothing on this machine changes.
 cd "$(dirname "$0")/.." || exit 1
+HIBR=$(readlink -f "${HIBR:-../hibr/build/hibr}")
 H=$PWD/packaging/longwire-jack
 T=$(mktemp -d /tmp/lwjack.XXXXXX) || exit 1
 trap 'rm -rf "$T"' EXIT
@@ -17,7 +18,7 @@ fail=0
 ok() { echo "ok   $1"; }
 bad() { echo "FAIL $1"; fail=1; }
 
-run() { : > "$LWJ_LOG"; out=$(sh "$H" "$@" 2>&1); rc=$?; }
+run() { : > "$LWJ_LOG"; out=$("$HIBR" "$H" "$@" 2>&1); rc=$?; }
 
 echo "-- jack: the privileged helper"
 run lw7 1000
@@ -67,8 +68,8 @@ run --dhcp lw7 1000
 sleep 0.2
 kill -0 $oldpid 2> /dev/null && { bad "the client from before is still there"; kill $oldpid; } || ok "and the client of ours from before is stopped, so there is only one"
 : > "$LWJ_LOG"
-new_routers=9.9.9.9 new_domain_name_servers=8.8.8.8 router=9.9.9.9 dns=8.8.8.8 new_ip_address=10.1.1.5 sh "$RUN/dhcp-hook-lw7" BOUND
-grep -q "REAL ip=10.1.1.5 routers= dns= router= dnsu= args=BOUND" "$LWJ_LOG" && ok "the hook keeps the address and takes out the default route and the name servers before the system script runs" || bad "hook: $(cat "$LWJ_LOG")"
+new_routers=9.9.9.9 new_domain_name_servers=8.8.8.8 router=9.9.9.9 dns=8.8.8.8 new_ip_address=10.1.1.5 "$RUN/dhcp-hook-lw7" BOUND
+[ "$(head -n 1 "$RUN/dhcp-hook-lw7")" = "#!$HIBR" ] && grep -q "REAL ip=10.1.1.5 routers= dns= router= dnsu= args=BOUND" "$LWJ_LOG" && ok "the hook (a hibr script, run directly through its shebang) keeps the address and takes out the default route and the name servers before the system script runs" || bad "hook: $(cat "$LWJ_LOG")"
 rm -f "$T/bin/dhclient"
 mkclient dhcpcd
 run --dhcp lw7 1000
@@ -99,7 +100,6 @@ exec "$@"
 PK
 chmod +x "$T/bin/pkexec"
 export LONGWIRE_JACK=$T/fake-helper LONGWIRE_MOD=$PWD/build/longwire.so HOME=$T LW_SOCK=$T/none.sock LW_DIR=$T/lw
-HIBR=${HIBR:-../hibr/build/hibr}
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address dhcp lw7 2>&1)
 grep -qx "helper --dhcp lw7" "$LWJ_LOG" && ok "longwire jack --address dhcp asks the helper for --dhcp" || bad "jack dhcp: $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 10.77.0.2/24 lw7 2>&1)
