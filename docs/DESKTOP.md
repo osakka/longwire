@@ -42,7 +42,6 @@ The page says **Longwire is off** and shows the connection:
 | **Name** | what callers see when you ring them. A claim, never proof. |
 | **List in the directory** | on: others can find you by name on the switchboard. Off by default. |
 | **When a call rings** | how this machine answers: `ask`, `known`, `auto` or `never` (see below). |
-| **Phone Icon Size** | **small** (one cell, the default) or **large** (two cells wide). Shown only where the glyph set has large telephones (Blit 0.3.0 on); the Control Strip always uses the small one. |
 | **Longwire on the Menu Bar** | show or hide the telephone. |
 | **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. |
 | **Keep the jack when turned off** | on (the default): Turn off stops the node and leaves the network device, so the next Turn on asks for no password. Off: Turn off removes the device too (and a DHCP client of ours on it), at the price of the password again when you turn on. Jack profiles only. |

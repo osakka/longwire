@@ -216,14 +216,6 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), 'GL[phoneoff]=x; longwire_do 1 lwstyle 1; echo "STYLE $DT_LWSTYLE"; longwire_do 1 lwstyle 1; echo "STYLE $DT_LWSTYLE"')
     check("STYLE classic" in r.stdout and r.stdout.strip().endswith("STYLE modern"), f"the row cycles modern, classic, modern: {r.stdout.strip()}")
 
-    # Phone Icon Size: a row only where the glyph set has large telephones; it cycles small, large, small
-    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), "GL[phoneoff]=x; dump 1")
-    check(not any(x[3] == "lwsize" for x in rows), "a glyph set with telephones but no large ones has no Phone Icon Size row")
-    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), "GL[phoneoff]=x; GL[phoneoff2]=xy; dump 1")
-    check(any(x[3] == "lwsize" and x[0] == "set" and x[1] == "Phone Icon Size" and x[2] == "small" for x in rows), f"with large ones there is one, at small: {[x for x in rows if x[3] == 'lwsize']}")
-    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), 'GL[phoneoff]=x; GL[phoneoff2]=xy; longwire_do 1 lwsize 1; echo "SIZE $DT_LWSIZE"; longwire_do 1 lwsize 1; echo "SIZE $DT_LWSIZE"')
-    check("SIZE large" in r.stdout and r.stdout.strip().endswith("SIZE small"), f"the row cycles small, large, small: {r.stdout.strip()}")
-
     # turning on: refused without what it needs
     rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", PATH="/usr/bin:/bin"), 'longwire_do 1 on 1')
     check(any(l.startswith("NOTE high") and ("not installed" in l or "switchboard" in l) for l in log), f"Turn on without the command or a switchboard says what is missing: {log}")

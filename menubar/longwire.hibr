@@ -19,7 +19,7 @@
 
 strict
 
-app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.21
+app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.22
 # needs: control-panel/longwire
 
 # The switch (Control Panel > Longwire > Longwire on the Menu Bar, and Menu Bar Items) lives with the pane; the bar reads it.
@@ -57,7 +57,7 @@ fn lwb_g(what) {
 }
 
 # A glyph set that draws the state in the telephone itself (Blit's colour icons: GL[phoneoff], GL[phonewait], GL[phoneon] and GL[phonering], and the classic rotary
-# phone as GL[phoneoffc], GL[phonewaitc], GL[phoneonc] and GL[phoneringc]; the large ones end in 2)
+# phone as GL[phoneoffc], GL[phonewaitc], GL[phoneonc] and GL[phoneringc])
 # gives the bar one picture for the state; the ring falls back to the "on" one. Empty where the set has none, and the bar then builds the state
 # from a telephone and a mark.
 fn lwb_pick(sfx = "") {
@@ -67,20 +67,14 @@ fn lwb_pick(sfx = "") {
 	ret "$g"
 }
 
-# The person's Phone Style picks between the modern handset and the classic rotary phone (names ending in c), and Phone Icon Size between the one-cell
-# icon and the large one, two cells wide, written as two codepoints side by side (names ending in 2: GL[phoneoff2], GL[phoneoffc2]). What is asked for
-# is used when the glyph set has it; otherwise the same style in one cell, then the modern in the size asked for, then the modern in one cell, and a set
-# with none gives the characters. A caller that has room for one cell only (the Control Strip) passes "small".
-fn lwb_icon(only = "") {
-	local g= cls= big=
+# The person's Phone Style picks between the modern handset and the classic rotary phone (names ending in c); a set that has the classic one only partly, or
+# not at all, gives the modern, and a set with neither gives the characters.
+fn lwb_icon() {
+	local g=
 
-	[ "${DT_LWSTYLE-modern}" = classic ] && cls=c
-	[ "$only" != small ] && [ "${DT_LWSIZE-small}" = large ] && big=2
-	if [ -n "$big" ]; then
-		g := lwb_pick "$cls$big"
+	if [ "${DT_LWSTYLE-modern}" = classic ]; then
+		g := lwb_pick c
 	fi
-	[ -n "$g" ] || [ -z "$cls" ] || g := lwb_pick "$cls"
-	[ -n "$g" ] || [ -z "$big" ] || g := lwb_pick "$big"
 	[ -n "$g" ] || g := lwb_pick
 	ret "$g"
 }
@@ -167,7 +161,7 @@ fn lwb_tick() {
 	fi
 	need longwire 2> /dev/null || { dt_baritem lwb ""; return 0; }
 	lwb_state
-	k="$LWB_ST|$LWB_NUM|$LWB_PEERS|$LWB_RINGNUM|${DT_GLYPHSET-}|${DT_LANG-}|${DT_LWSTYLE-}|${DT_LWSIZE-}"
+	k="$LWB_ST|$LWB_NUM|$LWB_PEERS|$LWB_RINGNUM|${DT_GLYPHSET-}|${DT_LANG-}|${DT_LWSTYLE-}"
 	if [ "$k" != "$LWB_KEY" ]; then
 		LWB_KEY=$k
 		t := lwb_text

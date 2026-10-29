@@ -3,6 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.22
+
+- **The Phone Icon Size setting is gone.** Regular size is all longwire needs (the owner's decision): the **Phone Icon Size** row, `DT_LWSIZE`, and the reads of the large two-column glyphs (`GL[phoneoff2]` … `GL[phoneringc2]`) are removed from the pane, the menu bar and the Control Strip, with their tests.
+  **Phone Style** (modern or classic) stays. A saved `DT_LWSIZE` in the desktop's settings is simply ignored.
+
 ## 0.5.21
 
 *Published:* the catalogue (`hibr-apps` `3c51b1b`) and the packages (`hibr-apt` `864c12e`, `hibr-rpm` `28114be`, `hibr-arch` `8299be8`). `make check` passed (685 checks). Not tried: a call between 0.5.21 and an older node on a real network, and installing from the repositories on a clean machine.

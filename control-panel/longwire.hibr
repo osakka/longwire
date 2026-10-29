@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.21
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.22
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -23,20 +23,18 @@ DT_LW_PROFILE="${DT_LW_PROFILE-}"
 DT_LWBAR="${DT_LWBAR-1}"
 # Phone Style: modern (a handset) or classic (a rotary desk phone), for glyph sets that draw the telephone (Blit's); it is a row only where there is a choice.
 DT_LWSTYLE="${DT_LWSTYLE-modern}"
-DT_LWSIZE="${DT_LWSIZE-small}"
 DT_LW_NODE="${DT_LW_NODE--}"
-command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE DT_LWBAR DT_LWSTYLE DT_LWSIZE DT_LW_NODE
+command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE DT_LWBAR DT_LWSTYLE DT_LW_NODE
 
 LWP_POLICIES=(ask known auto never)
 LWP_STYLES=(modern classic)
-LWP_SIZES=(small large)
 LWP_ATTACHES=(jack splice)
 
 # The last status read, and when. _rows runs every frame, and a read of the node is a round trip, so it is kept for a second.
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.21}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.22}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -348,9 +346,6 @@ fn longwire_rows(int w) {
 		if [ -n "${GL[phoneoff]-}" ]; then
 			lwp_row "$w" "$n" set "Phone Style" "$DT_LWSTYLE" lwstyle; n=$((n + 1))
 		fi
-		if [ -n "${GL[phoneoff2]-}${GL[phoneoffc2]-}" ]; then
-			lwp_row "$w" "$n" set "Phone Icon Size" "$DT_LWSIZE" lwsize; n=$((n + 1))
-		fi
 		if [ "$LWP_BUSY" = 1 ]; then
 			lwp_row "$w" "$n" action "Turning on${GL[ellipsis]}" "" none; n=$((n + 1))
 		else
@@ -456,9 +451,6 @@ fn longwire_rows(int w) {
 	if [ -n "${GL[phoneoff]-}" ]; then
 		lwp_row "$w" "$n" set "Phone Style" "$DT_LWSTYLE" lwstyle; n=$((n + 1))
 	fi
-	if [ -n "${GL[phoneoff2]-}${GL[phoneoffc2]-}" ]; then
-		lwp_row "$w" "$n" set "Phone Icon Size" "$DT_LWSIZE" lwsize; n=$((n + 1))
-	fi
 	ret "$n"
 }
 
@@ -518,7 +510,6 @@ fn cp_set_lwpolicy(int? id = "", value = "") { lwp_setpolicy "$value"; }
 fn cp_set_lwppolicy(int? id = "", value = "") { lwp_pset answer "$value"; }
 fn cp_set_lwattach(int? id = "", value = "") { lwp_pset attach "$value"; }
 fn cp_set_lwstyle(int? id = "", value = "") { DT_LWSTYLE=$value; dt_has lwb_refresh && lwb_refresh; cp_save; }
-fn cp_set_lwsize(int? id = "", value = "") { DT_LWSIZE=$value; dt_has lwb_refresh && lwb_refresh; cp_save; }
 fn cp_set_lwprofile(int? id = "", value = "") {
 	DT_LW_PROFILE=$value
 	longwire profile default "$value" > /dev/null 2>&1		# the command and the menu bar use the default one: it is the one shown here
@@ -846,10 +837,6 @@ fn longwire_do(int w, k, int dir) {
 	lwstyle)
 		DT_LWSTYLE := cp_next "$DT_LWSTYLE" "$dir" "${LWP_STYLES[@]}"
 		dt_has lwb_refresh && lwb_refresh ;;
-	lwsize)
-		DT_LWSIZE := cp_next "$DT_LWSIZE" "$dir" "${LWP_SIZES[@]}"
-		dt_has lwb_refresh && lwb_refresh
-		cp_save ;;
 	on) lwp_turnon "$w" ;;
 	stop) dt_confirm "Turn longwire off? Calls end." lwp_yes; LWP_PEND_KIND=stop ;;
 	dial) dt_ask "Dial" "Number" "" lwp_dialled "a number like 447-120-933, or +code number" ;;
@@ -869,6 +856,5 @@ fn longwire_drop(int? w = "", int? r = "", int? c = "", k = "") {
 	attach) dt_droplist "$w" "$r" "$c" cp_set_lwattach "${LWP_ATTACHES[@]}" ;;
 	profile) dt_droplist "$w" "$r" "$c" cp_set_lwprofile "${LWP_PNAMES[@]}" ;;
 	lwstyle) dt_droplist "$w" "$r" "$c" cp_set_lwstyle "${LWP_STYLES[@]}" ;;
-	lwsize) dt_droplist "$w" "$r" "$c" cp_set_lwsize "${LWP_SIZES[@]}" ;;
 	esac
 }
