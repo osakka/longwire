@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.29
 
+*Published:* the catalogue (`hibr-apps` `b7a7c40`) and the packages (`hibr-apt` `0ee1a2a`, `hibr-rpm` `b490557`, `hibr-arch` `1497cdc`). `make check` passed (813 checks). The counters come with the package: update the switchboard's machine for the window to show traffic.
+
 - **The Switchboard window rocks** ([ADR 0049](docs/adr/0049-the-switchboard-window-shows-traffic-and-names-every-key.md)). Traffic **in and out**, as rates with a sparkline each; online and the handshake load; a line of what it
   has done since it started (registered, rings, put through, ended, struck) and the **bans**, warm when there are any. **Search** the nodes with `/` by a part of a name or of a number (dashes or
   not); **Online Only** with `o`; **Bans** with `b`, each banned key with its time left, and **Lift Ban** with `x` (it asks; the switchboard's owner only). **Every key is in a menu**: File
