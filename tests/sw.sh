@@ -15,9 +15,11 @@ if [ -d "$DD" ] && [ "$(id -u)" != 0 ]; then
 . $DD/desktop.hibr
 . $PWD/apps/switchboard.hibr
 dt_has switchboard_draw && echo draw-defined
-dt_has switchboard_key && echo key-defined" 2>&1)
+dt_has switchboard_key && echo key-defined
+dt_has switchboard_menus && echo menus-defined
+dt_has switchboard_find && echo find-defined" 2>&1)
 	case $out in
-	*draw-defined*key-defined*) echo "ok   the app loads under hibr's real desktop code" ;;
+	*draw-defined*key-defined*menus-defined*find-defined*) echo "ok   the app loads under hibr's real desktop code" ;;
 	*) echo "FAIL the app under hibr's real desktop code: $out"; exit 1 ;;
 	esac
 else

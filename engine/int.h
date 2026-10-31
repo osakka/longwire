@@ -223,6 +223,8 @@ struct lw_node {
 	int      idxbits;		/* the low bits of a session index say which peer it is for */
 	lw_offer offers[OFFERS];
 	uint64_t relay_fwd, relay_drop, relay_routes;
+	uint64_t rx_bytes_all, tx_pkts, tx_bytes_all;	/* every UDP packet in and out, for the switchboard's window (docs/adr/0049) */
+	uint64_t sb_rings, sb_through, sb_ended, sb_regs;	/* a switchboard's calls since it started */
 	uint64_t rx_pkts, drop_garbage, drop_noroute, flood, local_tx, local_rx;
 	double   now, started;
 	int      rekey_after, keepalive, mtu;
@@ -425,6 +427,7 @@ int  jack_net_has(const lw_node *n, int fam, const uint8_t *ip);
 int  jack_net_sa(const lw_node *n, const struct sockaddr *sa);
 int  under_fd(lw_node *n);
 int  under_tie(lw_node *n, char *err, size_t errn);
+int  ban_count(lw_node *n);
 int  tie_fd(const lw_node *n, int fd);
 ssize_t usend(lw_node *n, int fd, const void *b, size_t len, const struct sockaddr *sa, socklen_t sl);
 void spray_adopt(lw_node *n, lw_peer *p);

@@ -20,6 +20,22 @@ for v in DT_INK DT_FACE DT_DIM DT_GOOD DT_WARN DT_BAD DT_INFO DT_ACTIVE DT_SELIN
 GL[block]='#'; GL[light]='.'; GL[circle]='o'; GL[dot]='.'; GL[star]='*'; GL[dash]='-'; GL[ellipsis]='~'; GL[dashh]='-'; GL[minus]='='; GL[hline]='-'; GL[cross]='x'
 DT_SCROLLWHEEL=3
 fn dt_scrollbar(...a) { return 0; }
+fn dt_searchq(int id) { ret "${DRV_Q:-}"; }
+fn dt_searchrows(int id) { ret 0; }
+fn dt_searchon(int id) { return 1; }
+fn dt_searchdraw(...a) { return 0; }
+fn dt_searchclear(...a) { return 0; }
+fn dt_searchfree(...a) { return 0; }
+fn dt_searchopen(int id) { echo "SEARCHOPEN $id"; }
+fn dt_searchkey(int id, key) { return 1; }
+fn dt_notep(...a) { echo "NOTE $*"; }
+fn dt_confirm(msg, cmd, ...a) { echo "CONFIRM $cmd $msg"; }
+fn dt_menu(t) { echo "MENU $t"; }
+fn dt_item(...a) { echo "ITEM $1|$2"; }
+fn dt_mark(...a) { echo "MARK $1|$2|$3"; }
+fn dt_dim(...a) { echo "DIM $1"; }
+fn dt_sep() { return 0; }
+fn dt_editmenu() { echo "MENU Edit"; }
 console() { if [ "$1" = put ]; then printf 'PUT %%s %%s %%s %%s\n' "$3" "$4" "$5" "$6"; fi; return 0; }
 . %(app)s
 fn show(int id) {
@@ -96,6 +112,44 @@ def main():
     check(len(puts) > 8 and "Nodes (2)" in text and num["A"] in text and '"Alice"' in text and "online" in text and "Calls" in text,
           f"drawn into a recording, the window has its head, both nodes (the name in quotes) and the call board: {len(puts)} lines {r.stderr[-300:]}")
     open(f"{T}/draw.txt", "w").write(text)
+    st = S.status()
+    check(st.get("rx_bytes", 0) > 0 and st.get("tx_bytes", 0) > 0 and st.get("rx_pkts", 0) > 0 and st.get("tx_pkts", 0) > 0 and st.get("registrations", 0) >= 2,
+          f"the switchboard counts what comes in and goes out, and its registrations (docs/adr/0049): rx {st.get('rx_bytes')} tx {st.get('tx_bytes')} reg {st.get('registrations')}")
+    check(any(l.endswith(" in") for l in puts) and any(l.endswith(" out") for l in puts) and sum("B/s" in l for l in puts) == 2 and "registered 2" in text and "bans 0" in text,
+          f"the window shows traffic in and out as rates, and the totals since it started: {[l for l in puts if 'B/s' in l or 'registered' in l][:3]}")
+    two = f"switchboard_open 1; sw_scan 1 0; sleep 1.2; sw_scan 1 1200; echo RATES ${{SW[1][rin]}} ${{SW[1][rout]}}"
+    out, r = drive(S.sock, two)
+    rl = [l for l in out if l.startswith("RATES ")]
+    check(rl and all(x.isdigit() for x in rl[0].split()[1:]), f"two looks a moment apart give a rate in and out: {rl} {r.stderr[-200:]}")
+
+    # the search: a part of a name in any case, or a number with or without its dashes
+    out, r = drive(S.sock, "switchboard_open 1; sw_scan 1 0; switchboard_draw 1 22 74 1 1", DRV_Q="aLiC")
+    text = "\n".join(l for l in out if l.startswith("PUT "))
+    check("Nodes (1 of 2)" in text and '"Alice"' in text and num["B"] not in text, f"searching for part of a name finds the one node: {r.stderr[-200:]}")
+    out, r = drive(S.sock, "switchboard_open 1; sw_scan 1 0; switchboard_draw 1 22 74 1 1", DRV_Q=num["B"].replace("-", "")[2:7])
+    text = "\n".join(l for l in out if l.startswith("PUT "))
+    check("Nodes (1 of 2)" in text and num["B"] in text and '"Alice"' not in text, f"and part of a number, typed without dashes, finds the other")
+    out, r = drive(S.sock, "switchboard_open 1; sw_scan 1 0; switchboard_draw 1 22 74 1 1", DRV_Q="nobody-here")
+    check(any("No node matches." in l for l in out), "a search that matches nothing says so")
+    out, r = drive(S.sock, "switchboard_open 1; sw_scan 1 0; switchboard_key 1 o; switchboard_draw 1 22 74 1 1; x := switchboard_copy 1; echo COPY $x")
+    text = "\n".join(l for l in out if l.startswith("PUT "))
+    check("online only" in text and "Nodes (2)" in text, f"o shows only the nodes online (both are): {r.stderr[-200:]}")
+    check(any(l.startswith("COPY ") and l[5:] in num.values() for l in out), f"Copy takes the chosen node's number: {[l for l in out if l.startswith('COPY')]}")
+
+    # the bans: b turns the list into them, x asks before lifting
+    out, r = drive(S.sock, "switchboard_open 1; switchboard_key 1 b; sw_scan 1 0; switchboard_draw 1 22 74 1 1; switchboard_key 1 x")
+    text = "\n".join(l for l in out if l.startswith("PUT "))
+    check("Bans (0)" in text and "Nobody is banned." in text and any(l.startswith("NOTE ") for l in out), f"b shows the bans (none), and x with none says so: {r.stderr[-200:]}")
+
+    # the menus name every key the window answers
+    out, r = drive(S.sock, "switchboard_open 1; DT_FOCUS=1; switchboard_menus")
+    keys = {l.split("|")[1] for l in out if (l.startswith("ITEM ") or l.startswith("MARK ")) and "|" in l}
+    menus = [l[5:] for l in out if l.startswith("MENU ")]
+    check({"s", "o", "b", "f", "w", "c"} <= keys and menus[:4] == ["File", "Edit", "View", "Node"] and any(l.startswith("DIM Lift Ban") for l in out),
+          f"File, Edit, View and Node menus name every key: s, o, b, f (search), c; Lift Ban dimmed outside the bans: {menus} {sorted(keys)} {r.stderr[-200:]}")
+    out, r = drive(S.sock, "switchboard_open 1; DT_FOCUS=1; switchboard_key 1 b; switchboard_menus; switchboard_find 1; echo VIEW ${SW[1][view]}")
+    check(any(l.startswith("MARK Bans|b|1") for l in out) and any(l.startswith("ITEM Lift Ban") for l in out) and "SEARCHOPEN 1" in out and "VIEW nodes" in out,
+          f"in the bans view the menu ticks Bans and offers Lift Ban; Find goes back to the nodes and opens the search: {[l for l in out if l.startswith(('MARK','ITEM Lift','SEARCH','VIEW'))]}")
 
 
     # the calls, followed through the event stream: one scan opens it, then A dials B and the app drains what it hears
@@ -130,6 +184,8 @@ echo CLOSED "${{SW[1][nf]-}}" "${{SW[1][fd]-}}"'''
     check(calls and calls[0][0] == num["A"] and calls[0][1] == num["B"] and calls[0][2] == "through",
           f"a call it heard ring is on the board, and then put through: {calls} {res.get('r') and res['r'].stderr[-300:]}")
     check("AFTER 0" in out, "after the linger time it is gone, and nothing remembers it")
+    st = S.status()
+    check(st.get("rings", 0) >= 1 and st.get("put_through", 0) >= 1, f"the switchboard counts the rings and the calls put through: rings {st.get('rings')} through {st.get('put_through')}")
     check(any(l.strip() == "CLOSED" for l in out), f"closing the window leaves no calls or nodes behind: {[l for l in out if l.startswith('CLOSED')]}")
     for n in (A, B, S):
         n.stop()

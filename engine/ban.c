@@ -309,6 +309,17 @@ void ban_timers(lw_node *n)
 	}
 }
 
+/* How many keys are banned now. */
+int ban_count(lw_node *n)
+{
+	struct banset *b = n->bn;
+	int i, c = 0;
+
+	for (i = 0; b && i < BAN_SLOTS; i++)
+		c += b->e[i].used && b->e[i].until > n->now;
+	return c;
+}
+
 /* For the operator: the live bans and the counters. */
 int ban_json(lw_node *n, char *o, size_t cap)
 {

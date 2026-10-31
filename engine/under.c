@@ -255,5 +255,7 @@ ssize_t usend(lw_node *n, int fd, const void *b, size_t len, const struct sockad
 		if (u >= 0)
 			fd = u;
 	}
+	n->tx_pkts++;
+	n->tx_bytes_all += len;
 	return sendto(fd, b, len, 0, sa, sl);
 }

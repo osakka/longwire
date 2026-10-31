@@ -458,6 +458,7 @@ void hello_request(lw_node *n, lw_peer *p)
 	b[0] = T_HELLO;
 	b[1] = 0;
 	memcpy(b + 2, p->key_id, 8);
+	n->tx_pkts++, n->tx_bytes_all += sizeof b;
 	sendto(peer_fd(n, p), b, sizeof b, 0, (struct sockaddr *)&p->ep, p->eplen);
 }
 
@@ -928,6 +929,7 @@ void echo_serve(lw_node *n)
 		memcpy(out + 1, in + 1, 8);
 		memcpy(out + 9, &a.sin_addr, 4);
 		put16(out + 13, ntohs(a.sin_port));
+		n->tx_pkts++, n->tx_bytes_all += sizeof out;
 		sendto(n->udp2, out, sizeof out, 0, (struct sockaddr *)&a, sizeof a);
 	}
 }

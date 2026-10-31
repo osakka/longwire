@@ -628,6 +628,7 @@ static void persist(struct board *b, const reg *r)
 /* NUMBER: the number, what we saw, what we offer, and a code (the registry's, for a node: its switchboard's; for a switchboard: its own). */
 static void send_number(lw_node *n, lw_peer *p, const reg *r, const char *code)
 {
+	n->sb_regs++;
 	uint8_t b[NUMLEN + 7 + 2 + 10];
 	size_t o = NUMLEN + 7;
 	lw_cand c;
@@ -738,6 +739,12 @@ static void call_ev(lw_node *n, const char *what, const uint8_t caller[32], cons
 	const char *a = num_of(b, caller), *z = num_of(b, callee);
 	char f1[16] = "", f2[16] = "";
 
+	if (!strcmp(what, "call-ring"))
+		n->sb_rings++;
+	else if (!strcmp(what, "call-go"))
+		n->sb_through++;
+	else
+		n->sb_ended++;
 	if (a)
 		fmt_number(f1, a);
 	if (z)
@@ -1315,9 +1322,12 @@ int board_status_json(lw_node *n, char *o, size_t cap)
 	return snprintf(o, cap,
 		"{\"node\":\"switchboard\",\"key_id\":\"%s\",\"address\":\"%s\",\"uptime\":%d,\"numbers\":%d,\"online\":%d,"
 		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu,\"code\":\"%s\",\"code_refused\":\"%s\",\"codes_issued\":%d,"
-		"\"max_nodes\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"cookies_got\":%llu,\"strikes_given\":%llu,\"bans_issued\":%llu,\"net_bans_issued\":%llu,\"ban_refused\":%llu}\n",
+		"\"max_nodes\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"cookies_got\":%llu,\"strikes_given\":%llu,\"bans_issued\":%llu,\"net_bans_issued\":%llu,\"ban_refused\":%llu,"
+		"\"rx_pkts\":%llu,\"rx_bytes\":%llu,\"tx_pkts\":%llu,\"tx_bytes\":%llu,\"rings\":%llu,\"put_through\":%llu,\"ended\":%llu,\"registrations\":%llu,\"bans_active\":%d}\n",
 		kid, addr, (int)(n->now - n->started), b->n, online_n, calls,
 		n->cfg.policy_script ? "script" : "open", (unsigned long long)n->drop_garbage, n->home_code, n->reg_why, b->ncodes, n->maxpeers,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->cookies_got,
-		(unsigned long long)n->strikes_given, (unsigned long long)n->bans_issued, (unsigned long long)n->net_bans_issued, (unsigned long long)n->bans_refused);
+		(unsigned long long)n->strikes_given, (unsigned long long)n->bans_issued, (unsigned long long)n->net_bans_issued, (unsigned long long)n->bans_refused,
+		(unsigned long long)n->rx_pkts, (unsigned long long)n->rx_bytes_all, (unsigned long long)n->tx_pkts, (unsigned long long)n->tx_bytes_all,
+		(unsigned long long)n->sb_rings, (unsigned long long)n->sb_through, (unsigned long long)n->sb_ended, (unsigned long long)n->sb_regs, ban_count(n));
 }

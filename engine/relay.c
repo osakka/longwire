@@ -73,6 +73,7 @@ void peer_out(lw_node *n, lw_peer *p, const uint8_t *buf, size_t len)
 	lw_peer *r;
 
 	if (!p->relayed) {
+		n->tx_pkts++, n->tx_bytes_all += (uint64_t)(len);
 		sendto(peer_fd(n, p), buf, len, 0, (struct sockaddr *)&p->ep, p->eplen);
 		return;
 	}
@@ -86,6 +87,7 @@ void peer_out(lw_node *n, lw_peer *p, const uint8_t *buf, size_t len)
 	w[2] = (uint8_t)(p->via_route >> 8);
 	w[3] = (uint8_t)(p->via_route >> 16);
 	memcpy(w + 4, buf, len);
+	n->tx_pkts++, n->tx_bytes_all += (uint64_t)(4 + len);
 	sendto(peer_fd(n, r), w, 4 + len, 0, (struct sockaddr *)&r->ep, r->eplen);
 }
 
@@ -197,6 +199,7 @@ void relay_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 		w[1] = (uint8_t)r->remote_id;
 		w[2] = (uint8_t)(r->remote_id >> 8);
 		w[3] = (uint8_t)(r->remote_id >> 16);
+		n->tx_pkts++, n->tx_bytes_all += (uint64_t)(len);
 		sendto(peer_fd(n, to), w, len, 0, (struct sockaddr *)&to->ep, to->eplen);
 		n->relay_fwd++;
 		return;

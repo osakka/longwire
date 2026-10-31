@@ -388,6 +388,7 @@ int lw_node_serve(lw_node *n)
 					if (r < 1)
 						break;
 					n->rx_pkts++;
+					n->rx_bytes_all += (uint64_t)r;
 					node_dispatch(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
 				}
 				n->rx_fd = n->udp >= 0 ? n->udp : n->udp6;
@@ -399,6 +400,7 @@ int lw_node_serve(lw_node *n)
 				if (r < 1)
 					break;
 				n->rx_pkts++;
+				n->rx_bytes_all += (uint64_t)r;
 				node_dispatch(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
 			}
 		if (pf[1].revents & POLLIN)

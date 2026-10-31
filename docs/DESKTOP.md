@@ -113,8 +113,19 @@ One glyph on the Control Strip, coloured by the theme: **dim** when off, the the
 
 ## The Switchboard window
 
-Only for someone who runs a switchboard. It is a live view of it: how full it is (nodes, handshake load), the nodes with the names
-they gave, and the calls being set up right now (who is ringing whom, for a few seconds). It shows no node's address or key (only the switchboard's own address and code in its heading), keeps no
+Only for someone who runs a switchboard. It is a live view of it: traffic **in and out** (rates and a sparkline each), how full it is (online, handshake load), the
+registrations, rings, calls put through and ended since it started, the **bans**, the nodes with the names they gave, and the calls being set up right now (who is ringing whom, for a few seconds).
+
+| Key | Menu | Does |
+|---|---|---|
+| `/` | Edit > Find, View > Search… | search the nodes by a part of a name, or of a number (dashes or not) |
+| `o` | View > Online Only | only the nodes online |
+| `b` | View > Bans | the banned keys instead of the nodes: time left, which ban in a row |
+| `x` | Node > Lift Ban… | lift the ban chosen (asks first; the switchboard's owner only) |
+| `c` | Node > Copy Number, Edit > Copy | the chosen node's number (among the bans, the whole key) |
+| `s` | File > Switchboard Socket… | which switchboard to watch, when it is not the usual one |
+
+It shows no node's address or key ([ADR 0049](adr/0049-the-switchboard-window-shows-traffic-and-names-every-key.md); only the switchboard's own address and code in its heading, and a banned key's first digits among the bans), keeps no
 history, and decides nothing; the switchboard's script does that. It shows a switchboard you started yourself, or one an
 administrator runs as a service if you are in the group `longwire` (`please usermod -aG longwire YOURNAME`, then log in again).
 

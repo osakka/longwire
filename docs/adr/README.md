@@ -57,6 +57,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0046](0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md) | A node that takes everything lets go when the road changes | accepted |
 | [0047](0047-names-through-the-line-are-set-on-the-jack.md) | Names through the line are set on the jack | accepted |
 | [0048](0048-a-silent-switchboard-is-said-so.md) | A silent switchboard is said so | accepted |
+| [0049](0049-the-switchboard-window-shows-traffic-and-names-every-key.md) | The Switchboard window shows traffic and names every key | accepted |
 
 ---
 

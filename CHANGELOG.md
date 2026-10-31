@@ -3,6 +3,16 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.29
+
+- **The Switchboard window rocks** ([ADR 0049](docs/adr/0049-the-switchboard-window-shows-traffic-and-names-every-key.md)). Traffic **in and out**, as rates with a sparkline each; online and the handshake load; a line of what it
+  has done since it started (registered, rings, put through, ended, struck) and the **bans**, warm when there are any. **Search** the nodes with `/` by a part of a name or of a number (dashes or
+  not); **Online Only** with `o`; **Bans** with `b`, each banned key with its time left, and **Lift Ban** with `x` (it asks; the switchboard's owner only). **Every key is in a menu**: File
+  (Switchboard Socket…), Edit (Copy, Find), View (Online Only, Bans, Search), Node (Copy Number, Lift Ban).
+- **The switchboard counts what it carries**: `rx_pkts`, `rx_bytes`, `tx_pkts`, `tx_bytes`, `registrations`, `rings`, `put_through`, `ended`, `bans_active` in its status. Counters only, nothing about who.
+- Tested against a real switchboard and real nodes with the desktop's calls recorded (`tests/sw.sh`): the counters and rates, the search by name and by number, Online Only, the bans view, Copy, the menus,
+  and the app under hibr's real desktop code. Not tested: how it looks.
+
 ## 0.5.28
 
 *Published:* the catalogue (`hibr-apps` `f981596`) and the packages (`hibr-apt` `d45bb78`, `hibr-rpm` `4c2e6db`, `hibr-arch` `5172503`). `make check` passed (801 checks).
