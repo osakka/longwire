@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.27
 
+*Published:* the catalogue (`hibr-apps` `1e94422`) and the packages (`hibr-apt` `b2429d9`, `hibr-rpm` `4e2a793`, `hibr-arch` `1e6b134`). `make check` passed (799 checks).
+
 - **Moving to another network while everything goes through the line** ([ADR 0046](docs/adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)). The engine looks at the road once a second; when the device its sockets are tied to stops being it (Wi-Fi to a
   cable, or no network at all), it **lets go of the jack at once**, so the kernel's safety net puts the machine on its own road whatever happens next, and tells the new `roamed` event. The node script then
   starts the node again on the new road, waiting for one if there is none. Without everything through the line, the underlay socket follows the road the same way. And a node started by hand on a jack whose
