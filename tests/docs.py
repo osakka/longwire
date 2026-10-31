@@ -159,7 +159,7 @@ if not m:
     bad("docs/CLI.md", "has no '**Events.**' paragraph")
 for e in sorted(node_events - doc_events):
     bad("docs/CLI.md", f"the node emits the event `{e}`, which the Events paragraph does not list")
-named = {e for e in doc_events if e not in ("number", "path", "ep", "phrase", "reason", "from", "known", "by", "us", "them", "we_called", "role", "members", "lw", "active", "standby", "admit", "line", "up", "to")}
+named = {e for e in doc_events if e not in ("number", "path", "ep", "phrase", "reason", "from", "known", "by", "us", "them", "we_called", "role", "members", "lw", "active", "standby", "admit", "line", "up", "to", "host", "answers", "silent")}
 for e in sorted(named - node_events - {"watch"}):
     bad("docs/CLI.md", f"the Events paragraph lists `{e}`, which no code emits")
 sbdoc = read("docs/SWITCHBOARD.md")

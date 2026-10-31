@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.27
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.28
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.27}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.28}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -74,6 +74,15 @@ EOF
 say() { echo "$@" >&2; }
 
 # A sentence for each event, the way a person wants to read it.
+# Why a switchboard does not answer, as far as the probe of its host could tell (docs/adr/0048).
+sb_quiet_why() {
+	case $1 in
+	answers) echo "its host answers, so the switchboard itself is ignoring this node: this node's key may be banned there (its operator: longwire-switchboard bans list), or the key after / in the switchboard address is not the switchboard's" ;;
+	silent)  echo "nothing comes back from its host: a firewall on the way (UDP to its port, and the next port), or the switchboard is not running" ;;
+	*)       echo "a firewall on the way (UDP), the switchboard not running, this node's key banned there, or the wrong switchboard key" ;;
+	esac
+}
+
 announce() {
 	local ev=$1
 	case $ev in
@@ -92,6 +101,7 @@ announce() {
 	member-left)      say "·  ${e[number]} left the line" ;;
 	member-evicted)   say "·  ${e[number]} was evicted from the line" ;;
 	evicted)          say "⚠  you were evicted from line ${e[line]}" ;;
+	switchboard-silent) say "⚠  no answer from the switchboard at ${e[ep]} (UDP) for 15 s: $(sb_quiet_why "${e[host]}")" ;;
 	roamed)           say "·  the road changed (${e[from]} to ${e[to]:-none}): everything goes the machine's own way for a moment, while the node starts again on the new road" ;;
 	line-partial)     say "⚠  the line is not a full mesh: ${e[up]} of ${e[members]} members reachable (frames between the others are not forwarded)" ;;
 	address-skipped)  say "⚠  not using ${e[address]}:${e[port]} to reach the other end: it is inside your jack's own network and there is no other road to it (docs/TROUBLESHOOTING.md)" ;;
@@ -377,6 +387,9 @@ cmd_show() {
 		echo "☎  waiting for a number from the switchboard${PDEFAULT:+    (profile $PDEFAULT)}"
 	fi
 	echo "   switchboard   ${S[switchboard]:-?}${S[nat]:+     NAT ${S[nat]}}"
+	if [ "${S[sb_quiet]:-0}" -ge 15 ] 2> /dev/null; then	# docs/adr/0048
+		echo "   ⚠  no answer from it for ${S[sb_quiet]} s: $(sb_quiet_why "${S[sb_host]:-}")"
+	fi
 	echo "   engine        ${S[version]:-unknown (older than 0.5.10)}"
 	notes=$(engine_notes "${S[version]:-}")
 	[ -z "$notes" ] || printf '%s\n' "$notes" | while IFS= read -r line; do echo "   ⚠  $line"; done

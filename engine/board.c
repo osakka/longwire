@@ -877,11 +877,11 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 			strike(n, p, 1.0, "a malformed registration");
 			return;
 		}
-		if (p->last_reg && n->now - p->last_reg < 5.0) {	/* a registration is a write to disk: one in five seconds from a session */
-			strike(n, p, 0.5, "registered faster than the limit");
+		if (p->last_reg && p->last_reg_born == p->cur.born && n->now - p->last_reg < 5.0)	/* a registration is a write to disk: one in five seconds from a session. A repeat is an honest node
+								 * whose answer was slow or lost, not an attack: ignored, never struck (the message budget bounds a flood) */
 			return;
-		}
 		p->last_reg = n->now;
+		p->last_reg_born = p->cur.born;
 		{					/* a token is visible text: it goes into the token file, and into an event the script parses */
 			size_t k;
 

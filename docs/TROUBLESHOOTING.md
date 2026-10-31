@@ -117,6 +117,13 @@ through the line*, turn off and on. To get out at once: turn longwire off; nothi
 **Everything goes through the line, but names do not resolve.**
 `resolvectl dns lw0` names the server asked. It must answer on the line's side: try `resolvectl query example.org`. Empty the **Name server** to go back to your own. `longwire show` has a `names` line.
 
+**`⚠ no answer from the switchboard … its host answers`**
+The switchboard is ignoring this node. Either the key after `/` in your switchboard address is not the switchboard's (compare it with a node that works), or this node's key is banned there
+for a while: on the switchboard, `longwire-switchboard bans list` shows it, the log says why, and `longwire-switchboard bans clear KEY` lifts it. A ban ends by itself (15 minutes, doubling at each repeat, at most a day).
+
+**`⚠ no answer from the switchboard … nothing comes back from its host`**
+UDP does not get there and back: a firewall on either side (the switchboard's port and the next one), or the switchboard is not running.
+
 **`⚠ two DHCP servers answer on this line`**
 Two machines on the line are both handing out leases, and clients may get clashing addresses. Turn one off.
 

@@ -937,6 +937,12 @@ void echo_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 	lw_peer *s = sbp(n);
 	const struct sockaddr_in *a = (const struct sockaddr_in *)src;
 
+	if (!s && n->sb >= 0 && n->sb_probe == 1 && len == 15 && !memcmp(pkt + 1, n->sb_probe_nonce, 8) && sl == sizeof *a &&
+	    n->peers[n->sb].ep.ss_family == AF_INET && a->sin_addr.s_addr == ((struct sockaddr_in *)&n->peers[n->sb].ep)->sin_addr.s_addr) {
+		n->sb_probe = 2;		/* the switchboard's host answers: the path is open both ways (docs/adr/0048) */
+		return;
+	}
+
 	if (n->role || len != 15 || !s || !n->have_refl || !n->echo_tries || memcmp(pkt + 1, n->echo_nonce, 8) ||
 	    sl != sizeof *a || s->ep.ss_family != AF_INET || a->sin_addr.s_addr != ((struct sockaddr_in *)&s->ep)->sin_addr.s_addr)
 		return;
@@ -1561,7 +1567,7 @@ void registration_timers(lw_node *n)
 			if (n->cfg.listed)
 				o += (size_t)tlv_put(b + o, TAG_LISTED, 0, 0);
 			ctl_msg_send(n, s, M_REGISTER, b, o);
-			n->next_reg = n->now + 2.0;
+			n->next_reg = n->now + 6.0;		/* past the switchboard's one registration in five seconds */
 		} else if (n->registered && !n->role && n->now >= n->next_hb) {
 			uint8_t b[1 + MAXCANDS * CANDWIRE];
 			lw_cand cc[MAXCANDS];
@@ -1579,11 +1585,51 @@ void registration_timers(lw_node *n)
 	}
 }
 
+/* A switchboard that never answers is said so, and why as far as can be told (docs/adr/0048): a handshake that gets no reply is otherwise retried in
+ * silence. After 12 s without a session, the echo port of the switchboard's host (its port + 1, answered for anyone, no handshake) is asked once;
+ * at 15 s the node tells whether that host answers (the switchboard itself is ignoring this node: a ban, or the wrong key) or not (nothing comes back). */
+static void sb_quiet_timers(lw_node *n)
+{
+	lw_peer *p;
+
+	if (n->role || n->sb < 0)
+		return;
+	if (sbp(n)) {
+		n->sb_quiet = 0;
+		n->sb_probe = 0;
+		n->sb_quiet_host = 0;
+		return;
+	}
+	if (!n->sb_quiet)
+		n->sb_quiet = n->now;
+	p = &n->peers[n->sb];
+	if (n->sb_probe == 0 && n->now - n->sb_quiet >= 12.0 && p->ep.ss_family == AF_INET && n->udp >= 0) {
+		uint8_t q[40] = { T_ECHO };
+		struct sockaddr_in a;
+
+		lw_rand(n->sb_probe_nonce, 8);
+		memcpy(q + 1, n->sb_probe_nonce, 8);
+		memcpy(&a, &p->ep, sizeof a);
+		a.sin_port = htons((uint16_t)(ntohs(a.sin_port) + 1));
+		usend(n, n->udp, q, sizeof q, (struct sockaddr *)&a, sizeof a);
+		n->sb_probe = 1;
+	}
+	if (n->sb_probe != 3 && n->now - n->sb_quiet >= 15.0) {
+		char ep[64];
+
+		addr_str(&p->ep, ep, sizeof ep);
+		ev_emit(n, "{\"event\":\"switchboard-silent\",\"ep\":\"%s\",\"host\":\"%s\"}", ep, n->sb_probe == 2 ? "answers" : p->ep.ss_family == AF_INET ? "silent" : "untested");
+		n->sb_quiet_host = n->sb_probe == 2 ? 2 : p->ep.ss_family == AF_INET ? 1 : 0;
+		n->sb_probe = 3;
+	}
+}
+
 void node_timers(lw_node *n)
 {
 	int i;
 
 	registration_timers(n);
+	sb_quiet_timers(n);
 	sas_timers(n);
 	pmp_timers(n);
 	spray_reap(n);
@@ -1966,12 +2012,12 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 	len = snprintf(o, cap,
 		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"mapped\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
-		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"cand_skipped\":%llu,\"version\":\"%s\",\"underlay\":\"%s\",\"underlay_state\":\"%s\",\"tied\":\"%s\",\"jack_nets\":%d,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
+		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"cand_skipped\":%llu,\"version\":\"%s\",\"underlay\":\"%s\",\"underlay_state\":\"%s\",\"tied\":\"%s\",\"sb_quiet\":%d,\"sb_host\":\"%s\",\"jack_nets\":%d,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
 		kid, num, fullnum, nm, n->cfg.listed ? "true" : "false", sbs, refl, n->nat == 1 ? "easy" : n->nat == 2 ? "strict" : "unknown", mapped, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,
-		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, (unsigned long long)n->cand_skipped, LW_VERSION, n->uudp >= 0 ? n->uudev : "", n->uudp >= 0 ? "open" : n->uudp == -2 ? "failed" : "unused", n->tie, n->njnet, site_role(n), site_members(n), n->site_sync_n,
+		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, (unsigned long long)n->cand_skipped, LW_VERSION, n->uudp >= 0 ? n->uudev : "", n->uudp >= 0 ? "open" : n->uudp == -2 ? "failed" : "unused", n->tie, n->sb_quiet ? (int)(n->now - n->sb_quiet) : 0, n->sb_quiet_host == 2 ? "answers" : n->sb_quiet_host == 1 ? "silent" : "", n->njnet, site_role(n), site_members(n), n->site_sync_n,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->hs_nocookie, (unsigned long long)n->hs_badmac2, (unsigned long long)n->cookies_got, (unsigned long long)n->reg_count,
 		(unsigned long long)(n->sb >= 0 ? n->peers[n->sb].rekeys : 0),
 		(n->sb_caps & CAPS_CALLERID) && (n->sb_caps & CAPS_DIRECTORY) ? "\"caller-id\",\"directory\"" : (n->sb_caps & CAPS_CALLERID) ? "\"caller-id\"" : (n->sb_caps & CAPS_DIRECTORY) ? "\"directory\"" : "",

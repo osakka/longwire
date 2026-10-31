@@ -56,6 +56,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0045](0045-everything-through-the-line-is-a-table-of-the-jacks-own.md) | Everything through the line is a table of the jack's own | accepted |
 | [0046](0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md) | A node that takes everything lets go when the road changes | accepted |
 | [0047](0047-names-through-the-line-are-set-on-the-jack.md) | Names through the line are set on the jack | accepted |
+| [0048](0048-a-silent-switchboard-is-said-so.md) | A silent switchboard is said so | accepted |
 
 ---
 

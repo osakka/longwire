@@ -3,6 +3,17 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.28
+
+- **A silent switchboard is said so** ([ADR 0048](docs/adr/0048-a-silent-switchboard-is-said-so.md)). A node whose switchboard never answered retried in silence, which is exactly what a banned key gets; a site node sat at
+  "waiting for a number" with nothing in its log. Now, after 12 s with no session, the node asks the echo port of the switchboard's host (answered for anyone, no handshake), and at 15 s says which it is:
+  *its host answers, so the switchboard itself is ignoring this node* (a ban there, or the wrong switchboard key), or *nothing comes back from its host* (a firewall, or no switchboard). In the log, in
+  `longwire watch` (the `switchboard-silent` event) and in `longwire show` for as long as it lasts.
+- **The switchboard writes each ban to its log**, with the key's first digits, how long, why, and the `bans clear` command that lifts it; and `longwire-switchboard bans` finds the service's socket by itself.
+- **A patient node no longer strikes itself.** A node repeated an unanswered registration every 2 s, and the switchboard struck a second registration within 5 s: a slow or lost answer earned a good node
+  strikes, the first ban in the tests came from exactly that. The switchboard now ignores such a repeat, per session, without a strike, and the node waits 6 s. **Update switchboards**: this is a switchboard fix.
+- Tested on a real switchboard (`tests/ban2.sh`): a wrong switchboard key is told *host answers*, an address with nothing is told *nothing comes back*, `show` and the log say so, each ban is in the switchboard's log, and two wrong-token refusals (not the retries) earn the ban.
+
 ## 0.5.27
 
 *Published:* the catalogue (`hibr-apps` `1e94422`) and the packages (`hibr-apt` `b2429d9`, `hibr-rpm` `4e2a793`, `hibr-arch` `1e6b134`). `make check` passed (799 checks).

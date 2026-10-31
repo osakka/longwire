@@ -81,7 +81,7 @@ typedef struct lw_peer {
 	char     number[NUMLEN + 1];	/* dialed/answered number, "" for static peers */
 	lw_sess  cur, prev, next;
 	int      sb_registered;		/* (a switchboard) this session has registered a number: it is not a place a stranger is holding */
-	double   last_reg, msg_tok, msg_t;	/* (a switchboard) when it last registered, and its budget for control messages */
+	double   last_reg, last_reg_born, msg_tok, msg_t;	/* (a switchboard) when it last registered, and its budget for control messages */
 	lw_hsi   hs;
 	uint8_t  last_tai[12];
 	frag    *fr;			/* allocated on the first split frame */
@@ -272,6 +272,10 @@ struct lw_node {
 	int      nat;			/* 0 not measured, 1 easy (same mapping toward both ports), 2 strict (a new mapping per destination) */
 	uint8_t  echo_nonce[8];
 	int      echo_tries;
+	double   sb_quiet;		/* since when the switchboard has not answered (0: it has a session), docs/adr/0048 */
+	int      sb_quiet_host;	/* what the probe found: 0 not known, 1 the host is silent too, 2 the host answers */
+	int      sb_probe;		/* the probe of its host: 0 none, 1 sent, 2 answered, 3 told */
+	uint8_t  sb_probe_nonce[8];
 	double   next_echo;
 	/* M2: the switch's extras and the site group */
 	double   dhcp_say;		/* when a dhcp-conflict was last announced */

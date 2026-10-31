@@ -35,7 +35,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.27
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.28
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -134,7 +134,11 @@ bans_cmd() {
 		esac
 	done
 	mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
-	export LW_SOCK=${LW_SOCK:-$SB_DIR/ctl}
+	if [ -z "${LW_SOCK:-}" ]; then		# the switchboard run by hand as you, or else the service's, as the Switchboard application finds it (docs/adr/0048)
+		LW_SOCK=$SB_DIR/ctl
+		[ ! -S "$LW_SOCK" ] && [ -S "${LW_RUN:-/run}/longwire-switchboard/ctl" ] && LW_SOCK=${LW_RUN:-/run}/longwire-switchboard/ctl
+	fi
+	export LW_SOCK
 	case $sub in
 	list|"") lw sb bans || { echo "longwire-switchboard: ${ERRMSG:-failed}" >&2; exit 1; } ;;
 	clear) arg=${pos[0]:-all}
@@ -295,5 +299,7 @@ while read -r -u 5 line; do
 	case ${e[event]} in
 	register) on_register ;;
 	dial) on_dial ;;
+	ban)     echo "ban          key ${e[key_id]:0:16}… for ${e[seconds]} s (ban ${e[level]} in a row): ${e[reason]}   (longwire-switchboard bans clear ${e[key_id]:0:16} lifts it)" >&2 ;;	# docs/adr/0048
+	net-ban) echo "net-ban      new keys from the network of ${e[ip]} refused for ${e[seconds]} s: ${e[reason]}" >&2 ;;
 	esac
 done

@@ -62,7 +62,7 @@ def main():
         else: break
     check(refused == 2, f"the wrong token is refused twice, and then the switchboard stops answering that key ({refused} refusals)")
     st = sb_status()
-    check(st.get("bans_issued") == 1 and st.get("strikes_given", 0) >= 4, f"one ban, from the strikes: bans_issued={st.get('bans_issued')} struck={st.get('strikes_given')}")
+    check(st.get("bans_issued") == 1 and st.get("strikes_given", 0) == 2, f"one ban, from the two refusals (two strikes each; a patient node's repeated registration is not struck): bans_issued={st.get('bans_issued')} struck={st.get('strikes_given')}")
     rc = subprocess.run([HIBR, ROOT + "/scripts/longwire-switchboard.hibr", "bans", "list", "--state", S.home + "/sb"], env=dict(os.environ, LONGWIRE_MOD=MOD), capture_output=True, text=True)
     bl = json.loads(rc.stdout) if rc.returncode == 0 and rc.stdout.strip() else {}
     check(len(bl.get("bans", [])) == 1 and bl.get("strikes") == 3, f"`bans list` shows the ban and the settings: {rc.stdout[:160]!r} {rc.stderr[-120:]}")
@@ -122,6 +122,25 @@ def main():
     check(len(zb.get("bans", [])) >= 1, f"a second wrong-token node is banned: {zb.get('bans')}")
     r = subprocess.run([HIBR, ROOT + "/scripts/longwire-switchboard.hibr", "bans", "clear", "all", "--state", S.home + "/sb"], env=dict(os.environ, LONGWIRE_MOD=MOD), capture_output=True, text=True)
     check('"lifted"' in r.stdout, f"`bans clear all` lifts them: {r.stdout.strip()!r} {r.stderr[-100:]}")
+    slog = open(f"{T}/S.log").read()
+    check("ban          key " in slog and "bans clear" in slog, f"each ban is written to the switchboard's log, with how to lift it (docs/adr/0048): {[l for l in slog.splitlines() if l.startswith('ban')][:1]}")
+
+    # a switchboard that does not answer is said so, and why as far as can be told (docs/adr/0048)
+    os.makedirs(f"{T}/Q/lw", exist_ok=True)
+    wrong = addr[:-6] + ("aaaaaa" if not addr.endswith("aaaaaa") else "bbbbbb")
+    Q = Node("Q", ns, "longwire.hibr", ["up", "--switchboard", f"127.0.0.1:1877/{wrong}", "--sock-port", f"{T}/Q/p:{T}/Q/h", "--listen", "127.0.0.1:4010", "--cand-loopback", "--token", "good-four"])
+    ev = Q.w.wait("switchboard-silent", 25, after=0)
+    check(ev is not None and ev.get("host") == "answers", f"the wrong switchboard key: no answer, but its host answers, so the node says the switchboard is ignoring it: {ev}")
+    _, show = Q.cmd("show")
+    check("no answer from it for" in show and "ignoring this node" in show, f"`longwire show` says the same: {show[-240:]!r}")
+    Q.stop()
+    os.makedirs(f"{T}/R/lw", exist_ok=True)
+    R = Node("R", ns, "longwire.hibr", ["up", "--switchboard", f"127.0.0.1:1977/{addr}", "--sock-port", f"{T}/R/p:{T}/R/h", "--listen", "127.0.0.1:4011", "--cand-loopback", "--token", "good-four"])
+    ev = R.w.wait("switchboard-silent", 25, after=0)
+    check(ev is not None and ev.get("host") == "silent", f"nothing at that address: the node says nothing comes back from the host: {ev}")
+    R.stop()
+    rlog = open(f"{T}/R.log").read()
+    check("no answer from the switchboard at 127.0.0.1:1977" in rlog, f"and its log says so in a sentence: {[l for l in rlog.splitlines() if 'no answer' in l][:1]}")
     finish("ban")
 
 
