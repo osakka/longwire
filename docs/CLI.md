@@ -54,7 +54,7 @@ and on the other machine's `up` terminal:
 | `longwire down` | stop the node |
 | `longwire id`, `longwire address`, `longwire bundle` | your key id (hex), your full address (`lw1…`), your public bundle (hex, for `--peer`) |
 | `longwire jack --remove [TAP]` | take the jack away (stopping a DHCP client of ours on it first); only a jack that is yours. A profile with `keep_jack = no` does this at every `off` |
-| `longwire jack [--address A.B.C.D/N] [--via GATEWAY [--routes NET/PREFIX,...] [--everything]] [TAP]` | make the tap device a single machine attaches to (`lw0` to `lw99`, `lw0` by default) and give it to you, with an IPv4 address if one is given ([ADR 0036](adr/0036-the-jack-gets-its-address-from-the-profile.md)). A small root helper does it ([ADR 0034](adr/0034-a-connection-is-a-profile.md)): polkit asks for a password once, in a terminal or in the desktop. `on` does this by itself when the jack, or its address, is missing |
+| `longwire jack [--address A.B.C.D/N] [--via GATEWAY [--routes NET/PREFIX,...] [--everything [--dns NAMESERVER]]] [TAP]` | make the tap device a single machine attaches to (`lw0` to `lw99`, `lw0` by default) and give it to you, with an IPv4 address if one is given ([ADR 0036](adr/0036-the-jack-gets-its-address-from-the-profile.md)). A small root helper does it ([ADR 0034](adr/0034-a-connection-is-a-profile.md)): polkit asks for a password once, in a terminal or in the desktop. `on` does this by itself when the jack, or its address, is missing |
 | `longwire site NIC [PROFILE]`, `longwire site --stop NIC` | make this machine a site node for the card NIC from a profile: a service (`longwire@NIC`) written and started by a root helper after one password, with the profile's switchboard, token, name, answer policy and `listed`; a name with a space is left out. `--stop` stops and disables it ([ADR 0039](adr/0039-a-site-node-from-the-pane.md)) |
 | `longwire setup splice NIC`, `longwire setup jack [TAP]` | print the one-time privileged step for that attach mode, to run by hand if you would rather |
 | `longwire profile list`, `show [NAME]`, `set NAME KEY=VALUE…`, `token NAME`, `default NAME`, `rename OLD NEW`, `remove NAME` | the saved connections ([profiles](#profiles)) |
@@ -88,6 +88,7 @@ profile home
   gateway = 192.168.152.254          a router on the line that reaches other networks (jack only)
   routes = 192.168.150.0/24          networks to reach through it, separated by commas: never the default route ([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md))
   everything = yes                   send all of this machine's traffic through the gateway; needs gateway and a static address ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md))
+  dns = 192.168.152.254              with everything: ask this name server, through the line, for every name (systemd-resolved; [ADR 0047](adr/0047-names-through-the-line-are-set-on-the-jack.md))
   keep_jack = yes                    yes (the default): Turn off leaves the jack, so the next Turn on needs no password; no: Turn off removes it
   address = 10.77.0.2/24             this machine's address on the line (jack only; every machine its own, one subnet), or `dhcp`
   name = osakka
@@ -193,7 +194,7 @@ script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `dh
 different key than before), `site` (a splice box became `active` or `standby`), and for lines `line-joined` (with `line`,
 `members`), `member-joined`, `member-left` and `member-evicted` (each with `number`), `evicted` (you were put off the
 line), `line-partial` (with `members` and `up`: the mesh is still incomplete 30 seconds after joining) and
-`line-complete`, `sas` (the safety phrase, once the exchange is done; it says whether it is the old kind) and `sas-failed` (the exchange failed and the call was ended), and `address-skipped` (with the address and the port: an address of the other end lies inside the jack's own network and no other road to it could be had, so it is not used; [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). The node script turns them into the sentences above; the desktop will turn them into dialogs
+`line-complete`, `sas` (the safety phrase, once the exchange is done; it says whether it is the old kind) and `sas-failed` (the exchange failed and the call was ended), `roamed` (with `from` and `to`: the road under a node that takes everything changed, so it let go of the jack and is started again on the new one; [ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)), and `address-skipped` (with the address and the port: an address of the other end lies inside the jack's own network and no other road to it could be had, so it is not used; [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). The node script turns them into the sentences above; the desktop will turn them into dialogs
 *(planned: M4)*.
 
 ## Scripting it yourself: the `lw` builtin

@@ -200,6 +200,44 @@ int main(int argc, char **argv)
 		n->tie[0] = 0;
 	}
 
+	/* the road changes under the line (docs/adr/0046): with everything through it, the jack is let go at once and the change is told */
+	{
+		char rf[128];
+		FILE *f;
+		int pr[2];
+
+		snprintf(rf, sizeof rf, "%s/roads", dir);
+		snprintf(n->cfg.port_kind, sizeof n->cfg.port_kind, "jack");
+		snprintf(n->cfg.port_arg, sizeof n->cfg.port_arg, "lo");
+		n->cfg.underlay[0] = 0;
+		snprintf(n->cfg.routes_file, sizeof n->cfg.routes_file, "%s", rf);
+		f = fopen(rf, "w");
+		fprintf(f, "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\neth9\t00000000\t0109000A\t0003\t0\t0\t0\t00000000\t0\t0\t0\n");
+		fclose(f);
+		snprintf(n->tie, sizeof n->tie, "eth9");
+		n->roamed = 0;
+		check(pipe(pr) == 0, "(a stand-in jack)");
+		n->port_fd = pr[0];
+		jnets_refresh(n);
+		check(!n->roamed && n->port_fd == pr[0], "the same road: the jack is kept");
+		f = fopen(rf, "w");
+		fprintf(f, "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\nwlan9\t00000000\t0109000A\t0003\t0\t0\t0\t00000000\t0\t0\t0\n");
+		fclose(f);
+		jnets_refresh(n);
+		check(n->roamed && n->port_fd == -1, "a new road (eth9 to wlan9): the jack is let go at once, so the kernel's safety net puts the machine on its own road");
+		n->roamed = 0;
+		n->port_fd = -1;
+		f = fopen(rf, "w");
+		fprintf(f, "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n");
+		fclose(f);
+		jnets_refresh(n);
+		check(n->roamed, "no road at all: the same");
+		close(pr[1]);
+		n->tie[0] = 0;
+		n->roamed = 0;
+		n->cfg.routes_file[0] = 0;
+	}
+
 	/* an interface that does not exist: nothing is dropped */
 	snprintf(n->cfg.port_kind, sizeof n->cfg.port_kind, "jack");
 	snprintf(n->cfg.port_arg, sizeof n->cfg.port_arg, "lwnone0");

@@ -3,6 +3,16 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.27
+
+- **Moving to another network while everything goes through the line** ([ADR 0046](docs/adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)). The engine looks at the road once a second; when the device its sockets are tied to stops being it (Wi-Fi to a
+  cable, or no network at all), it **lets go of the jack at once**, so the kernel's safety net puts the machine on its own road whatever happens next, and tells the new `roamed` event. The node script then
+  starts the node again on the new road, waiting for one if there is none. Without everything through the line, the underlay socket follows the road the same way. And a node started by hand on a jack whose
+  table takes everything gets `--everything` added, so it never sends its own packets into the line. Tested on the engine with a route file that changes under it (`tests/jacknet.sh`). Not tried: a laptop really moving.
+- **Names through the line** ([ADR 0047](docs/adr/0047-names-through-the-line-are-set-on-the-jack.md)). With everything through the line, a profile may name a **Name server** (`dns = 192.168.152.254`, a row in the pane): the helper sets it on the jack in
+  systemd-resolved for every name, in the same password step. Nothing in `/etc` is written, and it fails like the routes: resolved passes over a jack with no carrier, so names come back to the machine's own
+  server when the node is gone. Without systemd-resolved it says so, and the rest goes ahead; `longwire show` has a `names` line. Tested against a stand-in `resolvectl` (`tests/jack.sh`) and in the pane. Not tried: a real systemd-resolved.
+
 ## 0.5.26
 
 *Published:* the catalogue (`hibr-apps` `4404f4c`) and the packages (`hibr-apt` `b6ac2d5`, `hibr-rpm` `f4c2fd8`, `hibr-arch` `1939fe6`). `make check` passed (777 checks). Update both: the switch needs the new package (engine and helper) and the new scripts.

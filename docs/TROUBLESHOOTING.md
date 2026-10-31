@@ -114,6 +114,9 @@ should then say `via` the gateway `dev lw0`. If it does and there is still no an
 (a home router does for its own network's machines; a server needs `ip_forward` and a masquerade rule). Try `ping` to the gateway itself first. If `longwire show` says *asked, but … not going
 through the line*, turn off and on. To get out at once: turn longwire off; nothing else is needed.
 
+**Everything goes through the line, but names do not resolve.**
+`resolvectl dns lw0` names the server asked. It must answer on the line's side: try `resolvectl query example.org`. Empty the **Name server** to go back to your own. `longwire show` has a `names` line.
+
 **`⚠ two DHCP servers answer on this line`**
 Two machines on the line are both handing out leases, and clients may get clashing addresses. Turn one off.
 

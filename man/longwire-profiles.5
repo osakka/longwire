@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.26" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.27" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -96,6 +96,11 @@ Needs
 .B gateway
 and a static
 .BR address .
+.TP
+.B dns
+With
+.BR everything :
+a name server asked through the line for every name, set on the jack in systemd-resolved; passed over, like the routes, whenever no node holds the jack.
 .TP
 .B keep_jack
 .BR yes " (the default) or " no .

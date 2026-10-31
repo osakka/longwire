@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.26
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.27
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.26}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.27}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -248,7 +248,7 @@ fn lwp_profiles(force = "") {
 		default) LWP_PDEF=$eq ;;
 		profile) cur=$eq; LWP_PNAMES+=("$cur") ;;
 		token) [ -n "$cur" ] && LWP_PF["$cur.token"]=${#v} ;;
-		switchboard | attach | interface | address | gateway | routes | everything | keep_jack | name | listed | answer) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
+		switchboard | attach | interface | address | gateway | routes | everything | dns | keep_jack | name | listed | answer) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
 		esac
 	done < "$f"
 }
@@ -334,6 +334,7 @@ fn longwire_rows(int w) {
 			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Send everything through the line"; CP[$w][$n]["wtype"]=bool	# docs/adr/0045
 			CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.everything]-}" = yes ] && CP[$w][$n]["val"]=on
 			CP[$w][$n]["key"]=everything; n=$((n + 1))
+			[ "${LWP_PF[$p.everything]-}" = yes ] && { lwp_row "$w" "$n" action "Name server" "${LWP_PF[$p.dns]:-this machine's own}" dns; n=$((n + 1)); }	# docs/adr/0047
 		fi
 		if [ "${LWP_PF[$p.attach]:-jack}" = jack ]; then
 			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keep the jack when turned off"; CP[$w][$n]["wtype"]=bool
@@ -513,6 +514,7 @@ fn lwp_setsb(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset switchbo
 fn lwp_setiface(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset interface "$text"; return 0; }
 fn lwp_setaddress(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset address "$text"; return 0; }
 fn lwp_setgateway(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset gateway "$text"; return 0; }
+fn lwp_setdns(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset dns "$text"; return 0; }
 fn lwp_setroutes(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset routes "$text"; return 0; }
 fn lwp_setname(text, int? id = "") { lwp_pset name "$text"; return 0; }
 fn cp_set_lwpolicy(int? id = "", value = "") { lwp_setpolicy "$value"; }
@@ -763,8 +765,18 @@ fn lwp_haseverything(iface, gw, want) {
 	return 0
 }
 
+# Is the jack's name server in systemd-resolved as asked ("" for none)? Without resolved there is nothing to ask (docs/adr/0047).
+fn lwp_hasdns(iface, dns) {
+	local have
+	command -v resolvectl > /dev/null || return 0
+	have=$(resolvectl dns "$iface" 2> /dev/null)
+	have=${have#*:}
+	have=${have// /}
+	[ "$have" = "$dns" ]
+}
+
 fn lwp_turnon(int w) {
-	local p sb attach iface addr gw rts ev
+	local p sb attach iface addr gw rts ev ns
 
 	if ! command -v longwire > /dev/null; then
 		dt_notep high "longwire is not installed. Find it in the Catalogue (Commands)."
@@ -800,12 +812,14 @@ fn lwp_turnon(int w) {
 		return 1
 	fi
 	[[ $iface =~ ^lw[0-9]{1,2}$ ]] || ev=no
-	if [ "$attach" = jack ] && { [ ! -d "/sys/class/net/$iface" ] || { [ -n "$addr" ] && ! lwp_hasaddr "$iface" "$addr"; } || ! lwp_hasroutes "$iface" "$gw" "$rts" || ! lwp_haseverything "$iface" "$gw" "$ev"; }; then
+	ns=
+	[ "$ev" = yes ] && ns=${LWP_PF[$p.dns]-}
+	if [ "$attach" = jack ] && { [ ! -d "/sys/class/net/$iface" ] || { [ -n "$addr" ] && ! lwp_hasaddr "$iface" "$addr"; } || ! lwp_hasroutes "$iface" "$gw" "$rts" || ! lwp_haseverything "$iface" "$gw" "$ev" || ! lwp_hasdns "$iface" "$ns"; }; then
 		LWP_BUSY=1
 		[ -n "$rts" ] || [ "$ev" = yes ] || gw=
 		local evf=
 		[ "$ev" = yes ] && evf=--everything
-		LWP_JOB := dt_ptyjob longwire jack lwp_jackdone lwp_pkprompt longwire jack ${addr:+--address "$addr"} ${gw:+--via "$gw"} ${rts:+--routes "$rts"} ${evf:+"$evf"} "$iface"
+		LWP_JOB := dt_ptyjob longwire jack lwp_jackdone lwp_pkprompt longwire jack ${addr:+--address "$addr"} ${gw:+--via "$gw"} ${rts:+--routes "$rts"} ${evf:+"$evf"} ${ns:+--dns "$ns"} "$iface"
 		[ -n "$LWP_JOB" ] || { LWP_BUSY=0; dt_notep high "Could not start pkexec"; return 1; }
 		dt_notep low "Making the jack $iface${GL[ellipsis]}"
 		return 0
@@ -876,6 +890,7 @@ fn longwire_do(int w, k, int dir) {
 	token) dt_ask "Token" "Token" "" lwp_settoken "the invite token your switchboard gave you; empty removes it. It is kept in a file only you can read" 1 ;;
 	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "for jack, the tap (lw0 to lw99, made for you); for splice, the NIC" ;;
 	gateway) p := lwp_cur; dt_ask "Gateway" "Gateway" "${LWP_PF[$p.gateway]-}" lwp_setgateway "a router on the line, like 192.168.152.254, that reaches the networks below; empty for none" ;;
+	dns) p := lwp_cur; dt_ask "Name server" "Address" "${LWP_PF[$p.dns]-}" lwp_setdns "a name server reached through the line, like the far router 192.168.152.254, asked for every name while everything goes through it (needs systemd-resolved); empty for this machine's own" ;;
 	routes) p := lwp_cur; dt_ask "Routes" "Networks" "${LWP_PF[$p.routes]-}" lwp_setroutes "networks to reach through the gateway, like 192.168.150.0/24,10.20.0.0/16 (never the default route); empty for none" ;;
 	address) p := lwp_cur; dt_ask "Address" "Address" "${LWP_PF[$p.address]-}" lwp_setaddress "this machine's address on the line, like 10.77.0.2/24 (every machine its own, in one subnet), or dhcp to ask a DHCP server on the line; empty to leave it alone" ;;
 	name) p := lwp_cur; dt_ask "Name" "Name" "${LWP_PF[$p.name]-}" lwp_setname "what callers see (a claim, not proof); empty for none" ;;

@@ -33,8 +33,8 @@ that manages routes, and it says nothing about what happens when the node dies.
 
 - **Fail open, not a kill switch.** When the node stops, traffic goes the machine's own way again, which is what "off" means. A switch that blocks everything while the line is down is a different
   promise, and not made here.
-- **Names.** The machine keeps asking whichever name server it was set up with; if that is a router on its own network, those questions stay local. A `dns` setting is a later feature.
-- **Roaming.** The engine's sockets are tied to the device the machine reached the world by when it started; after moving from Wi-Fi to a cable, turn off and on.
+- **Names.** The machine keeps asking whichever name server it was set up with; if that is a router on its own network, those questions stay local. Since 0.5.27 a name server can be asked through the line: [0047](0047-names-through-the-line-are-set-on-the-jack.md).
+- **Roaming.** The engine's sockets are tied to the device the machine reached the world by when it started. Since 0.5.27 the node lets go of the jack when that changes, and starts again on the new road: [0046](0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md).
 - **The far side.** The gateway must pass the traffic on: forward it and, if it is the edge of its network, translate it to its own address. A machine bridged into a home or office network
   that names that network's own router as the gateway needs nothing more: to the router it is one more machine on its network.
 

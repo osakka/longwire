@@ -48,6 +48,47 @@ static void jnets_routes(lw_node *n)
 	fclose(f);
 }
 
+static int underlay_dev(const lw_node *n, char *dev, size_t cap);
+
+/* A device name as it may go into an event: what a name usually is, or "?" (docs/adr/0046). */
+static const char *dev_safe(const char *d)
+{
+	const char *c;
+
+	for (c = d; *c; c++)
+		if (!((*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') || (*c >= '0' && *c <= '9') || *c == '-' || *c == '_' || *c == '.' || *c == '@'))
+			return "?";
+	return d;
+}
+
+/* The road under the line may change while the node runs: a laptop moves from Wi-Fi to a cable, or loses both (docs/adr/0046). Looked at once a second.
+ * The underlay socket of docs/adr/0037 is opened again on the new road when next wanted. With everything through the line, every socket is tied to the
+ * old road and cannot be tied again without privilege: the node lets go of the jack at once, so that the kernel's safety net (docs/adr/0045) puts the
+ * machine on its own road, and says so; the script starts the node again on the new one. */
+static void road_check(lw_node *n)
+{
+	char dev[32];
+	int have;
+
+	if (!jack_mode(n) || n->cfg.underlay[0])
+		return;					/* a device named in the options: nothing to follow */
+	have = underlay_dev(n, dev, sizeof dev);
+	if (n->tie[0]) {
+		if (!n->roamed && (!have || strcmp(dev, n->tie))) {
+			n->roamed = 1;
+			if (n->port_fd >= 0) {
+				close(n->port_fd);	/* the jack's carrier goes with it */
+				n->port_fd = -1;
+			}
+			ev_emit(n, "{\"event\":\"roamed\",\"from\":\"%s\",\"to\":\"%s\"}", dev_safe(n->tie), have ? dev_safe(dev) : "");
+		}
+	} else if (n->uudp >= 0 && (!have || strcmp(dev, n->uudev))) {
+		close(n->uudp);
+		n->uudp = -1;
+	} else if (n->uudp == -2 && have)
+		n->uudp = -1;				/* a road again: try once more when next wanted */
+}
+
 /* The networks connected to the jack, read from the system. Kept for a second: it is looked at for every packet to a peer. */
 void jnets_refresh(lw_node *n)
 {
@@ -87,6 +128,7 @@ void jnets_refresh(lw_node *n)
 	}
 	freeifaddrs(ifa);
 	jnets_routes(n);
+	road_check(n);
 }
 
 void jnets_fresh(lw_node *n)
@@ -135,7 +177,7 @@ static int underlay_dev(const lw_node *n, char *dev, size_t cap)
 		snprintf(dev, cap, "%s", n->cfg.underlay);
 		return 1;
 	}
-	if (!(f = fopen("/proc/net/route", "r")))
+	if (!(f = fopen(n->cfg.routes_file[0] ? n->cfg.routes_file : "/proc/net/route", "r")))
 		return 0;
 	if (!fgets(line, sizeof line, f)) {
 		fclose(f);

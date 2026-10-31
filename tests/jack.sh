@@ -17,6 +17,7 @@ case "$*" in
 esac
 IP
 chmod +x "$T/bin/ip"
+printf '#!/bin/sh\necho "resolvectl $*" >> "$LWJ_LOG"\n' > "$T/bin/resolvectl"; chmod +x "$T/bin/resolvectl"		# systemd-resolved, written down too
 export LWJ_LOG="$T/log" PATH="$T/bin:$PATH"
 fail=0
 ok() { echo "ok   $1"; }
@@ -119,6 +120,14 @@ grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --everything 
 grep -qx "helper --address 192.168.152.50/24 lw7" "$LWJ_LOG" && ok "a gateway with nothing to be the gateway for is not passed on" || bad "lone via: $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --everything lw7 2>&1); rc=$?
 [ $rc != 0 ] && echo "$out" | grep -q "needs a gateway" && ! grep -q helper "$LWJ_LOG" && ok "everything without a gateway is refused, with what to set" || bad "jack everything no gw: rc=$rc $out"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168.152.254 lw7 2>&1)
+grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168.152.254 lw7" "$LWJ_LOG" && ok "and the name server with it" || bad "jack dns: $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --routes 10.20.0.0/16 --dns 192.168.152.254 lw7 2>&1)
+grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --routes 10.20.0.0/16 lw7" "$LWJ_LOG" && ok "but not without everything" || bad "jack dns alone: $out $(cat "$LWJ_LOG")"
+out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p dns=192.168.152.254 2>&1); rc=$?
+[ $rc = 0 ] && ok "a profile keeps a name server" || bad "profile dns: rc=$rc $out"
+out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p 'dns=1.1.1.1;id' 2>&1); rc=$?
+[ $rc = 2 ] && ok "and refuses one that is not an address" || bad "profile bad dns: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p everything=yes 2>&1); rc=$?
 [ $rc = 0 ] && ok "a profile may say everything=yes" || bad "profile everything: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p everything=maybe 2>&1); rc=$?
@@ -204,6 +213,28 @@ LWJ_HELD=1 run --address 192.168.152.50/24 --via 192.168.152.254 --everything lw
 [ $rc = 2 ] && echo "$out" | grep -q "name it with --via" && [ ! -s "$LWJ_LOG" ] && ok "and a gateway" || bad "no via: rc=$rc $out"
 : > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --via 192.168.10.1 --everything lw7 1000 2>&1); rc=$?
 [ $rc = 2 ] && echo "$out" | grep -q "not on the jack's network" && ok "on the jack's own network" || bad "via off-net: rc=$rc $out"
+
+
+echo "-- jack --dns: names through the line, on the jack in systemd-resolved (docs/adr/0047)"
+run --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168.152.254 lw7 1000
+[ $rc = 0 ] && grep -qx "resolvectl dns lw7 192.168.152.254" "$LWJ_LOG" && grep -qx "resolvectl domain lw7 ~." "$LWJ_LOG" && grep -qx "resolvectl default-route lw7 yes" "$LWJ_LOG" \
+	&& ok "the name server goes on the jack, for every name" || bad "dns: rc=$rc $out $(cat "$LWJ_LOG")"
+grep -n "rule add pref 7701\|resolvectl dns" "$LWJ_LOG" | head -1 | grep -q "rule add" && ok "after the route to it is there" || bad "dns order: $(cat "$LWJ_LOG")"
+run --address 192.168.152.50/24 lw7 1000
+grep -qx "resolvectl revert lw7" "$LWJ_LOG" && ok "without --dns, the jack's name server is taken away" || bad "revert: $(cat "$LWJ_LOG")"
+for d in 127.0.0.53 0.0.0.0 224.0.0.1 "1.1.1.1;id" 1.1.1 dns.example; do
+	: > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns "$d" lw7 1000 2>&1); rc=$?
+	[ $rc = 2 ] && [ ! -s "$LWJ_LOG" ] && ok "refused before anything is run: --dns '$d'" || bad "dns '$d': rc=$rc $out"
+done
+: > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --dns 192.168.152.254 lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && echo "$out" | grep -q "goes with --everything" && ok "names through the line only with everything through it" || bad "dns alone: rc=$rc $out"
+mv "$T/bin/resolvectl" "$T/resolvectl.off"
+OPATH=$PATH; PATH=$T/bin:/usr/bin:/bin
+command -v resolvectl > /dev/null || {
+	run --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168.152.254 lw7 1000
+	[ $rc = 0 ] && echo "$out" | grep -q "needs systemd-resolved" && ok "without systemd-resolved, it says names stay with the machine's own name server, and everything else stands" || bad "no resolved: rc=$rc $out"
+}
+PATH=$OPATH; mv "$T/resolvectl.off" "$T/bin/resolvectl"
 
 [ $fail = 0 ] && echo "all jack checks passed"
 exit $fail

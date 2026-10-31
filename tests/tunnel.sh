@@ -12,7 +12,9 @@ if ! unshare -rnm true 2> /dev/null; then
 fi
 T=$(mktemp -d /tmp/lwtun.XXXXXX) || exit 1
 trap 'rm -rf "$T"' EXIT
-export HIBR T
+mkdir "$T/bin"; printf '#!/bin/sh\nexit 0\n' > "$T/bin/resolvectl"; chmod +x "$T/bin/resolvectl"	# never the host's systemd-resolved
+PATH=$T/bin:$PATH
+export HIBR T PATH
 unshare -rnm sh -c '
 fail=0
 ok() { echo "ok   $1"; }

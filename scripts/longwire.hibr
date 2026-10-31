@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.26
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.27
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.26}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.27}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -52,7 +52,7 @@ usage: longwire <command>
   on [PROFILE]                                start the node in the background, from a saved profile (the default one if none is named)
   profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME
                                               saved connections: switchboard, token, attach, interface, name, listed, answer
-  jack [--address A.B.C.D/N] [--via GW [--routes NET/P,...] [--everything]] [TAP]  make the tap device a single machine attaches to (lw0 by default), with an address if asked; asks for a password once
+  jack [--address A.B.C.D/N] [--via GW [--routes NET/P,...] [--everything [--dns NS]]] [TAP]  make the tap device a single machine attaches to (lw0 by default), with an address if asked; asks for a password once
   site NIC [PROFILE] | site --stop NIC        make this machine a site node for the card NIC from a profile (a service, after one password); or stop it
   setup splice NIC | setup jack [TAP [ADDR]]  print the one-time privileged step for that attach mode, to run by hand
   key export | import                         the identity as 33 words, and back (import reads them on stdin)
@@ -92,6 +92,7 @@ announce() {
 	member-left)      say "·  ${e[number]} left the line" ;;
 	member-evicted)   say "·  ${e[number]} was evicted from the line" ;;
 	evicted)          say "⚠  you were evicted from line ${e[line]}" ;;
+	roamed)           say "·  the road changed (${e[from]} to ${e[to]:-none}): everything goes the machine's own way for a moment, while the node starts again on the new road" ;;
 	line-partial)     say "⚠  the line is not a full mesh: ${e[up]} of ${e[members]} members reachable (frames between the others are not forwarded)" ;;
 	address-skipped)  say "⚠  not using ${e[address]}:${e[port]} to reach the other end: it is inside your jack's own network and there is no other road to it (docs/TROUBLESHOOTING.md)" ;;
 	line-complete)    say "·  the line is a full mesh (${e[members]} members)" ;;
@@ -158,7 +159,7 @@ profiles_read() {
 		case $k in
 		default) PDEFAULT=$eq ;;
 		profile) cur=$eq; PNAMES+=("$cur") ;;
-		switchboard|token|attach|interface|address|gateway|routes|everything|keep_jack|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
+		switchboard|token|attach|interface|address|gateway|routes|everything|dns|keep_jack|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
 		esac
 	done < "$PROFILES"
 }
@@ -171,7 +172,7 @@ profiles_write() {
 		out="$out
 profile $n
 "
-		for k in switchboard token attach interface address gateway routes everything keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
 			[ -n "${PF[$n.$k]:-}" ] && out="$out  $k = ${PF[$n.$k]}
 "
 		done
@@ -219,7 +220,7 @@ cmd_profile() {
 		n=${1:-$PDEFAULT}
 		[ -n "$n" ] && profile_exists "$n" || { echo "longwire: no profile${n:+ called $n}" >&2; exit 1; }
 		echo "profile $n$([ "$n" = "$PDEFAULT" ] && echo '   (default)')"
-		for k in switchboard token attach interface address gateway routes everything keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
 			v=${PF[$n.$k]:-}
 			[ -n "$v" ] || continue
 			[ "$k" = token ] && v="(set, ${#v} characters)"		# the token is not shown: it is in the file, readable by you only
@@ -227,7 +228,7 @@ cmd_profile() {
 		done ;;
 	set)
 		n=${1:-}
-		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything keep_jack name listed answer)" >&2; exit 2; }
+		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything dns keep_jack name listed answer)" >&2; exit 2; }
 		shift
 		case $n in ''|*[!A-Za-z0-9._-]*) echo "longwire: a profile name is letters, digits, . _ -" >&2; exit 2 ;; esac
 		profile_exists "$n" || { PNAMES+=("$n"); [ -n "$PDEFAULT" ] || PDEFAULT=$n; }	# the first profile is the default one
@@ -244,9 +245,10 @@ cmd_profile() {
 			routes) case $v in *[!0-9./,]*) echo "longwire: routes are networks like 192.168.150.0/24, separated by commas" >&2; exit 2 ;; esac ;;
 			keep_jack) case $v in yes|no|"") ;; *) echo "longwire: keep_jack is yes or no" >&2; exit 2 ;; esac ;;
 			everything) case $v in yes|no|"") ;; *) echo "longwire: everything is yes or no" >&2; exit 2 ;; esac ;;
+			dns) case $v in ""|[0-9]*.[0-9]*.[0-9]*.[0-9]*) case $v in *[!0-9.]*) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;; *) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;;
 			listed) case $v in yes|no|"") ;; *) echo "longwire: listed is yes or no" >&2; exit 2 ;; esac ;;
 			answer) case $v in ask|known|auto|never|"") ;; *) echo "longwire: answer is ask, known, auto or never" >&2; exit 2 ;; esac ;;
-			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything keep_jack name listed answer)" >&2; exit 2 ;;
+			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything dns keep_jack name listed answer)" >&2; exit 2 ;;
 			esac
 			if [ -n "$v" ]; then PF["$n.$k"]=$v; else unset "PF[$n.$k]"; fi
 		done
@@ -273,7 +275,7 @@ cmd_profile() {
 		[ "$to" = "$n" ] && exit 0
 		profile_exists "$to" && { echo "longwire: there is already a profile called '$to'" >&2; exit 1; }
 		for i in "${!PNAMES[@]}"; do [ "${PNAMES[$i]}" = "$n" ] && PNAMES[$i]=$to; done		# same place in the list, same default
-		for k in switchboard token attach interface address gateway routes everything keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
 			if [ -n "${PF[$n.$k]:-}" ]; then PF["$to.$k"]=${PF[$n.$k]}; fi
 			unset "PF[$n.$k]"
 		done
@@ -285,7 +287,7 @@ cmd_profile() {
 		local keep=() m
 		for m in "${PNAMES[@]}"; do [ "$m" = "$n" ] || keep+=("$m"); done
 		PNAMES=("${keep[@]}")
-		for k in switchboard token attach interface address gateway routes everything keep_jack name listed answer; do unset "PF[$n.$k]"; done
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do unset "PF[$n.$k]"; done
 		[ "$PDEFAULT" = "$n" ] && PDEFAULT=${PNAMES[0]:-}
 		profiles_write ;;
 	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME" >&2; exit 2 ;;
@@ -383,6 +385,15 @@ cmd_show() {
 		erule=$(PATH=$PATH:/usr/sbin:/sbin ip -4 route get 1.1.1.1 2> /dev/null)
 		if [[ $erule =~ \ dev\ (lw[0-9]+) ]]; then
 			echo "   everything    through the line (${M[1]}); the line itself goes by ${S[tied]}"
+			if command -v resolvectl > /dev/null; then
+				local ens
+				ens=$(resolvectl dns "${M[1]}" 2> /dev/null)
+				ens=${ens#*:}
+				ens=${ens// /}
+				if [ -n "$ens" ]; then echo "   names         through the line, from $ens"; else echo "   names         from this machine's own name server (set dns in the profile to ask one through the line)"; fi
+			else
+				echo "   names         from this machine's own name server (names through the line need systemd-resolved)"
+			fi
 		else
 			echo "   everything    asked, but this machine's traffic is not going through the line: longwire off, then on, puts it back (docs/adr/0045)"
 		fi
@@ -546,6 +557,16 @@ jack_has_everything() {
 	return 0
 }
 
+# Is the jack's name server in systemd-resolved as asked ("" for none)? Asked without privilege; without resolved there is nothing to ask (docs/adr/0047).
+jack_has_dns() {
+	local tap=$1 dns=$2 have
+	command -v resolvectl > /dev/null || return 0
+	have=$(resolvectl dns "$tap" 2> /dev/null)
+	have=${have#*:}
+	have=${have// /}
+	[ "$have" = "$dns" ]
+}
+
 cmd_jack() {
 	local addr= tap helper mode=
 	if [ "${1:-}" = --remove ]; then
@@ -563,13 +584,14 @@ cmd_jack() {
 		fi
 		return
 	fi
-	local via= routes= r all=no
+	local via= routes= r all=no dns=
 	local extra=()
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--everything) all=yes; shift; continue ;;
+		--dns) [ $# -ge 2 ] || { echo "longwire: --dns needs a name server's address" >&2; exit 2; }; dns=$2; shift 2; continue ;;
 		--address|--via|--routes)
-			[ $# -ge 2 ] || { echo "usage: longwire jack [--address A.B.C.D/N | dhcp] [--via GATEWAY [--routes NET/PREFIX,...] [--everything]] [TAP]" >&2; exit 2; }
+			[ $# -ge 2 ] || { echo "usage: longwire jack [--address A.B.C.D/N | dhcp] [--via GATEWAY [--routes NET/PREFIX,...] [--everything [--dns NS]]] [TAP]" >&2; exit 2; }
 			case $1 in --address) addr=$2 ;; --via) via=$2 ;; --routes) routes=$2 ;; esac
 			shift 2 ;;
 		*) break ;;
@@ -581,11 +603,13 @@ cmd_jack() {
 	[ -z "$via" ] || extra=(--via "$via")
 	[ -z "$routes" ] || [ -z "$via" ] || extra+=(--routes "$routes")
 	[ $all = no ] || extra+=(--everything)
+	[ $all = yes ] || dns=				# names through the line only go with everything through it
+	[ -z "$dns" ] || extra+=(--dns "$dns")
 	if [ $all = yes ] && [ -z "$via" ]; then
 		echo "longwire: everything through the line needs a gateway on it: longwire profile set NAME gateway=A.B.C.D" >&2
 		return 1
 	fi
-	if [ -d "/sys/class/net/$tap" ] && { [ -z "$addr" ] || jack_has_addr "$tap" "$addr"; } && jack_has_routes "$tap" "$via" "$routes" && jack_has_everything "$tap" "$via" $all; then
+	if [ -d "/sys/class/net/$tap" ] && { [ -z "$addr" ] || jack_has_addr "$tap" "$addr"; } && jack_has_routes "$tap" "$via" "$routes" && jack_has_everything "$tap" "$via" $all && jack_has_dns "$tap" "$dns"; then
 		if [ "$addr" = dhcp ]; then
 			echo "longwire: the jack $tap is there, with DHCP"
 		else
@@ -706,7 +730,7 @@ cmd_on() {
 	profile_exists "$n" || { echo "longwire: no profile called '$n'  (longwire profile list)" >&2; exit 1; }
 	if [ "${PF[$n.attach]:-jack}" = jack ]; then
 		local ev=()
-		[ "${PF[$n.everything]:-}" = yes ] && ev=(--everything)
+		[ "${PF[$n.everything]:-}" = yes ] && ev=(--everything ${PF[$n.dns]:+--dns "${PF[$n.dns]}"})
 		cmd_jack ${PF[$n.address]:+--address "${PF[$n.address]}"} ${PF[$n.gateway]:+--via "${PF[$n.gateway]}"} ${PF[$n.routes]:+--routes "${PF[$n.routes]}"} "${ev[@]}" "${PF[$n.interface]:-lw0}" || exit 1			# made now, with a password if it must be
 	fi
 	: > "$LW_DIR/log"
@@ -733,9 +757,23 @@ cmd_on() {
 	return 1
 }
 
+# The road changed under a node that sends everything through the line (docs/adr/0046): the node has let go of the jack already; stop it, wait for a road that is not
+# a jack, and start again on it with what this was started with.
+up_again() {
+	local i
+	lw stop > /dev/null 2>&1
+	for ((i = 0; ; i++)); do
+		PATH=$PATH:/usr/sbin:/sbin ip -4 route show default 2> /dev/null | grep -v ' dev lw[0-9]' | grep -q ' dev ' && break
+		[ $i -eq 0 ] && say "·  waiting for a network"
+		sleep 2
+	done
+	exec "$HIBR" "$0" up "$@"
+}
+
 cmd_up() {
 	local answer= line profile= given=0 a
 	local args=()
+	local orig=("$@")
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--profile) [ $# -ge 2 ] || { echo "longwire: --profile needs a name" >&2; exit 2; }; profile=$2; shift 2; continue ;;
@@ -787,6 +825,7 @@ cmd_up() {
 		json parse e "$line"
 		case ${e[event]} in
 		ring) announce ring; on_ring "$answer" ;;
+		roamed) announce roamed; exec 5<&-; up_again "${orig[@]}" ;;
 		watching) ;;
 		*) announce "${e[event]}" ;;
 		esac

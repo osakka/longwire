@@ -84,8 +84,9 @@ The line is one segment: everything on it is reached with no route. A network *b
 
 To have all of this machine's traffic leave by the far site (a café's Wi-Fi, home's internet), set **Gateway** to the router there and switch on **Send everything through the line**
 (`longwire profile set home everything=yes`), then turn on. `longwire show` says `everything  through the line (lw0)`. Your own network (the printer) stays yours, and the moment longwire is off or
-stops, everything goes the usual way again. The router at the far end must pass the traffic on, which a home or office router does for any machine on its network. Name lookups still go to your usual
-name server, and IPv6 does not work through the line ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)).
+stops, everything goes the usual way again. The router at the far end must pass the traffic on, which a home or office router does for any machine on its network. Set **Name server** (often the same router) to
+look names up there too, rather than on the network you sit on (with systemd-resolved). Moving from Wi-Fi to a cable while on is fine: longwire lets go for a moment and starts again on the new network. IPv6
+does not work through the line ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)).
 
 ## 5. Make the first call
 

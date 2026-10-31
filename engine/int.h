@@ -262,6 +262,7 @@ struct lw_node {
 	uint16_t udp6_port;	/* the IPv6 socket, if there is one: -1 otherwise */
 	char     uudev[32];		/* the device it is tied to */
 	char     tie[32];		/* everything through the line: the device all our sockets are tied to (docs/adr/0045) */
+	int      roamed;		/* that device is no longer the road: the jack was let go (docs/adr/0046) */
 	int      uudp;			/* the underlay socket (under.c): -1 not opened yet, -2 none to be had */
 	lw_jnet  jnet[LW_JNETS];	/* the networks connected to our jack */
 	int      njnet;

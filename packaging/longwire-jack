@@ -9,6 +9,8 @@
 # win, and its own default route is never touched. The routes through the jack are skipped by the kernel when the jack has no carrier, which is when no
 # node holds it, so a node that stops or crashes leaves the machine on its own road, not on none; the helper checks that before it adds anything. Run
 # without --everything, it takes its rules away if they are there.
+# With --dns A.B.C.D as well, the machine asks that name server, through the line, for every name (docs/adr/0047): set on the jack in systemd-resolved, which
+# passes over a device with no carrier as the kernel does, so names come back to the machine's own name server whenever the node is gone.
 # longwire-jack [--address A.B.C.D/N | --dhcp] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
 # bring it up, with the address if one is given, or with a DHCP client started on it (so that nobody runs `ip addr` or `dhclient` by hand). The
 # client keeps asking until the line answers, so the tunnel need not be up yet; it sets the address and the network route only, never a
@@ -33,6 +35,7 @@ remove=
 via=
 routes=
 everything=
+dns=
 while [ $# -gt 0 ]; do
 	case $1 in
 	--address)
@@ -42,6 +45,10 @@ while [ $# -gt 0 ]; do
 	--dhcp) dhcp=1; shift ;;
 	--remove) remove=1; shift ;;
 	--everything) everything=1; shift ;;
+	--dns)
+		[ $# -ge 2 ] || fail "--dns wants a name server's address"
+		dns=$2
+		shift 2 ;;
 	--via)
 		[ $# -ge 2 ] || fail "--via wants the gateway's address"
 		via=$2
@@ -118,6 +125,13 @@ rl=()
 [ -z "$routes" ] || [ -n "$via" ] || fail "--routes and --via go together: the networks, and the gateway on the line that reaches them"
 [ -z "$everything" ] || [ -n "$via" ] || fail "--everything goes through a gateway on the line: name it with --via"
 [ -z "$via" ] || [ -n "$routes$everything" ] || fail "--via is the gateway for --routes or --everything: give one of them"
+if [ -n "$dns" ]; then
+	[ -n "$everything" ] || fail "--dns goes with --everything: names through the line, with everything else"
+	octet='(0|[1-9][0-9]{0,2})'
+	[[ $dns =~ ^$octet\.$octet\.$octet\.$octet$ ]] || fail "--dns '$dns' is not an address like 192.168.152.254"
+	[ "${M[1]}" -le 255 ] && [ "${M[2]}" -le 255 ] && [ "${M[3]}" -le 255 ] && [ "${M[4]}" -le 255 ] || fail "--dns '$dns' is not an address"
+	[ "${M[1]}" -ne 0 ] && [ "${M[1]}" -ne 127 ] && [ "${M[1]}" -lt 224 ] || fail "--dns '$dns' is not a name server that can be reached through the line"
+fi
 if [ -n "$via" ]; then
 	[ -n "$addr" ] || fail "routes need the jack's own address (--address); with DHCP the gateway's network is not known in advance"
 	octet='(0|[1-9][0-9]{0,2})'
@@ -194,6 +208,18 @@ if [ -n "$everything" ]; then
 else
 	rules_off
 fi
+# Names (docs/adr/0047): set on the jack in systemd-resolved, or taken off it. Without resolved, said plainly; everything else stands.
+names=
+if command -v resolvectl > /dev/null; then
+	if [ -n "$dns" ]; then
+		resolvectl dns "$tap" "$dns" && resolvectl domain "$tap" '~.' && resolvectl default-route "$tap" yes || fail "could not set the name server $dns on $tap in systemd-resolved" 3
+		names=", names through $dns"
+	else
+		resolvectl revert "$tap" 2> /dev/null
+	fi
+elif [ -n "$dns" ]; then
+	echo "longwire-jack: names still go to this machine's own name server: asking $dns through the line needs systemd-resolved (resolvectl), which is not here" >&2
+fi
 
 client=
 if [ -n "$dhcp" ]; then
@@ -251,4 +277,4 @@ if [ -n "$dhcp" ]; then
 		fail "no DHCP client found: install isc-dhcp-client, dhcpcd or udhcpc (busybox)" 3
 	fi
 fi
-echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}${routes:+, routes to $routes via $via}${everything:+, everything through $via}"
+echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}${routes:+, routes to $routes via $via}${everything:+, everything through $via}$names"
