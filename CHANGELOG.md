@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.25
 
+*Published:* the catalogue (`hibr-apps` `3e5dc7d`) and the packages (`hibr-apt` `445ae11`, `hibr-rpm` `8ec059b`, `hibr-arch` `e61ccc5`). `make check` passed (736 checks).
+
 - **Routes to networks beyond the line** ([ADR 0044](docs/adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)). A jack profile may name a **Gateway** (a router on the line) and **Routes** (the networks behind it, separated by commas); `longwire profile set home gateway=192.168.152.254 routes=192.168.150.0/24`, or the pane's two new rows. They
   go on in the same password step as the jack and its address (`longwire jack --address A/N --via GW --routes NET,...`), and `on` asks for the step only when one is missing. The helper checks everything before it changes anything: the gateway on the jack's own network, each route a real network of /8 to /32, not loopback, link-local,
   multicast or the jack's own network, at most 16, and a static address. **Never the default route**: a route for everything is a different promise, and the ADR says what it still needs.
