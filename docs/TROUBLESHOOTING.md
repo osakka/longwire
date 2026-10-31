@@ -109,6 +109,11 @@ one for the real device are `1`: set them to `2`). The way out that always works
 Your machine has no route there. Set **Gateway** (the router on the line) and **Routes** (the networks behind it) in the pane, or `longwire profile set home gateway=… routes=…`, and turn on again; `ip route get 192.168.150.1`
 should then say `via` the gateway `dev lw0`. If it does and there is still no answer, the far network must have a way back to your Address: its router has to know the line's network (it does when it is the line's router).
 
+**Everything through the line is on, but nothing on the internet answers.**
+`ip route get 1.1.1.1` should say `dev lw0 table 77…`. If it does, the gateway is not passing the traffic on: it must forward it, and, at the edge of its network, translate it to its own address
+(a home router does for its own network's machines; a server needs `ip_forward` and a masquerade rule). Try `ping` to the gateway itself first. If `longwire show` says *asked, but … not going
+through the line*, turn off and on. To get out at once: turn longwire off; nothing else is needed.
+
 **`⚠ two DHCP servers answer on this line`**
 Two machines on the line are both handing out leases, and clients may get clashing addresses. Turn one off.
 

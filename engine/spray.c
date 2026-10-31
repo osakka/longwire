@@ -77,7 +77,7 @@ static void spray_open(lw_node *n, lw_call *c)
 
 		if (fd < 0)
 			break;
-		if (bind(fd, (struct sockaddr *)&la, sizeof la) < 0) {
+		if (tie_fd(n, fd) < 0 || bind(fd, (struct sockaddr *)&la, sizeof la) < 0) {
 			close(fd);
 			break;
 		}

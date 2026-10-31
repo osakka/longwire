@@ -80,6 +80,13 @@ The line is one segment: everything on it is reached with no route. A network *b
 (or `longwire profile set home gateway=192.168.152.254 routes=192.168.150.0/24`), and turn on: the routes go on with the device. Ask whoever runs the far site which networks its router reaches. Routes are never the default route
 ([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)), and they need a static Address.
 
+### Everything through the line
+
+To have all of this machine's traffic leave by the far site (a café's Wi-Fi, home's internet), set **Gateway** to the router there and switch on **Send everything through the line**
+(`longwire profile set home everything=yes`), then turn on. `longwire show` says `everything  through the line (lw0)`. Your own network (the printer) stays yours, and the moment longwire is off or
+stops, everything goes the usual way again. The router at the far end must pass the traffic on, which a home or office router does for any machine on its network. Name lookups still go to your usual
+name server, and IPv6 does not work through the line ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)).
+
 ## 5. Make the first call
 
 From **B**, ring A's number.

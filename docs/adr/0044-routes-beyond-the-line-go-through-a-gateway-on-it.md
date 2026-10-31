@@ -1,6 +1,6 @@
 # 0044 — Routes beyond the line go through a gateway on it
 
-Status: accepted; built in 0.5.25. Builds on [0036](0036-the-jack-gets-its-address-from-the-profile.md) and [0037](0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md). A route for everything (a "full tunnel") is not offered yet *(planned: M4)*.
+Status: accepted; built in 0.5.25. Builds on [0036](0036-the-jack-gets-its-address-from-the-profile.md) and [0037](0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md). A route for everything is [0045](0045-everything-through-the-line-is-a-table-of-the-jacks-own.md).
 
 ## Context
 
@@ -18,6 +18,8 @@ Routing a network into the tunnel has a trap, the one [0037](0037-traffic-to-the
 5. **Routes vanish with the jack**, so `keep_jack = no` (or `longwire jack --remove`) takes them away too.
 
 ## Why not the default route, yet
+
+*Since resolved by [0045](0045-everything-through-the-line-is-a-table-of-the-jacks-own.md), in a table of the jack's own rather than the two halves below.*
 
 A route for everything through the line ("full tunnel": all of the machine's traffic leaves by the far site) is a different promise. With item 4 the engine already keeps the switchboard and the peers on the real road whatever is routed into the jack, which is the hard part. What is missing, and why it is not offered:
 

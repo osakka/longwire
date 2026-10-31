@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.25" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.26" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -85,6 +85,16 @@ For a jack: a router on the line that reaches other networks.
 Networks to reach through the gateway, like 192.168.150.0/24, separated by commas (at most 16).
 Never the default route, nothing wider than a /8, nothing on the line itself; put on with the device, and gone with it.
 Needs a static
+.BR address .
+.TP
+.B everything
+.B yes
+sends all of this machine's traffic through the
+.BR gateway ,
+from a routing table of the jack's own; the machine's own default route is never changed, and is used again the moment the node stops.
+Needs
+.B gateway
+and a static
 .BR address .
 .TP
 .B keep_jack

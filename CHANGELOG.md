@@ -3,6 +3,17 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.26
+
+- **Send everything through the line** ([ADR 0045](docs/adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)). One switch in the pane, or `everything = yes` in a profile with a Gateway: all of this machine's traffic leaves by the router at the far end, as if plugged in there.
+  Done properly, not with the `0.0.0.0/1` + `128.0.0.0/1` trick: the default route through the line lives in a **table of the jack's own** (7700 + N), behind two rules, and the machine's own default route is
+  never touched; its own networks (the printer) stay its own. Every socket of the engine is **tied to the real device**, so the line's own packets cannot be caught by it, with one socket per family as always (the punch keeps
+  its one NAT mapping), and no privilege. **The safety net is the kernel's**: the jack's routes are skipped whenever it has no carrier, which is whenever no node holds it, so when longwire is off, stops or crashes the machine is
+  back on its own road at once, with nothing left to clean up; the helper checks the carrier before it adds anything, and refuses otherwise. IPv6 goes into the line too, so it does not leak past it. Switched off, the next
+  Turn on takes it all away; `longwire show` says `everything  through the line (lw0); the line itself goes by eth0`. Tested on the real kernel in a namespace of its own, with the real helper (`tests/tunnel.sh`), and
+  against stand-ins (`tests/jack.sh`, `tests/jacknet.sh`, `tests/pane.py`). Not done: a kill switch (it fails open, as "off" does), name servers through the line, moving from Wi-Fi to a cable while on (turn off and on). Not tried: a
+  real tap with real traffic to the internet across a real line.
+
 ## 0.5.25
 
 *Published:* the catalogue (`hibr-apps` `3e5dc7d`) and the packages (`hibr-apt` `445ae11`, `hibr-rpm` `8ec059b`, `hibr-arch` `e61ccc5`). `make check` passed (736 checks).

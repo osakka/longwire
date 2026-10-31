@@ -165,6 +165,41 @@ int main(int argc, char **argv)
 		jnets_refresh(n);
 	}
 
+	/* everything through the line (docs/adr/0045): every socket of ours tied to the real device, one per family */
+	{
+		char e2[200];
+		int t;
+
+		n->cfg.everything = 1;
+		snprintf(n->cfg.port_kind, sizeof n->cfg.port_kind, "sock");
+		n->tie[0] = 0;
+		check(under_tie(n, e2, sizeof e2) < 0 && strstr(e2, "needs a jack"), "everything through the line is refused without a jack");
+		snprintf(n->cfg.port_kind, sizeof n->cfg.port_kind, "jack");
+		snprintf(n->cfg.port_arg, sizeof n->cfg.port_arg, "lo");
+		snprintf(n->cfg.underlay, sizeof n->cfg.underlay, "lo");
+		check(under_tie(n, e2, sizeof e2) == 0 && !strcmp(n->tie, "lo"), "on a jack, the device to tie to is the underlay's");
+		t = socket(AF_INET, SOCK_DGRAM, 0);
+		if (tie_fd(n, t) < 0)
+			printf("skip tie tests: SO_BINDTODEVICE is refused here\n");
+		else {
+			char dv[32] = "";
+			socklen_t dl = sizeof dv;
+
+			check(getsockopt(t, SOL_SOCKET, SO_BINDTODEVICE, dv, &dl) == 0 && !strcmp(dv, "lo"), "a socket of ours is tied to it");
+			check(under_fd(n) == n->udp, "and no second socket is opened: the one socket keeps its one NAT mapping");
+		}
+		close(t);
+		n->tie[0] = 0;
+		n->cfg.underlay[0] = 0;
+		{
+			int r = under_tie(n, e2, sizeof e2);
+
+			check(r == 0 ? n->tie[0] != 0 : strstr(e2, "no default route") != 0, "with no device named, the default route's device, or a plain refusal when there is none");
+		}
+		n->cfg.everything = 0;
+		n->tie[0] = 0;
+	}
+
 	/* an interface that does not exist: nothing is dropped */
 	snprintf(n->cfg.port_kind, sizeof n->cfg.port_kind, "jack");
 	snprintf(n->cfg.port_arg, sizeof n->cfg.port_arg, "lwnone0");

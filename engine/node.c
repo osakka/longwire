@@ -62,7 +62,7 @@ static int load_bundle(uint8_t *out, const char *path, char *err, size_t errn)
 
 /* --listen is a list: "ADDR:PORT" (IPv4), "[ADDR]:PORT" (IPv6), or a bare "PORT", which is both families on any address.
  * Several may be given, separated by commas. */
-static int open_one(int family, const struct sockaddr *sa, socklen_t sl, int *fd, uint16_t *port)
+static int open_one(const lw_node *n, int family, const struct sockaddr *sa, socklen_t sl, int *fd, uint16_t *port)
 {
 	struct sockaddr_storage bound;
 	socklen_t bl = sizeof bound;
@@ -73,7 +73,7 @@ static int open_one(int family, const struct sockaddr *sa, socklen_t sl, int *fd
 		return -1;
 	if (family == AF_INET6)
 		setsockopt(*fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof one);
-	if (bind(*fd, sa, sl) < 0) {
+	if (tie_fd(n, *fd) < 0 || bind(*fd, sa, sl) < 0) {
 		close(*fd);
 		*fd = -1;
 		return -1;
@@ -105,7 +105,7 @@ static int bind_listen(lw_node *n, const char *spec, char *err, size_t errn)
 				return -1;
 			}
 			a6.sin6_port = htons((uint16_t)atoi(colon + 1));
-			if (open_one(AF_INET6, (struct sockaddr *)&a6, sizeof a6, &n->udp6, &n->udp6_port)) {
+			if (open_one(n, AF_INET6, (struct sockaddr *)&a6, sizeof a6, &n->udp6, &n->udp6_port)) {
 				snprintf(err, errn, "udp %s: %s", item, strerror(errno));
 				return -1;
 			}
@@ -125,7 +125,7 @@ static int bind_listen(lw_node *n, const char *spec, char *err, size_t errn)
 				}
 			}
 			a4.sin_port = htons((uint16_t)port);
-			if (open_one(AF_INET, (struct sockaddr *)&a4, sizeof a4, &n->udp, &n->udp_port)) {
+			if (open_one(n, AF_INET, (struct sockaddr *)&a4, sizeof a4, &n->udp, &n->udp_port)) {
 				snprintf(err, errn, "udp %s: %s", item, strerror(errno));
 				return -1;
 			}
@@ -135,9 +135,9 @@ static int bind_listen(lw_node *n, const char *spec, char *err, size_t errn)
 				memset(&a6, 0, sizeof a6);
 				a6.sin6_family = AF_INET6;
 				a6.sin6_port = htons(n->udp_port);
-				if (open_one(AF_INET6, (struct sockaddr *)&a6, sizeof a6, &n->udp6, &n->udp6_port)) {
+				if (open_one(n, AF_INET6, (struct sockaddr *)&a6, sizeof a6, &n->udp6, &n->udp6_port)) {
 					a6.sin6_port = 0;
-					open_one(AF_INET6, (struct sockaddr *)&a6, sizeof a6, &n->udp6, &n->udp6_port);	/* best effort */
+					open_one(n, AF_INET6, (struct sockaddr *)&a6, sizeof a6, &n->udp6, &n->udp6_port);	/* best effort */
 				}
 			}
 		}
@@ -225,7 +225,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 			p->dial = 1;
 		}
 	}
-	if (bind_listen(n, cfg->listen, err, errn))
+	if (under_tie(n, err, errn) || bind_listen(n, cfg->listen, err, errn))
 		goto fail;
 	{	/* bursts of full-size frames: ask for room (the kernel clamps to rmem_max) */
 		int buf = 4 << 20, k;

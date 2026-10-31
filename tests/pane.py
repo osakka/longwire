@@ -266,6 +266,16 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     labels = {x[1]: x[2] for x in rows if x[0] == "action"}
     check(labels.get("Gateway") == "127.0.0.254" and labels.get("Routes") == "192.0.2.0/24", f"the pane has Gateway and Routes rows: {labels}")
     check(any(l == "PTYJOB longwire jack --address 127.0.0.1/8 --via 127.0.0.254 --routes 192.0.2.0/24 lo" for l in log), f"Turn on with a route the device lacks asks for it: {log}")
+    # everything through the line (docs/adr/0045): a switch, refused without a gateway; Turn on asks the jack for it (lw9 is not on this machine)
+    rows, log, r = drive(envF, 'lwp_pset gateway ""; lwp_pset routes ""; lwp_pset interface lw9; longwire_do 1 everything 1; dump 1')
+    er = [x for x in rows if x[1] == "Send everything through the line"]
+    check(len(er) == 1 and er[0][2] == "off" and any("Set the Gateway first" in l for l in log), f"a 'Send everything through the line' switch, off, that wants a Gateway first: {er} {log}")
+    rows, log, r = drive(envF, 'lwp_pset gateway 127.0.0.254; longwire_do 1 everything 1; dump 1; longwire_do 1 on 1')
+    er = [x for x in rows if x[1] == "Send everything through the line"]
+    check(len(er) == 1 and er[0][2] == "on", f"with a Gateway it turns on: {er} {log}")
+    check(any(l == "PTYJOB longwire jack --address 127.0.0.1/8 --via 127.0.0.254 --everything lw9" for l in log), f"and Turn on asks the jack for everything through the gateway: {log}")
+    rows, log, r = drive(envF, 'lwp_pset everything ""; longwire_do 1 on 1')
+    check(any(l == "PTYJOB longwire jack --address 127.0.0.1/8 lw9" for l in log), f"switched off, a gateway with no routes is not passed on: {log}")
     rows, log, r = drive(envF, 'lwp_pset gateway ""; lwp_pset routes ""; lwp_pset address ""; lwp_pset interface lw9')
     rows, log, r = drive(envF, 'lwp_pset attach splice; longwire_do 1 on 1')
     check(any(l == "PTYJOB longwire site lw9 home" for l in log), f"splice asks for a site node for the card, through the site helper (one password): {log}")

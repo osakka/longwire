@@ -261,6 +261,7 @@ struct lw_node {
 	int      udp6;
 	uint16_t udp6_port;	/* the IPv6 socket, if there is one: -1 otherwise */
 	char     uudev[32];		/* the device it is tied to */
+	char     tie[32];		/* everything through the line: the device all our sockets are tied to (docs/adr/0045) */
 	int      uudp;			/* the underlay socket (under.c): -1 not opened yet, -2 none to be had */
 	lw_jnet  jnet[LW_JNETS];	/* the networks connected to our jack */
 	int      njnet;
@@ -418,6 +419,8 @@ void jnets_fresh(lw_node *n);
 int  jack_net_has(const lw_node *n, int fam, const uint8_t *ip);
 int  jack_net_sa(const lw_node *n, const struct sockaddr *sa);
 int  under_fd(lw_node *n);
+int  under_tie(lw_node *n, char *err, size_t errn);
+int  tie_fd(const lw_node *n, int fd);
 ssize_t usend(lw_node *n, int fd, const void *b, size_t len, const struct sockaddr *sa, socklen_t sl);
 void spray_adopt(lw_node *n, lw_peer *p);
 void spray_step(lw_node *n, lw_call *c);

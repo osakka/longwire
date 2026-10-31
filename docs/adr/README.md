@@ -53,6 +53,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0042](0042-the-jack-stays-unless-asked.md) | The jack stays unless asked | accepted |
 | [0043](0043-strikes-and-bans-count-only-what-cannot-be-faked.md) | Strikes and bans count only what cannot be faked | accepted |
 | [0044](0044-routes-beyond-the-line-go-through-a-gateway-on-it.md) | Routes beyond the line go through a gateway on it | accepted |
+| [0045](0045-everything-through-the-line-is-a-table-of-the-jacks-own.md) | Everything through the line is a table of the jack's own | accepted |
 
 ---
 

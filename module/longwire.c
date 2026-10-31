@@ -24,7 +24,7 @@
 #include "../engine/lw.h"
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.25"
+#define LW_VERSION "0.5.26"
 #endif
 
 static void default_sock(char *out, size_t n)
@@ -308,6 +308,10 @@ static int do_start(sh *s, int ac, char **av, int role)
 
 		if (!strcmp(a, "--require-sas")) {
 			c->require_sas = 1;
+			continue;
+		}
+		if (!strcmp(a, "--everything")) {
+			c->everything = 1;
 			continue;
 		}
 		if (!strcmp(a, "--cand-loopback")) {

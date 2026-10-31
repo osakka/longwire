@@ -159,6 +159,8 @@ int under_fd(lw_node *n)
 	struct sockaddr_in a;
 	int fd;
 
+	if (n->tie[0])
+		return n->udp;		/* everything through the line: every socket is tied already */
 	if (n->uudp != -1)
 		return n->uudp < 0 ? -1 : n->uudp;
 	n->uudp = -2;
@@ -175,6 +177,31 @@ int under_fd(lw_node *n)
 	snprintf(n->uudev, sizeof n->uudev, "%s", dev);
 	n->uudp = fd;
 	return fd;
+}
+
+/* Everything through the line (docs/adr/0045): the machine's default route is in a table of the jack's own, which every packet not tied to a device
+ * follows. So every socket of ours is tied, before it is bound, to the device the machine reaches the world by; the kernel then skips the jack's
+ * table for it. One socket per family, not a second one: a second source port would be a second NAT mapping, and the punch would miss. */
+int under_tie(lw_node *n, char *err, size_t errn)
+{
+	if (!n->cfg.everything)
+		return 0;
+	if (!jack_mode(n)) {
+		snprintf(err, errn, "everything through the line needs a jack");
+		return -1;
+	}
+	if (!underlay_dev(n, n->tie, sizeof n->tie)) {
+		snprintf(err, errn, "everything through the line: no default route outside the jack to keep the line itself on");
+		return -1;
+	}
+	return 0;
+}
+
+int tie_fd(const lw_node *n, int fd)
+{
+	if (!n->tie[0])
+		return 0;
+	return setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, n->tie, (socklen_t)strlen(n->tie) + 1);
 }
 
 /* sendto(), except that an address inside the jack's own networks goes out through the underlay socket. */

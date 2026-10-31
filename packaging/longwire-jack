@@ -4,6 +4,11 @@
 # longwire-jack --remove TAP [UID] -- the other way: stop the DHCP client of ours on TAP, if any, and delete the device, if it is the user's own.
 # longwire-jack --address A.B.C.D/N --via GATEWAY --routes NET/PREFIX[,...] TAP [UID] -- the same, and routes to those networks through a gateway
 # that is on the line (docs/adr/0044): a router the jack reaches directly. Never the default route, nothing wider than a /8, nothing the jack reaches anyway.
+# longwire-jack --address A.B.C.D/N --via GATEWAY --everything TAP [UID] -- everything through the line (docs/adr/0045): the default route goes into a table
+# of the jack's own (7700 + N for lwN), which two rules put in front of the machine's own default route; the machine's own routes to its own networks still
+# win, and its own default route is never touched. The routes through the jack are skipped by the kernel when the jack has no carrier, which is when no
+# node holds it, so a node that stops or crashes leaves the machine on its own road, not on none; the helper checks that before it adds anything. Run
+# without --everything, it takes its rules away if they are there.
 # longwire-jack [--address A.B.C.D/N | --dhcp] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
 # bring it up, with the address if one is given, or with a DHCP client started on it (so that nobody runs `ip addr` or `dhclient` by hand). The
 # client keeps asking until the line answers, so the tunnel need not be up yet; it sets the address and the network route only, never a
@@ -27,6 +32,7 @@ dhcp=
 remove=
 via=
 routes=
+everything=
 while [ $# -gt 0 ]; do
 	case $1 in
 	--address)
@@ -35,6 +41,7 @@ while [ $# -gt 0 ]; do
 		shift 2 ;;
 	--dhcp) dhcp=1; shift ;;
 	--remove) remove=1; shift ;;
+	--everything) everything=1; shift ;;
 	--via)
 		[ $# -ge 2 ] || fail "--via wants the gateway's address"
 		via=$2
@@ -55,8 +62,22 @@ uid=${PKEXEC_UID:-${2:-}}
 [[ $uid =~ ^[0-9]+$ ]] || fail "no user to give it to (pass a uid, or run it through pkexec)"
 [ "$uid" -ne 0 ] || fail "a jack owned by root would need a node that runs as root"
 
+# Everything through the line: the jack's own table and the two rules in front of the machine's default route (docs/adr/0045).
+sys=${LONGWIRE_SYSNET:-/sys/class/net}
+proc=${LONGWIRE_PROCNET:-/proc/sys/net}
+table=$(( 7700 + ${tap#lw} ))
+fn rules_off() {
+	local f
+	for f in 4 6; do
+		if ip -$f rule show pref 7701 2> /dev/null | grep -qw "lookup $table"; then
+			ip -$f rule del pref 7701 2> /dev/null
+			ip -$f rule del pref 7700 2> /dev/null
+			ip -$f route flush table "$table" 2> /dev/null
+		fi
+	done
+}
+
 if [ -n "$remove" ]; then
-	sys=${LONGWIRE_SYSNET:-/sys/class/net}
 	[ -d "$sys/$tap" ] || { echo "longwire-jack: $tap is not there; nothing to remove"; exit 0; }
 	owner=
 	read -r owner < "$sys/$tap/owner" 2> /dev/null
@@ -75,6 +96,7 @@ if [ -n "$remove" ]; then
 		dhcpcd -k "$tap" > /dev/null 2>&1
 	fi
 	rm -f "$pidf" "$rundir/dhcp-hook-$tap" "$rundir/dhcp-$tap.leases"
+	rules_off
 	ip link delete "$tap" || exit 1
 	echo "longwire-jack: $tap is removed"
 	exit 0
@@ -93,8 +115,10 @@ fi
 # Routes through a gateway on the line, checked before anything is changed: the gateway on the jack's own network, each route a real network no wider than a /8,
 # none the default route, none overlapping the jack's own network. (The engine keeps its own traffic off whatever is routed here: docs/adr/0044.)
 rl=()
-if [ -n "$routes$via" ]; then
-	[ -n "$routes" ] && [ -n "$via" ] || fail "--routes and --via go together: the networks, and the gateway on the line that reaches them"
+[ -z "$routes" ] || [ -n "$via" ] || fail "--routes and --via go together: the networks, and the gateway on the line that reaches them"
+[ -z "$everything" ] || [ -n "$via" ] || fail "--everything goes through a gateway on the line: name it with --via"
+[ -z "$via" ] || [ -n "$routes$everything" ] || fail "--via is the gateway for --routes or --everything: give one of them"
+if [ -n "$via" ]; then
 	[ -n "$addr" ] || fail "routes need the jack's own address (--address); with DHCP the gateway's network is not known in advance"
 	octet='(0|[1-9][0-9]{0,2})'
 	[[ $via =~ ^$octet\.$octet\.$octet\.$octet$ ]] || fail "--via '$via' is not an address like 192.168.152.254"
@@ -109,8 +133,8 @@ if [ -n "$routes$via" ]; then
 	[ $(( gint & mask )) -eq "$net" ] || fail "the gateway $via is not on the jack's network ($addr): it has to be a machine the line reaches directly"
 	[ "$gint" -ne "$aint" ] || fail "the gateway cannot be this machine's own address"
 	[ "$gint" -ne "$net" ] && [ "$gint" -ne "$bc" ] || fail "the gateway cannot be the network's first or last address"
-	read -r -a rl <<< "${routes//,/ }"
-	[ "${#rl[@]}" -ge 1 ] && [ "${#rl[@]}" -le 16 ] || fail "1 to 16 networks in --routes"
+	[ -n "$routes" ] && read -r -a rl <<< "${routes//,/ }"
+	[ -z "$routes" ] || [ "${#rl[@]}" -ge 1 ] && [ "${#rl[@]}" -le 16 ] || fail "1 to 16 networks in --routes"
 	for r in "${rl[@]}"; do
 		[[ $r =~ ^$octet\.$octet\.$octet\.$octet/([0-9]{1,2})$ ]] || fail "'$r' is not a network like 192.168.150.0/24"
 		r1=${M[1]}; r2=${M[2]}; r3=${M[3]}; r4=${M[4]}; rp=${M[5]}
@@ -128,7 +152,18 @@ if [ -n "$routes$via" ]; then
 	done
 fi
 
-if [ ! -d "/sys/class/net/$tap" ]; then
+if [ -n "$everything" ]; then		# one device at a time has everything, and the two places in the rules must be free or ours
+	held=$(ip -4 rule show pref 7701 2> /dev/null)
+	if [ -n "$held" ] && ! printf '%s\n' "$held" | grep -qw "lookup $table"; then
+		fail "something else already takes everything ($held); turn it off there first" 3
+	fi
+	held=$(ip -4 rule show pref 7700 2> /dev/null)
+	if [ -n "$held" ] && ! printf '%s\n' "$held" | grep -q "suppress_prefixlength 0"; then
+		fail "the place in the rules longwire uses (7700) is taken by something else: $held" 3
+	fi
+fi
+
+if [ ! -d "$sys/$tap" ]; then
 	ip tuntap add dev "$tap" mode tap user "$uid" || exit 1
 fi
 ip link set "$tap" mtu 1400 up || exit 1
@@ -138,6 +173,27 @@ fi
 for r in "${rl[@]}"; do
 	ip route replace "$r" via "$via" dev "$tap" || exit 1
 done
+if [ -n "$everything" ]; then
+	# The safety net first: a jack that no node holds has no carrier, and the kernel is told to skip routes through a device without one. Checked
+	# here, with no node on the jack yet, because everything else rests on it.
+	car=$(ip -o link show dev "$tap" 2> /dev/null)
+	[[ $car =~ NO-CARRIER ]] || fail "the jack $tap has carrier with no node on it, or a node is on it now: turn longwire off first. Everything through the line is only put on a jack whose carrier goes when its node does, so that a node that stops never leaves the machine without a road" 3
+	echo 1 > "$proc/ipv4/conf/$tap/ignore_routes_with_linkdown" || fail "cannot tell the kernel to skip $tap's routes when it has no carrier; not going on" 3
+	fams=(4)
+	if [ -d "$proc/ipv6/conf/$tap" ] && echo 1 > "$proc/ipv6/conf/$tap/ignore_routes_with_linkdown"; then
+		fams+=(6)
+	fi
+	ip route replace default via "$via" dev "$tap" table "$table" || exit 1
+	if [ "${#fams[@]}" -gt 1 ]; then	# IPv6 goes into the line too, where nothing answers it unless the far side routes it: it does not leak past the line
+		ip -6 route replace default dev "$tap" table "$table" || exit 1
+	fi
+	for f in "${fams[@]}"; do
+		ip -$f rule show pref 7700 2> /dev/null | grep -q "suppress_prefixlength 0" || ip -$f rule add pref 7700 lookup main suppress_prefixlength 0 || exit 1
+		ip -$f rule show pref 7701 2> /dev/null | grep -qw "lookup $table" || ip -$f rule add pref 7701 lookup "$table" || exit 1
+	done
+else
+	rules_off
+fi
 
 client=
 if [ -n "$dhcp" ]; then
@@ -195,4 +251,4 @@ if [ -n "$dhcp" ]; then
 		fail "no DHCP client found: install isc-dhcp-client, dhcpcd or udhcpc (busybox)" 3
 	fi
 fi
-echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}${routes:+, routes to $routes via $via}"
+echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}${routes:+, routes to $routes via $via}${everything:+, everything through $via}"

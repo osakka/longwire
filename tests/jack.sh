@@ -11,6 +11,10 @@ mkdir "$T/bin"
 cat > "$T/bin/ip" <<'IP'
 #!/bin/sh
 echo "ip $*" >> "$LWJ_LOG"
+case "$*" in
+"-o link show dev "*) [ -n "${LWJ_CARRIER:-}" ] && echo "9: lw7: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1400" || echo "9: lw7: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1400" ;;
+"-4 rule show pref 7701") [ -n "${LWJ_HELD:-}" ] && echo "7701:	from all lookup 51820" ;;
+esac
 IP
 chmod +x "$T/bin/ip"
 export LWJ_LOG="$T/log" PATH="$T/bin:$PATH"
@@ -109,6 +113,16 @@ grep -qx "helper lw7" "$LWJ_LOG" && ok "and with neither, neither" || bad "jack 
 export PATH="$T/bin:$PATH"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24,10.20.0.0/16 lw7 2>&1)
 grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24,10.20.0.0/16 lw7" "$LWJ_LOG" && ok "longwire jack passes the gateway and the routes to the helper" || bad "jack routes: $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --everything lw7 2>&1)
+grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --everything lw7" "$LWJ_LOG" && ok "longwire jack passes everything through the line to the helper" || bad "jack everything: $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 lw7 2>&1)
+grep -qx "helper --address 192.168.152.50/24 lw7" "$LWJ_LOG" && ok "a gateway with nothing to be the gateway for is not passed on" || bad "lone via: $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --everything lw7 2>&1); rc=$?
+[ $rc != 0 ] && echo "$out" | grep -q "needs a gateway" && ! grep -q helper "$LWJ_LOG" && ok "everything without a gateway is refused, with what to set" || bad "jack everything no gw: rc=$rc $out"
+out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p everything=yes 2>&1); rc=$?
+[ $rc = 0 ] && ok "a profile may say everything=yes" || bad "profile everything: rc=$rc $out"
+out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p everything=maybe 2>&1); rc=$?
+[ $rc = 2 ] && ok "but not everything=maybe" || bad "profile everything maybe: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p gateway=192.168.152.254 routes=192.168.150.0/24,10.20.0.0/16 2>&1); rc=$?
 [ $rc = 0 ] && ok "a profile keeps a gateway and its routes" || bad "profile routes: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p 'routes=10.0.0.0/8;reboot' 2>&1); rc=$?
@@ -165,8 +179,31 @@ refr "nor multicast" "can be routed" --via 192.168.152.254 --routes 224.0.0.0/8
 refr "nor link-local" "link-local" --via 192.168.152.254 --routes 169.254.0.0/16
 refr "nor something that is not a network" "not a network like" --via 192.168.152.254 --routes '192.168.150.0/24;id'
 refr "routes without a gateway are refused" "go together" --routes 192.168.150.0/24
+refr "a gateway with nothing to be the gateway for is refused" "for --routes or --everything" --via 192.168.152.254
 refr "17 networks are too many" "1 to 16" --via 192.168.152.254 --routes 10.1.0.0/16,10.2.0.0/16,10.3.0.0/16,10.4.0.0/16,10.5.0.0/16,10.6.0.0/16,10.7.0.0/16,10.8.0.0/16,10.9.0.0/16,10.10.0.0/16,10.11.0.0/16,10.12.0.0/16,10.13.0.0/16,10.14.0.0/16,10.15.0.0/16,10.16.0.0/16,10.17.0.0/16
 : > "$LWJ_LOG"; out=$("$HIBR" "$H" --dhcp --via 192.168.152.254 --routes 192.168.150.0/24 lw7 1000 2>&1); rc=$?
 [ $rc = 2 ] && echo "$out" | grep -q "need the jack's own address" && ok "routes with DHCP are refused plainly (the gateway's network is not known in advance)" || bad "dhcp routes: rc=$rc $out"
+
+echo "-- jack --everything: the default route in the jack's own table, behind two rules (docs/adr/0045)"
+P=$T/proc; mkdir -p "$P/ipv4/conf/lw7" "$P/ipv6/conf/lw7"; export LONGWIRE_PROCNET=$P
+run --address 192.168.152.50/24 --via 192.168.152.254 --everything lw7 1000
+[ $rc = 0 ] && grep -qx "ip route replace default via 192.168.152.254 dev lw7 table 7707" "$LWJ_LOG" && grep -qx "ip -6 route replace default dev lw7 table 7707" "$LWJ_LOG" \
+	&& grep -qx "ip -4 rule add pref 7700 lookup main suppress_prefixlength 0" "$LWJ_LOG" && grep -qx "ip -4 rule add pref 7701 lookup 7707" "$LWJ_LOG" \
+	&& grep -qx "ip -6 rule add pref 7701 lookup 7707" "$LWJ_LOG" && ok "the default route goes into lw7's own table (7707), behind two rules, IPv6 too" || bad "everything: rc=$rc $out $(cat "$LWJ_LOG")"
+read -r v < "$P/ipv4/conf/lw7/ignore_routes_with_linkdown"; read -r v6 < "$P/ipv6/conf/lw7/ignore_routes_with_linkdown"
+[ "$v" = 1 ] && [ "$v6" = 1 ] && ok "the kernel is told to skip the jack's routes when it has no carrier" || bad "linkdown: $v $v6"
+grep -n "linkdown\|carrier\|link show\|route replace default\|rule add" "$LWJ_LOG" | head -1 | grep -q "link show" && ok "the carrier is looked at before any route or rule goes on" || bad "order: $(cat "$LWJ_LOG")"
+! grep -q "route .*default.* dev [^l]\|route del default\|route replace default via [0-9.]* dev lw7$" "$LWJ_LOG" && ok "the machine's own default route is never touched" || bad "main default: $(cat "$LWJ_LOG")"
+LWJ_CARRIER=1 run --address 192.168.152.50/24 --via 192.168.152.254 --everything lw7 1000
+[ $rc = 3 ] && echo "$out" | grep -q "has carrier" && ! grep -q "rule add\|table 7707" "$LWJ_LOG" && ok "refused when the jack has carrier with no node on it: the safety net would not hold" || bad "carrier: rc=$rc $out"
+LWJ_HELD=1 run --address 192.168.152.50/24 --via 192.168.152.254 --everything lw7 1000
+[ $rc = 3 ] && echo "$out" | grep -q "something else already takes everything" && ! grep -q "tuntap\|rule add" "$LWJ_LOG" && ok "refused, before anything changes, when something else holds the rules' place" || bad "held: rc=$rc $out"
+: > "$LWJ_LOG"; out=$("$HIBR" "$H" --via 192.168.152.254 --everything lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && echo "$out" | grep -q "need the jack's own address" && ok "everything needs a static address" || bad "no addr: rc=$rc $out"
+: > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --everything lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && echo "$out" | grep -q "name it with --via" && [ ! -s "$LWJ_LOG" ] && ok "and a gateway" || bad "no via: rc=$rc $out"
+: > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --via 192.168.10.1 --everything lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && echo "$out" | grep -q "not on the jack's network" && ok "on the jack's own network" || bad "via off-net: rc=$rc $out"
+
 [ $fail = 0 ] && echo "all jack checks passed"
 exit $fail
