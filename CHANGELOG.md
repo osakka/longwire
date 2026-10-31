@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.28
 
+*Published:* the catalogue (`hibr-apps` `f981596`) and the packages (`hibr-apt` `d45bb78`, `hibr-rpm` `4c2e6db`, `hibr-arch` `5172503`). `make check` passed (801 checks).
+
 - **A silent switchboard is said so** ([ADR 0048](docs/adr/0048-a-silent-switchboard-is-said-so.md)). A node whose switchboard never answered retried in silence, which is exactly what a banned key gets; a site node sat at
   "waiting for a number" with nothing in its log. Now, after 12 s with no session, the node asks the echo port of the switchboard's host (answered for anyone, no handshake), and at 15 s says which it is:
   *its host answers, so the switchboard itself is ignoring this node* (a ban there, or the wrong switchboard key), or *nothing comes back from its host* (a firewall, or no switchboard). In the log, in
