@@ -137,6 +137,34 @@ int main(int argc, char **argv)
 		close(rfd);
 	}
 
+	/* a route through the jack makes its network one of the jack's: the engine's own traffic for it must not go into the tunnel either (docs/adr/0044) */
+	{
+		char rf[160];
+		FILE *f;
+		uint8_t in1[4] = { 203, 0, 113, 9 }, out1[4] = { 198, 51, 100, 1 }, mid[4] = { 8, 8, 8, 8 };
+
+		snprintf(rf, sizeof rf, "%s/route", dir);
+		f = fopen(rf, "w");
+		fprintf(f, "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n");
+		fprintf(f, "lo\t007100CB\t0100007F\t0003\t0\t0\t0\t00FFFFFF\t0\t0\t0\n");	/* 203.0.113.0/24 via the jack */
+		fprintf(f, "eth9\t006433C6\t00000000\t0001\t0\t0\t0\t00FFFFFF\t0\t0\t0\n");	/* 198.51.100.0/24 on another card */
+		fclose(f);
+		snprintf(n->cfg.port_kind, sizeof n->cfg.port_kind, "jack");
+		snprintf(n->cfg.port_arg, sizeof n->cfg.port_arg, "lo");
+		snprintf(n->cfg.routes_file, sizeof n->cfg.routes_file, "%s", rf);
+		jnets_refresh(n);
+		check(jack_net_has(n, 4, in1), "a network routed through the jack counts as the jack's own");
+		check(!jack_net_has(n, 4, out1), "one routed through another card does not");
+		check(!jack_net_has(n, 4, mid), "and the rest of the world does not");
+		f = fopen(rf, "a");
+		fprintf(f, "lo\t00000000\t0100007F\t0003\t0\t0\t0\t00000080\t0\t0\t0\n");	/* 0.0.0.0/1 via the jack: half of everything */
+		fclose(f);
+		jnets_refresh(n);
+		check(jack_net_has(n, 4, mid), "a route for half of everything (0.0.0.0/1) covers 8.8.8.8: the switchboard and every peer there would leave by the underlay");
+		n->cfg.routes_file[0] = 0;
+		jnets_refresh(n);
+	}
+
 	/* an interface that does not exist: nothing is dropped */
 	snprintf(n->cfg.port_kind, sizeof n->cfg.port_kind, "jack");
 	snprintf(n->cfg.port_arg, sizeof n->cfg.port_arg, "lwnone0");

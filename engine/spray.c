@@ -130,7 +130,7 @@ void spray_step(lw_node *n, lw_call *c)
 				a.sin_family = AF_INET;
 				memcpy(&a.sin_addr, c->pc[j].ip, 4);
 				a.sin_port = htons((uint16_t)(1024 + r % 64512));
-				sendto(n->udp, pk, sizeof pk, 0, (struct sockaddr *)&a, sizeof a);
+				usend(n, n->udp, pk, sizeof pk, (struct sockaddr *)&a, sizeof a);
 			}
 		}
 	}

@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.24
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.25
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.24}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.25}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -52,7 +52,7 @@ usage: longwire <command>
   on [PROFILE]                                start the node in the background, from a saved profile (the default one if none is named)
   profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME
                                               saved connections: switchboard, token, attach, interface, name, listed, answer
-  jack [--address A.B.C.D/N] [TAP]            make the tap device a single machine attaches to (lw0 by default), with an address if asked; asks for a password once
+  jack [--address A.B.C.D/N] [--via GW --routes NET/P,...] [TAP]            make the tap device a single machine attaches to (lw0 by default), with an address if asked; asks for a password once
   site NIC [PROFILE] | site --stop NIC        make this machine a site node for the card NIC from a profile (a service, after one password); or stop it
   setup splice NIC | setup jack [TAP [ADDR]]  print the one-time privileged step for that attach mode, to run by hand
   key export | import                         the identity as 33 words, and back (import reads them on stdin)
@@ -158,7 +158,7 @@ profiles_read() {
 		case $k in
 		default) PDEFAULT=$eq ;;
 		profile) cur=$eq; PNAMES+=("$cur") ;;
-		switchboard|token|attach|interface|address|keep_jack|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
+		switchboard|token|attach|interface|address|gateway|routes|keep_jack|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
 		esac
 	done < "$PROFILES"
 }
@@ -171,7 +171,7 @@ profiles_write() {
 		out="$out
 profile $n
 "
-		for k in switchboard token attach interface address keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes keep_jack name listed answer; do
 			[ -n "${PF[$n.$k]:-}" ] && out="$out  $k = ${PF[$n.$k]}
 "
 		done
@@ -218,7 +218,7 @@ cmd_profile() {
 		n=${1:-$PDEFAULT}
 		[ -n "$n" ] && profile_exists "$n" || { echo "longwire: no profile${n:+ called $n}" >&2; exit 1; }
 		echo "profile $n$([ "$n" = "$PDEFAULT" ] && echo '   (default)')"
-		for k in switchboard token attach interface address keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes keep_jack name listed answer; do
 			v=${PF[$n.$k]:-}
 			[ -n "$v" ] || continue
 			[ "$k" = token ] && v="(set, ${#v} characters)"		# the token is not shown: it is in the file, readable by you only
@@ -226,7 +226,7 @@ cmd_profile() {
 		done ;;
 	set)
 		n=${1:-}
-		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address keep_jack name listed answer)" >&2; exit 2; }
+		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes keep_jack name listed answer)" >&2; exit 2; }
 		shift
 		case $n in ''|*[!A-Za-z0-9._-]*) echo "longwire: a profile name is letters, digits, . _ -" >&2; exit 2 ;; esac
 		profile_exists "$n" || { PNAMES+=("$n"); [ -n "$PDEFAULT" ] || PDEFAULT=$n; }	# the first profile is the default one
@@ -239,10 +239,12 @@ cmd_profile() {
 			switchboard|token|name|interface) ;;
 			address) case $v in dhcp|"") ;; [0-9]*.[0-9]*.[0-9]*.[0-9]*/[0-9]*) case $v in *[!0-9./]*) echo "longwire: address is like 10.77.0.2/24, or dhcp" >&2; exit 2 ;; esac ;; *) echo "longwire: address is like 10.77.0.2/24, or dhcp" >&2; exit 2 ;; esac ;;
 			attach) case $v in jack|splice|sock|"") ;; *) echo "longwire: attach is jack or splice" >&2; exit 2 ;; esac ;;
+			gateway) case $v in ""|[0-9]*.[0-9]*.[0-9]*.[0-9]*) case $v in *[!0-9.]*) echo "longwire: gateway is an address like 192.168.152.254" >&2; exit 2 ;; esac ;; *) echo "longwire: gateway is an address like 192.168.152.254" >&2; exit 2 ;; esac ;;
+			routes) case $v in *[!0-9./,]*) echo "longwire: routes are networks like 192.168.150.0/24, separated by commas" >&2; exit 2 ;; esac ;;
 			keep_jack) case $v in yes|no|"") ;; *) echo "longwire: keep_jack is yes or no" >&2; exit 2 ;; esac ;;
 			listed) case $v in yes|no|"") ;; *) echo "longwire: listed is yes or no" >&2; exit 2 ;; esac ;;
 			answer) case $v in ask|known|auto|never|"") ;; *) echo "longwire: answer is ask, known, auto or never" >&2; exit 2 ;; esac ;;
-			*) echo "longwire: unknown key '$k' (switchboard token attach interface address keep_jack name listed answer)" >&2; exit 2 ;;
+			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes keep_jack name listed answer)" >&2; exit 2 ;;
 			esac
 			if [ -n "$v" ]; then PF["$n.$k"]=$v; else unset "PF[$n.$k]"; fi
 		done
@@ -269,7 +271,7 @@ cmd_profile() {
 		[ "$to" = "$n" ] && exit 0
 		profile_exists "$to" && { echo "longwire: there is already a profile called '$to'" >&2; exit 1; }
 		for i in "${!PNAMES[@]}"; do [ "${PNAMES[$i]}" = "$n" ] && PNAMES[$i]=$to; done		# same place in the list, same default
-		for k in switchboard token attach interface address keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes keep_jack name listed answer; do
 			if [ -n "${PF[$n.$k]:-}" ]; then PF["$to.$k"]=${PF[$n.$k]}; fi
 			unset "PF[$n.$k]"
 		done
@@ -281,7 +283,7 @@ cmd_profile() {
 		local keep=() m
 		for m in "${PNAMES[@]}"; do [ "$m" = "$n" ] || keep+=("$m"); done
 		PNAMES=("${keep[@]}")
-		for k in switchboard token attach interface address keep_jack name listed answer; do unset "PF[$n.$k]"; done
+		for k in switchboard token attach interface address gateway routes keep_jack name listed answer; do unset "PF[$n.$k]"; done
 		[ "$PDEFAULT" = "$n" ] && PDEFAULT=${PNAMES[0]:-}
 		profiles_write ;;
 	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME" >&2; exit 2 ;;
@@ -504,6 +506,19 @@ jack_has_addr() {
 	PATH=$PATH:/usr/sbin:/sbin ip -4 -o addr show dev "$1" 2> /dev/null | grep -q " ${2%/*}/"
 }
 
+# Are the routes (NET/PREFIX,... via GATEWAY) on the jack already? Asked without privilege, so that a password is only needed when one is missing.
+jack_has_routes() {
+	local tap=$1 via=$2 routes=$3 have r
+	local rl=()
+	[ -n "$routes" ] && [ -n "$via" ] || return 0
+	have=$(PATH=$PATH:/usr/sbin:/sbin ip -4 route show dev "$tap" 2> /dev/null)
+	read -r -a rl <<< "${routes//,/ }"
+	for r in "${rl[@]}"; do
+		printf '%s\n' "$have" | grep -q "^$r via $via\( \|$\)" || return 1
+	done
+	return 0
+}
+
 cmd_jack() {
 	local addr= tap helper mode=
 	if [ "${1:-}" = --remove ]; then
@@ -521,30 +536,44 @@ cmd_jack() {
 		fi
 		return
 	fi
-	if [ "${1:-}" = --address ]; then
-		[ $# -ge 2 ] || { echo "usage: longwire jack [--address A.B.C.D/N | dhcp] [TAP]" >&2; exit 2; }
-		addr=$2
-		shift 2
-	fi
+	local via= routes= r
+	local extra=()
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--address|--via|--routes)
+			[ $# -ge 2 ] || { echo "usage: longwire jack [--address A.B.C.D/N | dhcp] [--via GATEWAY --routes NET/PREFIX,...] [TAP]" >&2; exit 2; }
+			case $1 in --address) addr=$2 ;; --via) via=$2 ;; --routes) routes=$2 ;; esac
+			shift 2 ;;
+		*) break ;;
+		esac
+	done
 	[ "$addr" = dhcp ] && mode=--dhcp
 	tap=${1:-lw0}
-	if [ -d "/sys/class/net/$tap" ] && { [ -z "$addr" ] || jack_has_addr "$tap" "$addr"; }; then
+	if [ -n "$routes" ] && [ -n "$via" ]; then
+		extra=(--via "$via" --routes "$routes")
+	fi
+	if [ -d "/sys/class/net/$tap" ] && { [ -z "$addr" ] || jack_has_addr "$tap" "$addr"; } && jack_has_routes "$tap" "$via" "$routes"; then
 		if [ "$addr" = dhcp ]; then
 			echo "longwire: the jack $tap is there, with DHCP"
 		else
-			echo "longwire: the jack $tap is there${addr:+, with $addr}"
+			echo "longwire: the jack $tap is there${addr:+, with $addr}${routes:+, and routes to $routes via $via}"
 		fi
 		return 0
 	fi
 	if ! helper=$(jack_helper); then
 		echo "longwire: the jack helper is not installed (the longwire package has it). By hand, once, as root:" >&2
 		cmd_setup jack "$tap" ${addr:+"$addr"} >&2
+		if [ -n "$routes" ]; then
+			local rl=()
+			read -r -a rl <<< "${routes//,/ }"
+			for r in "${rl[@]}"; do echo "ip route add $r via $via dev $tap" >&2; done
+		fi
 		return 1
 	fi
 	if [ "$(id -u)" = 0 ]; then
-		"$helper" ${mode:-${addr:+--address "$addr"}} "$tap" "${SUDO_UID:-}"
+		"$helper" ${mode:-${addr:+--address "$addr"}} "${extra[@]}" "$tap" "${SUDO_UID:-}"
 	elif command -v pkexec > /dev/null; then
-		pkexec "$helper" ${mode:-${addr:+--address "$addr"}} "$tap"
+		pkexec "$helper" ${mode:-${addr:+--address "$addr"}} "${extra[@]}" "$tap"
 	else
 		echo "longwire: there is no pkexec to ask for the password with. By hand, once, as root:" >&2
 		cmd_setup jack "$tap" ${addr:+"$addr"} >&2
@@ -643,7 +672,7 @@ cmd_on() {
 	fi
 	profile_exists "$n" || { echo "longwire: no profile called '$n'  (longwire profile list)" >&2; exit 1; }
 	if [ "${PF[$n.attach]:-jack}" = jack ]; then
-		cmd_jack ${PF[$n.address]:+--address "${PF[$n.address]}"} "${PF[$n.interface]:-lw0}" || exit 1			# made now, with a password if it must be
+		cmd_jack ${PF[$n.address]:+--address "${PF[$n.address]}"} ${PF[$n.gateway]:+--via "${PF[$n.gateway]}"} ${PF[$n.routes]:+--routes "${PF[$n.routes]}"} "${PF[$n.interface]:-lw0}" || exit 1			# made now, with a password if it must be
 	fi
 	: > "$LW_DIR/log"
 	nohup setsid "${LONGWIRE_HIBR:-hibr}" "$0" up --profile "$n" >> "$LW_DIR/log" 2>&1 < /dev/null &

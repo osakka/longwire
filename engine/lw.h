@@ -61,6 +61,7 @@ typedef struct lw_cfg {
 	int  has_admit;
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	char underlay[32];		/* the network device to reach the world by when the jack has the other end's network ("": the default route's) */
+	char routes_file[64];		/* the kernel's routes ("": /proc/net/route); a test points it elsewhere */
 	int  require_sas;		/* refuse a call whose other end cannot do the committed safety phrase (a switchboard could be stripping it) */
 	int  strikes, strike_window, ban_for, ban_max, net_keys, net_for, ban_ceiling;	/* switchboard: strikes and bans (docs/adr/0043); strikes 0: off */
 	int  n_never;

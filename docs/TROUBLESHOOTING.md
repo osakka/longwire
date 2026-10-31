@@ -105,6 +105,10 @@ out through a socket tied to your real network device instead (ADR 0037), so thi
 before 5.7, or no default route: name the device with `--underlay DEV`); or the replies are dropped by strict reverse-path filtering (`sysctl net.ipv4.conf.all.rp_filter` and the
 one for the real device are `1`: set them to `2`). The way out that always works is an address on the other end that is outside the bridged network ([OPERATING](OPERATING.md), "Run a site").
 
+**I reach the line (192.168.152.x) but not the network behind it (192.168.150.x).**
+Your machine has no route there. Set **Gateway** (the router on the line) and **Routes** (the networks behind it) in the pane, or `longwire profile set home gateway=… routes=…`, and turn on again; `ip route get 192.168.150.1`
+should then say `via` the gateway `dev lw0`. If it does and there is still no answer, the far network must have a way back to your Address: its router has to know the line's network (it does when it is the line's router).
+
 **`⚠ two DHCP servers answer on this line`**
 Two machines on the line are both handing out leases, and clients may get clashing addresses. Turn one off.
 

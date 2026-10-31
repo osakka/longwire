@@ -52,6 +52,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0041](0041-the-helpers-and-the-launcher-are-hibr-scripts.md) | The helpers and the launcher are hibr scripts | accepted |
 | [0042](0042-the-jack-stays-unless-asked.md) | The jack stays unless asked | accepted |
 | [0043](0043-strikes-and-bans-count-only-what-cannot-be-faked.md) | Strikes and bans count only what cannot be faked | accepted |
+| [0044](0044-routes-beyond-the-line-go-through-a-gateway-on-it.md) | Routes beyond the line go through a gateway on it | accepted |
 
 ---
 

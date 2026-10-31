@@ -956,7 +956,7 @@ static void echo_ask(lw_node *n, lw_peer *s)
 	memcpy(q + 1, n->echo_nonce, 8);
 	memcpy(&a, &s->ep, sizeof a);
 	a.sin_port = htons((uint16_t)(ntohs(a.sin_port) + 1));
-	sendto(n->udp, q, sizeof q, 0, (struct sockaddr *)&a, sizeof a);
+	usend(n, n->udp, q, sizeof q, (struct sockaddr *)&a, sizeof a);	/* not into the jack, if a route sends the switchboard's address there */
 	n->echo_tries++;
 	n->next_echo = n->now + 2.0;
 }

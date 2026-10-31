@@ -106,6 +106,15 @@ grep -qx "helper --dhcp lw7" "$LWJ_LOG" && ok "longwire jack --address dhcp asks
 grep -qx "helper --address 10.77.0.2/24 lw7" "$LWJ_LOG" && ok "and an address as --address" || bad "jack addr: $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack lw7 2>&1)
 grep -qx "helper lw7" "$LWJ_LOG" && ok "and with neither, neither" || bad "jack plain: $out $(cat "$LWJ_LOG")"
+export PATH="$T/bin:$PATH"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24,10.20.0.0/16 lw7 2>&1)
+grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24,10.20.0.0/16 lw7" "$LWJ_LOG" && ok "longwire jack passes the gateway and the routes to the helper" || bad "jack routes: $out $(cat "$LWJ_LOG")"
+out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p gateway=192.168.152.254 routes=192.168.150.0/24,10.20.0.0/16 2>&1); rc=$?
+[ $rc = 0 ] && ok "a profile keeps a gateway and its routes" || bad "profile routes: rc=$rc $out"
+out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p 'routes=10.0.0.0/8;reboot' 2>&1); rc=$?
+[ $rc = 2 ] && ok "and refuses routes with anything but digits, dots, slashes and commas" || bad "profile bad routes: rc=$rc $out"
+out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p gateway=router 2>&1); rc=$?
+[ $rc = 2 ] && ok "and a gateway that is not an address" || bad "profile bad gateway: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p address=dhcp 2>&1); rc=$?
 [ $rc = 0 ] && ok "a profile may say address=dhcp" || bad "profile dhcp: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p address=dhcp2 2>&1); rc=$?
@@ -131,5 +140,33 @@ mkdir -p "$T/sysnet/lw7"; echo 1000 > "$T/sysnet/lw7/owner"
 run --remove lw7 1000
 [ ! -e "$RUN/dhcp-lw7.pid" ] && [ ! -e "$RUN/dhcp-hook-lw7" ] && ok "its DHCP files go with it, and its client is stopped" || bad "remove files: $(ls "$RUN")"
 sleep 0.2; kill -0 $pid2 2> /dev/null && { bad "the DHCP client is still running"; kill $pid2; } || ok "(the client of ours is gone)"
+
+echo "-- jack --routes: networks behind a gateway on the line"
+unset LONGWIRE_SYSNET
+run --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24,10.20.0.0/16 lw7 1000
+[ $rc = 0 ] && grep -q "ip route replace 192.168.150.0/24 via 192.168.152.254 dev lw7" "$LWJ_LOG" && grep -q "ip route replace 10.20.0.0/16 via 192.168.152.254 dev lw7" "$LWJ_LOG" \
+	&& ok "each network gets a route through the gateway, on the jack" || bad "routes: rc=$rc $out $(cat "$LWJ_LOG")"
+grep -n "addr replace\|route replace" "$LWJ_LOG" | head -1 | grep -q "addr replace" && ok "the address goes on first (the gateway must be on-link)" || bad "order: $(cat "$LWJ_LOG")"
+refr() {	# description, expected message, then the arguments after --address 192.168.152.50/24
+	d=$1; m=$2; shift 2
+	: > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 "$@" lw7 1000 2>&1); rc=$?
+	[ $rc = 2 ] && echo "$out" | grep -q "$m" && ! grep -q "route replace" "$LWJ_LOG" && ok "$d" || bad "$d: rc=$rc $out"
+}
+refr "the default route is never offered" "a prefix of 8 to 32" --via 192.168.152.254 --routes 0.0.0.0/0
+refr "nor half of everything (0.0.0.0/1)" "a prefix of 8 to 32" --via 192.168.152.254 --routes 0.0.0.0/1
+refr "nor anything wider than a /8" "a prefix of 8 to 32" --via 192.168.152.254 --routes 10.0.0.0/7
+refr "a gateway off the jack's network is refused" "not on the jack's network" --via 192.168.10.1 --routes 192.168.150.0/24
+refr "the gateway cannot be this machine" "own address" --via 192.168.152.50 --routes 192.168.150.0/24
+refr "nor the network's first address" "first or last" --via 192.168.152.0 --routes 192.168.150.0/24
+refr "a network with host bits set is refused, with what to write" "host bits" --via 192.168.152.254 --routes 192.168.150.1/24
+refr "the jack's own network needs no route" "overlaps the jack's own network" --via 192.168.152.254 --routes 192.168.0.0/16
+refr "loopback is never routed" "can be routed" --via 192.168.152.254 --routes 127.0.0.0/8
+refr "nor multicast" "can be routed" --via 192.168.152.254 --routes 224.0.0.0/8
+refr "nor link-local" "link-local" --via 192.168.152.254 --routes 169.254.0.0/16
+refr "nor something that is not a network" "not a network like" --via 192.168.152.254 --routes '192.168.150.0/24;id'
+refr "routes without a gateway are refused" "go together" --routes 192.168.150.0/24
+refr "17 networks are too many" "1 to 16" --via 192.168.152.254 --routes 10.1.0.0/16,10.2.0.0/16,10.3.0.0/16,10.4.0.0/16,10.5.0.0/16,10.6.0.0/16,10.7.0.0/16,10.8.0.0/16,10.9.0.0/16,10.10.0.0/16,10.11.0.0/16,10.12.0.0/16,10.13.0.0/16,10.14.0.0/16,10.15.0.0/16,10.16.0.0/16,10.17.0.0/16
+: > "$LWJ_LOG"; out=$("$HIBR" "$H" --dhcp --via 192.168.152.254 --routes 192.168.150.0/24 lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && echo "$out" | grep -q "need the jack's own address" && ok "routes with DHCP are refused plainly (the gateway's network is not known in advance)" || bad "dhcp routes: rc=$rc $out"
 [ $fail = 0 ] && echo "all jack checks passed"
 exit $fail

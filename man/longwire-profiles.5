@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.24" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.25" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -77,6 +77,15 @@ The word
 .B dhcp
 instead asks a DHCP server on the line, through a client (dhclient, dhcpcd or udhcpc) that the same step starts; it takes the address and the network route only, never a default route or name servers.
 Empty leaves the device alone.
+.TP
+.B gateway
+For a jack: a router on the line that reaches other networks.
+.TP
+.B routes
+Networks to reach through the gateway, like 192.168.150.0/24, separated by commas (at most 16).
+Never the default route, nothing wider than a /8, nothing on the line itself; put on with the device, and gone with it.
+Needs a static
+.BR address .
 .TP
 .B keep_jack
 .BR yes " (the default) or " no .

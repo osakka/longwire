@@ -261,6 +261,12 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     check(any(l == "PTYJOB longwire jack --address dhcp lw9" for l in log), f"address dhcp on a device that is not there asks for the jack, with a DHCP client: {log}")
     rows, log, r = drive(envF, 'lwp_pset address ""; lwp_pset interface lw9; dump 1')
     check(any(x[0] == "action" and x[1] == "Address" and x[2] == "none" for x in rows), f"an empty address shows as none: {[x[:3] for x in rows if x[0] == 'action']}")
+    # routes beyond the line: a gateway and networks; Turn on asks the jack for them when they are missing (lo has no such route)
+    rows, log, r = drive(envF, 'lwp_pset interface lo; lwp_pset address 127.0.0.1/8; lwp_pset gateway 127.0.0.254; lwp_pset routes 192.0.2.0/24; dump 1; longwire_do 1 on 1')
+    labels = {x[1]: x[2] for x in rows if x[0] == "action"}
+    check(labels.get("Gateway") == "127.0.0.254" and labels.get("Routes") == "192.0.2.0/24", f"the pane has Gateway and Routes rows: {labels}")
+    check(any(l == "PTYJOB longwire jack --address 127.0.0.1/8 --via 127.0.0.254 --routes 192.0.2.0/24 lo" for l in log), f"Turn on with a route the device lacks asks for it: {log}")
+    rows, log, r = drive(envF, 'lwp_pset gateway ""; lwp_pset routes ""; lwp_pset address ""; lwp_pset interface lw9')
     rows, log, r = drive(envF, 'lwp_pset attach splice; longwire_do 1 on 1')
     check(any(l == "PTYJOB longwire site lw9 home" for l in log), f"splice asks for a site node for the card, through the site helper (one password): {log}")
     rows, log, r = drive(envF, 'LWP_SITE=svc9; lwp_sitedone 7 0; echo "NODE $DT_LW_NODE"')

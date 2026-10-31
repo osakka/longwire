@@ -44,6 +44,7 @@ The page says **Longwire is off** and shows the connection:
 | **When a call rings** | how this machine answers: `ask`, `known`, `auto` or `never` (see below). |
 | **Longwire on the Menu Bar** | show or hide the telephone. |
 | **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. |
+| **Gateway** / **Routes** | networks *beyond* the line, through a router that is on it: Gateway like `192.168.152.254`, Routes like `192.168.150.0/24,10.20.0.0/16`. Put on in the same password step as the device. Never the default route ([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)); needs a static Address. |
 | **Keep the jack when turned off** | on (the default): Turn off stops the node and leaves the network device, so the next Turn on asks for no password. Off: Turn off removes the device too (and a DHCP client of ours on it), at the price of the password again when you turn on. Jack profiles only. |
 | **Address** | this machine's address on the line, like `10.77.0.2/24` (jack profiles; every machine its own, in one subnet), or `dhcp` to ask a DHCP server on the line; put on the device for you. |
 | **Node** | shown when more than one node answers on this machine (your own, and a service such as `longwire@eth0`): choose which this pane shows and controls. |

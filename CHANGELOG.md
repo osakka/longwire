@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.25
+
+- **Routes to networks beyond the line** ([ADR 0044](docs/adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)). A jack profile may name a **Gateway** (a router on the line) and **Routes** (the networks behind it, separated by commas); `longwire profile set home gateway=192.168.152.254 routes=192.168.150.0/24`, or the pane's two new rows. They
+  go on in the same password step as the jack and its address (`longwire jack --address A/N --via GW --routes NET,...`), and `on` asks for the step only when one is missing. The helper checks everything before it changes anything: the gateway on the jack's own network, each route a real network of /8 to /32, not loopback, link-local,
+  multicast or the jack's own network, at most 16, and a static address. **Never the default route**: a route for everything is a different promise, and the ADR says what it still needs.
+- **The engine keeps its own traffic off routed networks.** The networks the underlay socket ([ADR 0037](docs/adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)) avoids now include every route the kernel sends through the jack, so a switchboard or a peer inside a routed network is still reached the real way; the echo
+  probe and the port-spray probes go the same way. Tested against a stand-in `ip` (`tests/jack.sh`), a route table (`tests/jacknet.sh`) and the pane (`tests/pane.py`). Not tried: routes on a real tap.
+
 ## 0.5.24
 
 *Published:* the catalogue (`hibr-apps` `d9bf1e7`) and the packages (`hibr-apt` `b31a1a6`, `hibr-rpm` `7b217a2`, `hibr-arch` `dac2582`). `make check` passed (709 checks). A switchboard that is updated gets the bans with their defaults on; `--strikes 0` turns them off.

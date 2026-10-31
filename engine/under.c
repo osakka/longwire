@@ -14,6 +14,40 @@ static int jack_mode(const lw_node *n)
 	return !strcmp(n->cfg.port_kind, "jack");
 }
 
+/* The routes through the jack count as its networks too: a network routed into the tunnel is as much a trap for the packets that bring the tunnel up as one
+ * connected to it (docs/adr/0044). Read from the kernel's route table (/proc/net/route, readable by anyone): IPv4 only, as the table is. */
+static void jnets_routes(lw_node *n)
+{
+	FILE *f;
+	char line[256], ifn[32];
+	unsigned long dst, gw, flags, mask;
+
+	if (!(f = fopen(n->cfg.routes_file[0] ? n->cfg.routes_file : "/proc/net/route", "r")))
+		return;
+	if (!fgets(line, sizeof line, f)) {
+		fclose(f);
+		return;
+	}
+	while (n->njnet < LW_JNETS && fgets(line, sizeof line, f)) {
+		lw_jnet *j = &n->jnet[n->njnet];
+		uint32_t d, m;
+		int k;
+
+		if (sscanf(line, "%31s %lx %lx %lx %*d %*d %*d %lx", ifn, &dst, &gw, &flags, &mask) != 5 || !(flags & 1) || strcmp(ifn, n->cfg.port_arg))
+			continue;
+		d = (uint32_t)dst;			/* the table is in the host's byte order of a network-order address: the bytes as they are */
+		m = (uint32_t)mask;
+		memset(j, 0, sizeof *j);
+		j->fam = 4;
+		memcpy(j->mask, &m, 4);
+		memcpy(j->net, &d, 4);
+		for (k = 0; k < 4; k++)
+			j->net[k] &= j->mask[k];
+		n->njnet++;
+	}
+	fclose(f);
+}
+
 /* The networks connected to the jack, read from the system. Kept for a second: it is looked at for every packet to a peer. */
 void jnets_refresh(lw_node *n)
 {
@@ -52,6 +86,7 @@ void jnets_refresh(lw_node *n)
 		n->njnet++;
 	}
 	freeifaddrs(ifa);
+	jnets_routes(n);
 }
 
 void jnets_fresh(lw_node *n)

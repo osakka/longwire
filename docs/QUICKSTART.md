@@ -74,6 +74,12 @@ instead, as root: `ip addr add 10.77.0.1/24 dev lw0`.
 
 If a DHCP server sits on the other side (a router at a site you have bridged), ask it instead: type `dhcp` in the **Address** row, or `longwire profile set home address=dhcp`. The same password step starts a DHCP client on the jack (`dhclient`, `dhcpcd` or `udhcpc`, whichever is installed); it keeps asking until the line answers, and it takes the address and the network route only: never a default route and never name servers, so that a line cannot take over your machine's traffic.
 
+### Beyond the bridged subnet
+
+The line is one segment: everything on it is reached with no route. A network *behind* it (a site's other subnets) is reached through a router that sits on the segment. Put that router in **Gateway** and the networks in **Routes**
+(or `longwire profile set home gateway=192.168.152.254 routes=192.168.150.0/24`), and turn on: the routes go on with the device. Ask whoever runs the far site which networks its router reaches. Routes are never the default route
+([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)), and they need a static Address.
+
 ## 5. Make the first call
 
 From **B**, ring A's number.

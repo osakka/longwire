@@ -203,7 +203,7 @@ typedef struct pin {
 
 struct board;
 
-#define LW_JNETS 8
+#define LW_JNETS 32
 typedef struct lw_jnet {		/* a network connected to the jack: address and mask, one family */
 	uint8_t fam, net[16], mask[16];
 } lw_jnet;

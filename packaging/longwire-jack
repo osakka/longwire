@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # longwire-jack --remove TAP [UID] -- the other way: stop the DHCP client of ours on TAP, if any, and delete the device, if it is the user's own.
+# longwire-jack --address A.B.C.D/N --via GATEWAY --routes NET/PREFIX[,...] TAP [UID] -- the same, and routes to those networks through a gateway
+# that is on the line (docs/adr/0044): a router the jack reaches directly. Never the default route, nothing wider than a /8, nothing the jack reaches anyway.
 # longwire-jack [--address A.B.C.D/N | --dhcp] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
 # bring it up, with the address if one is given, or with a DHCP client started on it (so that nobody runs `ip addr` or `dhclient` by hand). The
 # client keeps asking until the line answers, so the tunnel need not be up yet; it sets the address and the network route only, never a
@@ -23,6 +25,8 @@ fn fail(msg, int code = 2) {
 addr=
 dhcp=
 remove=
+via=
+routes=
 while [ $# -gt 0 ]; do
 	case $1 in
 	--address)
@@ -31,6 +35,14 @@ while [ $# -gt 0 ]; do
 		shift 2 ;;
 	--dhcp) dhcp=1; shift ;;
 	--remove) remove=1; shift ;;
+	--via)
+		[ $# -ge 2 ] || fail "--via wants the gateway's address"
+		via=$2
+		shift 2 ;;
+	--routes)
+		[ $# -ge 2 ] || fail "--routes wants networks like 192.168.150.0/24, separated by commas"
+		routes=$2
+		shift 2 ;;
 	*) break ;;
 	esac
 done
@@ -78,6 +90,44 @@ if [ -n "$addr" ]; then
 	[ "$o1" -ne 0 ] && [ "$o1" -ne 127 ] && [ "$o1" -le 223 ] || fail "'$addr' is not a usable host address"
 fi
 
+# Routes through a gateway on the line, checked before anything is changed: the gateway on the jack's own network, each route a real network no wider than a /8,
+# none the default route, none overlapping the jack's own network. (The engine keeps its own traffic off whatever is routed here: docs/adr/0044.)
+rl=()
+if [ -n "$routes$via" ]; then
+	[ -n "$routes" ] && [ -n "$via" ] || fail "--routes and --via go together: the networks, and the gateway on the line that reaches them"
+	[ -n "$addr" ] || fail "routes need the jack's own address (--address); with DHCP the gateway's network is not known in advance"
+	octet='(0|[1-9][0-9]{0,2})'
+	[[ $via =~ ^$octet\.$octet\.$octet\.$octet$ ]] || fail "--via '$via' is not an address like 192.168.152.254"
+	g1=${M[1]}; g2=${M[2]}; g3=${M[3]}; g4=${M[4]}
+	[ "$g1" -le 255 ] && [ "$g2" -le 255 ] && [ "$g3" -le 255 ] && [ "$g4" -le 255 ] || fail "--via '$via' is not an address"
+	full=4294967295
+	mask=$(( (full << (32 - pre)) & full ))
+	aint=$(( o1 * 16777216 + o2 * 65536 + o3 * 256 + o4 ))
+	gint=$(( g1 * 16777216 + g2 * 65536 + g3 * 256 + g4 ))
+	net=$(( aint & mask ))
+	bc=$(( net | (~mask & full) ))
+	[ $(( gint & mask )) -eq "$net" ] || fail "the gateway $via is not on the jack's network ($addr): it has to be a machine the line reaches directly"
+	[ "$gint" -ne "$aint" ] || fail "the gateway cannot be this machine's own address"
+	[ "$gint" -ne "$net" ] && [ "$gint" -ne "$bc" ] || fail "the gateway cannot be the network's first or last address"
+	read -r -a rl <<< "${routes//,/ }"
+	[ "${#rl[@]}" -ge 1 ] && [ "${#rl[@]}" -le 16 ] || fail "1 to 16 networks in --routes"
+	for r in "${rl[@]}"; do
+		[[ $r =~ ^$octet\.$octet\.$octet\.$octet/([0-9]{1,2})$ ]] || fail "'$r' is not a network like 192.168.150.0/24"
+		r1=${M[1]}; r2=${M[2]}; r3=${M[3]}; r4=${M[4]}; rp=${M[5]}
+		[ "$r1" -le 255 ] && [ "$r2" -le 255 ] && [ "$r3" -le 255 ] && [ "$r4" -le 255 ] || fail "'$r' is not a network like 192.168.150.0/24"
+		[ "$rp" -ge 8 ] && [ "$rp" -le 32 ] || fail "'$r': a prefix of 8 to 32. The default route, and anything wider than a /8, is not offered (docs/adr/0044)"
+		[ "$r1" -ne 0 ] && [ "$r1" -ne 127 ] && [ "$r1" -lt 224 ] || fail "'$r' is not a network that can be routed"
+		[ "$r1" -ne 169 ] || [ "$r2" -ne 254 ] || fail "'$r' is link-local: it is never routed"
+		rmask=$(( (full << (32 - rp)) & full ))
+		rint=$(( r1 * 16777216 + r2 * 65536 + r3 * 256 + r4 ))
+		[ $(( rint & rmask )) -eq "$rint" ] || fail "'$r' has host bits set: write the network's first address, like 192.168.150.0/24"
+		rend=$(( rint | (~rmask & full) ))
+		if [ "$rint" -le "$bc" ] && [ "$net" -le "$rend" ]; then
+			fail "'$r' overlaps the jack's own network ($addr), which the line reaches already with no route"
+		fi
+	done
+fi
+
 if [ ! -d "/sys/class/net/$tap" ]; then
 	ip tuntap add dev "$tap" mode tap user "$uid" || exit 1
 fi
@@ -85,6 +135,9 @@ ip link set "$tap" mtu 1400 up || exit 1
 if [ -n "$addr" ]; then
 	ip addr replace "$addr" dev "$tap" || exit 1
 fi
+for r in "${rl[@]}"; do
+	ip route replace "$r" via "$via" dev "$tap" || exit 1
+done
 
 client=
 if [ -n "$dhcp" ]; then
@@ -142,4 +195,4 @@ if [ -n "$dhcp" ]; then
 		fail "no DHCP client found: install isc-dhcp-client, dhcpcd or udhcpc (busybox)" 3
 	fi
 fi
-echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}"
+echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}${routes:+, routes to $routes via $via}"
