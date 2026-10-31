@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.26
 
+*Published:* the catalogue (`hibr-apps` `4404f4c`) and the packages (`hibr-apt` `b6ac2d5`, `hibr-rpm` `f4c2fd8`, `hibr-arch` `1939fe6`). `make check` passed (777 checks). Update both: the switch needs the new package (engine and helper) and the new scripts.
+
 - **Send everything through the line** ([ADR 0045](docs/adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)). One switch in the pane, or `everything = yes` in a profile with a Gateway: all of this machine's traffic leaves by the router at the far end, as if plugged in there.
   Done properly, not with the `0.0.0.0/1` + `128.0.0.0/1` trick: the default route through the line lives in a **table of the jack's own** (7700 + N), behind two rules, and the machine's own default route is
   never touched; its own networks (the printer) stay its own. Every socket of the engine is **tied to the real device**, so the line's own packets cannot be caught by it, with one socket per family as always (the punch keeps
