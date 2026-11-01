@@ -19,7 +19,7 @@
 
 ## Vocabulary
 
-Use these words consistently in the CLI, the docs, the hibr desktop and the Android app. They are the brand.
+Use these words consistently in the CLI, the docs, the hibr desktop and the Android app *(planned: M6)*. They are the brand.
 
 | Say | Meaning | Don't say |
 |---|---|---|
@@ -32,16 +32,20 @@ Use these words consistently in the CLI, the docs, the hibr desktop and the Andr
 | **dial tone** | registered with the switchboard, ready | online, connected to server |
 | **party line** | a line with 3 or more members | mesh network |
 | **splice / jack** | the site and host attach modes | bridge mode, client mode |
-| **trunk / leaf** | full-mesh site node / single-session device | server / client |
-| **safety phrase** | the 6 words that verify a first call | SAS, fingerprint |
+| **trunk / leaf** | full-mesh site node / single-session device (leaf *(planned: M6)*) | server / client |
+| **safety phrase** | the 8 words that verify a first call | SAS, fingerprint |
+| **gateway** | the router on the line that takes traffic onward | next hop, exit node |
+| **everything through the line** | all of a machine's traffic leaves by the far site | full tunnel, default route |
+| **road** | the machine's own network, which the line itself travels on (status output still says `underlay`) | uplink |
+| **ban** / **strike** | a key a switchboard ignores for a while / what earns one | block, blacklist |
 
 Use **"VPN"** only where people search for it ("a layer-2 VPN"), never in the product UI.
 
 ## Voice
 
 - **Plain and short.** The CLI says `connected to 312-884-076`, not `Connection established successfully`.
-- **Say what happened and what to do next.** `call failed: no direct path (both sides behind strict NAT?)` is better
-  than `Fallback path engaged`. A relayed call says which node is relaying: `connected to 540-283-207 through a relay (312-884-076)`.
+- **Say what happened and what to do next.** `✗ call failed: not online` is better than `Peer unreachable`. A relayed call says which node is relaying:
+  `✓ connected to 540-283-207 through a relay (312-884-076): no direct path yet, still trying`.
 - **The metaphor seasons the text; it shouldn't be the whole meal.** Status words come from the telephone, but
   explanations say what's really happening ("hole-punched", "behind CGNAT").
 - **A name is a claim and is worded as one: `312-884-076 is calling, and says it is "Osama's laptop"`. Never cute about security.** Key changes, evictions and first calls are said straight, in full.
@@ -70,8 +74,9 @@ poles and text automatically in dark mode.
 | **ringing amber** | `#E0A100` | ringing, attention; a relayed path |
 | **hang-up red** | `#D9473F` | rejected, key changed, failure |
 
-Status colours mean the same thing in the hibr desktop and on Android *(planned: M4)*; the terminal narration is plain
-text today, and will get ANSI fallbacks (green, yellow, red) *(planned: M4)*. Copper is never used for a status.
+Status colours mean the same thing everywhere: in the hibr desktop they are the active theme's own (dim when off, *info* while waiting, *good* when on,
+*warning* when ringing), and on Android the palette above *(planned: M6)*. The terminal narration is plain text; ANSI fallbacks (green, yellow, red)
+*(planned: M4)*. Copper is never used for a status.
 
 ## Type
 
@@ -79,10 +84,9 @@ text today, and will get ANSI fallbacks (green, yellow, red) *(planned: M4)*. Co
   DejaVu Sans Mono) for the wordmark, for numbers and in the UI.
 - **Numbers are always grouped** `447-120-933` and set in monospace, so the digits line up in columns. A full number
   adds the switchboard's code with a plus: `+0731042 447-120-933`; on your own switchboard the code is left off.
-- In the hibr desktop, follow the active hibr theme (a theme is data, per hibr ADR 0028), adding only copper and the
-  three status colours.
+- In the hibr desktop, follow the active hibr theme (a theme is data, per hibr ADR 0028); longwire adds no colours of its own there.
 
 ## Glyph
 
-**☎** (U+260E) marks your own number and incoming rings in the CLI, and later the hibr menu bar *(planned: M4)*. It is never used for
-anything else.
+**☎** (U+260E) marks your own number and incoming rings in the CLI, the telephone on the menu bar (where the glyph set has no picture of its own), and
+the icons of the Longwire pane and the Switchboard window. It is never used for anything else.

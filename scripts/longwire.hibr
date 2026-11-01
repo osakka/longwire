@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.29
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.30
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.29}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.30}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -712,6 +712,8 @@ cmd_off() {
 	run lw stop
 	profiles_read
 	p=$PDEFAULT
+	[ -r "$LW_DIR/on-profile" ] && read -r p < "$LW_DIR/on-profile"	# the profile it was turned on with, not only the default
+	rm -f "$LW_DIR/on-profile"
 	[ -n "$p" ] && profile_exists "$p" || return 0
 	[ "${PF[$p.keep_jack]:-yes}" = no ] && [ "${PF[$p.attach]:-jack}" = jack ] || return 0
 	tap=${PF[$p.interface]:-lw0}
@@ -747,6 +749,7 @@ cmd_on() {
 		cmd_jack ${PF[$n.address]:+--address "${PF[$n.address]}"} ${PF[$n.gateway]:+--via "${PF[$n.gateway]}"} ${PF[$n.routes]:+--routes "${PF[$n.routes]}"} "${ev[@]}" "${PF[$n.interface]:-lw0}" || exit 1			# made now, with a password if it must be
 	fi
 	: > "$LW_DIR/log"
+	printf '%s\n' "$n" > "$LW_DIR/on-profile"		# for `off`, which takes the jack away if this profile says so
 	nohup setsid "${LONGWIRE_HIBR:-hibr}" "$0" up --profile "$n" >> "$LW_DIR/log" 2>&1 < /dev/null &
 	for ((i = 0; i < 150; i++)); do			# up to 15 s for the switchboard to give a number
 		if lw status > /dev/null 2>&1; then

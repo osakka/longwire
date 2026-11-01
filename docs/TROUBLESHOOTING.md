@@ -7,7 +7,11 @@ Tokens are secrets: leave them out of what you send.
 ## Starting
 
 **Did the update take effect?** The scripts come from the catalogue (`catalogue refresh && catalogue install longwire`), the engine from the package
-(`please apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
+(`please apt update && please apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
+
+**`longwire show` says `engine 0.6.0`, and updating changes nothing.**
+0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.30-1` (the current version), then
+`longwire off` and `longwire on`. `doctor`'s advice to refresh the catalogue does not apply here.
 
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
 Nothing is wrong. `longwire up` *is* the node: it stays in the foreground and prints events as they happen. Use another terminal for
@@ -29,8 +33,8 @@ or follow the two commands the message prints, as root, once.
 Same causes. Run `longwire jack` in a terminal to see the full instructions. If you cancelled the password dialog, press **Turn on** again.
 
 **`longwire: on (profile …), waiting for the switchboard to give a number`**
-The node is running but the switchboard has not answered yet (slow, unreachable, or a firewall on UDP 1877). `longwire show` says **dial tone** when it has; if it never does, check
-the address and the firewall, and `~/.longwire/log`.
+The node is running but the switchboard has not answered yet (slow, unreachable, or a firewall on UDP 1877). `longwire show` says **dial tone** when it has. If it never does, after 15 s the log
+and `longwire show` say why as far as the node can tell (below, `⚠ no answer from the switchboard`).
 
 **Control Panel says "Could not make the site node" (splice), or `longwire: the site helper is not installed`**
 A splice profile makes this machine a site node: a service, `longwire@CARD`, written and started by `/usr/lib/longwire/site` after your administrator password. The helper says why it refused:
@@ -43,7 +47,7 @@ Those are the end of `~/.longwire/log`. Common causes are a wrong switchboard ad
 port already in use (`--listen`).
 
 **`unknown option --max-numbers` (or any option) from a script**
-The script is newer than the engine. Upgrade the package first: `please apt install --only-upgrade longwire`, then restart.
+The script is newer than the engine. Upgrade the package first: `please apt update && please apt install --only-upgrade longwire`, then `longwire off` and `longwire on`.
 
 ## Registering
 
@@ -77,7 +81,7 @@ The other machine went away (off, asleep, network gone). The call comes back by 
 **`✓ connected … through a relay: no direct path yet, still trying`**
 Both machines are behind strict NATs, so the traffic goes through another machine of your line that has a public address, still encrypted
 end to end. It moves to a direct path by itself when one exists. With no such machine on the line, the pair cannot connect;
-`longwire show` shows the NAT type.
+`longwire show` shows the NAT type. A relayed call shows the old, weaker safety phrase (below). `✗ lost the call to …: the relay went away` means the member relaying for you left; the call comes back when a path does.
 
 **`⚠ KEY CHANGED for 447-120-933: refused the call` / `call dropped`**
 A number you have called before answered with a *different* key. Either the machine was reinstalled, or someone else is answering as it.
@@ -85,7 +89,16 @@ Check with the person over another channel. If it is legitimate, `longwire unpin
 cannot confirm, leave it.
 
 **The safety phrases differ.**
-Reject. Either it is the wrong number or someone is in the middle. Do not pick up.
+Hang up at once (`longwire hangup NUMBER`, or the call's row in the pane). The phrase appears only after the call connects, so the call is already on your line; either it was the wrong
+number or someone is in the middle. Do not unpin or call back until you have checked with the person another way.
+
+**`safety phrase: … (the old, weaker kind: the other end is older)`** / **`(a relayed call: the old, weaker kind)`**
+The other end is older than 0.5.21 (or something on the way dropped the exchange), or the call goes through a relay: the phrase is the old six words, which a switchboard that is the
+attacker could have searched for. Update the other end; for a direct call, `longwire up --require-sas` refuses such calls once every node is up to date ([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)).
+
+**`✗ the safety phrase could not be agreed with 447-120-933: …. The call was ended`**
+*the other end cannot do the committed safety phrase (--require-sas)*: it is older than 0.5.21; update it. *the caller's reveal does not match what it committed to*, or *the caller did not
+reveal its half*: something altered or dropped the exchange; treat it as the phrases differing.
 
 ## It is connected, but nothing works
 
@@ -101,8 +114,8 @@ The cipher alone runs near 290 Mbit/s per core under the project's compiler; end
 
 **A call keeps starting and never connects, after you gave your jack an address in the same network as the other end.** (The other side logs the same number joining the line again
 and again.) `ip route get ADDRESS` on your machine, with ADDRESS the other end's address in that network, says `dev lw0`: your own packets for it go into the tunnel. longwire sends them
-out through a socket tied to your real network device instead (ADR 0037), so this should not happen. If it does: `longwire watch` says `⚠ not using ADDRESS` when it could not (a kernel
-before 5.7, or no default route: name the device with `--underlay DEV`); or the replies are dropped by strict reverse-path filtering (`sysctl net.ipv4.conf.all.rp_filter` and the
+out through a socket tied to your real network device instead (ADR 0037), so this should not happen. If it does: `longwire watch` says `⚠ not using ADDRESS:PORT to reach the other end: it is inside your jack's own network …` when it could not (a kernel
+before 5.7, or no default route: name the device, `longwire off`, then `longwire up --profile home --underlay eth0`; a profile cannot carry it); or the replies are dropped by strict reverse-path filtering (`sysctl net.ipv4.conf.all.rp_filter` and the
 one for the real device are `1`: set them to `2`). The way out that always works is an address on the other end that is outside the bridged network ([OPERATING](OPERATING.md), "Run a site").
 
 **I reach the line (192.168.152.x) but not the network behind it (192.168.150.x).**
@@ -118,11 +131,33 @@ through the line*, turn off and on. To get out at once: turn longwire off; nothi
 `resolvectl dns lw0` names the server asked. It must answer on the line's side: try `resolvectl query example.org`. Empty the **Name server** to go back to your own. `longwire show` has a `names` line.
 
 **`⚠ no answer from the switchboard … its host answers`**
-The switchboard is ignoring this node. Either the key after `/` in your switchboard address is not the switchboard's (compare it with a node that works), or this node's key is banned there
-for a while: on the switchboard, `longwire-switchboard bans list` shows it, the log says why, and `longwire-switchboard bans clear KEY` lifts it. A ban ends by itself (15 minutes, doubling at each repeat, at most a day).
+Small UDP gets to the switchboard's machine and back, but no handshake completes. In this order: the key after `/` in your switchboard address is not the switchboard's (compare it with a node
+that works); this node's key is banned there for a while (on the switchboard, `please longwire-switchboard bans list` shows it, its log says why, and `please longwire-switchboard bans clear KEY`
+lifts it; a ban ends by itself, 15 minutes, doubling at each repeat, at most a day; a restart of the switchboard forgets every ban); the switchboard's own port is closed while the next is open;
+or the handshake's larger packets (1276 bytes on the wire) are lost on the way: a link with a small MTU, or a middlebox that drops fragments ([OPERATING](OPERATING.md#when-a-node-gets-no-number)).
+A switchboard older than 0.5.28 could also ban a good, patient node for repeating an unanswered registration: update the switchboard's package.
 
 **`⚠ no answer from the switchboard … nothing comes back from its host`**
 UDP does not get there and back: a firewall on either side (the switchboard's port and the next one), or the switchboard is not running.
+
+**`longwire-jack: routes need the jack's own address (--address); with DHCP …`** / **`the gateway … is not on the jack's network`**
+Gateway, Routes and Send everything through the line need a static **Address** (not `dhcp`), and the Gateway must be in that address's network: a machine the line reaches directly.
+
+**`longwire-jack: something else already takes everything (…); turn it off there first`** / **`the place in the rules longwire uses (7700) is taken`**
+Another jack, or another program, already sends this machine's traffic somewhere with the same rules. Turn that off, then turn longwire on.
+
+**`longwire-jack: the jack lw0 has carrier with no node on it, or a node is on it now: turn longwire off first`**
+Everything through the line is put on only while no node holds the jack, so that a node that stops always gives the machine its own network back. `longwire off`, then `longwire on`.
+
+**`longwire-jack: lw0 is not this user's jack`**
+A device of that name belongs to another user of this machine; longwire changes only your own. Choose another **Interface** (`lw1` …).
+
+**`longwire-jack: names still go to this machine's own name server: … needs systemd-resolved`**
+Without systemd-resolved, **Name server** is not used; everything else goes through the line. `longwire show` says so on its `names` line.
+
+**`· the road changed (wlan0 to none): …`**, then **`· waiting for a network`**
+With everything through the line, the machine changed network (or lost it). longwire let go at once, so the machine is on its own network, and starts again by itself when there is one
+([ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)). Nothing to do; if it stays waiting, check the machine's own network.
 
 **`⚠ two DHCP servers answer on this line`**
 Two machines on the line are both handing out leases, and clients may get clashing addresses. Turn one off.
@@ -143,6 +178,10 @@ Desktop. With the Blit glyph set and an older hibr you see plain characters inst
 A node started by another user (or a service) has another control socket. The pane finds a service node under `/run/longwire` if you
 are in the group `longwire`: `please usermod -aG longwire YOU`, then log in again.
 
+**The Switchboard window shows no traffic, or says "No switchboard answers at …".**
+Traffic needs the longwire package 0.5.29 or newer on the switchboard's machine. "No switchboard answers" means it found no control socket: start one, join the group `longwire` for a
+service (then log in again), or press `s` (File > Switchboard Socket…) to say where its socket is.
+
 **A call rings but I hear nothing.**
 A ring is heard while the desktop runs. If it is not running, the node still applies its policy (`auto` and `known` answer by themselves; under `ask` the ring waits a minute and then times out); use `longwire watch` to see rings.
 
@@ -155,7 +194,11 @@ A ring is heard while the desktop runs. If it is not running, the node still app
 (create it in the state directory), or an option has no value.
 
 **Nodes cannot reach the switchboard.**
-Open UDP 1877 and 1878. From a node: its status line says **dial tone** when it can.
+Open UDP on its listen port and the one above it (1877 and 1878 by default). From a node: its status line says **dial tone** when it can, and after 15 s without it the node says why
+([OPERATING](OPERATING.md#when-a-node-gets-no-number)).
+
+**I cannot lift a ban: "only the user this runs as may do that".**
+The service runs as a transient user; lift it as root: `please longwire-switchboard bans clear KEY` (it finds the service's socket by itself).
 
 **I lost the switchboard's address.**
 `please hibr -c 'mod load longwire; lw key address /var/lib/longwire-switchboard/seed'`.

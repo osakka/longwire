@@ -84,18 +84,19 @@ script's verdict before refusing:
 A key that is already registered gets its number back without asking.
 
 **Strikes and bans** ([ADR 0043](adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)). A switchboard on the internet is hit by people guessing tokens, probing numbers and sending nonsense. Only what an attacker cannot fake is punished: nothing before the handshake counts (a source
-address is spoofable, and a ban on it would be a weapon against your own users); a failure counts only on a session that got through the handshake, and what is banned is that session's **key**. A refused registration is two strikes, a dial of a number that does not exist one, a message over the session's
-budget a fraction; strikes leak away, so honest mistakes never add up. A banned key's session ends and its handshake is refused (it looks like any unknown key) for `--ban-for` seconds, doubling on repeats. Several different banned keys from one network refuse *new* identities from it, never the ones
-already registered behind it. Fixed tables, a ceiling on bans an hour and everything expiring keep this from being a way to take the switchboard down. `longwire-switchboard bans list` shows them and `bans clear [KEY|all]` lifts them (only the user it runs as, or root for the service); each ban is also written to its log, with the command that lifts it ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)). A node whose key is banned is not told, but it says itself that the switchboard's host answers and the switchboard does not. The `ban` and `net-ban` events tell the script. The shipped `longwire-switchboard` script
+address is spoofable, and a ban on it would be a weapon against your own users); a failure counts only on a session that got through the handshake, and what is banned is that session's **key**. A refused registration is two strikes; a malformed registration, a dial faster than the limit and a dial of a number that does not exist
+one each; a control message over the session's budget a quarter; strikes leak away, so honest mistakes never add up (and since 0.5.28 a registration repeated within 5 s on one session is ignored, not struck). A banned key's session ends and its handshake is refused (it looks like any unknown key) for `--ban-for` seconds, doubling on repeats. Several different banned keys from one network refuse *new* identities from it, never the ones
+already registered behind it. Fixed tables, a ceiling on bans an hour and everything expiring keep this from being a way to take the switchboard down. `longwire-switchboard bans list` shows them (JSON: the settings; the counters `struck`, `issued`, `net_issued`, `refused`, `suppressed`; each banned key with `seconds` left and `level`, and each banned network). `bans clear KEY` lifts one key's ban (64 hex digits, or the first eight or more); `bans clear all` lifts every ban, the networks' too. Anyone who may use the control socket may list; only the user the switchboard runs as, or root, may lift: the service runs as a transient user nobody logs in as, so there it is `please longwire-switchboard bans clear KEY`. `bans` finds the socket in this order: `$LW_SOCK`; `$SB_DIR/ctl` (the one run by hand as you; `--state DIR` points it elsewhere); `/run/longwire-switchboard/ctl` (the service's). A switchboard run by hand without `--group` answers only its own user, not even root. Bans are kept in memory: a restart forgets them. Each ban is also written to its log, with the command that lifts it ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md), [below](#its-log)). A node whose key is banned is not told, but it says itself that the switchboard's host answers and the switchboard does not. The `ban` and `net-ban` events tell the script. The shipped `longwire-switchboard` script
 answers with this policy:
 
 | Option | Default | Does |
 |---|---|---|
-| `--listen PORT\|ADDR:PORT\|[ADDR]:PORT` | `1877` | where to listen (UDP): a bare port is IPv4 and IPv6 on any address, `ADDR:PORT` IPv4 only, `[ADDR]:PORT` IPv6 only, and a comma separates several ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)). It also listens on the next port up (1878) to answer `ECHO`, so a node can tell what kind of NAT it is behind; let both through a firewall, and leave the next port free when running several on one host |
-| `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when used. A spent or unknown token: `a valid token is needed to register here`. A token is visible characters with no spaces, quotes, backslashes or leading `#` (1 to 63); anything else is refused before the script sees it. Lines that are blank or begin with `#` are kept and are never tokens. The file is rewritten whole, beside itself, and moved into place, so **the file must be in a directory the service can write** (for the unit, its state directory, `/var/lib/longwire-switchboard`; the unit cannot write `/etc`): if it cannot be written the token is not spent, and the registration is refused |
+| `--listen PORT\|ADDR:PORT\|[ADDR]:PORT` | `1877` | where to listen (UDP): a bare port is IPv4 and IPv6 on any address, `ADDR:PORT` IPv4 only, `[ADDR]:PORT` IPv6 only, and a comma separates several ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)). It also listens on the next port up (1878) to answer `ECHO`, so a node can tell what kind of NAT it is behind; let both through a firewall, and leave the next port free when running several on one host. The echo port is IPv4 only; if it is taken the switchboard runs without it, every node then reports its NAT as `unknown`, and a node that cannot reach the switchboard is told its host is silent |
+| `--group NAME\|GID` | none | give the control socket to that group at mode 0660 ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); the service uses `longwire`. Without it only the user it runs as may use the socket |
+| `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when used. A spent or unknown token: `a valid token is needed to register here`. A token is visible characters with no spaces, quotes, backslashes or leading `#` (1 to 63); anything else is refused before the script sees it. Lines that are blank or begin with `#` are kept and are never tokens. The file is rewritten whole, beside itself, and moved into place, so **the file must be in a directory the service can write** (for the unit, its state directory, `/var/lib/longwire-switchboard`; the unit cannot write `/etc`): if it cannot be written the token is not spent, and the registration is refused. `longwire-switchboard token new [N] \| list \| remove TOKEN [--tokens FILE] [--state DIR]` makes, lists and removes tokens with no switchboard running; without `--tokens` it works on `$SB_DIR/tokens` (`~/.longwire/switchboard/tokens`), so for the service always say `--tokens /var/lib/longwire-switchboard/tokens` |
 | `--per-ip-hour N` | 20 | registrations per source per hour (`net` in the event: an IPv4 address, or an IPv6 /64) |
 | `--rings-per-minute N` | 6 | rings per callee per minute |
-| `--state DIR` | `~/.longwire/switchboard` | the seed, the control socket, `numbers.log`, `names.log` |
+| `--state DIR` | `$SB_DIR`, else `~/.longwire/switchboard` | the seed, the control socket, `numbers.log`, `names.log`, `codes.log` |
 | `--max-nodes N` | 1024 | how many node sessions the worker holds at once (at most 65,536). When they are all taken, a session that never registered gives way to a new one; a registered one never does |
 | `--max-numbers N` | 100000 | the most numbers it will give out. Each is a bundle (1.3 KB) in memory and a line in `numbers.log`; past it a registration is refused with a plain message |
 | `--strikes N` | 10 | failures on an authenticated session within `--strike-window` that earn a ban; 0 turns bans off ([ADR 0043](adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)) |
@@ -123,7 +124,7 @@ against the switchboard's key, so the same key always gets the same code. The sw
 nodes, and they show it (`+20 312-884-076`); the derived code (`+0…`) keeps working beside it. A switchboard that is not a registry
 refuses to issue codes.
 
-**Watching it.** The worker's event stream (`/dev/longwire/events`) also tells a watcher how calls go: `call-ring` when a ring is sent and `call-go` when the call is put through (each with the two numbers, `from` and `to`), and `call-end` when it ends without one, with a `reason` of declined, busy or no answer. They hold numbers only, are not written anywhere, and are for the operator's own screen: the Switchboard application on hibr's desktop draws them ([ADR 0030](adr/0030-three-surfaces-one-engine.md)). `lw sb nodes` pages through the registry: number, name, listed, online, and seconds since heard. When the switchboard runs as the service, its control socket is `/run/longwire-switchboard/ctl`, given to the group `longwire`: a person in it can watch the switchboard from the desktop and nothing more than the owner of the socket could do ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)).
+**Watching it.** The worker's event stream (`/dev/longwire/events`) also tells a watcher how calls go: `call-ring` when a ring is sent and `call-go` when the call is put through (each with the two numbers, `from` and `to`), and `call-end` when it ends without one, with a `reason` of declined, busy or no answer. They hold numbers only, are not written anywhere, and are for the operator's own screen: the Switchboard application on hibr's desktop draws them ([ADR 0030](adr/0030-three-surfaces-one-engine.md)). `lw sb nodes` pages through the registry: number, name, listed, online, and seconds since heard. When the switchboard runs as the service, its control socket is `/run/longwire-switchboard/ctl`, given to the group `longwire`: a person in it can read its status, page through its nodes, list its bans and watch the call feed. They are not sent the events that carry a token, an address or a ban, and cannot stop it, decide its registrations or lift a ban (that is the user it runs as, or root) ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)).
 
 **After `GO`, the switchboard forgets the call.** The call record is erased when `GO` is sent. Nothing logs who called
 whom: the registry on disk (`numbers.log`) holds numbers and keys, never calls.
@@ -168,6 +169,24 @@ It needs hibr and the module, runs as an ordinary user, needs no capabilities (1
 everything in `~/.longwire/switchboard/`. Since the policy is a script, changing it (vanity numbers, a different token
 scheme, an allow-list) means editing hibr, not C.
 
+### Its log
+
+On start it prints `switchboard  lw1…` (its full address) and `listening    udp PORT    tokens: …`. Then one line for each ban and network ban:
+
+```
+ban          key 0123456789abcdef… for 900 s (ban 1 in a row): registration refused   (longwire-switchboard bans clear 0123456789abcdef lifts it)
+net-ban      new keys from 192.0.2.0/24 refused for 900 s: several keys from this network were banned
+```
+
+The key is its first 16 hex digits (the node's `longwire id` starts with them); a network ban names the network, never a node's address. The reason is one of: registration refused, a
+malformed registration, dialled faster than the limit, dialled a number that does not exist, dialled many numbers that do not exist, sent control messages faster than the limit. Under the
+service: `please journalctl -u longwire-switchboard -o cat | grep -E '^(switchboard|ban|net-ban) '`.
+
+### Updating it
+
+The engine comes from the package and the script from the catalogue (`catalogue --system update` for the service). The worker keeps the engine it started with, and its status does not say
+which, so restart it after every package upgrade: `please systemctl restart longwire-switchboard`. The restart forgets every ban and every pending registration; numbers are on disk and stay.
+
 ### In public
 
 A switchboard on the internet is open to anyone who can send a UDP packet; [ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md)
@@ -180,6 +199,6 @@ says what was done about that and what is still unknown. What the operator decid
   (a session about 10 KB, a number about 1.3 KB). Past them the switchboard refuses; it does not fall over.
 - **The service.** Run it as the systemd unit: it is sandboxed (a transient user, no capabilities, no home, a system-call
   filter), restarts itself (`Restart=always`), and its control socket belongs to the group `longwire`, so put in that group only
-  people who may stop it. Open UDP 1877 and 1878 (`ECHO`); nothing else.
+  people who may watch it. Open UDP on the listen port and the one above it (1877 and 1878 by default; the second answers `ECHO`); nothing else.
 - **What it cannot do for you.** A flood of plain traffic is for the network in front of it.
 

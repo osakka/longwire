@@ -10,7 +10,7 @@ There are four things on the desktop, and they all talk to the same node:
 | **The Longwire pane** | Control Panel → Longwire | set up a connection, turn it on and off, dial, answer, see the line |
 | **The telephone** | the menu bar | whether it is on, your number, a ring that interrupts, a menu of what you do with a phone line |
 | **The strip telephone** | the Control Strip | the same, as one glyph that changes colour |
-| **The Switchboard window** | the hibr menu → Switchboard | for someone who *runs* a switchboard: who is on it and who is ringing whom |
+| **The Switchboard window** | the hibr menu → Switchboard | for someone who *runs* a switchboard: its traffic, who is on it, who is ringing whom, and its bans |
 
 They share one saved connection (a **profile**), so a change in one shows in the others.
 
@@ -22,15 +22,17 @@ catalogue refresh
 catalogue install longwire       # the command, the pane, the menu bar telephone and the strip module, together
 ```
 
+The Switchboard window is its own catalogue entry: `catalogue install switchboard` on the machine whose desktop watches the switchboard.
+
 Then **Refresh Desktop** (or log in again). The pane is under **Apps** in the Control Panel; the telephone is on the menu bar.
-The menu bar telephone needs hibr 0.99.351 or newer; the Blit telephone icons need 0.99.364 or newer and the Blit glyph set, and the classic rotary phone 0.99.366 with Blit 0.2.45.
+The menu bar telephone needs hibr 0.99.351 or newer; the Blit telephone icons need 0.99.364 or newer with the Blit glyph set and Blit 0.2.44, and the classic rotary phone 0.99.366 with Blit 0.2.45.
 On an older hibr the pane and the command work and the telephone is simply absent.
 
 ## The Longwire pane
 
 ### When it is off
 
-The page says **Longwire is off** and shows the connection:
+The page says **Longwire is off** and shows the connection. These rows are shown, and changed, while longwire is off; a change takes effect at the next **Turn on**.
 
 | Row | What it is |
 |---|---|
@@ -39,17 +41,17 @@ The page says **Longwire is off** and shows the connection:
 | **Token** | the invitation your switchboard gave you, if it wants one. It is typed into a masked box and kept in a file only you can read. The row shows `none` or `set (14 characters)`, never the token itself. |
 | **Attach** | **jack** for one machine, **splice** for a whole site. Splice makes this machine a site node: **Turn on** asks for your administrator password once and starts the service `longwire@CARD` (the helper `longwire site`); the pane then follows it through the **Node** row, and **Stop the service** stops it. |
 | **Interface** | for a jack, the network device (`lw0`; it is made for you); for a splice, the network card. |
+| **Address** | this machine's address on the line, like `10.77.0.2/24` (jack profiles; every machine its own, in one subnet), or `dhcp` to ask a DHCP server on the line; put on the device for you. |
+| **Gateway** / **Routes** | networks *beyond* the line, through a router that is on it: Gateway like `192.168.152.254`, Routes like `192.168.150.0/24,10.20.0.0/16`. Put on in the same password step as the device. Never the default route ([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)); needs a static Address (not `dhcp`) in the Gateway's network. |
+| **Send everything through the line** | all of this machine's traffic leaves by the Gateway, as if plugged in at the far end. The line's own packets, and your own network, still go the usual way; when longwire is off or stops, everything goes the usual way again at once ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)). Needs a Gateway and a static Address. Switched on or off, it takes effect at the next Turn on. It fails open: a block while the line is down *(planned: M4)*. |
+| **Name server** | shown when everything goes through the line: a name server at the far end (often the Gateway) asked for every name, so the network you sit on does not see what you look up. Needs systemd-resolved; empty means your own ([ADR 0047](adr/0047-names-through-the-line-are-set-on-the-jack.md)). |
+| **Keep the jack when turned off** | on (the default): Turn off stops the node and leaves the network device, so the next Turn on asks for no password. Off: Turn off removes the device too (and a DHCP client of ours on it), at the price of the password again when you turn on. Jack profiles only. |
 | **Name** | what callers see when you ring them. A claim, never proof. |
 | **List in the directory** | on: others can find you by name on the switchboard. Off by default. |
 | **When a call rings** | how this machine answers: `ask`, `known`, `auto` or `never` (see below). |
 | **Longwire on the Menu Bar** | show or hide the telephone. |
 | **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. |
-| **Gateway** / **Routes** | networks *beyond* the line, through a router that is on it: Gateway like `192.168.152.254`, Routes like `192.168.150.0/24,10.20.0.0/16`. Put on in the same password step as the device. Never the default route ([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)); needs a static Address. |
-| **Send everything through the line** | all of this machine's traffic leaves by the Gateway, as if plugged in at the far end. The line's own packets, and your own network, still go the usual way; when longwire is off or stops, everything goes the usual way again at once ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)). Needs a Gateway. |
-| **Name server** | shown when everything goes through the line: a name server at the far end (often the Gateway) asked for every name, so the network you sit on does not see what you look up. Needs systemd-resolved; empty means your own ([ADR 0047](adr/0047-names-through-the-line-are-set-on-the-jack.md)). |
-| **Keep the jack when turned off** | on (the default): Turn off stops the node and leaves the network device, so the next Turn on asks for no password. Off: Turn off removes the device too (and a DHCP client of ours on it), at the price of the password again when you turn on. Jack profiles only. |
-| **Address** | this machine's address on the line, like `10.77.0.2/24` (jack profiles; every machine its own, in one subnet), or `dhcp` to ask a DHCP server on the line; put on the device for you. |
-| **Node** | shown when more than one node answers on this machine (your own, and a service such as `longwire@eth0`): choose which this pane shows and controls. |
+| **A service node runs here** | shown when a site service runs on this machine and you cannot reach it: join the group `longwire`, then log in again. |
 | **Turn on** | does everything: makes the network device if it is missing, and puts the address on it (that asks for your password), starts the node in the background, and tells you your number. |
 | **New profile…** / **Rename profile** / **Remove profile** | keep several connections (home, office, a friend's switchboard) and switch between them. |
 
@@ -64,13 +66,14 @@ instructions, including the two commands to run by hand as root.
 
 | Section | What you see |
 |---|---|
-| **This node** | your **Number**, your **Name**, the **Switchboard** (it says `dial tone` when all is well) and your **NAT** type. **Turn off** stops the node (calls end; it asks first). |
-| **Calls** | anything ringing or being set up. A ring shows who, the caller's name as a claim, and the safety phrase. Click it to **pick up** or decline. Each connected person is a row (path, how long, speed in and out); click it to hang up. **Dial…** rings a number. |
+| **This node** | your **Number**, your **Name**, the **Switchboard** (it says `dial tone` when all is well) and your **NAT** type. **Turn off** stops the node (calls end; it asks first). If the Switchboard stays at `registering`, `longwire show` says why ([TROUBLESHOOTING](TROUBLESHOOTING.md)). |
+| **Node** | shown when more than one node answers on this machine (your own, and a service such as `longwire@eth0`): choose which this pane, the telephone and the strip show and control. |
+| **Calls** | anything ringing or being set up. A ring shows who and the caller's name as a claim; click it to **pick up**, or **decline** below it. Each connected person is a row (path, how long, speed in and out; click it to hang up), with the call's **safety phrase** under it once the two ends have agreed it, marked when it is the old, weaker kind. **Dial…** rings a number. |
 | **Line** | the machines you are connected to as one network. Each can be evicted (the line key then changes), unless the line has an operator, who alone decides. |
 | **Answering** | **When a call rings**: the policy for this running node, changeable here. |
 
 If the node is a **service** run by an administrator under another user, the pane shows it and says **Runs as: a service**; you
-can use it if you are in the group `longwire`, but only the administrator turns it off.
+can use it if you are in the group `longwire`; **Stop the service** stops it after the administrator's password, and **When a call rings** reads *set by the service (/etc/longwire)*.
 
 ## The telephone on the menu bar
 
@@ -89,18 +92,18 @@ modern handset or the classic rotary phone (classic needs hibr 0.99.366 and Blit
 **Click it** for a menu that depends on the state:
 
 - *Off:* the profile it would use, and **Turn On**. With no connection set up it says so.
-- *On:* **your number**, any ring with **Pick up…**, each connection with its path and speed, **Dial…**, and **Turn Off**.
+- *On:* **your number**, any ring with **Pick up…**, each connection with its path and speed and, under it, its safety phrase, **Dial…**, and **Turn Off**.
 - Always: **Longwire Settings…**, which opens the pane.
 
 ### A ring interrupts
 
 When someone rings you, a note appears and a dialog asks:
 
-> 312-884-076 (Alice, a claim) rings. Safety phrase: gopher daisy castle cactus island flint. Pick up?
+> 312-884-076 (Alice, a claim) rings. The safety phrase comes once you are connected: compare it with theirs. Pick up?
 
-**Compare the phrase with the caller on another channel.** The caller sees the same words as soon as the call connects. A match is good
-evidence that nobody is in the middle (a short phrase has limits: [SECURITY](SECURITY.md#the-safety-phrase-honestly)); if the words differ once
-you are connected, hang up at once. Answer **Yes** to pick up, **No** to leave it. The same dialog appears once per call, however long it rings (a call that nobody answers is refused after a minute).
+Answer **Yes** to pick up, **No** to leave it. A moment after the call connects, a note tells the **safety phrase**: eight words, the same at both ends, which stay under
+the call in the pane and in the telephone's menu. **Compare them with the caller on another channel.** A match is good evidence that nobody is in the middle
+([SECURITY](SECURITY.md#the-safety-phrase-honestly)); if the words differ, hang up at once. The same dialog appears once per call, however long it rings (a call that nobody answers is refused after a minute).
 
 A ring is only heard while the desktop is running. The node itself keeps running without it (`longwire on` starts it in the
 background), but it is the desktop that rings.
@@ -129,6 +132,10 @@ It shows no node's address or key ([ADR 0049](adr/0049-the-switchboard-window-sh
 history, and decides nothing; the switchboard's script does that. It shows a switchboard you started yourself, or one an
 administrator runs as a service if you are in the group `longwire` (`please usermod -aG longwire YOURNAME`, then log in again).
 
+Traffic and the counters come from the switchboard itself: its machine needs the longwire package 0.5.29 or newer, or they stay at zero. On a switchboard run as a service the group may look,
+but only its own user or root lifts a ban: there **Lift Ban** says so, and `please longwire-switchboard bans clear KEY` on that machine does it. With no switchboard to watch, the window says where it
+looked and how to start one or join the group.
+
 ## The answer policy, in one table
 
 | Policy | A ring from… |
@@ -143,7 +150,8 @@ A machine **vouched for by a member of your line**, or holding the line operator
 
 ## Good habits
 
-- Always compare the **safety phrase** on a first call.
+- Always compare the **safety phrase** on a first call (the note, or under the call in the pane).
+- After an update, check the pane has no **Out of step** rows (or run `longwire doctor`).
 - Keep **When a call rings** on `ask` or `known`.
 - Do not put the token in a chat or a screenshot. Once it has been used it does nothing; before that it is a key.
 - Back up your identity once: `longwire key export` prints it as 33 words ([OPERATING](OPERATING.md)).

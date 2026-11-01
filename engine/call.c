@@ -188,7 +188,7 @@ void phrase_of(char *out, size_t cap, const uint8_t a[32], const uint8_t b[32])
 }
 
 /* ---- the committed safety phrase (docs/adr/0040) ------------------------------------------------------------------
- * The caller commits to a random nonce in the dial; the callee adds its own in the answer; the caller reveals after the session is up, and both
+ * Inside the session, once it is up: the caller commits to a random nonce, the callee adds its own, the caller reveals, and both
  * derive eight words from the two nonces, the two key ids and a value only the two ends of this session share. A node in the middle holds two
  * sessions and had to commit before it knew the other nonce: there is nothing to search offline. */
 

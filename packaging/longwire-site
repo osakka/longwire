@@ -42,11 +42,16 @@ card_ok "$nic" || fail "not a card I may splice: '$nic' (a real network card, no
 [[ $uid =~ ^[0-9]+$ ]] || fail "no user to give the control socket to (pass a uid, or run it through pkexec)"
 [ "$uid" -ne 0 ] || [ -n "${LONGWIRE_SITE_ROOT_OK:-}" ] || fail "a site node's control socket goes to a user, not root"
 [ -f "$file" ] && [ ! -L "$file" ] || fail "$file: not a plain file"
-[ "$(stat -c %u "$file")" = "$uid" ] || fail "$file: not the user's own file"
-[ "$(stat -c %s "$file")" -le 2048 ] || fail "$file: too long"
+# Opened once, and the opened file is what is checked: a file swapped for another (a link to one of root's) between a look and a read is refused,
+# because what was opened is not the user's own.
+exec 9< "$file" || fail "$file: cannot be read"
+[ "$(stat -L -c %F /dev/fd/9)" = "regular file" ] || fail "$file: not a plain file"
+[ "$(stat -L -c %u /dev/fd/9)" = "$uid" ] || fail "$file: not the user's own file"
+[ "$(stat -L -c %s /dev/fd/9)" -le 2048 ] || fail "$file: too long"
 
 line=
-read -r line < "$file"			# read once; everything after this is the copy
+read -r line <&9			# read once, from what was checked; everything after this is the copy
+exec 9<&-
 words=()
 read -r -a words <<< "$line"
 out=

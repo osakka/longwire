@@ -35,7 +35,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.29
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.30
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -293,6 +293,17 @@ echo "switchboard  $addr   (give this full address to your nodes)" >&2
 echo "listening    udp $listen    tokens: ${tokens:-open registration}" >&2
 trap 'lw stop > /dev/null 2>&1; exit 0' TERM INT
 
+# A network ban, written as the network and never a node's address (docs/adr/0048): the /24 for IPv4, the /64 for IPv6 written out in full.
+log_netban() {
+	local ip=${e[ip]} net="an IPv6 /64"
+	if [[ $ip =~ ^([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+(:[0-9]+)?$ ]]; then
+		net="${M[1]}.0/24"
+	elif [[ $ip != *::* ]] && [[ $ip =~ ^\[?([0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+): ]]; then
+		net="${M[1]}::/64"
+	fi
+	echo "net-ban      new keys from $net refused for ${e[seconds]} s: ${e[reason]}" >&2
+}
+
 exec 5</dev/longwire/events || exit 1
 while read -r -u 5 line; do
 	json parse e "$line"
@@ -300,6 +311,6 @@ while read -r -u 5 line; do
 	register) on_register ;;
 	dial) on_dial ;;
 	ban)     echo "ban          key ${e[key_id]:0:16}… for ${e[seconds]} s (ban ${e[level]} in a row): ${e[reason]}   (longwire-switchboard bans clear ${e[key_id]:0:16} lifts it)" >&2 ;;	# docs/adr/0048
-	net-ban) echo "net-ban      new keys from the network of ${e[ip]} refused for ${e[seconds]} s: ${e[reason]}" >&2 ;;
+	net-ban) log_netban ;;
 	esac
 done

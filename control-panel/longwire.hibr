@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.29
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.30
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.29}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.30}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -289,7 +289,7 @@ fn lwp_row(int w, int n, kind, text, val, key) {
 }
 
 fn longwire_rows(int w) {
-	local n=0 i cnt num name state p we call phr nm sw nat full path age yn pol rx tx rr tr rb tb tk nodename note
+	local n=0 i cnt num name state p we call phr leg nm sw nat full path age yn pol rx tx rr tr rb tb tk nodename note
 
 	if ! need longwire 2> /dev/null; then
 		cp_absent "$w" "the longwire module"
@@ -410,6 +410,14 @@ fn longwire_rows(int w) {
 		age := lwp_get ".peers[$i].age"
 		[ -n "$num" ] || continue
 		lwp_row "$w" "$n" action "$num" "$state, $path${age:+, ${age}s}" "hang:$num"; n=$((n + 1))
+		phr := lwp_get ".peers[$i].phrase"
+		leg := lwp_get ".peers[$i].legacy"
+		if [ -n "$phr" ]; then			# the eight words to compare with the other end, once they are agreed (docs/adr/0040)
+			[ "$leg" = true ] && phr+="  (the old, weaker kind)"
+			lwp_row "$w" "$n" action "  safety phrase" "$phr" none; n=$((n + 1))
+		elif [ "$state" = up ]; then
+			lwp_row "$w" "$n" action "  safety phrase" "being agreed${GL[ellipsis]}" none; n=$((n + 1))
+		fi
 		if [ -n "${LWP_RRATE[$num]-}" ]; then
 			rx := lwp_get ".peers[$i].rx_bytes" 0
 			tx := lwp_get ".peers[$i].tx_bytes" 0

@@ -57,10 +57,17 @@ mode 0600 in a 0700 directory, the Control Panel and `longwire profile token` ta
 `profile set` and `up --token` do put it there), and `show` and the pane print only its length. A token is an invitation, not an identity: it lets one machine register once, and the seed is stored elsewhere and never enters
 the file. Anyone who can read your home directory can read your tokens, as they could read your SSH config.
 
-There are two privileged pieces, both run through `pkexec` and both polkit actions that ask for an administrator's password. The second, `/usr/lib/longwire/site` ([ADR 0039](adr/0039-a-site-node-from-the-pane.md)), writes `/etc/longwire/NIC.conf` and enables `longwire@NIC`: it reads one line of options from a file the user owns, accepts only `--switchboard`, `--token`, `--name`, `--answer` and `--listed`, each checked (no spaces or marks that could carry a second option), refuses `lo`, jacks and cards that do not exist, and gives the user access to the service's control socket with an ACL. A person who can run it can start a site node on any real card, which is what the action is for; the node it starts is the unit's own, with only `CAP_NET_RAW`. The first is `/usr/lib/longwire/jack`, run through `pkexec` (polkit asks for an administrator's password once per
-session). It can only create a tap device called `lw0` to `lw99`, owned by the user polkit says asked, and bring it up. The node
-itself still never runs as root and still holds no capability. Not tested: `pkexec` behind the desktop's pseudo-terminal job with a real
-polkit agent, and the helper on a machine with `/dev/net/tun`.
+There are two privileged pieces, both run through `pkexec` and both polkit actions that ask for an administrator's password. The second, `/usr/lib/longwire/site` ([ADR 0039](adr/0039-a-site-node-from-the-pane.md)), writes `/etc/longwire/NIC.conf` and enables `longwire@NIC`: it reads one line of options from a file the user owns, accepts only `--switchboard`, `--token`, `--name`, `--answer` and `--listed`, each checked (no spaces or marks that could carry a second option), refuses `lo`, jacks and cards that do not exist, and gives the user access to the service's control socket with an ACL. A person who can run it can start a site node on any real card, which is what the action is for; the node it starts is the unit's own, with only `CAP_NET_RAW`. The first, `/usr/lib/longwire/jack`, makes a tap called `lw0` to `lw99` owned by the user polkit names (never root) and brings it up at MTU 1400. It acts only on a jack that user owns (a
+device of that name owned by anyone else is refused), and in the same step it may:
+- put on an IPv4 host address with a /8 to /30 prefix;
+- start `dhclient`, `dhcpcd` or `udhcpc` with a hook that drops the default route, the name servers and the rest;
+- add 1 to 16 routes (/8 to /32; not loopback, link-local, multicast, or overlapping the jack's network) through a gateway on the jack's own network;
+- with `--everything`, add the jack's own table and the rules 7700 and 7701, refusing if something else holds them or if the jack has carrier ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md));
+- set one name server on the jack in systemd-resolved ([ADR 0047](adr/0047-names-through-the-line-are-set-on-the-jack.md)).
+
+`--remove` deletes only a jack the asking user owns, and stops a DHCP client only if its process is one of those three. polkit keeps an approval for a few minutes (`auth_admin_keep`), and in that time a
+program running as the same user can run either helper again without a prompt, so the checks above are the boundary. The routes and rules it adds affect every user of the machine. The node
+itself still never runs as root and still holds no capability. Not tested: `pkexec` behind the desktop's pseudo-terminal job with a real polkit agent, and the helper on a machine with `/dev/net/tun`.
 
 ## Port mapping
 
@@ -68,6 +75,14 @@ A node asks its default gateway for a port mapping (NAT-PMP). Someone on the sam
 place and make the node offer a wrong address; the cost is a failed attempt, because every path still ends in the
 authenticated handshake. A mapping also makes the node reachable by anyone who learns the address, which is what the
 handshake's costs and cookies are for. `--nat-pmp off` turns it off.
+
+## Everything through the line, roaming and names
+
+[ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md), [0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md), [0047](adr/0047-names-through-the-line-are-set-on-the-jack.md). The safety net is the kernel
+passing over the routes of a jack with no carrier, so the design fails open: when the node is off, crashed, or has let go after a change of network, everything (traffic for the line's own and routed
+networks included) goes out on whatever network the machine is on, unencrypted. Between a change of road and the engine noticing it (up to a second), packets go into a line that cannot carry them. A
+switch that blocks instead *(planned: M4)*. The network the machine sits on sees every name it looks up unless `dns` is set and systemd-resolved is present. The engine's own datagrams never enter the jack,
+because every socket is tied to the real device; a program on the machine that ties its own socket to that device also bypasses the line, as it would with any tunnel.
 
 ## Handshake floods
 
@@ -93,7 +108,7 @@ read; the engine runs under TCC's bounds checker against raw datagrams, a bent r
 before an answer, a registry with no end and a walk for every message) each have a test that failed before the fix.
 
 What limits remain are limits, not defences. A flood from many real addresses costs a key-encapsulation each, within the budget
-(2,000 a second on a switchboard). A session that has passed the handshake and keeps failing (wrong tokens, numbers that do not exist, messages over its budget) earns **strikes**, then a **ban on its key**; several banned keys from one network refuse new identities from it. Nothing before the handshake counts, because a spoofed source could then get others banned ([ADR 0043](adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)). Open registration can be used up to `--max-numbers` by anyone with enough addresses: a switchboard
+(2,000 a second on a switchboard). A session that has passed the handshake and keeps failing earns **strikes**: a refused registration counts 2, a malformed registration 1, a dial of a number that does not exist 1, a dial over the limit 1, a control message over the session's budget 0.25; they leak away over `--strike-window`. A registration repeated within 5 s on one session is ignored, not struck (since 0.5.28), so a node whose answer was slow does not strike itself. At `--strikes` (default 10 in 600 s) the **key is banned** for `--ban-for` (900 s, doubling at each repeat up to `--ban-max`, 86400 s), at most `--ban-ceiling` (1000) bans an hour. Its live session is ended once with "temporarily refused: too many failures"; after that its handshakes are dropped after the same work as an unknown key's, with no reply, and it is never told how long the ban lasts. The echo port still answers it, so a node that knows it has the right key can tell it is being ignored (which is what `switchboard-silent` reports, [ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)). `--net-ban-keys` (5) banned keys from one /24 or /64 refuse new identities from that network for `--net-ban-for` (900 s); registered nodes behind it are unaffected. Nothing before the handshake counts, because a spoofed source could then get others banned ([ADR 0043](adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)). Bans live in memory; the switchboard's log records each banned key's first 16 hex digits and no address. Open registration can be used up to `--max-numbers` by anyone with enough addresses: a switchboard
 that matters should hand out tokens. Raw bandwidth is for the network in front of it.
 
 ## Known gaps today
@@ -106,17 +121,17 @@ that matters should hand out tokens. Raw bandwidth is for the network in front o
   checked against published known-answer vectors *(planned: M8)*; X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 as TCC builds them agree with
   independent implementations on 2,100 random cases (`tests/kat.sh`), ML-KEM was not cross-checked, and constant-time behaviour as TCC compiles it is unchecked. The fuzzer
   ([ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md)) finds memory errors in what it generates; it does not prove their absence.
-- **Not run:** the services under a live systemd, a clean install of each package, a long soak, real routers and wide-area links.
+- **Not run:** the services under a live systemd, a clean install of each package, a long soak, real routers and wide-area links, everything through the line on a real tap with real traffic, a laptop really moving, a real systemd-resolved, a real DHCP lease, the helpers under a real `pkexec`, a long real attack on bans.
 - **VLAN-tagged traffic through a splice box is neither handled nor tested** *(planned)*, and the jack port is untested.
   IPv6 has been tested only on loopback and between namespaces, not on a real network.
 
 ## Hardening in the code
 
 - Parsers of untrusted input are few and small: handshake fragments (`engine/hs.c`), data packets (`engine/sess.c`),
-  `HELLO` and `PUNCH` and the control messages (`engine/call.c`, `engine/board.c`), and the frames read from the LAN
+  `HELLO` and `PUNCH` and the control messages including the safety phrase exchange (`engine/call.c`, `engine/board.c`), the switchboard's echo port (`engine/call.c`), and the frames read from the LAN
   (`engine/sw.c`). Fuzzing them continuously *(planned: M8)*.
 - No allocation on the data path. Tables have fixed sizes: peers (32, or 1024 on a switchboard), MAC entries (8,192),
-  handshake slots (8, one per source), and four reassembly slots per peer, created on first use.
+  handshake slots (512, one partial message per source address, found by a hash keyed with a salt drawn when the node starts), and four reassembly slots per peer, created on first use.
 - Keys are handled in C only. The seed is mode 0600. `lw start` and `lw key` read it inside the module's process and
   wipe it before returning; the worker keeps its identity in memory that is `mlock`ed where the OS allows. It never
   crosses the control socket and never enters a hibr variable, so scripts handle numbers and decisions, never secrets. The control socket is mode 0600 and checks the peer's uid (`SO_PEERCRED`), unless it is given a group: the services give theirs to the group `longwire`, mode 0660, and then the file mode is the check, so everyone in that group may dial, hang up and evict on that node, and no one may read its key (stopping a service, and deciding a switchboard's registrations, stay with the user it runs as, and the event stream the group watches does not carry a registration's token or address) ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)). The worker

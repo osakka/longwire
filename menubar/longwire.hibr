@@ -19,12 +19,12 @@
 
 strict
 
-app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.29
+app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.30
 # needs: control-panel/longwire
 
 # The switch (Control Panel > Longwire > Longwire on the Menu Bar, and Menu Bar Items) lives with the pane; the bar reads it.
 # The state this item last drew from, so the bar text is made again only when it changes, and the ring it has already announced.
-declare -g LWB_KEY= LWB_ST=off LWB_NUM= LWB_PEERS=0 LWB_RINGNUM= LWB_RINGCALL= LWB_SAID=
+declare -g LWB_KEY= LWB_ST=off LWB_NUM= LWB_PEERS=0 LWB_RINGNUM= LWB_RINGCALL= LWB_SAID= LWB_PHSAID=
 
 # A glyph by what it means, in the desktop's glyph set: Unicode and the Blit and Nerd sets draw the telephone, ASCII writes it.
 fn lwb_g(what) {
@@ -150,6 +150,29 @@ fn lwb_announce() {
 	return 0
 }
 
+# A call's safety phrase is told once, as a note, the moment it is agreed: it is what the person must compare, and a row in a menu is easy to miss (docs/adr/0040).
+fn lwb_phrases() {
+	local i cnt num phr leg k
+
+	[ "$LWB_ST" = off ] && { LWB_PHSAID=; return 0; }
+	cnt := json len LWP_S .peers 2> /dev/null || return 0
+	for ((i = 0; i < ${cnt:-0}; i++)); do
+		num := lwp_get ".peers[$i].number"
+		phr := lwp_get ".peers[$i].phrase"
+		[ -n "$num" ] && [ -n "$phr" ] || continue
+		k="|$num:$phr|"
+		[[ $LWB_PHSAID == *"$k"* ]] && continue
+		LWB_PHSAID+=$k
+		leg := lwp_get ".peers[$i].legacy"
+		if [ "$leg" = true ]; then
+			dt_notep high "Safety phrase with %s (the old, weaker kind): %s. Compare it with theirs; hang up if it differs" "$num" "$phr"
+		else
+			dt_notep high "Safety phrase with %s: %s. Compare it with theirs; hang up if it differs" "$num" "$phr"
+		fi
+	done
+	return 0
+}
+
 # Every frame: the bar item, kept to what the state is.
 fn lwb_tick() {
 	local k t
@@ -169,6 +192,7 @@ fn lwb_tick() {
 		dt_bariright lwb lwb_menu
 	fi
 	lwb_announce
+	lwb_phrases
 	[ "$LWB_ST" = off ] || dt_want 1500
 	return 0
 }
@@ -210,7 +234,7 @@ fn lwb_ring(call) {
 # What the menu holds depends on the state: off offers Turn On (when there is a connection to turn on); on shows the number, who is
 # connected and how fast, any ring to answer, Dial and Turn Off. Settings is always there.
 fn lwb_context(id = "") {
-	local i cnt num state path rr tr p sb text
+	local i cnt num state path rr tr p sb text phr leg
 
 	lwb_state
 	dt_menu "Longwire"
@@ -249,6 +273,12 @@ fn lwb_context(id = "") {
 				text="$text, in $rr, out $tr"
 			fi
 			dt_dim "$text"
+			phr := lwp_get ".peers[$i].phrase"
+			leg := lwp_get ".peers[$i].legacy"
+			if [ -n "$phr" ]; then		# the safety phrase, to compare with the other end (docs/adr/0040)
+				[ "$leg" = true ] && phr+=" (old, weaker kind)"
+				dt_dim "  phrase: $phr"
+			fi
 		done
 		dt_item "Dial${GL[ellipsis]}" d lwb_dial
 		dt_item "Turn Off" f lwb_off

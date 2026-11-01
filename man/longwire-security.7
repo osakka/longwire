@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SECURITY 7 "October 2026" "longwire 0.5.29" "longwire manual"
+.TH LONGWIRE-SECURITY 7 "October 2026" "longwire 0.5.30" "longwire manual"
 .SH NAME
 longwire-security \- what longwire protects, what it does not, and how far it has been checked
 .SH DESCRIPTION
@@ -41,6 +41,8 @@ Compare them on another channel at once, and hang up if they differ.
 The call is already on the line while you compare; an older node gets the old, weaker phrase, and
 .B \-\-require\-sas
 refuses such a call.
+A relayed call between members always shows the old phrase.
+On the desktop a note tells the phrase, and it stays under the call in the pane and the telephone's menu.
 .TP
 .B A hostile switchboard
 It never has a frame, a seed or a private key, and it cannot make you accept a call.
@@ -48,6 +50,8 @@ On a first call you have never made, it can give a node the wrong key for a numb
 .TP
 .B Floods
 A packet that does not prove it knows the receiver's key is dropped before any costly work.
+A switchboard bans a key whose authenticated session keeps failing; nothing sent before the handshake is counted, so a forged address cannot get anyone banned.
+A banned key gets no answer; the switchboard's log keeps the first 16 hex digits of its key and no address.
 .SH "QUANTUM-SAFE: WHICH PARTS"
 .TP
 .B Yes
@@ -71,7 +75,27 @@ No formal proof of the handshake.
 ML-KEM has not been compared with a second implementation.
 Constant-time behaviour, as the code is compiled, is unmeasured.
 The engine is written in C.
-A real tap device, real routers, the wide-area internet, the services under a live systemd and a clean install from the packages have not been tried by the author.
+Real routers, the wide\-area internet, everything through the line with real traffic, a laptop moving between networks, a real systemd\-resolved, a real DHCP lease, the helpers under a real
+.BR pkexec ,
+the services under a live systemd and a clean install from the packages have not been tried by the author.
+.SH "PRIVILEGED HELPERS"
+Two root helpers run through
+.BR pkexec ,
+each asking for an administrator's password, which polkit keeps for a few minutes.
+.I /usr/lib/longwire/jack
+makes a tap
+.BR lw0 \(en lw99
+owned by the user, acts only on a jack that user owns, and may add an address, a DHCP client, routes through a gateway on the line, the table and rules that send everything through the line, and a name server in systemd\-resolved; every value is checked before anything changes.
+.I /usr/lib/longwire/site
+writes a site node's options, letting through only
+.BR \-\-switchboard ,
+.BR \-\-token ,
+.BR \-\-name ,
+.B \-\-answer
+and
+.BR \-\-listed ,
+and starts the service for that card.
+The node itself never runs as root.
 .SH "WHAT IT DOES NOT PROTECT"
 Traffic analysis: that two addresses talk, and when.
 A compromised endpoint.
@@ -79,6 +103,11 @@ A line member you should not trust: a call is a cable into your LAN.
 What a switchboard learns: that you are online, your public address, who rings whom, and the names you gave it.
 Floods of plain traffic.
 Loss of the seed: it is your number.
+.PP
+Everything through the line fails open: when the node stops, crashes or the machine changes network, all traffic, including traffic for the line's own network, goes out on the local network unencrypted.
+Without a name server set in the profile, every name is still looked up on the local network.
+The jack stays after the node stops unless the profile says
+.BR "keep_jack = no" .
 .SH "USING IT SAFELY"
 Compare the safety phrase on a first call.
 Keep the answer policy at

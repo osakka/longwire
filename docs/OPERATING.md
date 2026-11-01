@@ -16,19 +16,20 @@ first place to look, and [TROUBLESHOOTING](TROUBLESHOOTING.md) the second.
 | your identity (the seed; it *is* your number) | `~/.longwire/seed`, 32 bytes, mode 0600 |
 | saved connections (profiles, with tokens) | `~/.config/longwire/profiles`, mode 0600 |
 | a node's control socket, pins, answer policy, log | `~/.longwire/` (`ctl`, `known`, `answer`, `log`) |
-| the network device helper (runs as root, through polkit) | `/usr/lib/longwire/jack` |
+| the root helpers (through polkit): the network device, and a site node | `/usr/lib/longwire/jack`, `/usr/lib/longwire/site` |
 | the engine | `/usr/lib/hibr/longwire.so` |
 | the scripts | hibr's catalogue: `catalogue install cli/longwire`, `cli/longwire-switchboard` |
 | the services | `longwire-switchboard.service`, `longwire@NIC.service` |
 | service arguments | `/etc/longwire/switchboard.conf`, `/etc/longwire/NIC.conf` |
-| a service's state | `/var/lib/longwire-switchboard/` (its identity is `seed` there); `/var/lib/longwire/NIC/` (its identity is `.longwire/seed` inside) |
+| a service's state | `/var/lib/longwire-switchboard/` (its identity is `seed` there); `/var/lib/longwire/NIC/` (its identity is `.longwire/seed` inside). With `DynamicUser` these are links to `/var/lib/private/longwire-switchboard` and `/var/lib/private/longwire/NIC`, which only root can enter: use `please` |
 | a service's control socket | `/run/longwire-switchboard/ctl`, `/run/longwire/NIC/ctl` |
 | manual pages | `man longwire`, `longwire-switchboard`, `longwire-profiles`, `longwire-security` |
 
 ## Run a switchboard
 
 The switchboard gives nodes their numbers and introduces two nodes that want to talk. It is not on the data path, so a small server
-is enough, but it must be reachable from the internet on **UDP 1877 and 1878** (1878 answers the NAT-type check).
+is enough, but it must be reachable from the internet on **UDP on its listen port and the one above it** (1877 and 1878 by default; the second answers
+the NAT-type check, and a node's probe when the switchboard is silent to it).
 
 ```
 please apt install longwire
@@ -70,14 +71,17 @@ Nodes use `--switchboard YOUR.HOST:1877/lw1q7m…k2a`.
   use; a machine that has registered once is recognised by its key afterwards. Add one with
   `openssl rand -hex 10 | please tee -a /var/lib/longwire-switchboard/tokens`. The file must be in the state directory: the service cannot
   write `/etc`.
-- **Strikes and bans.** On by default (10 strikes in 10 minutes, a 15-minute first ban doubling to a day; `--strikes 0` turns it off). Add your own nodes with `--never-ban ADDR/PREFIX` or `--never-ban KEY` if you ever lock yourself out (`longwire-switchboard bans clear all` also lifts everything at once).
+- **Strikes and bans.** On by default (10 strikes in 10 minutes, a 15-minute first ban doubling to a day; `--strikes 0` turns it off). Add your own nodes with `--never-ban ADDR/PREFIX` or `--never-ban KEY` if you ever lock yourself out (`please longwire-switchboard bans clear all` lifts everything at once; a restart of the service does too, since bans are kept in memory, and is what makes a new `--never-ban` take effect).
   Details and why they cannot be turned against your users: [SWITCHBOARD](SWITCHBOARD.md).
 - **Limits.** Defaults are 1,024 sessions (`--max-nodes`), 100,000 numbers (`--max-numbers`) and 20 registrations per source per hour; the unit's
   memory limit is 1 GB, which suits the defaults. Raise the limit with the numbers.
 - **Back up the seed.** `/var/lib/longwire-switchboard/seed` is the switchboard's identity. Every node pins its address, so losing it
   means re-pointing every node. Copy it somewhere private (`please cp … ~/switchboard-seed.backup; chmod 600 …`) and never share it.
-- **Watch it.** `please journalctl -u longwire-switchboard -f` for the log. As a member of the group `longwire`, `LW_SOCK=/run/longwire-switchboard/ctl longwire status`
-  prints its figures, and the **Switchboard** window on the desktop shows it live. Only the user the service runs as can stop it or decide its registrations.
+- **Watch it.** `please journalctl -u longwire-switchboard -f` for the log; `please journalctl -u longwire-switchboard -o cat | grep -E '^(ban|net-ban) '` for the bans alone. Each ban line gives
+  the key's first 16 hex digits, how long, which ban in a row, why, and the command that lifts it ([SWITCHBOARD](SWITCHBOARD.md#its-log)). As a member of the group `longwire`,
+  `LW_SOCK=/run/longwire-switchboard/ctl longwire status` prints its figures ([fields](CLI.md#status)), `longwire-switchboard bans list` its bans (it finds the service's socket by itself), and
+  the **Switchboard** window on the desktop shows it live. Stopping it is `systemctl`'s. Deciding its registrations and lifting a ban are for the user it runs as, or root:
+  `please longwire-switchboard bans clear KEY`.
 - **What it sees.** That a node is online, its public address, who rings whom and when, and the names nodes chose to give it. It keeps
   numbers and listed names on disk (`numbers.log`, `names.log`) and no call history. See [SWITCHBOARD](SWITCHBOARD.md).
 
@@ -100,7 +104,8 @@ first start only: once the node has registered, the switchboard knows its key, a
 Replace `eth0` with the NIC on the LAN (the instance name after the `@` is the NIC). Each instance has its own identity and state
 (`/var/lib/longwire/eth0/`), so two NICs are two nodes. Use the node from a terminal or the desktop with
 `LW_SOCK=/run/longwire/eth0/ctl longwire show` if you are in the group `longwire` (`please usermod -aG longwire YOU`, then log in again).
-Members of that group can dial, hang up and evict through the socket; they cannot stop the service or read a key.
+Members of that group can dial, hang up and evict through the socket; they cannot stop the service or read a key. `longwire answer` does not reach a service (it writes
+your own `~/.longwire/answer`): change `--answer` in `/etc/longwire/eth0.conf` and restart. Its log, including why it has no number, is `please journalctl -u longwire@eth0`.
 
 **A machine that joins the bridged network.** A machine with a jack that takes an address in the network you bridge would send its own packets for the site box
 into the tunnel. longwire sends them out through a socket of their own, tied to the machine's real network device (the default route's, or `--underlay DEV`), so
@@ -117,7 +122,8 @@ site key if they are not on one line (`--site-key FILE`, [ARCHITECTURE](ARCHITEC
 Without a desktop, save a connection and turn it on:
 
 ```
-longwire profile set home switchboard=HOST:1877/lw1… token=… attach=jack interface=lw0
+longwire profile set home switchboard=HOST:1877/lw1… attach=jack interface=lw0
+longwire profile token home          # the token on standard input, out of the process list and the shell history
 longwire on
 ```
 
@@ -160,17 +166,27 @@ after a year unheard). Anyone who has the words *is* you; do not email them.
 
 ## Upgrade
 
-The module and the scripts come from two places and must stay in step:
+longwire comes from two places, and whatever is running keeps the engine it started with:
+
+| Part | From | Update |
+|---|---|---|
+| the engine (`longwire.so`), the launchers, the root helpers, the units, the man pages | the package | `please apt update && please apt install --only-upgrade longwire` (dnf, pacman alike) |
+| the scripts, the pane, the menu bar telephone, the Switchboard window | hibr's catalogue | `catalogue refresh && catalogue update`; for the services `catalogue --system update` |
+
+Then restart what runs:
 
 ```
-please apt update && please apt install --only-upgrade longwire     # the engine, the launchers, the helper, the man pages
-catalogue refresh && catalogue update                            # the scripts, the pane, the menu bar telephone
-catalogue --system update                                   # the same, for scripts installed for the whole machine
-please systemctl restart longwire-switchboard                      # or longwire@NIC, for a service
+longwire off && longwire on                       # a node you turned on (or Turn off, Turn on in the pane)
+please systemctl restart longwire@eth0            # a site node
+please systemctl restart longwire-switchboard     # a switchboard: this also forgets its bans
+longwire doctor                                   # do the scripts, the installed engine and the running node agree?
+LW_SOCK=/run/longwire/eth0/ctl longwire show      # the engine line of a site node
 ```
 
-A script newer than the module can fail with `unknown option` (for example, `--max-numbers` against an older module): upgrade the package
-first.
+A release note that says it is a switchboard fix needs the package on the switchboard's machine and that restart; a switchboard's status does not name its
+engine. If `doctor` still says the package is older after the upgrade, `apt policy longwire` shows what is installed and what the repository offers (apt
+never moves to a lower version on its own: a machine that took the withdrawn 0.6.0 needs `please apt install --allow-downgrades longwire=VERSION-1`). A script
+newer than the module can fail with `unknown option` (for example, `--max-numbers` against an older module): upgrade the package first.
 
 ## Remove
 
@@ -186,8 +202,28 @@ up the number.
 
 ## Ports, firewalls and NATs
 
-- A **switchboard** needs UDP 1877 and 1878 open inbound.
+- A **switchboard** needs UDP inbound on its listen port and the one above it: `please ufw allow 1877:1878/udp`, or in an nftables `inet filter input` chain
+  `please nft add rule inet filter input udp dport '{ 1877, 1878 }' accept`. A provider's firewall in front of the machine needs the same.
 - A **node** needs no inbound port: it opens one outbound to the switchboard and punches through its NAT. It listens on a port of its
   own choosing (`--listen` fixes it); a firewall that allows outbound UDP and its replies is enough.
 - Two machines behind ordinary home routers connect directly. Two behind *strict* (symmetric) NATs need a relay: another machine of
   your own line with a public address. A line with none says it is not a full mesh in `longwire watch` and `longwire up`, and `longwire show` shows the NAT type.
+
+## When a node gets no number
+
+A node with no session with its switchboard after 15 seconds says so in its log (`please journalctl -u longwire@NIC`, or `~/.longwire/log` after `longwire on`), in `longwire watch`, and in
+`longwire show` (`⚠ no answer from it for N s: …`). At 12 seconds it sent one 40-byte packet to the echo port of the switchboard's machine, its port + 1, which answers anyone, banned or not.
+What came back decides the sentence ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)):
+
+- **its host answers**: small UDP goes there and back, but no handshake completes. Check, in this order:
+  1. the key after `/` in the switchboard address is the switchboard's own: compare with `please journalctl -u longwire-switchboard -o cat | grep '^switchboard '` on it;
+  2. this node's key is not banned: `please longwire-switchboard bans list` on the switchboard, or a `ban` line in its log starting with the first 16 hex digits of the node's `longwire id`.
+     Lift it with `please longwire-switchboard bans clear KEY`, or wait (15 minutes, doubling, at most a day);
+  3. the switchboard's own port is open, not only the next one;
+  4. large packets get through: a handshake travels as datagrams of up to 1248 bytes of UDP payload, 1276 bytes on the wire over IPv4 ([PROTOCOL](PROTOCOL.md)). A link with a smaller MTU
+     whose ICMP is filtered, or a middlebox that drops IP fragments, passes the probe and loses the handshake. `ping -M do -s 1248 HOST` sends 1276 bytes that may not be fragmented; if it
+     fails where `ping -s 100 HOST` works, look at the path's MTU. ICMP may be treated differently from UDP, so this is a hint, and this case has not been reproduced in a test.
+- **nothing comes back from its host**: UDP to the switchboard's port + 1 is dropped on the way (either side's firewall, or the provider's), or the switchboard is not running
+  (`systemctl status longwire-switchboard`; `please ss -ulpn` shows both ports bound). A switchboard whose firewall opens only its own port, or whose port + 1 was taken by something
+  else, also lands here, whatever the real cause.
+- **no reason given** (the sentence lists every cause): the switchboard's address is IPv6, which the probe does not cover.

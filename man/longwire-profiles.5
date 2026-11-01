@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.29" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.30" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -66,8 +66,12 @@ Needed the first time a machine registers; after that the switchboard knows its 
 (a NIC, for a whole site).
 .TP
 .B interface
-The tap device (default
-.BR lw0 )
+The tap device, called
+.B lw0
+to
+.B lw99
+(default
+.BR lw0 ),
 or the NIC to splice.
 .TP
 .B address
@@ -79,13 +83,22 @@ instead asks a DHCP server on the line, through a client (dhclient, dhcpcd or ud
 Empty leaves the device alone.
 .TP
 .B gateway
-For a jack: a router on the line that reaches other networks.
+For a jack: a router on the line that reaches other networks, an address inside the jack's own network (not its first or last address, nor this machine's).
+Used only with
+.B routes
+or
+.BR everything ,
+and needs a static
+.BR address .
 .TP
 .B routes
 Networks to reach through the gateway, like 192.168.150.0/24, separated by commas (at most 16).
 Never the default route, nothing wider than a /8, nothing on the line itself; put on with the device, and gone with it.
 Needs a static
 .BR address .
+Without a
+.B gateway
+they are left out.
 .TP
 .B everything
 .B yes
@@ -96,15 +109,22 @@ Needs
 .B gateway
 and a static
 .BR address .
+For
+.B "attach = jack"
+only.
+It fails open: when the node stops, traffic goes the machine's own way again, unencrypted.
 .TP
 .B dns
 With
 .BR everything :
-a name server asked through the line for every name, set on the jack in systemd-resolved; passed over, like the routes, whenever no node holds the jack.
+a name server asked through the line for every name, set on the jack in systemd\-resolved; passed over, like the routes, whenever no node holds the jack.
+Without systemd\-resolved, names stay with the machine's own name server.
 .TP
 .B keep_jack
 .BR yes " (the default) or " no .
 With yes, turning the node off leaves the jack, so the next time needs no password; with no, it removes the jack too.
+.B longwire off
+reads it from the profile the node was turned on with.
 .TP
 .B name
 The name announced to the nodes you call.

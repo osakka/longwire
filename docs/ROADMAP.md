@@ -28,9 +28,10 @@ a userspace NAT; splice carrying real ping, ARP, TCP and broadcasts between two 
 on one segment with a failover, and a four-site line that builds its own mesh, evicts a member, and heals when one restarts. The test suites are described in [ADR 0019](adr/0019-the-tests-build-their-own-network.md).
 
 What is *not* verified by those tests, plainly:
-- **The jack port (a real tap) is untested.** The machine this was built on is an LXC container with no
-  `/dev/net/tun`. First real-tap test, on a host that has one: `longwire setup jack`, then `longwire up --jack lw0`
-  on two hosts behind different routers, and ping across.
+- **The jack port (a real tap)** is not exercised by the tests: the machine this was built on is an LXC container with no
+  `/dev/net/tun`. It has carried real calls on the author's desktop, to a real site node.
+- **Everything through the line, roaming and names** are tested on the real kernel with a stand-in jack and against stand-ins; not with a real tap, a laptop really moving, or a real systemd-resolved.
+- **The root helpers as hibr scripts** have not run under a real `pkexec` in the tests, nor a DHCP client against a real lease.
 - **Real consumer NAT routers and real wide-area links** have not been tried; the NAT is a model of their filtering
   (cone and symmetric).
 - **End-to-end throughput** is measured only in the tests (about 50 Mbit/s over veth with a TCC build); the cipher alone
@@ -39,7 +40,7 @@ What is *not* verified by those tests, plainly:
 
 ## Coming
 
-**M3: Party line** (in progress). Done when four sites, one behind carrier NAT on both ends, are all one L2 network, and a
+**M3: Party line** (built, apart from PCP and relay candidates). Done when four sites, one behind carrier NAT on both ends, are all one L2 network, and a
 relayed pair upgrades to direct once a path exists.
 - *Built (stage 1):* lines of up to 16 nodes: joining by vouching, admits, the self-building mesh with no prompt, eviction
   with line-key rotation, persistence and rejoining, `longwire peers` and `evict`, a site secret derived from the line key,
@@ -78,9 +79,11 @@ and then dial and pick up entirely from the hibr desktop.
 - *Built:* the module as a deb, an rpm and a pacman package (`make packages`, `tests/pkg.sh`), the launchers, and the two
   systemd services ([ADR 0028](adr/0028-one-deb-and-the-others-from-it.md)); the scripts declare their catalogue headers.
 - *Built and published:* the packages in the signed hibr repositories (apt, dnf, pacman), and in hibr's catalogue the two commands under the `cli` kind
-  ([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)), the pane and the switchboard app. Not yet tried: installing from those repositories on a clean machine.
+  ([ADR 0029](adr/0029-commands-are-their-own-catalogue-kind.md)), the pane and the switchboard app. Not tried: installing from those repositories on a clean machine.
 - Homebrew *(planned: M5)*; the default public switchboard and the project's registry live *(planned: M4)*
 - *Built:* `longwire` with no arguments, `longwire show` and `longwire watch` (no JSON); automatic choice of attach mode *(planned: M4)*
+- *Built:* the jack removed on Turn off when asked (`keep_jack`, [ADR 0042](adr/0042-the-jack-stays-unless-asked.md)); the helpers and the launcher as hibr scripts ([ADR 0041](adr/0041-the-helpers-and-the-launcher-are-hibr-scripts.md)); strikes and bans on a switchboard ([ADR 0043](adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)); a silent switchboard said so ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)); the Switchboard window's traffic, search and bans ([ADR 0049](adr/0049-the-switchboard-window-shows-traffic-and-names-every-key.md)); the committed safety phrase ([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md), stage 1), shown on the desktop under each call and as a note
+- ANSI colours (green, yellow, red) for the terminal narration *(planned: M4)*
 - *Built:* an address for the jack from the pane or the profile, put on by the same root helper that makes the device ([ADR 0036](adr/0036-the-jack-gets-its-address-from-the-profile.md)); routes to networks beyond the line through a gateway on it ([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)); everything through the line, in a table of the jack's own ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)); following the machine when it moves to another network ([ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)); name servers through the line ([ADR 0047](adr/0047-names-through-the-line-are-set-on-the-jack.md)); a switch that blocks everything while the line is down *(planned: M4)*; an address from a DHCP server on the line (`address = dhcp`: a DHCP client started by the same helper, without a default route or name servers, [ADR 0038](adr/0038-the-jack-may-ask-a-dhcp-server.md))
 
 **M5: No privilege, more Unix.** Done when a user with no please anywhere joins a line with `longwire shell`.
@@ -98,7 +101,7 @@ and then dial and pick up entirely from the hibr desktop.
   TCC's assembler is verified), an optional AEGIS-256 suite, real path-MTU probing, and a proper end-to-end benchmark
 
 **M8: 1.0.** Done when an independent report has no open high-severity findings.
-- A security contact at the project's own address and a public home for reports (today: a personal address and a written disclosure policy in [SECURITY](SECURITY.md#reporting-a-problem)); a longer safety phrase committed to before it is shown (today 48 bits, no commitment); a formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto (X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 are cross-checked against other implementations now; ML-KEM is not) and a script that
+- A security contact at the project's own address and a public home for reports (today: a personal address and a written disclosure policy in [SECURITY](SECURITY.md#reporting-a-problem)); holding a first call off the line until its safety phrase is confirmed (stage 2 of ADR 0040; the committed eight-word phrase is built) and the phrase exchange in the formal model; a formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto (X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 are cross-checked against other implementations now; ML-KEM is not) and a script that
   fetches and verifies the vendored sources; fuzzing of the parsers the harness does not reach yet (the line operator's signed
   messages, a relay's second hop, the state files; what it does reach is in [ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md));
   timing tests; reproducible builds; an external review
@@ -109,7 +112,7 @@ lost or issued twice, and the operator can see all of it on a dashboard without 
 trustworthy; M9 makes the *switchboard* something a third party can run as a service. What is true today is the baseline:
 
 - *Today:* one process, one registry file, about a hundred million possible local numbers, released after a year unheard; 1,024 sessions by
-  default; a status call and a script log for visibility; no failover; the switchboard's address is pinned by every node,
+  default; a status call with traffic and activity counters, the Switchboard window, strikes and bans with their operator settings, a token command, and a script log for visibility; no failover; the switchboard's address is pinned by every node,
   so its key cannot be changed without re-pointing them.
 
 Two relationships are kept apart on purpose. **Replicas** are several processes that are *one* switchboard: one registry, one
@@ -138,12 +141,12 @@ agree to connect calls between them. Redundancy comes first; federation builds o
 
 *Scale*
 - More than a thousand sessions per worker (tens of thousands): a smaller peer slot for a node that only registers, one
-  worker per core, the longer rekey for switchboard sessions, and a load generator that is part of `make check`.
+  worker per core, and a load generator that is part of `make check`.
 
 *Operation*
 - Metrics as text a standard collector reads, structured logs, an audit trail of administrative decisions (registrations,
-  refusals, evictions of names) that records *no* calls, a token and name admin command, a configuration reload without
-  dropping sessions, backup and restore of the registry, and the abuse limits as operator settings.
+  refusals, evictions of names) that records *no* calls, a name admin command, a configuration reload without
+  dropping sessions, backup and restore of the registry, and the remaining abuse limits as operator settings.
 - The switchboard's key in a hardware module or the platform's key store, not a file.
 
 *Tenancy*

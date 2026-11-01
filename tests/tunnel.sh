@@ -19,7 +19,7 @@ unshare -rnm sh -c '
 fail=0
 ok() { echo "ok   $1"; }
 bad() { echo "FAIL $1"; fail=1; }
-mkdir -p "$T/sys/lw0"; export LONGWIRE_SYSNET=$T/sys		# the host'"'"'s /sys shows the host'"'"'s devices: say lw0 is there, so the helper does not make a tap
+mkdir -p "$T/sys/lw0"; echo 1000 > "$T/sys/lw0/owner"; export LONGWIRE_SYSNET=$T/sys		# the host'"'"'s /sys shows the host'"'"'s devices: say lw0 is there, so the helper does not make a tap
 PATH=$PATH:/usr/sbin:/sbin
 ip link set lo up
 ip link add eth9 type veth peer name eth9p

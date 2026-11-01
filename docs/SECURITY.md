@@ -43,7 +43,7 @@ are worth knowing:
 - **You compare it after connecting.** The phrase needs the session, so it appears a moment after the call connects, on both ends (the ring shows none). Compare it on another channel and **hang up at once if the words differ**. The call is already on the line
   at that point; holding the call off the line until the words are confirmed is not built *(planned: M8)*.
 - **An older node gets the old phrase.** If the other end does not answer the exchange within five seconds, it is taken to be an older version and the old six-word phrase is shown, marked as the weaker kind. Something on the path that drops the exchange's
-  messages can force that. `--require-sas` refuses such a call (a mesh call to a fellow member, which the line's signatures already admit, is exempt); use it once your nodes are up to date.
+  messages can force that. `--require-sas` refuses such a call (a mesh call to a fellow member, which the line's signatures already admit, is exempt); use it once your nodes are up to date. A relayed call between members always shows the old phrase; its admission is the line's signatures. A callee ends the call if the caller's reveal does not match its commitment, or does not come within 20 seconds.
 - **After the first call it is moot.** The key is pinned. If the same number later answers with another key, the call is dropped and you
   are warned.
 - **If the switchboard is yours, none of this matters.**
@@ -55,15 +55,18 @@ are worth knowing:
 - **Small.** The engine is plain C99 with nothing but libc. Less code is less to get wrong. It is built with one compiler (TCC)
   and its tests run under it ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)).
 - **Least privilege.** The node never runs as root. Bridging a whole site needs one capability, granted by the service manager and
-  dropped as soon as the network port is open. A single machine uses a tap device it owns; the root helper that creates the device
-  (and puts an IPv4 address on it, or starts a DHCP client that takes the address and route only) can do only that. A second helper, run through polkit from the Control Panel, starts a site node as a service; it reads the options from a file only the user can write and lets through five options with values of the shape each must have. The services run as a transient user with no home, a system-call filter and a memory limit; the switchboard holds no capabilities, and a site node only `CAP_NET_RAW`.
+  dropped as soon as the network port is open. A single machine uses a tap device it owns. The root helper that makes it runs through polkit, which asks for an administrator's
+  password and keeps the approval for a few minutes. Besides making the device it may put an IPv4 address on it (or start a DHCP client that takes only the address and the network route), add up to 16 routes through a
+  gateway on the jack's own network (each /8 to /32, never the default route), send everything through the line, set one name server on the jack in systemd-resolved, and remove a jack the user owns; it touches only a jack
+  the asking user owns, and checks every value before anything changes. A second helper, also run through polkit, starts a site node as a service; it reads the options from a file only the user can write and lets
+  through five options with values of the shape each must have. The services run as a transient user with no home, a system-call filter and a memory limit; the switchboard holds no capabilities, and a site node only `CAP_NET_RAW`.
 - **The secret never leaves the worker.** Your identity is one 32-byte seed. It is read inside the engine, never put in a shell
   variable, never sent over the control socket, locked in memory where the operating system allows it, and a crash writes no core file. Registration tokens are kept in a file only
   you can read, and the Control Panel and `longwire profile token` take one without putting it on a command line (which any user on the
   machine can read in the process list; the `token=` form of `profile set` and `up --token` do put it there, so prefer the other two).
 - **Defence against floods.** Every handshake fragment must prove it knows the receiver's key before anything is stored; under load
   a cookie proves the sender can receive replies (WireGuard's idea, extended to every fragment). A public switchboard also limits
-  what a stranger can hold, per session and per source.
+  what a stranger can hold, per session and per source, and bans a key whose authenticated session keeps failing; nothing that arrives before a handshake is ever counted, so a forged address cannot get anyone banned ([ADR 0043](adr/0043-strikes-and-bans-count-only-what-cannot-be-faked.md)).
 
 ## Quantum-safe: what that does and does not mean
 
@@ -84,7 +87,7 @@ That is the honest sentence behind the word.
 ## What has been done to check it
 
 - **A test suite that builds real networks.** It runs the actual scripts over unprivileged network namespaces with simulated
-  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (about 470 checks in a full run).
+  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (819 checks in the run for 0.5.30).
 - **An attack on the switchboard,** the one component built to face the public. Before it was released, three readers went through every parser a stranger's bytes can
   reach. It found real flaws, three of them proven by tests that failed on the old code: strangers able to fill the switchboard's
   places for good, a registration token able to write into the policy script's event, and a switchboard able to connect a call nobody
@@ -103,7 +106,7 @@ That is the honest sentence behind the word.
 | **ML-KEM is not cross-checked** | There is no second implementation on the machine to compare against. It is the vendored reference code, and two nodes built from it agree with each other. |
 | **Constant-time behaviour is unchecked** | The libraries are written to avoid timing leaks, but nobody has measured the code as TCC compiles it. |
 | **The engine is written in C** | Memory-safety bugs are possible in any C code. The fuzzer and the bounds checker lower that risk; they do not remove it. The node runs unprivileged, which limits the damage. |
-| **Real-world conditions are mostly untested** | The tests simulate NATs. Real routers, the wide-area internet, a real tap device, the services under a live systemd and a clean install from the packages have not been tried by the author. |
+| **Real-world conditions are mostly untested** | The tests simulate NATs, and stand-ins play `ip`, `systemctl`, `resolvectl` and the DHCP clients. Not tried by the author: real routers, the wide-area internet, a real tap device, everything through the line with real traffic to the internet, a laptop really moving between networks, a real systemd-resolved, a real DHCP lease, the helpers under a real `pkexec`, the services under a live systemd, a long real attack on a switchboard's bans, and a clean install from the packages. |
 
 These gaps are tracked in [THREAT-MODEL](THREAT-MODEL.md) and the [ROADMAP](ROADMAP.md) (M8 is the verification milestone).
 
@@ -120,6 +123,8 @@ and [THREAT-MODEL](THREAT-MODEL.md):
 - Floods of handshakes from many *real* addresses cost a key operation each, within a budget; the budget limits, it does not defend.
 - A pin is per switchboard: the same number on a different switchboard is a different pin.
 - Anyone in the group `longwire` on a service machine can occupy half of its event watchers.
+- A switchboard's echo port (its port + 1, IPv4) answers anyone with no handshake and no rate limit: it returns 15 bytes for a 40-byte request (a reflector, not an amplifier), and tells a scanner that a switchboard runs on that host.
+- Bans live in memory: a switchboard that restarts forgets them.
 
 ## What it does not protect against
 
@@ -130,7 +135,13 @@ and [THREAT-MODEL](THREAT-MODEL.md):
   can do: ARP spoofing, scanning, running a rogue DHCP server. longwire authenticates *who* joined; it does not make them
   well-behaved. Only vouch for machines you would plug into your switch.
 - **What a switchboard learns.** Whoever runs it sees that you are online, your public address, who rings whom and when, and any
-  name you chose to give it. If that matters, run your own ([SWITCHBOARD](SWITCHBOARD.md)).
+  name you chose to give it; its owner also sees each ban as it happens, with the key and address, and counts of traffic, registrations and rings (its log keeps a banned key's first 16 hex digits and no address). If that matters, run your own ([SWITCHBOARD](SWITCHBOARD.md)).
+- **Everything through the line fails open.** When the node stops, crashes, or lets go of the jack because the machine changed networks, the machine's traffic goes its own way again at once, including traffic for the
+  line's own network and the routed networks, which then goes to the local network's router unencrypted. A switch that blocks traffic while the line is down *(planned: M4)*.
+- **Names, unless you set them.** With everything through the line but no `dns` in the profile, every name the machine looks up still goes to its own name server, usually on the network it sits on. With `dns` set,
+  names go through the line only while the node holds the jack, and only with systemd-resolved.
+- **IPv6 with everything through the line** is sent into the line and is lost there unless the far side routes it: it does not leak, and it does not work.
+- **A jack that stays.** By default the jack outlives the node (`keep_jack`), with its address and any DHCP client of ours. `keep_jack = no` or `longwire jack --remove` takes it away.
 - **Floods of plain traffic.** A switchboard or node behind a thin link can be filled with garbage by someone with enough
   bandwidth. That is a network problem.
 - **Losing your seed.** The seed is your number. Anyone who copies it *is* you; anyone who loses the only copy loses the number.

@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.29" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.30" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -53,6 +53,9 @@ Saying it again reports that it is already on.
 .TP
 .B off
 Stop the node.
+When the profile it was turned on with says
+.BR "keep_jack = no" ,
+take the jack away too (one more password).
 Same as
 .BR down .
 .TP
@@ -68,7 +71,8 @@ See
 .TP
 .B show
 How the node is, in a few lines and no JSON:
-your number, the switchboard, who is connected and what they have carried, the line, and any ringing call with its safety phrase.
+your number, the switchboard, who is connected and what they have carried with each call's safety phrase, the line, and any ringing call.
+When the switchboard has not answered for 15 seconds, a line says so and why, as far as the node can tell.
 .TP
 .B status
 What the node is doing, as JSON.
@@ -92,7 +96,9 @@ a full number such as
 .BR "'+0731042 447-120-933'" ,
 (quoted: it is one argument), or a full address
 .RB ( lw1... ).
-A full address or a name is looked up in the switchboard's directory.
+A full address is looked up in the switchboard's directory, so it works only when the switchboard has one and the node is listed in it.
+A name cannot be dialled: find its number with
+.BI who " name" .
 .TP
 .BR pickup " [" \fIid\fR ]
 Answer the ringing call.
@@ -108,6 +114,13 @@ With a number: end just that call.
 .TP
 .BR answer " [" ask | known | auto | never ]
 Show, or change, how the running node answers rings.
+It is kept in
+.I ~/.longwire/answer
+of the user who runs it, so it changes only a node that user started; for a service, change
+.B \-\-answer
+in
+.I /etc/longwire/NIC.conf
+and restart it.
 See
 .BR "ANSWER POLICY" .
 .TP
@@ -165,11 +178,18 @@ The keys are
 .BR token ,
 .BR attach " (" jack " or " splice ),
 .BR interface ,
-.BR address ,
+.BR address " (" \fIA.B.C.D/N\fR " or " dhcp ),
+.BR gateway ,
+.BR routes ,
+.BR everything " (" yes " or " no ),
+.BR dns ,
+.BR keep_jack " (" yes " or " no ),
 .BR name ,
 .BR listed " (" yes " or " no ),
 and
-.BR answer .
+.BR answer ;
+see
+.BR longwire-profiles (5).
 An empty value removes the field.
 The first profile you make is the default.
 .TP
@@ -314,6 +334,19 @@ Refuse a call whose other end does not do the committed safety phrase, instead o
 The network device to reach peers by when the jack has an address in their network (default: the default route's).
 The node sends such traffic through a socket tied to that device, so it does not go into the jack.
 .TP
+.B \-\-everything
+Send all of this machine's traffic through the jack's own routing table (made by
+.BR "longwire jack \-\-everything" ).
+Every socket of the engine is tied to the real network device (the default route's, or
+.BR \-\-underlay ),
+so the line's own packets never go into the line; when that device changes, the node lets go of the jack and
+.B up
+starts it again on the new one.
+Needs
+.BR \-\-jack .
+.B up
+adds it by itself when the jack's table already takes everything.
+.TP
 .BI \-\-keepalive " S" "\fR, \fP" \-\-rekey " S"
 Keepalive (25) and rekey (120) intervals, in seconds.
 .TP
@@ -400,6 +433,20 @@ run through polkit.
 .I /etc/longwire/NIC.conf
 Arguments of the service
 .BR longwire@NIC.service .
+.TP
+.I /run/longwire/NIC/ctl
+The control socket of the service
+.BR longwire@NIC ,
+mode 0660, group
+.BR longwire .
+.TP
+.I /var/lib/longwire/NIC/
+The service's state; its identity is
+.I .longwire/seed
+inside.
+It is a link to
+.IR /var/lib/private/longwire/NIC ,
+which only root can enter.
 .SH ENVIRONMENT
 .TP
 .B LW_DIR
@@ -431,6 +478,9 @@ starts (default
 .TP
 .B LONGWIRE_JACK
 The jack helper to run.
+.TP
+.B LONGWIRE_SITE
+The site helper to run.
 .SH "EXIT STATUS"
 .TP
 .B 0
@@ -482,8 +532,8 @@ See
 .IR /usr/share/doc/longwire/ :
 QUICKSTART.md, DESKTOP.md, OPERATING.md, SECURITY.md, TROUBLESHOOTING.md, CLI.md
 .SH BUGS
-The jack (a real tap device) and real wide-area links have not been tested by the author.
-The graphical items have been tested against stubs and the desktop's own code, not drawn on a real screen.
-Choosing the attach mode automatically is not built.
+The jack has carried real calls between the author's desktop and a site node; routes, everything through the line, a laptop moving between networks, a real systemd\-resolved and real wide\-area links have not been tried.
+The graphical items have been tested against stubs and the desktop's own code, and are used on the author's desktop.
+Choosing the attach mode automatically *(planned: M4)*.
 .SH AUTHORS
 longwire is free software under the GNU General Public License, version 3 or later.

@@ -17,9 +17,10 @@
 # default route or a name server, so that a line cannot take over the machine's traffic.
 # This is the one privileged step a node on a single machine needs. A person never runs it by hand: `longwire jack` and the Control
 # Panel's Turn on run it through pkexec (polkit's action org.longwire.jack names this file), which asks for a password in the
-# desktop. pkexec sets PKEXEC_UID; run as root by hand, pass the user as the second argument. It makes nothing but a device called
-# lw0 to lw99, owned by that user, with an IPv4 address on it if asked, and does nothing else: the node itself never runs as root
-# (docs/adr/0004).
+# desktop. pkexec sets PKEXEC_UID; run as root by hand, pass the user as the second argument. It acts only on a device called
+# lw0 to lw99 owned by that user (making it if it is missing), and on it only what it was asked and every value was checked for: an
+# address or a DHCP client, routes through a gateway on its network, everything through the line, a name server. The node itself never
+# runs as root (docs/adr/0004).
 #
 # It is a hibr script like the rest of longwire (docs/adr/0041). As root, hibr consults only its install directory for modules and reads
 # nothing of the caller's environment for them; pkexec cleans the environment besides. The LONGWIRE_* variables below are for the tests.
@@ -177,7 +178,11 @@ if [ -n "$everything" ]; then		# one device at a time has everything, and the tw
 	fi
 fi
 
-if [ ! -d "$sys/$tap" ]; then
+if [ -d "$sys/$tap" ]; then		# an existing jack is changed only if it is this user's own, as --remove requires
+	owner=
+	read -r owner < "$sys/$tap/owner" 2> /dev/null
+	[ "$owner" = "$uid" ] || fail "$tap is not this user's jack (owner ${owner:-unknown}); not changing it" 3
+else
 	ip tuntap add dev "$tap" mode tap user "$uid" || exit 1
 fi
 ip link set "$tap" mtu 1400 up || exit 1
@@ -196,6 +201,8 @@ if [ -n "$everything" ]; then
 	fams=(4)
 	if [ -d "$proc/ipv6/conf/$tap" ] && echo 1 > "$proc/ipv6/conf/$tap/ignore_routes_with_linkdown"; then
 		fams+=(6)
+	elif [ -d "$proc/ipv6" ]; then
+		echo "longwire-jack: IPv6 is not sent into the line on this machine (its safety net cannot be set on $tap): IPv6 goes the machine's own way" >&2
 	fi
 	ip route replace default via "$via" dev "$tap" table "$table" || exit 1
 	if [ "${#fams[@]}" -gt 1 ]; then	# IPv6 goes into the line too, where nothing answers it unless the far side routes it: it does not leak past the line

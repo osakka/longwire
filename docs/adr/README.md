@@ -38,7 +38,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0027](0027-ipv6-is-a-second-socket.md) | IPv6 is a second socket, not a dual-stack one | accepted |
 | [0028](0028-one-deb-and-the-others-from-it.md) | One deb, the others made from it, and the launchers find what the catalogue installed | accepted |
 | [0029](0029-commands-are-their-own-catalogue-kind.md) | Commands are their own catalogue kind | accepted |
-| [0030](0030-three-surfaces-one-engine.md) | Three surfaces on one engine: the command, a control panel, a switchboard app | accepted |
+| [0030](0030-three-surfaces-one-engine.md) | Three surfaces on one engine: the command, a control panel, and a switchboard app | accepted |
 | [0031](0031-a-connection-counts-the-frames-it-carries.md) | A connection counts the frames it carries, and only a node says so | accepted |
 | [0032](0032-the-services-share-their-control-socket-with-a-group.md) | The services share their control socket with the group longwire | accepted |
 | [0033](0033-a-switchboard-is-built-for-strangers.md) | A switchboard is built for strangers | accepted |
@@ -48,16 +48,16 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0037](0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md) | Traffic to the other end never goes into our own jack | accepted |
 | [0038](0038-the-jack-may-ask-a-dhcp-server.md) | The jack may ask a DHCP server | accepted |
 | [0039](0039-a-site-node-from-the-pane.md) | A site node from the pane | accepted |
-| [0040](0040-the-safety-phrase-is-committed-before-it-is-shown.md) | The safety phrase is committed to before it is shown | accepted; the design is built in M8 *(planned: M8)* |
+| [0040](0040-the-safety-phrase-is-committed-before-it-is-shown.md) | The safety phrase is committed to before it is shown | accepted; stage 1 built in 0.5.21, stage 2 *(planned: M8)* |
 | [0041](0041-the-helpers-and-the-launcher-are-hibr-scripts.md) | The helpers and the launcher are hibr scripts | accepted |
 | [0042](0042-the-jack-stays-unless-asked.md) | The jack stays unless asked | accepted |
-| [0043](0043-strikes-and-bans-count-only-what-cannot-be-faked.md) | Strikes and bans count only what cannot be faked | accepted |
-| [0044](0044-routes-beyond-the-line-go-through-a-gateway-on-it.md) | Routes beyond the line go through a gateway on it | accepted |
-| [0045](0045-everything-through-the-line-is-a-table-of-the-jacks-own.md) | Everything through the line is a table of the jack's own | accepted |
-| [0046](0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md) | A node that takes everything lets go when the road changes | accepted |
-| [0047](0047-names-through-the-line-are-set-on-the-jack.md) | Names through the line are set on the jack | accepted |
-| [0048](0048-a-silent-switchboard-is-said-so.md) | A silent switchboard is said so | accepted |
-| [0049](0049-the-switchboard-window-shows-traffic-and-names-every-key.md) | The Switchboard window shows traffic and names every key | accepted |
+| [0043](0043-strikes-and-bans-count-only-what-cannot-be-faked.md) | Strikes and bans count only what cannot be faked | accepted; built in 0.5.24 |
+| [0044](0044-routes-beyond-the-line-go-through-a-gateway-on-it.md) | Routes beyond the line go through a gateway on it | accepted; built in 0.5.25 |
+| [0045](0045-everything-through-the-line-is-a-table-of-the-jacks-own.md) | Everything through the line is a table of the jack's own | accepted; built in 0.5.26 |
+| [0046](0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md) | A node that takes everything lets go when the road changes | accepted; built in 0.5.27 |
+| [0047](0047-names-through-the-line-are-set-on-the-jack.md) | Names through the line are set on the jack | accepted; built in 0.5.27 |
+| [0048](0048-a-silent-switchboard-is-said-so.md) | A silent switchboard is said so | accepted; built in 0.5.28 |
+| [0049](0049-the-switchboard-window-shows-traffic-and-names-every-key.md) | The Switchboard window shows traffic and names every key | accepted; built in 0.5.29 |
 
 ---
 

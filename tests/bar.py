@@ -176,6 +176,18 @@ def main():
     check(any(l.startswith("BARITEM lwb|☎ ● 1") for l in log), f"connected: the bar counts the connection: {[l for l in log if l.startswith('BARITEM')]}")
     check(any(l.startswith("DIM " + num["A"]) and "up" in l for l in log), f"...and the menu lists who: {[l for l in log if l.startswith('DIM')]}")
 
+    # the safety phrase of the connected call, on the desktop (docs/adr/0040): once agreed, a note once, a line in the menu, a row in the pane
+    def phrase_of(n):
+        for p in n.status().get("peers", []):
+            if p.get("phrase"): return p["phrase"]
+    ph = until(lambda: phrase_of(B), 20)
+    check(bool(ph) and len(ph.split()) == 8, f"the call's eight-word phrase is agreed: {ph!r}")
+    log, r = drive(envB, "lwb_tick; lwb_tick; lwb_tick; lwb_context 1; lwp_poll; longwire_rows 1; for ((i = 0; i < 80; i++)); do [ \"${CP[1][$i][text]-}\" = '  safety phrase' ] && echo \"ROW ${CP[1][$i][val]}\"; done")
+    notes = [l for l in log if l.startswith("NOTE high Safety phrase with " + num["A"])]
+    check(len(notes) == 1 and ph in notes[0] and "hang up if it differs" in notes[0], f"the bar tells the phrase once, as a note, the moment it is agreed: {notes} {r.stderr[-200:]}")
+    check(any(l == "DIM   phrase: " + ph for l in log), f"...the bar's menu shows it under the call: {[l for l in log if 'phrase' in l]}")
+    check(f"ROW {ph}" in r.stdout, f"...and the pane has a safety phrase row under the connected call: {r.stdout[-300:]!r}")
+
     # --- the strip --------------------------------------------------------------------------------------------------------------
     log, r = drive(envB, "lwstrip_draw 1 4")
     check("CONSOLE pen good face" in log and any(l.startswith("CONSOLE put 1 4 ☎") for l in log), f"on, the strip's telephone is green: {log}")

@@ -3,6 +3,21 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.30
+
+- **A comprehensive documentation update.** Every document and manual page was audited against the code and brought up to date with 0.5.9 to 0.5.29: the status and event fields, every option and
+  profile key, the jack helper's real reach, everything through the line, roaming and names, strikes and bans and how to lift them on a service, a node that gets no number (a new section in
+  [OPERATING](docs/OPERATING.md#when-a-node-gets-no-number)), the switchboard's log, upgrading (what comes from the package and what from the catalogue, and what to restart), the safety phrase's
+  derivation ([CRYPTO §4.1](docs/CRYPTO.md#41-the-safety-phrase)) and its messages ([PROTOCOL §6](docs/PROTOCOL.md#6-control-messages-and-lines)), the security documents' account of what fails open,
+  the test inventory ([BUILD](docs/BUILD.md#the-tests)), and the roadmap's statuses.
+- **The desktop shows the safety phrase.** Since 0.5.21 the eight words come a moment after a call connects, and only the command line showed them. Now the pane has a **safety phrase** row under each
+  connected call, the menu bar telephone lists it under the call, and a note tells it once, the moment it is agreed; the old, weaker kind is marked. Tested against real nodes (`tests/bar.sh`).
+- **The jack helper changes only the user's own jack.** It applied an address, routes and rules to an existing `lwN` without looking at its owner, as `--remove` always did; now another user's is
+  refused before anything changes (`tests/jack.sh`). It also says plainly when IPv6 cannot be sent into the line, instead of leaving it out in silence.
+- **The site helper checks what it reads.** It looked at the options file and then opened it, so the file could be swapped in between; now it opens it once and checks the opened file.
+- **`longwire off` honours the profile the node was turned on with** (`keep_jack`), not only the default one.
+- **A network ban is logged as the network** (`192.0.2.0/24`), never a node's address, as ADR 0048 says.
+
 ## 0.5.29
 
 *Published:* the catalogue (`hibr-apps` `b7a7c40`) and the packages (`hibr-apt` `0ee1a2a`, `hibr-rpm` `b490557`, `hibr-arch` `1497cdc`). `make check` passed (813 checks). The counters come with the package: update the switchboard's machine for the window to show traffic.

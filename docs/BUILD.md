@@ -24,7 +24,7 @@ make check                   # lint, then all the tests, below
 make clean
 ```
 
-`make check` runs every end-to-end suite (`tests/*.sh`, listed in the Makefile) and the documentation
+`make check` runs every end-to-end suite (`tests/*.sh`, [listed below](#the-tests)) and the documentation
 check (`tests/docs.py`). It needs hibr (built, at `../hibr/build/hibr` or `$HIBR`), python3, and **unprivileged user
 and network namespaces** (`unshare -Urn`): the tests build their own network ([ADR 0019](adr/0019-the-tests-build-their-own-network.md)).
 Distributions that restrict unprivileged user namespaces (Ubuntu 24.04 and later by default) need that relaxed to run
@@ -34,6 +34,15 @@ The module is `module/longwire.c` plus the engine (`engine/all.c`) and `vendor/`
 compiled *separately from* `hibr.h`, which is what keeps it free of hibr: its helper names would otherwise collide with
 hibr's headers. The Makefile says `override CC = tcc`, so naming a different compiler on the command line changes nothing; there are no
 optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is part of `make check`.
+
+## The tests
+
+`make check` runs, in this order: `m0` (handshake, frames, rekeys), `m1` (switchboard and NAT), `m2` (splice, site failover), `m3` (a four-site line), `m3b` (relay and path upgrade), `crossed`,
+`names`, `registry`, `key`, `dhcp`, `release`, `pmp`, `operator`, `ipv6`, `panel`, `pane`, `sw` (the Switchboard window), `group`, `profile`, `jack` (the jack helper against a stand-in `ip`),
+`sas` (the safety phrase, bounds-checked), `ban` (ban tables, bounds-checked), `ban2` (bans and a silent switchboard on a real switchboard), `jacknet` (the underlay, tying and roaming), `tunnel`
+(everything through the line on the real kernel, a veth standing in for the tap), `events`, `doctor`, `site` (the site helper), `tokens`, `bar` (the menu bar and the strip, with the safety
+phrase), `man`, `fuzz`, `kat`, `start`, `pkg`, then `python3 -I tests/docs.py`. Each is `tests/NAME.sh`. Some skip rather than fail when a tool is missing: `pkg` without `dpkg-deb`, `rpmbuild` or
+`makepkg`; `kat` without Python's `cryptography`; `man` without `groff`; `tunnel` without user and network namespaces.
 
 ## How it ships
 
@@ -45,6 +54,7 @@ optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is pa
 | 1b. switchboard app | `apps/switchboard.hibr`, its own entry, the catalogue's `switchboard` in the `apps` kind | the desktop's `apps` kind | a desktop scan root |
 | 2b. control panel pane | `control-panel/longwire.hibr`, its own entry, the catalogue's `longwire` in the `control-panel` kind | the desktop's `control-panel` kind | a desktop scan root |
 | launchers + services | `packaging/launcher.hibr` (twice), `packaging/systemd/` | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
+| root helpers | `packaging/longwire-jack`, `packaging/longwire-site`, their polkit actions, `packaging/longwire.sysusers` | in the package | `/usr/lib/longwire/`, `/usr/share/polkit-1/actions/`, `/usr/lib/sysusers.d/`; manual pages and these documents in `/usr/share/man`, `/usr/share/doc/longwire` |
 
 ```
 please apt install longwire                       # a laptop: the module and the launchers (or dnf / pacman)
@@ -83,7 +93,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.29
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.30
 # modules: longwire
 ```
 
@@ -136,7 +146,7 @@ init system is documented once it has been tested *(planned: M5)*. The capabilit
 opened the packet socket, and then it's cleared in every process
 ([ARCHITECTURE §2](ARCHITECTURE.md#2-attaching-a-node-ports)).
 
-Jack mode needs no service, and no privilege but the creation of the tap, which `longwire jack` (or `longwire on`, or the Control Panel's Turn on) does through
+Jack mode needs no service, and no privilege but the jack's setup (the tap, and any address, DHCP client, routes, everything through the line and name server the profile asks for), which `longwire jack` (or `longwire on`, or the Control Panel's Turn on) does through
 a small root helper after one password ([ADR 0034](adr/0034-a-connection-is-a-profile.md)). Then `longwire on` runs it in the background, or `longwire up --jack lw0` in a terminal,
 under `hold`, or as a systemd *user* unit.
 
@@ -166,7 +176,7 @@ shim and runs the known-answer tests (NIST vectors for ML-KEM, RFC 8439, RFC 774
 | no `__int128` | Use 32-bit-limb arithmetic. Monocypher and PQClean `clean` already do (verified). |
 | no SIMD intrinsics, little optimisation | The cipher runs at about 290 Mbit/s per core. More speed comes from the code, not another compiler: x86-64 assembly paths that TCC's assembler builds (arm64 is still to be verified) *(planned: M7)*. |
 | can't parse some glibc headers (e.g. `regex.h`, as hibr found) | Only plain POSIX headers are included. The few Linux-specific constants (packet sockets, tun, capabilities) are spelled out in `engine/port.c` and `engine/caps.c`, so TCC never has to parse the kernel's headers. |
-| no sanitizers | `-Wall -Werror` always on (`make lint`), small parsers, the end-to-end tests, and fuzzing with a harness TCC builds *(planned: M8)*. |
+| no sanitizers | `-Wall -Werror` always on (`make lint`), small parsers, the end-to-end tests, and a fuzzer run under TCC's own bounds checker (`tests/fuzz.sh`); fuzzing the parsers it does not reach *(planned: M8)*. |
 
 Measured in the design spike (x86_64, TCC 0.9.27): the complete crypto test harness linked to **134 KB**, and
 `tcc … -run` compiled and ran it from source in one step.

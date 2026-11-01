@@ -9,7 +9,8 @@ they do the same thing and share one saved connection, so you can mix them.
 ## What you need
 
 - **Two Linux machines** with hibr installed (the package asks for 0.99.315 or newer; the menu bar
-  telephone wants 0.99.351 or newer, and the Blit telephone icons 0.99.364). Call them **A** and **B**.
+  telephone wants 0.99.351 or newer, and the Blit telephone icons 0.99.364). `please` (hibr's way to run one command as root) and
+  **Control Panel > Administrative Access**, as this guide uses them, need hibr 0.99.390 or newer: on an older hibr write `sudo` where it says `please`. Call them **A** and **B**.
 - **A switchboard** both can reach. There is no public one to borrow, so you run your own: see [OPERATING](OPERATING.md)
   ("Run a switchboard", about five minutes on any small server). You will need three things from it:
   its address `HOST:1877`, its **key** (it prints `lw1…` when it starts), and, if you gave it tokens, **one token for each machine**.
@@ -46,7 +47,8 @@ is enough.
 ### On the command line
 
 ```
-longwire profile set home switchboard=HOST:1877/lw1… token=YOURTOKEN attach=jack interface=lw0
+longwire profile set home switchboard=HOST:1877/lw1… attach=jack interface=lw0
+longwire profile token home           # type the token, then Enter (it stays out of your shell history)
 longwire on
 ```
 
@@ -78,15 +80,17 @@ If a DHCP server sits on the other side (a router at a site you have bridged), a
 
 The line is one segment: everything on it is reached with no route. A network *behind* it (a site's other subnets) is reached through a router that sits on the segment. Put that router in **Gateway** and the networks in **Routes**
 (or `longwire profile set home gateway=192.168.152.254 routes=192.168.150.0/24`), and turn on: the routes go on with the device. Ask whoever runs the far site which networks its router reaches. Routes are never the default route
-([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)), and they need a static Address.
+([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)), and they need a static Address (not `dhcp`) in the same network as the Gateway.
 
 ### Everything through the line
 
 To have all of this machine's traffic leave by the far site (a café's Wi-Fi, home's internet), set **Gateway** to the router there and switch on **Send everything through the line**
-(`longwire profile set home everything=yes`), then turn on. `longwire show` says `everything  through the line (lw0)`. Your own network (the printer) stays yours, and the moment longwire is off or
+(`longwire profile set home everything=yes`; it also needs a static Address), then turn on. `longwire show` says `everything  through the line (lw0)`. Your own network (the printer) stays yours, and the moment longwire is off or
 stops, everything goes the usual way again. The router at the far end must pass the traffic on, which a home or office router does for any machine on its network. Set **Name server** (often the same router) to
-look names up there too, rather than on the network you sit on (with systemd-resolved). Moving from Wi-Fi to a cable while on is fine: longwire lets go for a moment and starts again on the new network. IPv6
-does not work through the line ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)).
+look names up there too, rather than on the network you sit on (with systemd-resolved). Moving from Wi-Fi to a cable while on is handled: longwire lets go for a moment, so the machine uses its own network meanwhile, and starts again on the new one
+(tested on the engine; a laptop really moving has not been tried). It fails open: while longwire is off or restarting, traffic goes the usual way; a switch that blocks everything while the line is down
+*(planned: M4)*. Switching this on or off takes effect at the next Turn on. IPv6 is sent into the line too, so it does not leak past it, and it works only if the far side routes it
+([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md), [ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)).
 
 ## 5. Make the first call
 
@@ -100,20 +104,21 @@ On **A** the telephone shows `☎ ◉ 312-884-076` and a dialog appears (on the 
 
 ```
 ☎  312-884-076 is calling
-   safety phrase: gopher daisy castle cactus island flint
+   the safety phrase comes once you are connected: compare it with theirs
    first call from this number
    run: longwire pickup | longwire reject
 ```
 
 ### Pick up, then check the safety phrase
 
-**Pick up** in the dialog, or `longwire pickup`. Both sides print `✓ connected`, with the path (`direct` is the good one), and a moment later the eight-word
-safety phrase. Neither side has it before, because it is made from numbers the two ends exchange once the call is up.
+**Pick up** in the dialog, or `longwire pickup`. A moment after the call connects, both ends get the same **eight-word safety phrase**. Neither side has it
+before: it is made from numbers the two ends exchange once the call is up. On the desktop a note tells it, and it stays under the call in the pane and in the
+telephone's menu; on the command line it is in `longwire watch` (or the terminal running `longwire up`), `longwire show` and `longwire who NUMBER`.
 
-**Compare the words on another channel at once** (a message, a phone call). If they match, you have good evidence that nobody is between
-you. If they differ, **hang up at once** (`longwire hangup`): the other machine is already on your line. The phrase is short, and a
-switchboard that is itself the attacker has work to do but not an impossible job ([SECURITY](SECURITY.md#the-safety-phrase-honestly)); if the
-switchboard is yours, you are safe from that. After this first call the other machine's key is pinned.
+**Compare the words on another channel at once** (a message, a phone call). If they match, you have good evidence that nobody is between you: a switchboard that
+put itself in the middle would have about one chance in 2^64 per call ([SECURITY](SECURITY.md#the-safety-phrase-honestly)). If they differ, **hang up at once**
+(`longwire hangup`): the call is already on your line. If the phrase is marked *the old, weaker kind*, the other end is older than 0.5.21 or the call goes through a
+relay, and the words prove less; update the other end. After this first call the other machine's key is pinned.
 
 ## 6. See that it works
 
@@ -136,6 +141,8 @@ Anything that works on a LAN works now: file shares, printers, `ssh`, mDNS names
 | answer a call | the dialog, or telephone → **Pick up** | `longwire pickup` |
 | hang up | pane → the connection's row | `longwire hangup NUMBER` (with no number: every call, and leave the line) |
 | change the connection | pane → the form | `longwire profile set …` |
+| see a call's safety phrase | under the call in the pane, or the telephone's menu | `longwire show`, or `longwire who NUMBER` |
+| check an update took | the pane's **Out of step** rows | `longwire doctor` |
 
 A number you have answered before is recognised: set **When a call rings** to `known` and those calls are answered by themselves.
 

@@ -119,6 +119,20 @@ answers with a `COOKIE` instead of working: an XChaCha20-Poly1305 encryption of
 refuse at the first fragment, before it buffers anything. Details, sizes and limits are in
 [PROTOCOL §3](PROTOCOL.md#3-sessions-and-timers).
 
+### 4.1 The safety phrase
+
+```
+na, nb     16 random bytes each: the caller's, then the callee's
+commit   = BLAKE2b-256("lw-sas-commit" ‖ na ‖ caller.key_id)
+bind     = BLAKE2b-256("lw-sas-bind" ‖ lo ‖ hi)     lo, hi = the session's two transport keys, the smaller first (bytewise)
+phrase   = 8 words: bytes 0..7 of BLAKE2b-256("lw-sas" ‖ na ‖ nb ‖ caller.key_id ‖ callee.key_id ‖ bind), one of 256 words each (engine/words.h)
+legacy   = 6 words: bytes 0..5 of BLAKE2b-256(caller.key_id ‖ callee.key_id)
+```
+
+The messages are in [PROTOCOL §6](PROTOCOL.md#6-control-messages-and-lines). The caller commits before it knows `nb`, and `bind` differs on the two sessions of a node in the middle, so a switchboard
+that substitutes keys has one online try per call, with odds of about 2^-64, and nothing to search offline. The legacy phrase depends only on the key ids, so an attacker who chooses keys can search
+for a match offline (about 2^24 pairs); `--require-sas` refuses it. The construction has not been model-checked *(planned: M8)*.
+
 ## 5. Key schedule
 
 | Key | Lifetime |
@@ -127,6 +141,7 @@ refuse at the first fragment, before it buffers anything. Details, sizes and lim
 | transport keys | `--rekey` (default 120 s; 600 s for a switchboard session, `--sb-rekey`) until the next handshake; hard limit 1.5 × that, or 2⁶⁰ packets |
 | line key | until a member is evicted, then rotated; it derives the site secret and never encrypts data |
 | call token | one call setup, under 10 s |
+| safety phrase nonces | one call: kept with the peer while it lasts |
 | cookie secret | rotated every 120 s |
 
 ## 6. Measured

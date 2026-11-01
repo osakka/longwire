@@ -66,6 +66,9 @@ Plaintext `kind` values:
 **Roaming.** When a packet authenticates from a new source address, that address becomes the peer's endpoint.
 Only an authenticated packet can move an endpoint.
 
+With everything through the line, every socket of the node (both families, and the spray sockets) is tied to the device the machine reached the world by when the node started (`SO_BINDTODEVICE`,
+before `bind`), so the line's own datagrams never enter the jack's table ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)).
+
 ## 3. Sessions and timers
 
 | Timer | Value | Meaning |
@@ -191,6 +194,9 @@ The full design is a ladder, each rung tried when the one before fails:
   the NAT is endpoint-independent (EIM, "easy"); if it differs, endpoint-dependent (EDM, "hard"). The node reports it
   as `nat` (`easy`, `strict` or `unknown`) in its status, measures again every ten minutes, and says so when a call
   fails because of it. A switchboard behind a firewall must let the second port through, or nodes show `unknown`.
+  The echo port is IPv4 only, needs no handshake and answers anyone, banned keys included; it holds no state and has no rate limit, so it reflects 15 bytes for every 40 sent to it. A node
+  also uses it when its switchboard is silent: after 12 s with no session it sends one `ECHO` to the switchboard host's port + 1, and at 15 s reports whether the host `answers` (the
+  switchboard itself is ignoring the node) or is `silent` ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)). A switchboard reached over IPv6 gets no probe.
 - **SPRAY** *(built)* (one EIM side, one EDM side). The sender's NAT type travels in the candidate list (the count byte's top bit above), so each end knows the other's. Two seconds after `GO` starts the ordinary punch, if no `PUNCH` has
   come back: the strict end opens 256 extra sockets, each sending a `PUNCH` to the easy end's reflexive (and mapped)
   address, which creates 256 mappings on its NAT; the easy end sends `PUNCH` at 100 packets a second to random ports
@@ -259,6 +265,12 @@ A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. The messages 
 | `0x08` | `BYE` | `leave:1`: hanging up; `1` also leaves the line |
 | `0x09` | `PMTU` | probe result *(planned: M7)* |
 | `0x0a` | `RELAY_NO` | `key_id:32`: this node will not relay to that member (§5) |
+| `0x0b` | `SAS` | `kind:1` then: kind 0 `commit:32` (caller), kind 1 `nonce:16` (callee), kind 2 `reveal:16` (caller), kind 3 nothing (callee: acknowledged). The committed safety phrase ([CRYPTO §4.1](CRYPTO.md#41-the-safety-phrase), [ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)) |
+
+**The safety phrase exchange.** When a direct call's session is up, the caller sends kind 0 once a second until kind 1 arrives, then kind 2 once a second (at most 15 times) until kind 3 arrives.
+The callee answers every kind 0 with the same kind 1. A caller that hears no kind 1 within 5 s, or a callee that hears no kind 0 within 5 s, takes the other end to be older and shows the six-word
+phrase marked `legacy`; with `--require-sas` it ends the call instead, unless the call is a mesh call to a fellow member. A callee that has a commitment but no reveal within 20 s ends the call, and
+so does one given a reveal that does not match the commitment. A relayed call has no exchange and shows the legacy phrase.
 
 ### Lines and party lines
 

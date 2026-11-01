@@ -49,7 +49,7 @@ modes differ only in what that port is:
 | Port | Mechanism | Privilege | Notes |
 |---|---|---|---|
 | **splice** | `AF_PACKET` raw socket on a NIC (Linux) | `CAP_NET_RAW`, granted once to the node's service as an **ambient capability**, and dropped as soon as the socket is open | **No interface is created.** Wired Ethernet only: most Wi-Fi client links drop frames with foreign source MACs (4-address/WDS mode excepted). The splice box's *own* stack doesn't see injected frames, so if that box itself needs the far side, add a jack too. |
-| **jack** | A tap device (`IFF_TAP \| IFF_NO_PI`) | Created once, owned by the user: `longwire jack` (a root helper, [ADR 0034](adr/0034-a-connection-is-a-profile.md)), or by hand `ip tuntap add mode tap user $USER` | Ordinary host membership. The tap's MTU should be 1400. *Written but untested: the machine this was built on has no `/dev/net/tun`.* |
+| **jack** | A tap device (`IFF_TAP \| IFF_NO_PI`) | Created once, owned by the user, by a root helper run through `pkexec` (`longwire jack`, `longwire on`, or the pane's Turn on; [ADR 0034](adr/0034-a-connection-is-a-profile.md), [ADR 0041](adr/0041-the-helpers-and-the-launcher-are-hibr-scripts.md)). In the same step it may put on an address or start a DHCP client, add routes through a gateway on the line, send everything through the line, and set a name server; it can also remove a jack. By hand: `ip tuntap add mode tap user $USER` | Ordinary host membership. The tap's MTU should be 1400. It has carried real calls on the author's desktop; the machine this was built on has no `/dev/net/tun`, so the tests use stand-ins. |
 | **sock** | frames as datagrams on a Unix socket | none | for tests and experiments only |
 | **none** | no local port | none | what the switchboard uses: it never sees a frame |
 | **shell** | A tap inside an unprivileged user + network namespace | **None** | *(planned: M5)* `longwire shell` hands you a shell whose only network is the line. |
@@ -73,6 +73,26 @@ Splice details (Linux):
   goes anywhere else, or the far LAN would drop it.
 - **Coalesced frames are cut.** See §6.
 - Reading uses one `recvmsg` per frame; a `TPACKET_V3` ring and batching, for speed, *(planned: M7)*.
+
+### The jack's road
+
+A jack can be given an address in the far network, and then the kernel would send the packets that bring the line up into the line itself. The node therefore treats as "the jack's networks"
+every network connected to the jack and every IPv4 route the kernel sends through it (read from `/proc/net/route`), sends anything for those through a second UDP socket tied to the real device
+(`SO_BINDTODEVICE`, no privilege, Linux 5.7 and later), and never offers its own jack address as a candidate ([ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md),
+[ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)).
+
+**Everything through the line** ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)). The helper puts a default route through a gateway on the line into a table of
+the jack's own (7700 + N for `lwN`), with two rules: `7700: lookup main suppress_prefixlength 0` and `7701: lookup 7700+N`. The main table is never touched; an IPv6 default route into the
+jack goes into the same table. Every socket of the engine is tied to the real device before it is bound. The helper sets `ignore_routes_with_linkdown` on the jack and refuses unless the jack
+has no carrier: a tap that no process holds has none, so when the node stops or crashes the kernel passes over the jack's routes and the machine is back on its own road. This fails open;
+a switch that blocks instead *(planned: M4)*.
+
+**Roaming** ([ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)). Once a second the engine compares the default route's device (not the jack) with the one its
+sockets are tied to. When it changes or goes, the engine closes the jack, which drops its carrier, and emits `roamed`; the node script then starts the node again on the new road. A device named
+with `--underlay` is not followed.
+
+**Names** ([ADR 0047](adr/0047-names-through-the-line-are-set-on-the-jack.md)). With everything through the line, a profile's `dns` is set on the jack in systemd-resolved for every name (`~.`);
+resolved passes over a device with no carrier, so names return to the machine's own server when the node is gone. Without systemd-resolved, names stay with the machine's own server.
 
 ## 3. Keeping the WAN quiet
 
@@ -141,7 +161,7 @@ over IPv4 (a further 20 over IPv6). The underlay is both: a node holds an IPv4 a
 |---|---|
 | jack, sock | `longwire setup jack` prints the command that sets the tap's MTU to **1400**, so frames are at most 1414 bytes and fit one datagram. The engine does not enforce it: a larger frame is split like any other. A `sock` port has no MTU. |
 | splice | LAN hosts send 1500-byte frames and we can't change them. So: **(1)** clamp the TCP MSS in SYN and SYN-ACK frames as they pass, to **1340** (IPv4) or **1320** (IPv6). A segment carrying 1340 bytes and the usual 12 bytes of TCP options is a 1406-byte frame, which travels in one datagram. **(2)** A frame up to **1428** bytes goes in one datagram (1428 + 29 + 28 = 1485, and 1489 once a relay wraps it, which fits PPPoE's 1492). A larger one is split across two datagrams (`FRAG`) and put back together on arrival; each peer holds four reassembly slots with a 2 s timeout. **(3)** A NIC can hand a splice box a *coalesced* TCP frame of up to 64 KB (GRO, or a virtual NIC's GSO), so oversize TCP frames are cut into line-sized segments with fresh lengths, sequence numbers and checksums; that is always valid TCP. Other oversize frames are dropped and counted. |
-| path MTU | Probing the real path MTU per peer *(planned: M7)*. Until then the constants above assume 1492 or better. |
+| path MTU | Probing the real path MTU per peer *(planned: M7)*. Until then the constants above assume an IPv4 path of 1492 or better. Over IPv6 the same frame is 20 bytes larger (a 1428-byte frame makes a 1505-byte packet, and a handshake fragment 1296), so on a 1500-byte IPv6 path the kernel fragments it. |
 
 ## 7. The three components
 
@@ -201,7 +221,7 @@ engine/                      plain C99: never includes hibr.h, so the Android ap
   spray.c                    port spray: a strict NAT end opens many sockets, the easy end probes, the socket that is hit becomes that peer's
   pmp.c                      NAT-PMP: ask the home router to keep a port open, offered as a candidate
   ban.c                      strikes and bans on a switchboard: fixed tables, only for failures on an authenticated session, everything expires (ADR 0043)
-  under.c                    the underlay socket: traffic for an address inside the jack's own network leaves through a socket tied to the real device, not into the jack (ADR 0037)
+  under.c                    the road under the line: the jack's networks (connected, and routed through it: ADR 0037, 0044), the underlay socket tied to the real device, tying every socket with everything through the line (ADR 0045), and following the road once a second (ADR 0046)
   port.c                     local ports: splice, jack, sock, none
   caps.c                     clears every capability set once the port is open
   ctl.c                      the control socket and the event stream
@@ -212,7 +232,7 @@ engine/                      plain C99: never includes hibr.h, so the Android ap
 module/longwire.c            hibr glue: the `lw` builtin and the /dev/longwire/ scheme; forks the worker
 scripts/longwire.hibr        component 2: the node
 scripts/longwire-switchboard.hibr   component 1: the switchboard
-tests/                       end-to-end tests (m0, m1, m2), shared helpers (lwtest.py), the documentation check (docs.py)
+tests/                       the suites `make check` runs (listed in [BUILD](BUILD.md#the-tests)), shared helpers (lwtest.py, lwnat.py), the documentation check (docs.py)
 vendor/monocypher/           X25519, Ed25519, ChaCha20-Poly1305, BLAKE2b
 vendor/mlkem768/             PQClean ML-KEM-768 "clean" + fips202, with a 5-line compat shim for TCC
 brand/                       the mark and wordmark
@@ -223,7 +243,7 @@ man/                        the manual pages: longwire(1), longwire-switchboard(
 menubar/longwire.hibr       the telephone on the menu bar, with its menu and the ring that interrupts (ADR 0035)
 control-strip/longwire.hibr the same as a Control Strip module
 bundles/longwire.json       the catalogue bundle that installs the pane, the bar item and the strip module together
-packaging/                   deb, rpm and arch builds, the launchers, the systemd units (Homebrew *(planned: M5)*)
+packaging/                   deb, rpm and arch builds, the launcher, the two root helpers (longwire-jack, longwire-site) and their polkit actions, the group, the systemd units (Homebrew *(planned: M5)*)
 ```
 
 When the Android app comes (M6), it builds `engine/` with TCC for arm64 into a library behind a small Kotlin `VpnService`. That is the

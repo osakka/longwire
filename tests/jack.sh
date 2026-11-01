@@ -236,5 +236,15 @@ command -v resolvectl > /dev/null || {
 }
 PATH=$OPATH; mv "$T/resolvectl.off" "$T/bin/resolvectl"
 
+
+echo "-- jack: an existing device is changed only if it is the user's own"
+mkdir -p "$T/othersys/lw7"; echo 2000 > "$T/othersys/lw7/owner"
+: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$H" --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24 lw7 1000 2>&1); rc=$?
+[ $rc = 3 ] && echo "$out" | grep -q "not this user's jack" && ! grep -q "addr replace\|route replace\|link set" "$LWJ_LOG" \
+	&& ok "another user's lw7 is refused, and nothing is changed on it" || bad "owner: rc=$rc $out $(cat "$LWJ_LOG")"
+echo 1000 > "$T/othersys/lw7/owner"
+: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$H" --address 192.168.152.50/24 lw7 1000 2>&1); rc=$?
+[ $rc = 0 ] && grep -q "addr replace 192.168.152.50/24 dev lw7" "$LWJ_LOG" && ! grep -q "tuntap" "$LWJ_LOG" && ok "the user's own is changed in place" || bad "own: rc=$rc $out"
+
 [ $fail = 0 ] && echo "all jack checks passed"
 exit $fail
