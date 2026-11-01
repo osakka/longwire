@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.31
 
+*Published:* the catalogue (`hibr-apps` `a1bc47e`) and the packages (`hibr-apt` `c2cc1d3`, `hibr-rpm` `4e784fe`, `hibr-arch` `96732bf`). `make check` passed (821 checks).
+
 - **A node also checks the size a handshake needs** ([ADR 0048](docs/adr/0048-a-silent-switchboard-is-said-so.md)). When the switchboard is silent and the small probe of its host comes back, the node sends a second one
   as large as a handshake datagram (1276 bytes on the wire). If only the small one comes back, it says so: *small packets come back from its host, but one as large as a handshake's does not:
   something on the way loses large or fragmented UDP*, and what to look at (an MTU under 1280 on a tunnel, container or VPN interface, a firewall dropping fragments): the new `large-lost` in the
