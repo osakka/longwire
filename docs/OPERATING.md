@@ -212,17 +212,18 @@ up the number.
 ## When a node gets no number
 
 A node with no session with its switchboard after 15 seconds says so in its log (`please journalctl -u longwire@NIC`, or `~/.longwire/log` after `longwire on`), in `longwire watch`, and in
-`longwire show` (`⚠ no answer from it for N s: …`). At 12 seconds it sent one 40-byte packet to the echo port of the switchboard's machine, its port + 1, which answers anyone, banned or not.
+`longwire show` (`⚠ no answer from it for N s: …`). At 12 seconds it sent one 40-byte packet to the echo port of the switchboard's machine, its port + 1, which answers anyone, banned or not, and when that came back, one as large as a
+handshake datagram (1276 bytes on the wire).
 What came back decides the sentence ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)):
 
-- **its host answers**: small UDP goes there and back, but no handshake completes. Check, in this order:
+- **small packets come back, … but one as large as a handshake's does not**: something between this node and the switchboard loses large or fragmented UDP. Look at the node's side first: an
+  interface with an MTU under 1280 (a tunnel, a container's network, another VPN: `ip link`), or a firewall or middlebox that drops IP fragments. Once large packets get through, the node registers.
+- **its host answers**: UDP of every size goes there and back, but no handshake completes. Check, in this order:
   1. the key after `/` in the switchboard address is the switchboard's own: compare with `please journalctl -u longwire-switchboard -o cat | grep '^switchboard '` on it;
   2. this node's key is not banned: `please longwire-switchboard bans list` on the switchboard, or a `ban` line in its log starting with the first 16 hex digits of the node's `longwire id`.
      Lift it with `please longwire-switchboard bans clear KEY`, or wait (15 minutes, doubling, at most a day);
   3. the switchboard's own port is open, not only the next one;
-  4. large packets get through: a handshake travels as datagrams of up to 1248 bytes of UDP payload, 1276 bytes on the wire over IPv4 ([PROTOCOL](PROTOCOL.md)). A link with a smaller MTU
-     whose ICMP is filtered, or a middlebox that drops IP fragments, passes the probe and loses the handshake. `ping -M do -s 1248 HOST` sends 1276 bytes that may not be fragmented; if it
-     fails where `ping -s 100 HOST` works, look at the path's MTU. ICMP may be treated differently from UDP, so this is a hint, and this case has not been reproduced in a test.
+  4. the switchboard's answers get back: the large probe tests the way there; a handshake's answer is as large on the way back ([PROTOCOL](PROTOCOL.md)), which the probe does not test.
 - **nothing comes back from its host**: UDP to the switchboard's port + 1 is dropped on the way (either side's firewall, or the provider's), or the switchboard is not running
   (`systemctl status longwire-switchboard`; `please ss -ulpn` shows both ports bound). A switchboard whose firewall opens only its own port, or whose port + 1 was taken by something
   else, also lands here, whatever the real cause.

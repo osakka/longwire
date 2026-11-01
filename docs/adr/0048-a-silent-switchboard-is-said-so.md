@@ -16,6 +16,8 @@ The silence towards a banned key stays: an answer would be an oracle. What chang
    for anyone, with no handshake and no ban, which is what NAT detection already uses). At 15 seconds it tells the `switchboard-silent` event, with the address and what the host did:
    - `answers`: the path is open both ways and the switchboard is ignoring this node. Its key may be banned there, or the key after `/` in the switchboard address is not the switchboard's.
    - `silent`: nothing comes back from the host. A firewall on the way (UDP), or no switchboard running.
+   - `large-lost` (since 0.5.31): when the small probe came back, the node sends a second one as large as a handshake datagram (1276 bytes on the wire); if only the small one comes back,
+     something on the way loses large or fragmented UDP, which a handshake needs. `answers` then means both came back. Only the way there is tested: the echo's reply is small.
    The node script writes it as a sentence in the log and in `longwire watch`, and `longwire show` adds a line for as long as it lasts (from `sb_quiet` and `sb_host` in the status).
 2. **The switchboard writes each ban to its log** (the journal, under the service): the key's first 16 hex digits, how long, which ban in a row, why, and the command that lifts it. A net ban
    names the network. No address of a node is written.

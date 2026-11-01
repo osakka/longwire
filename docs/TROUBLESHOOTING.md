@@ -10,7 +10,7 @@ Tokens are secrets: leave them out of what you send.
 (`please apt update && please apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
 
 **`longwire show` says `engine 0.6.0`, and updating changes nothing.**
-0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.30-1` (the current version), then
+0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.31-1` (the current version), then
 `longwire off` and `longwire on`. `doctor`'s advice to refresh the catalogue does not apply here.
 
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
@@ -131,11 +131,14 @@ through the line*, turn off and on. To get out at once: turn longwire off; nothi
 `resolvectl dns lw0` names the server asked. It must answer on the line's side: try `resolvectl query example.org`. Empty the **Name server** to go back to your own. `longwire show` has a `names` line.
 
 **`⚠ no answer from the switchboard … its host answers`**
-Small UDP gets to the switchboard's machine and back, but no handshake completes. In this order: the key after `/` in your switchboard address is not the switchboard's (compare it with a node
+UDP of every size gets to the switchboard's machine and back, but no handshake completes. In this order: the key after `/` in your switchboard address is not the switchboard's (compare it with a node
 that works); this node's key is banned there for a while (on the switchboard, `please longwire-switchboard bans list` shows it, its log says why, and `please longwire-switchboard bans clear KEY`
-lifts it; a ban ends by itself, 15 minutes, doubling at each repeat, at most a day; a restart of the switchboard forgets every ban); the switchboard's own port is closed while the next is open;
-or the handshake's larger packets (1276 bytes on the wire) are lost on the way: a link with a small MTU, or a middlebox that drops fragments ([OPERATING](OPERATING.md#when-a-node-gets-no-number)).
+lifts it; a ban ends by itself, 15 minutes, doubling at each repeat, at most a day; a restart of the switchboard forgets every ban); or the switchboard's own port is closed while the next is open ([OPERATING](OPERATING.md#when-a-node-gets-no-number)).
 A switchboard older than 0.5.28 could also ban a good, patient node for repeating an unanswered registration: update the switchboard's package.
+
+**`⚠ no answer from the switchboard … small packets come back from its host, but one as large as a handshake's (1276 bytes) does not`**
+Something between you and the switchboard loses large or fragmented UDP, and a handshake needs it. Look at this machine first: `ip link` for an interface with an MTU under 1280 (a tunnel, a
+container's network, another VPN), and a firewall that drops IP fragments. Fix that and the node registers by itself.
 
 **`⚠ no answer from the switchboard … nothing comes back from its host`**
 UDP does not get there and back: a firewall on either side (the switchboard's port and the next one), or the switchboard is not running.

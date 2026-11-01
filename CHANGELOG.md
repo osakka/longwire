@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.31
+
+- **A node also checks the size a handshake needs** ([ADR 0048](docs/adr/0048-a-silent-switchboard-is-said-so.md)). When the switchboard is silent and the small probe of its host comes back, the node sends a second one
+  as large as a handshake datagram (1276 bytes on the wire). If only the small one comes back, it says so: *small packets come back from its host, but one as large as a handshake's does not:
+  something on the way loses large or fragmented UDP*, and what to look at (an MTU under 1280 on a tunnel, container or VPN interface, a firewall dropping fragments): the new `large-lost` in the
+  `switchboard-silent` event and `sb_host`. `answers` now means both came back, so it points at the switchboard (a ban, the wrong key). Nothing changes on the switchboard or on the wire.
+- Tested on a real switchboard and a stand-in host whose echo port answers small packets only (`tests/ban2.sh`). Only the way there is tested: a handshake's answer is as large on the way back, and the probe's reply is small.
+
 ## 0.5.30
 
 *Published:* the catalogue (`hibr-apps` `a328fa5`) and the packages (`hibr-apt` `0b5b7d5`, `hibr-rpm` `db35dc8`, `hibr-arch` `bd73019`). `make check` passed (819 checks).

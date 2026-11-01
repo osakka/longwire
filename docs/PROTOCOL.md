@@ -196,7 +196,8 @@ The full design is a ladder, each rung tried when the one before fails:
   fails because of it. A switchboard behind a firewall must let the second port through, or nodes show `unknown`.
   The echo port is IPv4 only, needs no handshake and answers anyone, banned keys included; it holds no state and has no rate limit, so it reflects 15 bytes for every 40 sent to it. A node
   also uses it when its switchboard is silent: after 12 s with no session it sends one `ECHO` to the switchboard host's port + 1, and at 15 s reports whether the host `answers` (the
-  switchboard itself is ignoring the node) or is `silent` ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)). A switchboard reached over IPv6 gets no probe.
+  switchboard itself is ignoring the node) or is `silent` ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)); when the small one comes back it also sends one padded to 1248 bytes, a
+  handshake datagram's size, and reports `large-lost` if only the small one is answered. A switchboard reached over IPv6 gets no probe.
 - **SPRAY** *(built)* (one EIM side, one EDM side). The sender's NAT type travels in the candidate list (the count byte's top bit above), so each end knows the other's. Two seconds after `GO` starts the ordinary punch, if no `PUNCH` has
   come back: the strict end opens 256 extra sockets, each sending a `PUNCH` to the easy end's reflexive (and mapped)
   address, which creates 256 mappings on its NAT; the easy end sends `PUNCH` at 100 packets a second to random ports

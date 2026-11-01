@@ -944,6 +944,11 @@ void echo_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 		n->sb_probe = 2;		/* the switchboard's host answers: the path is open both ways (docs/adr/0048) */
 		return;
 	}
+	if (!s && n->sb >= 0 && n->sb_big == 1 && len == 15 && !memcmp(pkt + 1, n->sb_big_nonce, 8) && sl == sizeof *a &&
+	    n->peers[n->sb].ep.ss_family == AF_INET && a->sin_addr.s_addr == ((struct sockaddr_in *)&n->peers[n->sb].ep)->sin_addr.s_addr) {
+		n->sb_big = 2;			/* and a datagram as large as a handshake's gets there too */
+		return;
+	}
 
 	if (n->role || len != 15 || !s || !n->have_refl || !n->echo_tries || memcmp(pkt + 1, n->echo_nonce, 8) ||
 	    sl != sizeof *a || s->ep.ss_family != AF_INET || a->sin_addr.s_addr != ((struct sockaddr_in *)&s->ep)->sin_addr.s_addr)
@@ -1600,6 +1605,7 @@ static void sb_quiet_timers(lw_node *n)
 		n->sb_quiet = 0;
 		n->sb_probe = 0;
 		n->sb_quiet_host = 0;
+		n->sb_big = 0;
 		return;
 	}
 	if (!n->sb_quiet)
@@ -1616,12 +1622,30 @@ static void sb_quiet_timers(lw_node *n)
 		usend(n, n->udp, q, sizeof q, (struct sockaddr *)&a, sizeof a);
 		n->sb_probe = 1;
 	}
-	if (n->sb_probe != 3 && n->now - n->sb_quiet >= 15.0) {
+	if (n->sb_probe == 2 && n->sb_big == 0 && n->udp >= 0) {
+		/* The small one came back: now one as large as a handshake datagram (4 + HS_CHUNK + 32 bytes, 1276 on the wire), which tells a path that loses
+		 * large or fragmented UDP from a switchboard that is ignoring this node. The echo port answers any request of 40 bytes or more with 15. */
+		uint8_t q[4 + HS_CHUNK + 32];
+		struct sockaddr_in a;
+
+		memset(q, 0, sizeof q);
+		q[0] = T_ECHO;
+		lw_rand(n->sb_big_nonce, 8);
+		memcpy(q + 1, n->sb_big_nonce, 8);
+		memcpy(&a, &p->ep, sizeof a);
+		a.sin_port = htons((uint16_t)(ntohs(a.sin_port) + 1));
+		usend(n, n->udp, q, sizeof q, (struct sockaddr *)&a, sizeof a);
+		n->sb_big = 1;
+		n->sb_big_t = n->now;
+	}
+	if (n->sb_probe != 3 && n->now - n->sb_quiet >= 15.0 && !(n->sb_big == 1 && n->now - n->sb_big_t < 2.0)) {
 		char ep[64];
+		int h = n->sb_probe != 2 ? (p->ep.ss_family == AF_INET ? 1 : 0) : n->sb_big == 2 ? 2 : 3;
+		static const char *const HN[] = { "untested", "silent", "answers", "large-lost" };
 
 		addr_str(&p->ep, ep, sizeof ep);
-		ev_emit(n, "{\"event\":\"switchboard-silent\",\"ep\":\"%s\",\"host\":\"%s\"}", ep, n->sb_probe == 2 ? "answers" : p->ep.ss_family == AF_INET ? "silent" : "untested");
-		n->sb_quiet_host = n->sb_probe == 2 ? 2 : p->ep.ss_family == AF_INET ? 1 : 0;
+		ev_emit(n, "{\"event\":\"switchboard-silent\",\"ep\":\"%s\",\"host\":\"%s\"}", ep, HN[h]);
+		n->sb_quiet_host = h;
 		n->sb_probe = 3;
 	}
 }
@@ -2019,7 +2043,7 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->drop_flood,
-		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, (unsigned long long)n->cand_skipped, LW_VERSION, n->uudp >= 0 ? n->uudev : "", n->uudp >= 0 ? "open" : n->uudp == -2 ? "failed" : "unused", n->tie, n->sb_quiet ? (int)(n->now - n->sb_quiet) : 0, n->sb_quiet_host == 2 ? "answers" : n->sb_quiet_host == 1 ? "silent" : "", n->njnet, site_role(n), site_members(n), n->site_sync_n,
+		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, (unsigned long long)n->cand_skipped, LW_VERSION, n->uudp >= 0 ? n->uudev : "", n->uudp >= 0 ? "open" : n->uudp == -2 ? "failed" : "unused", n->tie, n->sb_quiet ? (int)(n->now - n->sb_quiet) : 0, n->sb_quiet_host == 3 ? "large-lost" : n->sb_quiet_host == 2 ? "answers" : n->sb_quiet_host == 1 ? "silent" : "", n->njnet, site_role(n), site_members(n), n->site_sync_n,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->hs_nocookie, (unsigned long long)n->hs_badmac2, (unsigned long long)n->cookies_got, (unsigned long long)n->reg_count,
 		(unsigned long long)(n->sb >= 0 ? n->peers[n->sb].rekeys : 0),
 		(n->sb_caps & CAPS_CALLERID) && (n->sb_caps & CAPS_DIRECTORY) ? "\"caller-id\",\"directory\"" : (n->sb_caps & CAPS_CALLERID) ? "\"caller-id\"" : (n->sb_caps & CAPS_DIRECTORY) ? "\"directory\"" : "",

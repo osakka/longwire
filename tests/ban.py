@@ -139,6 +139,22 @@ def main():
     ev = R.w.wait("switchboard-silent", 25, after=0)
     check(ev is not None and ev.get("host") == "silent", f"nothing at that address: the node says nothing comes back from the host: {ev}")
     R.stop()
+    # a host whose echo port answers small packets only: the node says large packets are lost on the way (an MTU or fragment problem), not a ban
+    stub = subprocess.Popen(["nsenter", "-t", str(ns.pid), "-n", "python3", "-I", "-c", r"""
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.1", 2078))
+while True:
+    d, a = s.recvfrom(4096)
+    if 40 <= len(d) <= 200 and d[0] == 7:
+        s.sendto(d[:9] + socket.inet_aton(a[0]) + a[1].to_bytes(2, "big"), a)
+"""])
+    os.makedirs(f"{T}/U/lw", exist_ok=True)
+    U = Node("U", ns, "longwire.hibr", ["up", "--switchboard", f"127.0.0.1:2077/{addr}", "--sock-port", f"{T}/U/p:{T}/U/h", "--listen", "127.0.0.1:4012", "--cand-loopback", "--token", "good-four"])
+    ev = U.w.wait("switchboard-silent", 25, after=0)
+    check(ev is not None and ev.get("host") == "large-lost", f"small packets come back but not one as large as a handshake's: the node says large packets are lost: {ev}")
+    _, show = U.cmd("show")
+    check("1276 bytes" in show and "fragment" in show, f"`longwire show` says what to look at: {show[-260:]!r}")
+    U.stop(); stub.kill()
     rlog = open(f"{T}/R.log").read()
     check("no answer from the switchboard at 127.0.0.1:1977" in rlog, f"and its log says so in a sentence: {[l for l in rlog.splitlines() if 'no answer' in l][:1]}")
     finish("ban")

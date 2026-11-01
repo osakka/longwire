@@ -275,9 +275,12 @@ struct lw_node {
 	uint8_t  echo_nonce[8];
 	int      echo_tries;
 	double   sb_quiet;		/* since when the switchboard has not answered (0: it has a session), docs/adr/0048 */
-	int      sb_quiet_host;	/* what the probe found: 0 not known, 1 the host is silent too, 2 the host answers */
+	int      sb_quiet_host;	/* what the probe found: 0 not known, 1 the host is silent too, 2 the host answers, 3 it answers small packets only */
 	int      sb_probe;		/* the probe of its host: 0 none, 1 sent, 2 answered, 3 told */
 	uint8_t  sb_probe_nonce[8];
+	int      sb_big;		/* the second probe, as large as a handshake datagram: 0 none, 1 sent, 2 answered */
+	double   sb_big_t;
+	uint8_t  sb_big_nonce[8];
 	double   next_echo;
 	/* M2: the switch's extras and the site group */
 	double   dhcp_say;		/* when a dhcp-conflict was last announced */

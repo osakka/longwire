@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.30
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.31
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.30}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.31}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -78,6 +78,7 @@ say() { echo "$@" >&2; }
 sb_quiet_why() {
 	case $1 in
 	answers) echo "its host answers, so the switchboard itself is ignoring this node: this node's key may be banned there (its operator: longwire-switchboard bans list), or the key after / in the switchboard address is not the switchboard's" ;;
+	large-lost) echo "small packets come back from its host, but one as large as a handshake's (1276 bytes) does not: something on the way loses large or fragmented UDP. Look at this machine's side first: an MTU under 1280 on a tunnel, container or VPN interface (ip link), or a firewall that drops fragments" ;;
 	silent)  echo "nothing comes back from its host: a firewall on the way (UDP to its port, and the next port), or the switchboard is not running" ;;
 	*)       echo "a firewall on the way (UDP), the switchboard not running, this node's key banned there, or the wrong switchboard key" ;;
 	esac
