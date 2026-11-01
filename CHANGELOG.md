@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.30
 
+*Published:* the catalogue (`hibr-apps` `a328fa5`) and the packages (`hibr-apt` `0b5b7d5`, `hibr-rpm` `db35dc8`, `hibr-arch` `bd73019`). `make check` passed (819 checks).
+
 - **A comprehensive documentation update.** Every document and manual page was audited against the code and brought up to date with 0.5.9 to 0.5.29: the status and event fields, every option and
   profile key, the jack helper's real reach, everything through the line, roaming and names, strikes and bans and how to lift them on a service, a node that gets no number (a new section in
   [OPERATING](docs/OPERATING.md#when-a-node-gets-no-number)), the switchboard's log, upgrading (what comes from the package and what from the catalogue, and what to restart), the safety phrase's
