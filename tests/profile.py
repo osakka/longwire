@@ -217,8 +217,15 @@ def main():
     check("\x1b[32m\u260e\x1b[0m" in r.stdout and "\x1b[" not in plain, f"LONGWIRE_COLOR=always: the telephone of your number is green, and only the sign: {r.stdout[:80]!r}")
     r = nsx(HIBR, ROOT + "/scripts/longwire.hibr", "show", env=dict(env, LONGWIRE_COLOR="always", NO_COLOR="1"), capture_output=True, text=True, timeout=60)
     check("\x1b[" in r.stdout, "LONGWIRE_COLOR=always wins over NO_COLOR, as it says")
+    rc, out = lwc("show")
+    check("   connected     " in out and " up " in out, f"while the call is up, show says connected: {out[-300:]!r}")
     A.cmd("hangup")
     A.stop()
+    def gone():
+        rc, o = lwc("show")
+        return o if "   connected     " not in o else None
+    o = until(gone, 30)
+    check(o is not None, f"once the call is over, show no longer calls the other end connected: {o and o[-300:]!r}")
     lwc("off")
     until(lambda: lwc("status")[0] != 0, 10)
 

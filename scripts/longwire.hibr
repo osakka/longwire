@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.33
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.34
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.33}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.34}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -458,7 +458,11 @@ cmd_show() {
 		rx := json get S ".peers[$i].rx_bytes"
 		tx := json get S ".peers[$i].tx_bytes"
 		[ -n "$num" ] || continue
-		echo "   connected     $num  $st${path:+ $path}${age:+, $(human_age "${age%.*}")}  in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
+		if [ "$st" = up ]; then
+			echo "   connected     $num  up${path:+ $path}${age:+, $(human_age "${age%.*}")}  in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
+		else			# a peer known to this node with no session now: not a connection, whatever it carried before
+			echo "   not connected $num  ($st: no session now; it comes back by itself when the other end does)  carried in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
+		fi
 		phr := json get S ".peers[$i].phrase"
 		[ -z "$phr" ] || echo "                 safety phrase: $phr"
 	done
