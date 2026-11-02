@@ -16,6 +16,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 - **The release bump touches only version strings** (`packaging/bump.sh`): it had been rewriting versions mentioned in prose, in comments and manual pages, at every release.
 - Tested: the phrase without a fallback (`tests/sas.sh`), a relayed call with no phrase (`tests/m3b.sh`), the events and status without the old fields (`tests/m1.sh`, `tests/pane.sh`), the echo port alone.
 
+*Published:* the catalogue (`hibr-apps` `44a6062`) and the packages (`hibr-apt` `75ba507`, `hibr-rpm` `5d04298`, `hibr-arch` `2701a0f`). `make check` passed (843 checks).
+
 ## 0.5.37
 
 *Published:* the catalogue (`hibr-apps` `eaabcb8`) and the packages (`hibr-apt` `13782e1`, `hibr-rpm` `3f9f44e`, `hibr-arch` `eec06db`). `make check` passed (843 checks).
