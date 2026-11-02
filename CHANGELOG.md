@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.37
 
+*Published:* the catalogue (`hibr-apps` `eaabcb8`) and the packages (`hibr-apt` `13782e1`, `hibr-rpm` `3f9f44e`, `hibr-arch` `eec06db`). `make check` passed (843 checks).
+
 - **`longwire verify`: check a call's safety phrase by typing the other end's words** ([ADR 0054](docs/adr/0054-a-phrase-is-checked-by-typing-the-other-ends-words.md)). `longwire verify` lists each call, its phrase,
   and whether it is verified; `longwire verify NUMBER word word …` compares the words the other end shows with this end's (any case, any spacing): **a match is recorded** with the number's key
   (`show` and the pane say *verified*), **a difference ends the call and forgets the key**. On a server you cannot see, like a site node in a container, that one command in its console, with the
