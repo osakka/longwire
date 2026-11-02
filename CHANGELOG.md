@@ -3,6 +3,16 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.32
+
+- **Tokens in the Switchboard window** ([ADR 0050](docs/adr/0050-a-switchboards-tokens-are-made-in-its-window.md)). View > Tokens (`t`) shows the unspent tokens; **New Token** (`n`) makes one and says it in a note,
+  **Remove Token…** (`x`) asks first, **Copy Token** (`c`) takes one to hand to a machine, **Read Again** (`r`). It finds the file the switchboard uses (the service's `--tokens`, or the one beside a
+  switchboard run by hand; File > Tokens File… names another). A service's file goes through `please`, and is read only when you ask, so the view never asks for a password by surprise.
+- **`longwire-switchboard token` run as root keeps the file the service's**: it leaves the file owned by the owner of its folder, so the `chown` after making tokens for the service is no longer needed.
+- **Colour in the terminal.** The sign at the start of a sentence takes its status colour: ✓ green, ✗ red, ⚠ amber, ☎ green for your number and amber for someone calling. Never into a pipe, with
+  `NO_COLOR`, or on a dumb terminal; `LONGWIRE_COLOR=always` or `never` decides it.
+- Tested: the window against the real token command and a real switchboard (`tests/sw.sh`), the colours in `show` (`tests/profile.sh`). Not tried: `please` behind the desktop's pseudo-terminal with a real polkit agent.
+
 ## 0.5.31
 
 *Published:* the catalogue (`hibr-apps` `a1bc47e`) and the packages (`hibr-apt` `c2cc1d3`, `hibr-rpm` `4e784fe`, `hibr-arch` `96732bf`). `make check` passed (821 checks).

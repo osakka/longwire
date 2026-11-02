@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.31" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.32" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
@@ -168,7 +168,8 @@ please longwire\-switchboard token new 3 \-\-tokens /var/lib/longwire\-switchboa
 .RE
 .fi
 .PP
-A file it creates as root belongs to root; give it to the service's user (see OPERATING.md).
+Run as root, it leaves the file owned by the owner of the folder it is in, so a service's file stays the service's.
+The Switchboard window does the same from the desktop.
 .SH BANS
 .B bans list
 prints, as JSON, the running switchboard's ban settings, its counters, each banned key with the seconds left and which ban in a row it is, and each banned network.

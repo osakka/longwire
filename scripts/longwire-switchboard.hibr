@@ -35,7 +35,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.31
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.32
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -79,6 +79,15 @@ tokens_cmd() {
 	done
 	[ -n "$file" ] || file=$SB_DIR/tokens
 	umask 077
+	# Run as root (please) on a service's file, a rewrite must stay the service's, or the service can no longer spend its tokens: the file keeps the owner of
+	# the folder it is in.
+	fn tok_owner() {
+		local o
+		[ "$(id -u)" = 0 ] || return 0
+		o=$(stat -L -c %u:%g "$(dirname "$file")" 2> /dev/null) || return 0
+		chown "$o" "$file" 2> /dev/null
+		return 0
+	}
 	case $sub in
 	new)
 		n=${pos[0]:-1}
@@ -91,7 +100,8 @@ tokens_cmd() {
 			printf '%s\n' "$t" >> "$file" || exit 1
 			echo "$t"
 		done
-		chmod 600 "$file" ;;
+		chmod 600 "$file"
+		tok_owner ;;
 	list)
 		[ -r "$file" ] || { echo "longwire-switchboard: $file: cannot read it (no tokens made yet?)" >&2; exit 1; }
 		n=0
@@ -114,6 +124,7 @@ tokens_cmd() {
 		done < "$file"
 		[ $found -eq 1 ] || { echo "longwire-switchboard: that token is not in $file" >&2; exit 1; }
 		printf '%s' "$out" > "$file.new" && chmod 600 "$file.new" && mv "$file.new" "$file" || { echo "longwire-switchboard: cannot write $file" >&2; exit 1; }
+		tok_owner
 		echo "removed" ;;
 	*) echo "usage: longwire-switchboard token new [N] | list | remove TOKEN   [--tokens FILE] [--state DIR]" >&2; exit 2 ;;
 	esac

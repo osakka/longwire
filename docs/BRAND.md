@@ -75,8 +75,8 @@ poles and text automatically in dark mode.
 | **hang-up red** | `#D9473F` | rejected, key changed, failure |
 
 Status colours mean the same thing everywhere: in the hibr desktop they are the active theme's own (dim when off, *info* while waiting, *good* when on,
-*warning* when ringing), and on Android the palette above *(planned: M6)*. The terminal narration is plain text; ANSI fallbacks (green, yellow, red)
-*(planned: M4)*. Copper is never used for a status.
+*warning* when ringing), and on Android the palette above *(planned: M6)*. In a terminal the sign that starts a sentence takes the colour: ✓ green, ✗ red, ⚠ amber, ☎ green for your own
+number and amber for someone calling; never into a pipe, with `NO_COLOR`, or on a dumb terminal (`LONGWIRE_COLOR=always` or `never` decides it). Copper is never used for a status.
 
 ## Type
 

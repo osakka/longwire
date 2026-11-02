@@ -211,6 +211,12 @@ def main():
     check("watching" in said and f"{anum} is calling" in said and "safety phrase" in said and "run: longwire pickup" in said,
           f"watch narrates the ring as sentences, with the phrase and what to run: {said.strip()[:200]!r}")
     check("connected to" in said and "malformed" not in said, f"and narrates the connection, with no parse error: {said.strip()[-400:]!r}")
+    check("\x1b[" not in said and "\x1b[" not in out, "into a pipe, no colour codes")
+    rc_, plain = lwc("show")
+    r = nsx(HIBR, ROOT + "/scripts/longwire.hibr", "show", env=dict(env, LONGWIRE_COLOR="always"), capture_output=True, text=True, timeout=60)
+    check("\x1b[32m\u260e\x1b[0m" in r.stdout and "\x1b[" not in plain, f"LONGWIRE_COLOR=always: the telephone of your number is green, and only the sign: {r.stdout[:80]!r}")
+    r = nsx(HIBR, ROOT + "/scripts/longwire.hibr", "show", env=dict(env, LONGWIRE_COLOR="always", NO_COLOR="1"), capture_output=True, text=True, timeout=60)
+    check("\x1b[" in r.stdout, "LONGWIRE_COLOR=always wins over NO_COLOR, as it says")
     A.cmd("hangup")
     A.stop()
     lwc("off")

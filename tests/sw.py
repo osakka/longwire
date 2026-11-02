@@ -36,6 +36,10 @@ fn dt_mark(...a) { echo "MARK $1|$2|$3"; }
 fn dt_dim(...a) { echo "DIM $1"; }
 fn dt_sep() { return 0; }
 fn dt_editmenu() { echo "MENU Edit"; }
+fn dt_jobdir() { DTJ_DIR=%(t)s/jobs; mkdir -p "$DTJ_DIR"; }
+declare -gA DTJ
+fn dt_ptyjob(kind, tag, then, prompt, ...cmd) { echo "PTYJOB ${cmd[*]}"; ret 9; }
+fn dt_jobfile(int n, which = "out") { ret "%(t)s/jobs/$n.$which"; }
 console() { if [ "$1" = put ]; then printf 'PUT %%s %%s %%s %%s\n' "$3" "$4" "$5" "$6"; fi; return 0; }
 . %(app)s
 fn show(int id) {
@@ -53,7 +57,7 @@ fn show(int id) {
 
 
 def drive(sock, body, **more):
-    src = DRIVER % dict(mod=MOD, app=APP, body=body)
+    src = DRIVER % dict(mod=MOD, app=APP, body=body, t=T)
     e = dict(os.environ, HOME=f"{T}/swhome", LW_SOCK="/nonexistent", SB_DIR=os.path.dirname(sock), DT_SW_SOCK=sock)
     e.update(more)
     r = subprocess.run([HIBR, "-c", src], env=e, capture_output=True, text=True, timeout=60)
@@ -184,9 +188,37 @@ echo CLOSED "${{SW[1][nf]-}}" "${{SW[1][fd]-}}"'''
     check(calls and calls[0][0] == num["A"] and calls[0][1] == num["B"] and calls[0][2] == "through",
           f"a call it heard ring is on the board, and then put through: {calls} {res.get('r') and res['r'].stderr[-300:]}")
     check("AFTER 0" in out, "after the linger time it is gone, and nothing remembers it")
+    check(any(l.strip() == "CLOSED" for l in out), f"closing the window leaves no calls or nodes behind: {out[-6:]} {res.get('r') and res['r'].stderr[-400:]}")
+    # the tokens (docs/adr/0050): the window's own switchboard's file, read and changed at once; a service's, through please
+    os.makedirs(f"{T}/bin", exist_ok=True)
+    open(f"{T}/bin/longwire-switchboard", "w").write(f"#!/bin/sh\nexec {HIBR} {L.ROOT}/scripts/longwire-switchboard.hibr \"$@\"\n")
+    os.chmod(f"{T}/bin/longwire-switchboard", 0o755)
+    tenv = dict(PATH=f"{T}/bin:" + os.environ["PATH"], DT_SW_TOKENS=f"{T}/tok/tokens")
+    os.makedirs(f"{T}/tok", exist_ok=True)
+    out, r = drive(S.sock, "switchboard_open 1; switchboard_key 1 t; switchboard_draw 1 22 74 1 1", **tenv)
+    text = "\n".join(l for l in out if l.startswith("PUT "))
+    check("Tokens (0 unspent)" in text and "No unspent tokens" in text, f"t shows the tokens: none yet, and says n makes one: {r.stderr[-300:]}")
+    out, r = drive(S.sock, "switchboard_open 1; switchboard_key 1 t; switchboard_key 1 n; switchboard_draw 1 22 74 1 1; x := switchboard_copy 1; echo COPY $x", **tenv)
+    text = "\n".join(l for l in out if l.startswith("PUT "))
+    tok = [l[5:] for l in out if l.startswith("COPY ")]
+    filetoks = [l.strip() for l in open(f"{T}/tok/tokens") if l.strip()]
+    check(tok and len(tok[0]) == 20 and filetoks == tok and "Tokens (1 unspent)" in text and "(new)" in text and any("A new token" in l and tok[0] in l for l in out),
+          f"n makes a token in the file, shows it marked new, a note says it, and Copy takes it: {tok} {filetoks} {r.stderr[-300:]}")
+    out, r = drive(S.sock, "switchboard_open 1; switchboard_key 1 t; switchboard_key 1 x; sw_tokdeldo; switchboard_draw 1 22 74 1 1", **tenv)
+    text = "\n".join(l for l in out if l.startswith("PUT "))
+    check(any(l.startswith("CONFIRM sw_tokdeldo") for l in out) and "Tokens (0 unspent)" in text and not [l for l in open(f"{T}/tok/tokens") if l.strip()],
+          f"x asks, then removes it: {[l for l in out if l.startswith(('CONFIRM','NOTE'))]} {r.stderr[-200:]}")
+    os.makedirs(f"{T}/svc", exist_ok=True); open(f"{T}/svc/tokens", "w").write("abc\n"); os.chmod(f"{T}/svc/tokens", 0); os.chmod(f"{T}/svc", 0o500)
+    out, r = drive(S.sock, "switchboard_open 1; switchboard_key 1 t; switchboard_draw 1 22 74 1 1; switchboard_key 1 r", **dict(tenv, DT_SW_TOKENS=f"{T}/svc/tokens", SW_TOKPRIV_TEST="1"))
+    text = "\n".join(l for l in out if l.startswith("PUT "))
+    check("belong to the switchboard's service" in text and any(l.startswith("PTYJOB please ") and l.endswith(f"token list --tokens {T}/svc/tokens") for l in out),
+          f"a file that is not the person's own is read only when asked (r), through please: {[l for l in out if l.startswith('PTYJOB')]} {r.stderr[-200:]}")
+    os.chmod(f"{T}/svc", 0o700)
+    out, r = drive(S.sock, "switchboard_open 1; DT_FOCUS=1; switchboard_key 1 t; switchboard_menus", **tenv)
+    check("MENU Tokens" in out and any(l.startswith("ITEM New Token|n") for l in out) and any(l.startswith("ITEM Remove Token") for l in out) and any(l.startswith("MARK Tokens|t|1") for l in out)
+          and any(l.startswith("ITEM Tokens File") for l in out), f"a Tokens menu (New, Remove, Copy, Read Again), View > Tokens ticked, File > Tokens File: {[l for l in out if 'Token' in l]}")
     st = S.status()
     check(st.get("rings", 0) >= 1 and st.get("put_through", 0) >= 1, f"the switchboard counts the rings and the calls put through: rings {st.get('rings')} through {st.get('put_through')}")
-    check(any(l.strip() == "CLOSED" for l in out), f"closing the window leaves no calls or nodes behind: {[l for l in out if l.startswith('CLOSED')]}")
     for n in (A, B, S):
         n.stop()
 

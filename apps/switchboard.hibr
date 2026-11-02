@@ -18,16 +18,21 @@
 
 strict
 
-app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.31
+app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.32
 # modules: longwire
 command -v dt_app > /dev/null && dt_app switchboard "Switchboard" 24 76 once "☎"
 
 declare -gA SW SWN SWF SWB
-declare -g SW_LIFT= SW_LIFTID=
+declare -gA SWT
+declare -g SW_LIFT= SW_LIFTID= SW_TOKJOB= SW_TOKDEL= SW_TOKCUR=
 
 # The switchboard's control socket, if it is not where `longwire-switchboard` puts it.
 DT_SW_SOCK="${DT_SW_SOCK-}"
 command -v dt_keep > /dev/null && dt_keep DT_SW_SOCK
+
+# The switchboard's tokens file, if it is not where it would be looked for (docs/adr/0050).
+DT_SW_TOKENS="${DT_SW_TOKENS-}"
+command -v dt_keep > /dev/null && dt_keep DT_SW_TOKENS
 
 SW_SCANMS=1000
 SW_HISTMAX=120
@@ -353,6 +358,181 @@ fn sw_service() {
 	SW_SVC=$(systemctl is-active longwire-switchboard.service 2> /dev/null)
 }
 
+# --- the tokens (docs/adr/0050) ----------------------------------------------------------------------------------------
+# The invitations a switchboard spends at registration live in a file, not behind its control socket. The window finds the file: the one named in the
+# settings; for the service, the --tokens in /etc/longwire/switchboard.conf (or its state folder's); else the one beside the switchboard run by hand.
+# A service's file is its own user's: reading or changing it goes through please, which asks for the administrator's password.
+
+fn sw_tokfile() {
+	local sock line
+
+	if [ -n "$DT_SW_TOKENS" ]; then ret "$DT_SW_TOKENS"; return 0; fi
+	sock := sw_sock
+	if [ "$sock" = "${LW_RUN:-/run}/longwire-switchboard/ctl" ]; then
+		line=
+		[ -r "${LONGWIRE_ETC:-/etc/longwire}/switchboard.conf" ] && read -r line < "${LONGWIRE_ETC:-/etc/longwire}/switchboard.conf"
+		if [[ $line =~ --tokens\ ([^\ \"]+) ]]; then ret "${M[1]}"; return 0; fi
+		ret "/var/lib/longwire-switchboard/tokens"
+		return 0
+	fi
+	ret "${SB_DIR:-$HOME/.longwire/switchboard}/tokens"
+}
+
+# Whether the file needs the administrator: it cannot be read, or its folder cannot be written, by whoever runs the window.
+fn sw_tokpriv(f) {
+	local d=${f%/*}
+	[ -z "${SW_TOKPRIV_TEST:-}" ] || return 0		# the tests run as a namespace's root, which can read any file
+
+	if [ -e "$f" ]; then
+		[ -r "$f" ] && [ -w "$d" ] && return 1
+		return 0
+	fi
+	[ -d "$d" ] && [ -w "$d" ] && return 1
+	[ ! -e "$d" ] && [ -w "${d%/*}" ] && return 1
+	return 0
+}
+
+fn sw_tokcmd() {
+	local c
+
+	c=$(command -v longwire-switchboard 2> /dev/null)
+	[ -n "$c" ] || c=${SW_TOKBIN:-}
+	ret "$c"
+}
+
+# What the token command printed: one token per line (a reserved number may follow it), into the list.
+fn sw_tokparse(int id, f) {
+	local line i=0
+
+	SWT[$id]["n"]=0
+	[ -r "$f" ] || return 0
+	while IFS= read -r line; do
+		line=${line%$'\r'}			# a pty's line ends
+		case $line in *assword*) continue ;; esac	# the prompt please's polkit printed, on the same terminal
+		[[ $line =~ ^[A-Za-z0-9._~+=,:@/-]+( [0-9-]+)?$ ]] || continue
+		SWT[$id]["t$i"]=$line
+		i=$((i + 1))
+	done < "$f"
+	SWT[$id]["n"]=$i
+	SWT[$id]["loaded"]=1
+}
+
+# Run the token command (list, new or remove): at once when the file is the person's own, else as a job through please.
+fn sw_tokrun(int id, then, ...args) {
+	local f c out
+
+	f := sw_tokfile
+	c := sw_tokcmd
+	if [ -z "$c" ]; then dt_notep high "longwire-switchboard is not installed here: the longwire package has it"; return 1; fi
+	if sw_tokpriv "$f"; then
+		[ -z "$SW_TOKJOB" ] || return 0
+		SW_TOKJOB := dt_ptyjob switchboard tokens "$then" sw_tokprompt please "$c" token "${args[@]}" --tokens "$f"
+		[ -n "$SW_TOKJOB" ] || { dt_notep high "Could not start please"; return 1; }
+		return 0
+	fi
+	dt_jobdir || return 1
+	out="$DTJ_DIR/swtok.out"
+	"$c" token "${args[@]}" --tokens "$f" > "$out" 2>&1
+	"$then" 0 $? "$out"
+}
+
+fn sw_tokprompt(int n, text) {
+	case $text in *"assword: "|*"assword:") ;; *) return 1 ;; esac
+	[ -n "${DTJ[$n]["asking"]}" ] && return 0
+	DTJ[$n]["asking"]=1
+	dt_ask "Authentication" "Password:" "" sw_tokpw "The switchboard's tokens belong to its service: the administrator's (root) password" 1 76 sw_tokpwno > /dev/null
+	return 0
+}
+
+fn sw_tokpw(v, int? id = "") {
+	local n=$SW_TOKJOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	pty write "${DTJ[$n]["pty"]}" "$v"$'\r'
+	DTJ[$n]["asking"]=
+	return 0
+}
+
+fn sw_tokpwno(int? id = "") {
+	local n=$SW_TOKJOB
+
+	[ -n "$n" ] && [ -n "${DTJ[$n]["pty"]}" ] || return 0
+	DTJ[$n]["cancelled"]=1
+	pty write "${DTJ[$n]["pty"]}" $'\003' 2> /dev/null
+	return 0
+}
+
+# A job's output: a pty job's file, or the one a direct run wrote.
+fn sw_tokout(int n, out = "") {
+	if [ -n "$out" ]; then ret "$out"; return 0; fi
+	dt_jobfile "$n" out
+}
+
+fn sw_toklisted(int n, int st, out = "") {
+	local f id=$SW_TOKCUR
+
+	SW_TOKJOB=
+	f := sw_tokout "$n" "$out"
+	if [ "$st" != 0 ]; then
+		if [ -n "${DTJ[$n]["cancelled"]-}" ]; then dt_notep low "Cancelled"; else
+			SWT[$id]["n"]=0; SWT[$id]["loaded"]=1		# no file yet: no tokens
+		fi
+		return 0
+	fi
+	sw_tokparse "$id" "$f"
+	return 0
+}
+
+fn sw_tokmade(int n, int st, out = "") {
+	local f id=$SW_TOKCUR t=
+
+	SW_TOKJOB=
+	f := sw_tokout "$n" "$out"
+	if [ "$st" != 0 ]; then
+		[ -n "${DTJ[$n]["cancelled"]-}" ] && dt_notep low "Cancelled" || dt_notep high "Could not make a token"
+		return 0
+	fi
+	if [ -r "$f" ]; then
+		while IFS= read -r t; do t=${t%$'\r'}; [[ $t =~ ^[0-9a-f]{20}$ ]] && break; t=; done < "$f"
+	fi
+	SWT[$id]["new"]=$t
+	dt_notep low "A new token: %s (c copies it; give it to one machine)" "$t"
+	sw_tokrun "$id" sw_toklisted list
+}
+
+fn sw_tokgone(int n, int st, out = "") {
+	local id=$SW_TOKCUR
+
+	SW_TOKJOB=
+	if [ "$st" != 0 ]; then
+		[ -n "${DTJ[$n]["cancelled"]-}" ] && dt_notep low "Cancelled" || dt_notep high "Could not remove the token"
+		return 0
+	fi
+	dt_notep low "Token removed"
+	sw_tokrun "$id" sw_toklisted list
+}
+
+fn sw_tokdelask(int id) {
+	local sel=${SW[$id]["sel"]:-0}
+
+	[ "${SWT[$id]["n"]:-0}" -gt 0 ] || { dt_notep low "No token chosen"; return 0; }
+	SW_TOKDEL=${SWT[$id]["t$sel"]%% *}
+	SW_TOKCUR=$id
+	dt_confirm "Remove the token ${SW_TOKDEL:0:8}${GL[ellipsis]}? A machine that has not used it yet can no longer register with it." sw_tokdeldo
+}
+
+fn sw_tokdeldo() {
+	[ -n "$SW_TOKDEL" ] || return 0
+	sw_tokrun "$SW_TOKCUR" sw_tokgone remove "$SW_TOKDEL"
+	SW_TOKDEL=
+}
+
+fn swb_settokens(text, int? id = "") {
+	DT_SW_TOKENS=$text
+	command -v dt_save > /dev/null && dt_save
+	return 0
+}
+
 # --- the window ---------------------------------------------------------------------------------------------------------
 
 fn switchboard_open(int id) {
@@ -368,7 +548,7 @@ fn switchboard_open(int id) {
 fn switchboard_close(int id) {
 	[ "${SW[$id]["fd"]}" = 1 ] && exec 7<&-
 	# nothing is kept: not the calls, not the nodes
-	unset SWF[$id] SWN[$id] SW[$id] SWB[$id]
+	unset SWF[$id] SWN[$id] SW[$id] SWB[$id] SWT[$id]
 	dt_searchfree "$id"
 	return 0
 }
@@ -420,7 +600,7 @@ fn sw_drawcalls(int id, int r0, int rows, int w, int now) {
 }
 
 fn switchboard_draw(int id, int h, int w, int row, int col) {
-	local now sock i k num r r0 vis top sel n total on max bw filled bar nw name lamp line ago sp1 sp2 half fr rin rout srows q
+	local now sock i k num r r0 vis top sel n total on max bw filled bar nw name lamp line ago sp1 sp2 half fr rin rout srows q tf
 	local -a idx
 
 	now := dt_ms
@@ -532,7 +712,11 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 	[ "$vis" -lt 1 ] && vis=1
 	SW[$id]["vis"]=$vis
 	q=
-	if [ "${SW[$id]["view"]}" = bans ]; then
+	if [ "${SW[$id]["view"]}" = tokens ]; then
+		n=${SWT[$id]["n"]:-0}
+		console pen "$DT_INK" "$DT_FACE" bold
+		sw_put "$id" "$r0" 1 "Tokens ($n unspent)   n new   x remove   c copy   t back"
+	elif [ "${SW[$id]["view"]}" = bans ]; then
 		n=${SWB[$id]["n"]:-0}
 		console pen "$DT_INK" "$DT_FACE" bold
 		sw_put "$id" "$r0" 1 "Bans ($n)   x lifts the one chosen   b back to the nodes"
@@ -563,6 +747,13 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 	r=$((r0 + 1))
 	for ((i = top; r < r0 + 1 + vis; i++, r++)); do
 		if [ "$i" -ge "$n" ]; then break; fi
+		if [ "${SW[$id]["view"]}" = tokens ]; then
+			line=${SWT[$id]["t$i"]}
+			[ "${line%% *}" = "${SWT[$id]["new"]-}" ] && line+="   (new)"
+			if [ "$i" = "$sel" ]; then console pen "$DT_SELINK" "$DT_ACTIVE" bold; else console pen "$DT_INK" "$DT_FACE"; fi
+			sw_put "$id" "$r" 1 " ${GL[dot]} $line"
+			continue
+		fi
 		if [ "${SW[$id]["view"]}" = bans ]; then
 			ago := sw_ago "${SWB[$id]["s$i"]:-0}"
 			line="key ${SWB[$id]["k$i"]:0:16}${GL[ellipsis]}  $ago left  (ban ${SWB[$id]["l$i"]} in a row)"
@@ -599,7 +790,14 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 	done
 	if [ "$n" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
-		if [ "${SW[$id]["view"]}" = bans ]; then
+		if [ "${SW[$id]["view"]}" = tokens ]; then
+			tf := sw_tokfile
+			if [ "${SWT[$id]["loaded"]-}" != 1 ]; then
+				sw_put "$id" $((r0 + 1)) 2 "The tokens in $tf belong to the switchboard's service: r reads them (the administrator's password)."
+			else
+				sw_put "$id" $((r0 + 1)) 2 "No unspent tokens in $tf: registration needs one if the switchboard runs with --tokens. n makes one."
+			fi
+		elif [ "${SW[$id]["view"]}" = bans ]; then
 			sw_put "$id" $((r0 + 1)) 2 "Nobody is banned."
 		elif [ -n "$q" ] || [ "${SW[$id]["only"]}" = 1 ]; then
 			sw_put "$id" $((r0 + 1)) 2 "No node matches."
@@ -621,10 +819,10 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 }
 
 fn switchboard_key(int id, key) {
-	local n=${SW[$id]["n"]:-0} vis=${SW[$id]["vis"]:-1} sel=${SW[$id]["sel"]:-0} top=${SW[$id]["top"]:-0} q0 q1
+	local n=${SW[$id]["n"]:-0} vis=${SW[$id]["vis"]:-1} sel=${SW[$id]["sel"]:-0} top=${SW[$id]["top"]:-0} q0 q1 tf
 
 	q0 := dt_searchq "$id"
-	if [ "${SW[$id]["view"]}" != bans ] && dt_searchkey "$id" "$key"; then	# `/` and what is typed after it: the search, on the window's last row
+	if [ "${SW[$id]["view"]}" = nodes ] && dt_searchkey "$id" "$key"; then	# `/` and what is typed after it: the search, on the window's last row
 		q1 := dt_searchq "$id"
 		if [ "$q0" != "$q1" ]; then
 			SW[$id]["sel"]=0
@@ -642,7 +840,16 @@ fn switchboard_key(int id, key) {
 	o) [ "${SW[$id]["only"]}" = 1 ] && SW[$id]["only"]=0 || SW[$id]["only"]=1; SW[$id]["sel"]=0; SW[$id]["top"]=0; return 0 ;;
 	b) if [ "${SW[$id]["view"]}" = bans ]; then SW[$id]["view"]=nodes; else SW[$id]["view"]=bans; SWB[$id]["n"]=0; SW[$id]["scant"]=; fi
 	   SW[$id]["sel"]=0; SW[$id]["top"]=0; return 0 ;;
-	x | delete) sw_liftask "$id"; return 0 ;;
+	t) if [ "${SW[$id]["view"]}" = tokens ]; then SW[$id]["view"]=nodes; else
+	       SW[$id]["view"]=tokens; SWT[$id]["loaded"]=; SWT[$id]["n"]=0
+	       tf := sw_tokfile
+	       sw_tokpriv "$tf" || { SW_TOKCUR=$id; sw_tokrun "$id" sw_toklisted list; }	# the person's own file is read at once; a service's when asked (r)
+	   fi
+	   SW[$id]["sel"]=0; SW[$id]["top"]=0; return 0 ;;
+	r) [ "${SW[$id]["view"]}" = tokens ] || return 1; SW_TOKCUR=$id; sw_tokrun "$id" sw_toklisted list; return 0 ;;
+	n) [ "${SW[$id]["view"]}" = tokens ] || return 1; SW_TOKCUR=$id; sw_tokrun "$id" sw_tokmade new 1; return 0 ;;
+	T) dt_ask "Tokens file" "File" "$DT_SW_TOKENS" swb_settokens "the switchboard's tokens file (its --tokens); empty to find it"; return 0 ;;
+	x | delete) if [ "${SW[$id]["view"]}" = tokens ]; then sw_tokdelask "$id"; else sw_liftask "$id"; fi; return 0 ;;
 	c) command -v dt_editdo > /dev/null && dt_editdo copy; return 0 ;;	# the desktop's own Copy, which asks switchboard_copy
 	s) dt_ask "Switchboard socket" "Socket" "$DT_SW_SOCK" swb_setsock "the worker's control socket; empty for the usual one"; return 0 ;;
 	*) return 1 ;;
@@ -690,19 +897,22 @@ fn sw_liftdo() {
 
 # The menus: every key the window answers is here, named (docs/adr/0049).
 switchboard_menus() {
-	local id=$DT_FOCUS mo=0 mb=0
+	local id=$DT_FOCUS mo=0 mb=0 mt=0
 
 	[ "${SW[$id]["only"]}" = 1 ] && mo=1
 	[ "${SW[$id]["view"]}" = bans ] && mb=1
+	[ "${SW[$id]["view"]}" = tokens ] && mt=1
 
 	dt_menu "File"
 	dt_item "Switchboard Socket${GL[ellipsis]}" s switchboard_key "$id" s
+	dt_item "Tokens File${GL[ellipsis]}" T switchboard_key "$id" T
 	dt_sep
 	dt_item "Close Window" w dt_close_focused
 	dt_editmenu
 	dt_menu "View"
 	dt_mark "Online Only" o "$mo" switchboard_key "$id" o
 	dt_mark "Bans" b "$mb" switchboard_key "$id" b
+	dt_mark "Tokens" t "$mt" switchboard_key "$id" t
 	dt_sep
 	dt_item "Search${GL[ellipsis]}" f switchboard_find "$id"
 	dt_menu "Node"
@@ -711,6 +921,17 @@ switchboard_menus() {
 		dt_item "Lift Ban${GL[ellipsis]}" x switchboard_key "$id" x
 	else
 		dt_dim "Lift Ban${GL[ellipsis]}"
+	fi
+	dt_menu "Tokens"
+	if [ "$mt" = 1 ]; then
+		dt_item "New Token" n switchboard_key "$id" n
+		dt_item "Remove Token${GL[ellipsis]}" x switchboard_key "$id" x
+		dt_item "Copy Token" c dt_editdo copy
+		dt_item "Read Again" r switchboard_key "$id" r
+	else
+		dt_item "Show Tokens" t switchboard_key "$id" t
+		dt_dim "New Token"
+		dt_dim "Remove Token${GL[ellipsis]}"
 	fi
 }
 
@@ -736,6 +957,11 @@ fn switchboard_copy(int id) {
 	local -a idx
 
 	[ "$n" -gt 0 ] || return 1
+	if [ "${SW[$id]["view"]}" = tokens ]; then
+		[ -n "${SWT[$id]["t$sel"]}" ] || return 1
+		ret "${SWT[$id]["t$sel"]%% *}"		# the token itself, to hand to one machine
+		return 0
+	fi
 	if [ "${SW[$id]["view"]}" = bans ]; then
 		[ -n "${SWB[$id]["k$sel"]}" ] || return 1
 		ret "${SWB[$id]["k$sel"]}"		# the banned key, whole, for `bans clear`

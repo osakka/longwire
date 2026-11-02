@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.31
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.32
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.31}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.32}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -71,7 +71,38 @@ EOF
 
 # hibr holds plain stdout back when it is redirected (a service's log), so the node narrates on stderr,
 # which is unbuffered: a line appears when the thing happens, in a terminal and under a service manager.
-say() { echo "$@" >&2; }
+# Colour on a terminal (docs/BRAND.md): only the sign at the start of a sentence, in the status colours: ✓ green, ✗ red, ⚠ amber, ☎ green for your own
+# number and amber for someone calling. NO_COLOR, a dumb terminal or a pipe means none; LONGWIRE_COLOR=always or never decides it outright.
+lw_colour_on() {
+	case ${LONGWIRE_COLOR:-} in always) return 0 ;; never) return 1 ;; esac
+	[ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != dumb ] && [ -t "$1" ]
+}
+LW_C1=0; lw_colour_on 1 && LW_C1=1
+LW_C2=0; lw_colour_on 2 && LW_C2=1
+fn lw_paint(int on, line) {
+	local lead body g c=
+	[ "$on" = 1 ] || { ret "$line"; return 0; }
+	body=${line#"${line%%[! ]*}"}
+	lead=${line%"$body"}
+	case $body in
+	"✓"*) g="✓"; c=32 ;;
+	"✗"*) g="✗"; c=31 ;;
+	"⚠"*) g="⚠"; c=33 ;;
+	"☎"*) g="☎"; c=32; case $body in *calling* | *joining* | *rings*) c=33 ;; esac ;;
+	esac
+	[ -n "$c" ] || { ret "$line"; return 0; }
+	ret "$lead"$'\033'"[${c}m$g"$'\033'"[0m${body#"$g"}"
+}
+lw_out() {
+	local l
+	l := lw_paint "$LW_C1" "$*"
+	printf '%s\n' "$l"
+}
+say() {
+	local l
+	l := lw_paint "$LW_C2" "$*"
+	printf '%s\n' "$l" >&2
+}
 
 # A sentence for each event, the way a person wants to read it.
 # Why a switchboard does not answer, as far as the probe of its host could tell (docs/adr/0048).
@@ -383,17 +414,17 @@ cmd_show() {
 	n=${S[full]:-}
 	profiles_read
 	if [ -n "$n" ]; then
-		echo "☎  your number $n${PDEFAULT:+    (profile $PDEFAULT)}"
+		lw_out "☎  your number $n${PDEFAULT:+    (profile $PDEFAULT)}"
 	else
-		echo "☎  waiting for a number from the switchboard${PDEFAULT:+    (profile $PDEFAULT)}"
+		lw_out "☎  waiting for a number from the switchboard${PDEFAULT:+    (profile $PDEFAULT)}"
 	fi
 	echo "   switchboard   ${S[switchboard]:-?}${S[nat]:+     NAT ${S[nat]}}"
 	if [ "${S[sb_quiet]:-0}" -ge 15 ] 2> /dev/null; then	# docs/adr/0048
-		echo "   ⚠  no answer from it for ${S[sb_quiet]} s: $(sb_quiet_why "${S[sb_host]:-}")"
+		lw_out "   ⚠  no answer from it for ${S[sb_quiet]} s: $(sb_quiet_why "${S[sb_host]:-}")"
 	fi
 	echo "   engine        ${S[version]:-unknown (older than 0.5.10)}"
 	notes=$(engine_notes "${S[version]:-}")
-	[ -z "$notes" ] || printf '%s\n' "$notes" | while IFS= read -r line; do echo "   ⚠  $line"; done
+	[ -z "$notes" ] || printf '%s\n' "$notes" | while IFS= read -r line; do lw_out "   ⚠  $line"; done
 	if [ -n "${S[tied]:-}" ]; then		# everything through the line (docs/adr/0045)
 		local erule
 		erule=$(PATH=$PATH:/usr/sbin:/sbin ip -4 route get 1.1.1.1 2> /dev/null)
@@ -432,7 +463,7 @@ cmd_show() {
 		[ -z "$phr" ] || echo "                 safety phrase: $phr"
 	done
 	t := json get S .cand_skipped
-	[ "${t:-0}" -gt 0 ] && echo "   ⚠  ${t} address(es) of the other end are inside your jack's own network and could not be reached another way, so they are not used (longwire watch names them)"
+	[ "${t:-0}" -gt 0 ] && lw_out "   ⚠  ${t} address(es) of the other end are inside your jack's own network and could not be reached another way, so they are not used (longwire watch names them)"
 	t := json type S .line
 	if [ "$t" = object ]; then
 		id := json get S .line.id

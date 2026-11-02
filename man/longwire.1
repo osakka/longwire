@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.31" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.32" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -478,6 +478,15 @@ starts (default
 .TP
 .B LONGWIRE_JACK
 The jack helper to run.
+.TP
+.B NO_COLOR
+When set, no colour, even on a terminal.
+.TP
+.B LONGWIRE_COLOR
+.B always
+or
+.B never
+colours the sign that starts each sentence, or does not, whatever else says; otherwise only on a terminal.
 .TP
 .B LONGWIRE_SITE
 The site helper to run.

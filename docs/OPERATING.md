@@ -52,8 +52,8 @@ The file belongs to the service's own user and nobody else can read it. (A group
 use, the tokens that have not been spent.) These steps have not been run under a live systemd by the author.
 
 The switchboard script can make, list and remove tokens itself, with no switchboard running and no `openssl`: `please longwire-switchboard token new 3 --tokens /var/lib/longwire-switchboard/tokens`
-prints three new tokens and adds them to the file (mode 0600); `token list` shows the unspent ones; `token remove TOKEN` takes one out. Run as root it leaves the file owned by root,
-so give it to the service again with the `chown` above.
+prints three new tokens and adds them to the file (mode 0600); `token list` shows the unspent ones; `token remove TOKEN` takes one out. Run as root it keeps the file
+owned by the folder's owner, the service. The **Switchboard** window does the same from the desktop (View > Tokens, [DESKTOP](DESKTOP.md#the-switchboard-window)).
 
 Open the firewall (`please ufw allow 1877:1878/udp`, or your own tool), read its address, and give each user a token:
 

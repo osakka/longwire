@@ -127,6 +127,9 @@ registrations, rings, calls put through and ended since it started, the **bans**
 | `x` | Node > Lift Ban… | lift the ban chosen (asks first; the switchboard's owner only) |
 | `c` | Node > Copy Number, Edit > Copy | the chosen node's number (among the bans, the whole key) |
 | `s` | File > Switchboard Socket… | which switchboard to watch, when it is not the usual one |
+| `t` | View > Tokens | the unspent tokens instead of the nodes ([ADR 0050](adr/0050-a-switchboards-tokens-are-made-in-its-window.md)); a service's are read when you press `r`, after the administrator's password |
+| `n` / `x` / `c` / `r` | Tokens > New Token, Remove Token…, Copy Token, Read Again | make one (a note says it), remove one (asks first), copy one to hand to a machine, read the file again |
+| `T` | File > Tokens File… | which tokens file, when it is not the one the switchboard is found to use |
 
 It shows no node's address or key ([ADR 0049](adr/0049-the-switchboard-window-shows-traffic-and-names-every-key.md); only the switchboard's own address and code in its heading, and a banned key's first digits among the bans), keeps no
 history, and decides nothing; the switchboard's script does that. It shows a switchboard you started yourself, or one an
