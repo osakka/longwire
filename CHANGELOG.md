@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.36
 
+*Published:* the catalogue (`hibr-apps` `e8ca543`) and the packages (`hibr-apt` `22b86fb`, `hibr-rpm` `24d2991`, `hibr-arch` `5f66876`). `make check` passed (836 checks).
+
 - **The switchboard has ports of its own** ([ADR 0053](docs/adr/0053-the-switchboard-has-ports-of-its-own.md)). The default listen port is **6741** (was 1877) and the echo port is the listen port + 2747: **9488** by default (was
   the port above). 1877 and 1878 are assigned by IANA to other services, and two adjacent ports were an easy fingerprint; 6741 and 9488 were unassigned for TCP and UDP. This is housekeeping, not
   security: a scanner finds a UDP service on any port, and the handshake is what guards it.
