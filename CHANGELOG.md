@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.33
 
+*Published:* the catalogue (`hibr-apps` `5fd581f`) and the packages (`hibr-apt` `6a4cb11`, `hibr-rpm` `5f6afc8`, `hibr-arch` `a3485ed`). `make check` passed (830 checks).
+
 - **longwire's datagrams may be split on the way** ([ADR 0051](docs/adr/0051-longwires-datagrams-may-be-split-on-the-way.md)). Every IPv4 socket of the engine now sends without "don't fragment". On a path narrower than a
   line's datagrams (up to about 1490 bytes) behind a router that sends no ICMP "fragmentation needed" (a path-MTU black hole, like the one found on the owner's home network), large datagrams were
   dropped in silence: a call connected and small traffic flowed, but bulk transfers over the line stalled. Now that router splits them and the far end puts them together. The line's sizes are
