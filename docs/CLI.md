@@ -90,7 +90,6 @@ profile home
   routes = 192.168.150.0/24          networks to reach through it, separated by commas: never the default route ([ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md))
   everything = yes                   send all of this machine's traffic through the gateway; needs gateway and a static address ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md))
   dns = 192.168.152.254              with everything: ask this name server, through the line, for every name (systemd-resolved; [ADR 0047](adr/0047-names-through-the-line-are-set-on-the-jack.md))
-  legacy_phrase = yes                let a node older than 0.5.21 through with the old, weaker safety phrase instead of ending the call (off by default)
   keep_jack = yes                    yes (the default): Turn off leaves the jack, so the next Turn on needs no password; no: Turn off removes it
   address = 10.77.0.2/24             this machine's address on the line (jack only; every machine its own, one subnet), or `dhcp`
   name = osakka
@@ -136,7 +135,6 @@ registers at a switchboard that wants one; after that the switchboard knows the 
 | `--underlay DEV` | the network device to reach peers by when your jack has an address in their network (default: the default route's); [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md) |
 | `--everything` | send all of this machine's traffic through the jack's own routing table (made by `longwire jack --everything`). Every socket of the engine is tied to the real network device (the default route's, or `--underlay`), so the line's own packets never go into the line; when that device changes the node lets go of the jack, says `roamed`, and `up` starts it again on the new one ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md), [ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)). Needs `--jack`. `up` adds it by itself when the jack's table already takes everything |
 | `--profile NAME` | take the connection from a saved [profile](#profiles); handled by the script |
-| `--allow-legacy-phrase` | show the old, weaker six-word phrase to a node older than 0.5.21, instead of ending the call (the default since 0.5.35, [ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)); a profile says `legacy_phrase = yes`. `--require-sas`, the old way to ask for the default, is still accepted |
 | `--cand-loopback` | offer 127.x as a call candidate: tests, and two nodes on one host |
 | `--seed FILE`, `--sock PATH`, `--state DIR` | where the identity, control socket and pins live (default `~/.longwire/`) |
 | `--group NAME\|GID` | give the control socket to that group at mode 0660, so its members can use it ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); the services use `longwire`. An unknown group stops the start |
@@ -160,7 +158,7 @@ the line, is never admitted that way: an evicted node is refused outright.
 
 The **safety phrase** is eight words, committed to by the caller before the callee speaks and derived from both nonces, both key ids and the session
 ([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)). It appears a moment after the call connects (the `sas` event), the same on both screens; the ring shows none. Reading it to each other over another channel defeats a lying switchboard on the
-first call. A call to an older node is ended, unless `--allow-legacy-phrase` lets it through with the old six-word phrase, marked as the weaker kind (`legacy`). A number is pinned to its key once the call is up, so a wrong phrase never leaves a pin to undo
+first call. A direct call whose other end does not do the exchange is ended ([ADR 0055](adr/0055-no-legacy.md)); a fellow member of your line is admitted by the line and shows no phrase. A number is pinned to its key once the call is up, so a wrong phrase never leaves a pin to undo
 ([ADR 0009](adr/0009-the-first-ring-asks-and-a-key-is-pinned-once-the-call-is-up.md)).
 
 ## Status
@@ -186,7 +184,7 @@ first call. A call to an older node is ended, unless `--allow-legacy-phrase` let
 | `full`, `switchboard_offers`, `switchboard_codes` | your full number (`+code number`); the switchboard keys and short codes this node has been told of |
 | `relay` | `routes`, `forwarded`, `dropped` and `offer` (whether this node offers to relay) |
 | `registrations`, `sb_rekeys` | `NUMBER` replies received; rekeys of the switchboard session |
-| `peers` | per peer: `key_id`, `number`, `state`, `path`, `ep`, `age`, `rx_frames`, `tx_frames`, `rx_bytes`, `tx_bytes` (the Ethernet frames carried each way, since the session started: [ADR 0031](adr/0031-a-connection-counts-the-frames-it-carries.md)), `rekeys`, `drop_auth`, `drop_replay`, `phrase` (the safety phrase once agreed, else empty), `legacy` (`false` once the committed phrase is in use) |
+| `peers` | per peer: `key_id`, `number`, `state`, `path`, `ep`, `age`, `rx_frames`, `tx_frames`, `rx_bytes`, `tx_bytes` (the Ethernet frames carried each way, since the session started: [ADR 0031](adr/0031-a-connection-counts-the-frames-it-carries.md)), `rekeys`, `drop_auth`, `drop_replay`, `phrase` (the safety phrase once agreed, else empty), `sas` (`agreed`, `pending`, or `line`: a fellow member admitted by the line, or a relayed call, which needs no phrase) |
 | `underlay`, `underlay_state`, `jack_nets`, `cand_skipped` | the device the underlay socket is tied to; `open`, `failed` or `unused`; how many networks the jack has, connected or routed through it; addresses of the other end left out because they lie inside the jack's networks and no underlay could be had ([ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)) |
 | `tied` | with `--everything`: the device every socket of the engine is tied to; empty otherwise ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)) |
 | `sb_quiet`, `sb_host` | seconds without a session with the switchboard (0 while there is one); what the probe of its host found at 15 s: `answers`, `large-lost`, `silent`, or empty (before 15 s, or a switchboard on IPv6, which the probe does not cover) ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)) |

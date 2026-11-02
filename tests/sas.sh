@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
-# The committed safety phrase (docs/adr/0040): what an end does with a commit, a reveal, a wrong one, silence and --require-sas. Built with TCC's bounds checker.
+# The committed safety phrase (docs/adr/0040): what an end does with a commit, a reveal, a wrong one, and silence, which ends the call. Built with TCC's bounds checker.
 set -e
 cd "$(dirname "$0")/.."
 B=build

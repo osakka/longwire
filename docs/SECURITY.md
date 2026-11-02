@@ -38,12 +38,10 @@ are worth knowing:
 
 - **It is committed to, not just derived.** The caller sends a commitment to a random number before the callee has said anything; the callee answers with a random number of its own; the caller then reveals; and the eight words (64 bits) come from
   both numbers, both key ids and a value only the two ends of that very session share ([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)). A switchboard that puts itself between two nodes holds two sessions with two different
-  values, and had to commit before it knew the other number: there is nothing to search offline. Each attempt is one call somebody sees, and it succeeds with probability about 2^-64. (Before 0.5.21 the phrase was six words from the two key ids and a
-  switchboard could grind substitute keys offline, a search of about 2^24 pairs.)
+  values, and had to commit before it knew the other number: there is nothing to search offline. Each attempt is one call somebody sees, and it succeeds with probability about 2^-64.
 - **You compare it after connecting.** The phrase needs the session, so it appears a moment after the call connects, on both ends (the ring shows none). Compare it on another channel and **hang up at once if the words differ**. The call is already on the line
   at that point; holding the call off the line until the words are confirmed is not built *(planned: M8)*.
-- **An older node gets the old phrase.** If the other end does not answer the exchange within five seconds, it is taken to be an older version and the old six-word phrase is shown, marked as the weaker kind. Something on the path that drops the exchange's
-  messages can force that. Since 0.5.35 such a call is ended by default (a mesh call to a fellow member, which the line's signatures already admit, is exempt); `--allow-legacy-phrase`, or `legacy_phrase = yes` in a profile, lets a node older than 0.5.21 through with the old phrase ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)). A relayed call between members always shows the old phrase; its admission is the line's signatures. A callee ends the call if the caller's reveal does not match its commitment, or does not come within 20 seconds.
+- **No exchange, no call.** If the other end does not answer the exchange within five seconds (a node older than 0.5.21, or something on the path that drops its messages), the call is ended as soon as anything arrives from that end (an end that sends nothing is left to the dead-peer timer): there is no weaker phrase to fall back to ([ADR 0055](adr/0055-no-legacy.md)). A mesh call to a fellow member, or a relayed call between members, needs no phrase: the line's signatures admitted them. A callee also ends the call if the caller's reveal does not match its commitment, or does not come within 20 seconds.
 - **Let longwire compare.** `longwire verify NUMBER WORDS…` (or **Verify…** in the pane) takes the other end's words and compares them for you; a difference ends the call and forgets the key, and a match is remembered with the key ([ADR 0054](adr/0054-a-phrase-is-checked-by-typing-the-other-ends-words.md)).
 - **After the first call it is moot.** The key is pinned. If the same number later answers with another key, the call is dropped and you
   are warned.
@@ -88,7 +86,7 @@ That is the honest sentence behind the word.
 ## What has been done to check it
 
 - **A test suite that builds real networks.** It runs the actual scripts over unprivileged network namespaces with simulated
-  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (843 checks in the run for 0.5.37).
+  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (843 checks in the run for 0.5.38).
 - **An attack on the switchboard,** the one component built to face the public. Before it was released, three readers went through every parser a stranger's bytes can
   reach. It found real flaws, three of them proven by tests that failed on the old code: strangers able to fill the switchboard's
   places for good, a registration token able to write into the policy script's event, and a switchboard able to connect a call nobody
@@ -124,7 +122,7 @@ and [THREAT-MODEL](THREAT-MODEL.md):
 - Floods of handshakes from many *real* addresses cost a key operation each, within a budget; the budget limits, it does not defend.
 - A pin is per switchboard: the same number on a different switchboard is a different pin.
 - Anyone in the group `longwire` on a service machine can occupy half of its event watchers.
-- A switchboard's echo port (its port + 2747, and + 1 for older nodes; IPv4) answers anyone with no handshake: 15 bytes for a 40-byte request (a reflector, not an amplifier), within a budget of 8 then 2 a second per source address and 1000 a second in all ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)). It tells a scanner that a switchboard runs on that host.
+- A switchboard's echo port (its port + 2747; IPv4) answers anyone with no handshake: 15 bytes for a 40-byte request (a reflector, not an amplifier), within a budget of 8 then 2 a second per source address and 1000 a second in all ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)). It tells a scanner that a switchboard runs on that host.
 - Bans live in memory: a switchboard that restarts forgets them.
 
 ## What it does not protect against

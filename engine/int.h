@@ -29,7 +29,7 @@
 #define OFFERS 1024			/* bundles offered ahead of a handshake: hashed by key id, so a flood costs bandwidth, not a few packets */
 #define HS_SLOTS 512			/* handshake fragments being put together: hashed by source, for the same reason */
 #define SRC_BUCKETS 512
-#define LW_ECHO_OFF 2747		/* a switchboard's echo port is its own + this (6741 -> 9488); its own + 1 too, for nodes before 0.5.36 (docs/adr/0053) */
+#define LW_ECHO_OFF 2747		/* a switchboard's echo port is its own + this: 6741 -> 9488 (docs/adr/0053) */
 static inline int echo_port_of(int p) { return p + LW_ECHO_OFF <= 65535 ? p + LW_ECHO_OFF : p - LW_ECHO_OFF; }
 #define ED_OFF (1 + 32 + LW_MLKEM_PK)	/* where a bundle keeps its Ed25519 public key */
 
@@ -62,7 +62,7 @@ typedef struct frag {		/* frames being put back together, per peer */
 typedef struct lw_sas {			/* the committed safety phrase of one call (docs/adr/0040) */
 	int      mode;			/* 0 no call of ours made this peer, 1 the committed phrase, 2 the old one (the other end did not answer: it is older, or something drops its messages) */
 	int      caller, state;		/* state: 0 waiting, 1 the phrase is known, 2 refused */
-	int      auto_;			/* a mesh call to a fellow member: --require-sas does not apply */
+	int      auto_;			/* a mesh call to a fellow member: admitted by the line, no phrase needed */
 	uint8_t  na[16], nb[16], c[32];	/* the caller's nonce and its commitment, the callee's nonce */
 	int      have_na, have_nb, have_c;
 	uint8_t  bind[32];		/* what both ends of this session share and a node in the middle does not */
@@ -273,7 +273,6 @@ struct lw_node {
 	double   jnet_at;
 	char     jnet_dev[32];
 	int      udp2;			/* a switchboard's echo port (echo_port_of(udp_port)): answers ECHO, so a node can tell its NAT's mapping type */
-	int      udp3;			/* and the old one, udp_port + 1, for nodes before 0.5.36 (--echo-legacy) */
 	int      nat;			/* 0 not measured, 1 easy (same mapping toward both ports), 2 strict (a new mapping per destination) */
 	uint8_t  echo_nonce[8];
 	int      echo_tries;
@@ -502,7 +501,6 @@ int  parse_full(const lw_node *n, const char *in, char out[NUMLEN + 1], char *er
 int  parse_number(const char *in, char out[NUMLEN + 1]);	/* 0 = ok, check digit verified */
 int  damm_ok(const char *digits, int n);
 void mint_number(char out[NUMLEN + 1]);
-void phrase_of(char *out, size_t cap, const uint8_t a[32], const uint8_t b[32]);
 
 /* line.c: lines of more than two nodes (docs/PROTOCOL.md §6) */
 void line_init(lw_node *n);

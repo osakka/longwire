@@ -188,7 +188,7 @@ The full design is a ladder, each rung tried when the one before fails:
 - **IPv6** *(built)*: a node holds a second socket for it ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)); a global address is a host candidate and a path between two such nodes needs no punching. The switchboard may be reached over either family; one reached over IPv6 sends zero in the IPv4 address field of `NUMBER` and `HBACK`.
 - **More candidates:** PCP, and relay candidates (public members of the line that
   offer relaying) *(planned: M7)*.
-- **Mapping type** *(built)*. A switchboard also listens on its echo port, its own port + 2747 (9488 for 6741), and until `--echo-legacy off` on its port + 1 for nodes before 0.5.36; a node asks both ([ADR 0053](adr/0053-the-switchboard-has-ports-of-its-own.md)). A node sends that port an `ECHO`
+- **Mapping type** *(built)*. A switchboard also listens on its echo port, its own port + 2747 (9488 for 6741) ([ADR 0053](adr/0053-the-switchboard-has-ports-of-its-own.md)). A node sends that port an `ECHO`
   (`0x07 ‖ nonce:8`, padded to 40 bytes) and gets back `0x07 ‖ nonce:8 ‖ ip:4 ‖ port:2`, the address it was seen at.
   The reply is shorter than the request, so it cannot be used to amplify. If the port is the one the main port saw,
   the NAT is endpoint-independent (EIM, "easy"); if it differs, endpoint-dependent (EDM, "hard"). The node reports it
@@ -269,9 +269,10 @@ A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. The messages 
 | `0x0b` | `SAS` | `kind:1` then: kind 0 `commit:32` (caller), kind 1 `nonce:16` (callee), kind 2 `reveal:16` (caller), kind 3 nothing (callee: acknowledged). The committed safety phrase ([CRYPTO §4.1](CRYPTO.md#41-the-safety-phrase), [ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)) |
 
 **The safety phrase exchange.** When a direct call's session is up, the caller sends kind 0 once a second until kind 1 arrives, then kind 2 once a second (at most 15 times) until kind 3 arrives.
-The callee answers every kind 0 with the same kind 1. A caller that hears no kind 1 within 5 s, or a callee that hears no kind 0 within 5 s, takes the other end to be older and shows the six-word
-phrase marked `legacy`; by default (since 0.5.35) it ends the call instead, and shows the six words only with `--allow-legacy-phrase`, unless the call is a mesh call to a fellow member. A callee that has a commitment but no reveal within 20 s ends the call, and
-so does one given a reveal that does not match the commitment. A relayed call has no exchange and shows the legacy phrase.
+The callee answers every kind 0 with the same kind 1. A caller that hears no kind 1 within 5 s, or a callee that hears no kind 0 within 5 s, ends the call, once it has heard anything at all from the other end (an end that has sent nothing may be gone, which the dead-peer timer reports as a lost
+call), unless it is a mesh call to a fellow member, which the
+line's signatures admit and which goes on with no phrase ([ADR 0055](adr/0055-no-legacy.md)). A callee that has a commitment but no reveal within 20 s ends the call, and
+so does one given a reveal that does not match the commitment. A relayed call has no exchange and no phrase: only members are relayed.
 
 ### Lines and party lines
 

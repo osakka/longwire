@@ -29,8 +29,7 @@ first place to look, and [TROUBLESHOOTING](TROUBLESHOOTING.md) the second.
 
 The switchboard gives nodes their numbers and introduces two nodes that want to talk. It is not on the data path, so a small server
 is enough, but it must be reachable from the internet on **UDP on its listen port and its echo port** (6741 and 9488 by default: the echo port is the listen port + 2747, and
-answers the NAT-type check and a node's probe when the switchboard is silent to it). Nodes before 0.5.36 ask the listen port + 1 instead (6742), which the switchboard also answers
-until `--echo-legacy off` ([ADR 0053](adr/0053-the-switchboard-has-ports-of-its-own.md)).
+answers the NAT-type check and a node's probe when the switchboard is silent to it; [ADR 0053](adr/0053-the-switchboard-has-ports-of-its-own.md)).
 
 ```
 please apt install longwire
@@ -56,7 +55,7 @@ The switchboard script can make, list and remove tokens itself, with no switchbo
 prints three new tokens and adds them to the file (mode 0600); `token list` shows the unspent ones; `token remove TOKEN` takes one out. Run as root it keeps the file
 owned by the folder's owner, the service. The **Switchboard** window does the same from the desktop (View > Tokens, [DESKTOP](DESKTOP.md#the-switchboard-window)).
 
-Open the firewall (`please ufw allow 6741,9488,6742/udp`; 6742 only while nodes before 0.5.36 remain), or your own tool,, read its address, and give each user a token:
+Open the firewall (`please ufw allow 6741,9488/udp`, or your own tool), read its address, and give each user a token:
 
 ```
 please journalctl -u longwire-switchboard -n 10 --no-pager | grep switchboard
@@ -185,8 +184,7 @@ LW_SOCK=/run/longwire/eth0/ctl longwire show      # the engine line of a site no
 ```
 
 A release note that says it is a switchboard fix needs the package on the switchboard's machine and that restart; a switchboard's status does not name its
-engine. If `doctor` still says the package is older after the upgrade, `apt policy longwire` shows what is installed and what the repository offers (apt
-never moves to a lower version on its own: a machine that took the withdrawn 0.6.0 needs `please apt install --allow-downgrades longwire=VERSION-1`). A script
+engine. If `doctor` still says the package is older after the upgrade, `apt policy longwire` shows what is installed and what the repository offers. A script
 newer than the module can fail with `unknown option` (for example, `--max-numbers` against an older module): upgrade the package first.
 
 ## Remove
@@ -203,9 +201,9 @@ up the number.
 
 ## Ports, firewalls and NATs
 
-- A **switchboard** needs UDP inbound on its listen port and its echo port (the listen port + 2747), and, while nodes before 0.5.36 remain, the listen port + 1:
-  `please ufw allow 6741,9488,6742/udp`, or in an nftables `inet filter input` chain `please nft add rule inet filter input udp dport '{ 6741, 9488, 6742 }' accept`. A provider's firewall in
-  front of the machine needs the same. A switchboard that keeps `--listen 1877` from before keeps its port; its echo port becomes 4624, and 1878 still answers.
+- A **switchboard** needs UDP inbound on its listen port and its echo port (the listen port + 2747): `please ufw allow 6741,9488/udp`, or in an nftables `inet filter input` chain
+  `please nft add rule inet filter input udp dport '{ 6741, 9488 }' accept`. A provider's firewall in front of the machine needs the same. A switchboard on another port has its echo port
+  that + 2747 (`--listen 1877`: 4624).
 - A **node** needs no inbound port: it opens one outbound to the switchboard and punches through its NAT. It listens on a port of its
   own choosing (`--listen` fixes it); a firewall that allows outbound UDP and its replies is enough.
 - Two machines behind ordinary home routers connect directly. Two behind *strict* (symmetric) NATs need a relay: another machine of
@@ -214,7 +212,7 @@ up the number.
 ## When a node gets no number
 
 A node with no session with its switchboard after 15 seconds says so in its log (`please journalctl -u longwire@NIC`, or `~/.longwire/log` after `longwire on`), in `longwire watch`, and in
-`longwire show` (`⚠ no answer from it for N s: …`). At 12 seconds it sent one 40-byte packet to the echo ports of the switchboard's machine (its port + 2747, and its port + 1, which an older switchboard uses), which answer anyone, banned or not, and when that came back, one as large as a
+`longwire show` (`⚠ no answer from it for N s: …`). At 12 seconds it sent one 40-byte packet to the echo port of the switchboard's machine (its port + 2747), which answers anyone, banned or not, and when that came back, one as large as a
 handshake datagram (1276 bytes on the wire).
 What came back decides the sentence ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)):
 

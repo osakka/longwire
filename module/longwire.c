@@ -24,7 +24,7 @@
 #include "../engine/lw.h"
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.37"
+#define LW_VERSION "0.5.38"
 #endif
 
 static void default_sock(char *out, size_t n)
@@ -302,20 +302,10 @@ static int do_start(sh *s, int ac, char **av, int role)
 		c->net_keys = 5;
 		c->net_for = 900;
 		c->ban_ceiling = 1000;
-		c->echo_legacy = 1;			/* the old echo port too, for nodes before 0.5.37 (docs/adr/0053) */
-	} else
-		c->require_sas = 1;			/* the committed safety phrase or none: the old six words only when asked for (docs/adr/0052) */
+	}
 	for (i = 2; i < ac; i++) {
 		const char *a = av[i], *v = i + 1 < ac ? av[i + 1] : 0;
 
-		if (!strcmp(a, "--require-sas")) {	/* the default since 0.5.37: still accepted */
-			c->require_sas = 1;
-			continue;
-		}
-		if (!strcmp(a, "--allow-legacy-phrase")) {	/* show the old six-word phrase to a node older than 0.5.21, instead of ending the call */
-			c->require_sas = 0;
-			continue;
-		}
 		if (!strcmp(a, "--everything")) {
 			c->everything = 1;
 			continue;
@@ -385,8 +375,6 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->no_nat_pmp = !strcmp(v, "off");
 		else if (!strcmp(a, "--caller-id") && role)
 			c->no_caller_id = !strcmp(v, "off");
-		else if (!strcmp(a, "--echo-legacy") && role)
-			c->echo_legacy = !v || strcmp(v, "off");
 		else if (!strcmp(a, "--directory") && role)
 			c->no_directory = !strcmp(v, "off");
 		else if (!strcmp(a, "--token"))

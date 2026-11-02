@@ -162,7 +162,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 		return 0;
 	}
 	n->cfg = *cfg;
-	n->udp = n->udp2 = n->udp3 = n->udp6 = n->port_fd = n->ctl_fd = n->uudp = -1;
+	n->udp = n->udp2 = n->udp6 = n->port_fd = n->ctl_fd = n->uudp = -1;
 	n->rekey_after = cfg->rekey_after > 0 ? cfg->rekey_after : 120;
 	n->sb_rekey = cfg->sb_rekey > 0 ? cfg->sb_rekey : 600;
 	n->keepalive = cfg->keepalive > 0 ? cfg->keepalive : 25;
@@ -243,21 +243,15 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 	if (n->role && n->udp >= 0) {	/* ECHO's ports; the switchboard works without them if they cannot be had (docs/adr/0053) */
 		struct sockaddr_in la;
 		socklen_t ll = sizeof la;
-		int k, *fd;
-
 		memset(&la, 0, sizeof la);
-		for (k = 0; k < 2 && getsockname(n->udp, (struct sockaddr *)&la, &ll) == 0; k++) {
-			if (k == 1 && (!cfg->echo_legacy || n->udp_port >= 65535))
-				break;
-			fd = k ? &n->udp3 : &n->udp2;
-			la.sin_port = htons((uint16_t)(k ? n->udp_port + 1 : echo_port_of(n->udp_port)));
-			*fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-			no_df(*fd, AF_INET);
-			if (*fd >= 0 && bind(*fd, (struct sockaddr *)&la, sizeof la) < 0) {
-				close(*fd);
-				*fd = -1;
+		if (getsockname(n->udp, (struct sockaddr *)&la, &ll) == 0) {
+			la.sin_port = htons((uint16_t)echo_port_of(n->udp_port));
+			n->udp2 = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+			no_df(n->udp2, AF_INET);
+			if (n->udp2 >= 0 && bind(n->udp2, (struct sockaddr *)&la, sizeof la) < 0) {
+				close(n->udp2);
+				n->udp2 = -1;
 			}
-			ll = sizeof la;
 		}
 	}
 	if (port_open(n, err, errn) || ctl_open(n, err, errn))
@@ -281,8 +275,6 @@ void lw_node_release(lw_node *n)
 	ban_free(n);
 	if (n->udp2 >= 0)
 		close(n->udp2);
-	if (n->udp3 >= 0)
-		close(n->udp3);
 	if (n->uudp >= 0)
 		close(n->uudp);
 	if (n->udp6 >= 0)
@@ -309,13 +301,13 @@ static void close_inherited(const lw_node *n)
 
 	if (!d) {
 		for (fd = 3; fd < max && fd < 65536; fd++)
-			if (fd != n->udp && fd != n->udp2 && fd != n->udp3 && fd != n->udp6 && fd != n->uudp && fd != n->port_fd && fd != n->ctl_fd)
+			if (fd != n->udp && fd != n->udp2 && fd != n->udp6 && fd != n->uudp && fd != n->port_fd && fd != n->ctl_fd)
 				close(fd);
 		return;
 	}
 	while ((e = readdir(d))) {
 		fd = atoi(e->d_name);
-		if (fd > 2 && fd != dfd && fd != n->udp && fd != n->udp2 && fd != n->udp3 && fd != n->udp6 && fd != n->uudp && fd != n->port_fd && fd != n->ctl_fd)
+		if (fd > 2 && fd != dfd && fd != n->udp && fd != n->udp2 && fd != n->udp6 && fd != n->uudp && fd != n->port_fd && fd != n->ctl_fd)
 			close(fd);
 	}
 	closedir(d);
@@ -375,8 +367,6 @@ int lw_node_serve(lw_node *n)
 		nf = 5;
 		if (n->uudp >= 0)			/* the underlay socket (under.c) */
 			pf[nf++].fd = n->uudp;
-		if (n->udp3 >= 0)			/* the old echo port */
-			pf[nf++].fd = n->udp3;
 		for (k = 0; k < n->nspray && nf < 6 + SPRAY_N; k++)	/* sockets opened to be found (spray.c) */
 			pf[nf++].fd = n->spray_fd[k];
 		for (k = 0; k < n->maxpeers && nf < 6 + SPRAY_N + 256; k++)
@@ -392,10 +382,6 @@ int lw_node_serve(lw_node *n)
 			if (pf[k].revents & POLLIN) {
 				int fd = pf[k].fd;
 
-				if (fd == n->udp3) {
-					echo_serve_fd(n, fd);
-					continue;
-				}
 				n->rx_fd = fd;
 				for (i = 0; i < 64; i++) {
 					sl = sizeof ss;

@@ -144,7 +144,7 @@ def main():
 import socket, os, time
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(0.5)
 for i in range(20):
-    s.sendto(b'\x07' + os.urandom(8) + bytes(31), ('127.0.0.1', 1878))
+    s.sendto(b'\x07' + os.urandom(8) + bytes(31), ('127.0.0.1', 4624))
 n = 0
 try:
     while True:
@@ -152,7 +152,7 @@ try:
 except socket.timeout:
     pass
 time.sleep(1.2)
-s.sendto(b'\x07' + os.urandom(8) + bytes(31), ('127.0.0.1', 1878))
+s.sendto(b'\x07' + os.urandom(8) + bytes(31), ('127.0.0.1', 4624))
 try:
     s.recvfrom(64); later = 1
 except socket.timeout:
@@ -164,7 +164,7 @@ print(n, later)
     check(len(got) == 2 and 1 <= int(got[0]) <= 8 and got[1] == "1" and st.get("echo_shed", 0) >= 12,
           f"a burst of 20 echo requests from one address gets at most 8 answers, the rest are shed and counted, and a moment later it answers again: {got} shed={st.get('echo_shed')} {burst.stderr[-200:]}")
 
-    # the echo port is the switchboard's own + 2747 (1877 -> 4624), and its own + 1 still answers for nodes before 0.5.36 (docs/adr/0053)
+    # the echo port is the switchboard's own + 2747 (1877 -> 4624), and only that (docs/adr/0053, 0055)
     time.sleep(4)
     both = subprocess.run(["nsenter", "-t", str(ns.pid), "-n", "python3", "-I", "-c", r"""
 import socket, os
@@ -178,12 +178,12 @@ for port in (4624, 1878):
         out.append('none')
 print(' '.join(out))
 """], capture_output=True, text=True, timeout=30)
-    check(both.stdout.split() == ["15", "15"], f"the switchboard answers ECHO on its port + 2747 and, for older nodes, on its port + 1: {both.stdout!r} {both.stderr[-200:]}")
+    check(both.stdout.split() == ["15", "none"], f"the switchboard answers ECHO on its port + 2747, and not on its port + 1: {both.stdout!r} {both.stderr[-200:]}")
 
     # a host whose echo port answers small packets only: the node says large packets are lost on the way (an MTU or fragment problem), not a ban
     stub = subprocess.Popen(["nsenter", "-t", str(ns.pid), "-n", "python3", "-I", "-c", r"""
 import socket
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.1", 2078))
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.1", 4824))
 while True:
     d, a = s.recvfrom(4096)
     if 40 <= len(d) <= 200 and d[0] == 7:

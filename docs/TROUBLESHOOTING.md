@@ -9,10 +9,6 @@ Tokens are secrets: leave them out of what you send.
 **Did the update take effect?** The scripts come from the catalogue (`catalogue refresh && catalogue install longwire`), the engine from the package
 (`please apt update && please apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
 
-**`longwire show` says `engine 0.6.0`, and updating changes nothing.**
-0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.37-1` (the current version), then
-`longwire off` and `longwire on`. `doctor`'s advice to refresh the catalogue does not apply here.
-
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
 Nothing is wrong. `longwire up` *is* the node: it stays in the foreground and prints events as they happen. Use another terminal for
 commands, or start it in the background with `longwire on`. Ctrl-C stops the node.
@@ -81,7 +77,7 @@ The other machine went away (off, asleep, network gone). The call comes back by 
 **`✓ connected … through a relay: no direct path yet, still trying`**
 Both machines are behind strict NATs, so the traffic goes through another machine of your line that has a public address, still encrypted
 end to end. It moves to a direct path by itself when one exists. With no such machine on the line, the pair cannot connect;
-`longwire show` shows the NAT type. A relayed call shows the old, weaker safety phrase (below). `✗ lost the call to …: the relay went away` means the member relaying for you left; the call comes back when a path does.
+`longwire show` shows the NAT type. `✗ lost the call to …: the relay went away` means the member relaying for you left; the call comes back when a path does.
 
 **`⚠ KEY CHANGED for 447-120-933: refused the call` / `call dropped`**
 A number you have called before answered with a *different* key. Either the machine was reinstalled, or someone else is answering as it.
@@ -92,12 +88,8 @@ cannot confirm, leave it.
 Hang up at once (`longwire hangup NUMBER`, or the call's row in the pane). The phrase appears only after the call connects, so the call is already on your line; either it was the wrong
 number or someone is in the middle. Do not unpin or call back until you have checked with the person another way.
 
-**`safety phrase: … (the old, weaker kind: the other end is older)`** / **`(a relayed call: the old, weaker kind)`**
-The other end is older than 0.5.21 (or something on the way dropped the exchange), or the call goes through a relay: the phrase is the old six words, which a switchboard that is the
-attacker could have searched for. A direct call shows it only when the profile allows it (`legacy_phrase = yes`); update the other end and take that out ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)).
-
 **`✗ the safety phrase could not be agreed with 447-120-933: …. The call was ended`**
-*the other end cannot do the committed safety phrase: it is older than 0.5.21*: update it, or, for now, `longwire profile set home legacy_phrase=yes` to let it through with the old phrase. *the caller's reveal does not match what it committed to*, or *the caller did not
+*the other end did not do the safety phrase exchange*: it is older than 0.5.21 (update it: there is no way to let it through) or something on the way stripped the exchange. *the caller's reveal does not match what it committed to*, or *the caller did not
 reveal its half*: something altered or dropped the exchange; treat it as the phrases differing.
 
 ## It is connected, but nothing works
@@ -136,7 +128,6 @@ through the line*, turn off and on. To get out at once: turn longwire off; nothi
 UDP of every size gets to the switchboard's machine and back, but no handshake completes. In this order: the key after `/` in your switchboard address is not the switchboard's (compare it with a node
 that works); this node's key is banned there for a while (on the switchboard, `please longwire-switchboard bans list` shows it, its log says why, and `please longwire-switchboard bans clear KEY`
 lifts it; a ban ends by itself, 15 minutes, doubling at each repeat, at most a day; a restart of the switchboard forgets every ban); or the switchboard's own port is closed while the next is open ([OPERATING](OPERATING.md#when-a-node-gets-no-number)).
-A switchboard older than 0.5.28 could also ban a good, patient node for repeating an unanswered registration: update the switchboard's package.
 
 **`⚠ no answer from the switchboard … small packets come back from its host, but one as large as a handshake's (1276 bytes) does not`**
 Something between you and the switchboard loses large or fragmented UDP, and a handshake needs it. Look at this machine first: `ip link` for an interface with an MTU under 1280 (a tunnel, a
@@ -199,7 +190,7 @@ A ring is heard while the desktop runs. If it is not running, the node still app
 (create it in the state directory), or an option has no value.
 
 **Nodes cannot reach the switchboard.**
-Open UDP on its listen port and its echo port, the listen port + 2747 (6741 and 9488 by default; and the listen port + 1 while nodes before 0.5.36 remain). From a node: its status line says **dial tone** when it can, and after 15 s without it the node says why
+Open UDP on its listen port and its echo port, the listen port + 2747 (6741 and 9488 by default). From a node: its status line says **dial tone** when it can, and after 15 s without it the node says why
 ([OPERATING](OPERATING.md#when-a-node-gets-no-number)).
 
 **I cannot lift a ban: "only the user this runs as may do that".**

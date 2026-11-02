@@ -119,8 +119,8 @@ def main():
     ringrow = [x for x in rows if x[3].startswith("ring:")]
     check(len(ringrow) == 1 and num["A"] in ringrow[0][1] and "Alice" in ringrow[0][1] and "a claim" in ringrow[0][1],
           f"the ringing call is a row naming the caller and saying the name is a claim: {ringrow}")
-    check(ring and ring["phrase"] == "" and any(x[1].strip() == "safety phrase" and "once connected" in x[2] for x in rows),
-          f"...and it says the safety phrase comes once connected (the ring has none): {ring and ring['phrase']!r}")
+    check(ring and "phrase" not in ring and any(x[1].strip() == "safety phrase" and "once connected" in x[2] for x in rows),
+          f"...and it says the safety phrase comes once connected (the ring has none): {ring}")
     key = ringrow[0][3] if ringrow else "ring:x"
     rows, log, r = drive(envB, f'dump 1 > /dev/null; longwire_do 1 "{key}" 1; $DRV_CMD')
     check(any(l.startswith("CONFIRM") and "comes once you are connected" in l and "Alice, a claim" in l for l in log), f"clicking it asks, and says the phrase comes once connected: {[l for l in log if l.startswith('CONFIRM')]}")

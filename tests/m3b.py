@@ -99,9 +99,10 @@ def main():
     check(ea is not None and ea["path"] == "relay" and ea["via"] == nb, f"A reaches C through B: {ea and (ea['path'], ea.get('via'))}")
     check(ec is not None and ec["path"] == "relay" and ec["via"] == nb, f"C reaches A through B: {ec and (ec['path'], ec.get('via'))}")
     if ea and ec:
-        check(ea["phrase"] == ec["phrase"] and ea["legacy"] is True, "the two ends agree on the (old, key-id) safety phrase of a relayed call: the handshake is theirs, not the relay's")
+        check("phrase" not in ea and "phrase" not in ec, "a relayed call between members carries no phrase: the line admitted them (docs/adr/0055)")
     pa = {p["number"]: p for p in A.status()["peers"]}
     check(nc in pa and pa[nc]["path"] == "relay" and pa[nc]["state"] == "up", "A's status shows C as a relayed peer that is up")
+    check(nc in pa and pa[nc].get("sas") == "line" and pa[nc].get("phrase") == "", f"...whose phrase is not needed: admitted by the line: {pa.get(nc, {}).get('sas')}")
     check(until(lambda: A.status()["line"]["up"] == 3 and not A.status()["line"]["partial"], 15) is not None,
           "the line is a full mesh from A's side, though one edge is relayed")
     st = B.status()

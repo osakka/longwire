@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "October 2026" "longwire 0.5.37" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "November 2026" "longwire 0.5.38" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -119,10 +119,6 @@ With
 .BR everything :
 a name server asked through the line for every name, set on the jack in systemd\-resolved; passed over, like the routes, whenever no node holds the jack.
 Without systemd\-resolved, names stay with the machine's own name server.
-.TP
-.B legacy_phrase
-.B yes
-lets a call to a node older than 0.5.21 through with the old, weaker six\-word safety phrase; by default such a call is ended.
 .TP
 .B keep_jack
 .BR yes " (the default) or " no .

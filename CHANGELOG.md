@@ -3,6 +3,19 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.38
+
+**No legacy and no backwards compatibility** ([ADR 0055](docs/adr/0055-no-legacy.md)). Update every node and switchboard together.
+
+- **One safety phrase**: the committed eight words. The old six-word phrase is gone, and with it `--allow-legacy-phrase`, the `legacy_phrase` profile key and `--require-sas` (each is now an
+  unknown option or key). A direct call whose other end does not do the exchange is ended. A mesh call to a fellow member, and a relayed call between members, are admitted by the line and
+  show no phrase; the pane says *not needed: admitted by your line*, and each peer in the status has `sas`: `agreed`, `pending` or `line`.
+- **One echo port**: the switchboard's own + 2747. The answer on the port + 1, `--echo-legacy`, and the node's second probe are gone. A switchboard on `--listen 1877` answers ECHO on 4624
+  only: open it in its firewall.
+- **Fields kept only for old readers are gone**: `phrase` in the `ring` and `connected` events and in each call of the status, `legacy` in the `sas` event, the peers and `who`.
+- **The release bump touches only version strings** (`packaging/bump.sh`): it had been rewriting versions mentioned in prose, in comments and manual pages, at every release.
+- Tested: the phrase without a fallback (`tests/sas.sh`), a relayed call with no phrase (`tests/m3b.sh`), the events and status without the old fields (`tests/m1.sh`, `tests/pane.sh`), the echo port alone.
+
 ## 0.5.37
 
 *Published:* the catalogue (`hibr-apps` `eaabcb8`) and the packages (`hibr-apt` `13782e1`, `hibr-rpm` `3f9f44e`, `hibr-arch` `eec06db`). `make check` passed (843 checks).

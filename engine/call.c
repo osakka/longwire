@@ -175,17 +175,6 @@ int parse_full(const lw_node *n, const char *in, char out[NUMLEN + 1], char *err
 	return 0;
 }
 
-/* Six words from the two key ids, the same on both screens (docs/CLI.md). */
-void phrase_of(char *out, size_t cap, const uint8_t a[32], const uint8_t b[32])
-{
-	uint8_t h[32];
-	int i, o = 0;
-
-	lw_h2(h, a, 32, b, 32);
-	out[0] = 0;
-	for (i = 0; i < 6; i++)
-		o += snprintf(out + o, cap - (size_t)o, "%s%s", i ? " " : "", LW_WORDS[h[i]]);
-}
 
 /* ---- the committed safety phrase (docs/adr/0040) ------------------------------------------------------------------
  * Inside the session, once it is up: the caller commits to a random nonce, the callee adds its own, the caller reveals, and both
@@ -980,8 +969,7 @@ void echo_serve_fd(lw_node *n, int fd)
 	}
 }
 
-/* An ECHO to a switchboard's echo port (its port + 2747) and to its old one (its port + 1), so a node can measure against a switchboard of any version
- * (docs/adr/0053). The first answer counts; the second is ignored. `a` is the switchboard's own address. */
+/* An ECHO to a switchboard's echo port, its port + 2747 (docs/adr/0053). `sw` is the switchboard's own address. */
 static void echo_send(lw_node *n, const struct sockaddr_in *sw, const uint8_t *q, size_t len)
 {
 	struct sockaddr_in a = *sw;
@@ -989,10 +977,6 @@ static void echo_send(lw_node *n, const struct sockaddr_in *sw, const uint8_t *q
 
 	a.sin_port = htons((uint16_t)echo_port_of(p));
 	usend(n, n->udp, q, len, (struct sockaddr *)&a, sizeof a);
-	if (p < 65535) {
-		a.sin_port = htons((uint16_t)(p + 1));
-		usend(n, n->udp, q, len, (struct sockaddr *)&a, sizeof a);
-	}
 }
 
 void echo_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockaddr *src, socklen_t sl)
@@ -1122,7 +1106,7 @@ static void sas_ev(lw_node *n, lw_peer *p)
 	char f[16];
 
 	fmt_number(f, p->number);
-	ev_emit(n, "{\"event\":\"sas\",\"number\":\"%s\",\"phrase\":\"%s\",\"legacy\":%s}", f, p->sas.words, p->sas.mode == 1 ? "false" : "true");
+	ev_emit(n, "{\"event\":\"sas\",\"number\":\"%s\",\"phrase\":\"%s\"}", f, p->sas.words);
 }
 
 static void sas_fail(lw_node *n, lw_peer *p, const char *why)
@@ -1141,20 +1125,19 @@ static void sas_fail(lw_node *n, lw_peer *p, const char *why)
 	peer_drop(n, p);
 }
 
-/* The other end did not do the committed phrase (or a hostile switchboard made it look so): the old phrase from the two key ids, said to be old. */
-static void sas_legacy(lw_node *n, lw_peer *p)
+/* The other end did not do the committed phrase (an old node, or something on the way stripped it): the call ends. A mesh call to a fellow member is admitted by
+ * the line's signatures and needs no phrase: it goes on, with none (docs/adr/0055). */
+static void sas_none(lw_node *n, lw_peer *p)
 {
-	if (n->cfg.require_sas && !p->sas.auto_) {
-		sas_fail(n, p, "the other end cannot do the committed safety phrase: it is older than 0.5.21 (--allow-legacy-phrase lets such a call through with the old phrase)");
+	if (!p->sas.auto_) {
+		if (p->last_rx <= p->sas.born)
+			return;		/* nothing at all from the other end since the call came up: it may be gone, and the dead-peer timer says so (call-lost); judged when it speaks */
+		sas_fail(n, p, "the other end did not do the safety phrase exchange (a node older than 0.5.21, or something on the way stripped it)");
 		return;
 	}
 	p->sas.mode = 2;
-	p->sas.state = 1;
-	if (p->sas.caller)
-		phrase_of(p->sas.words, sizeof p->sas.words, n->id.key_id, p->key_id);
-	else
-		phrase_of(p->sas.words, sizeof p->sas.words, p->key_id, n->id.key_id);
-	sas_ev(n, p);
+	p->sas.state = 0;
+	p->sas.words[0] = 0;
 }
 
 /* The session of a call is up: the exchange starts (the caller speaks first). */
@@ -1253,7 +1236,7 @@ void sas_timers(lw_node *n)
 
 			if (!p->sas.have_nb) {
 				if (n->now - p->sas.born > SAS_WAIT) {
-					sas_legacy(n, p);
+					sas_none(n, p);
 				} else if (n->now >= p->sas.next) {
 					m[0] = 0;
 					sas_commit(m + 1, p->sas.na, n->id.key_id);
@@ -1269,7 +1252,7 @@ void sas_timers(lw_node *n)
 			}
 		} else if (p->sas.state == 0) {
 			if (!p->sas.have_c && n->now - p->sas.born > SAS_WAIT)
-				sas_legacy(n, p);
+				sas_none(n, p);
 			else if (p->sas.have_c && n->now - p->sas.born > 20.0)
 				sas_fail(n, p, "the caller did not reveal its half of the safety phrase");
 		}
@@ -1493,7 +1476,6 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			memcpy(c->pc, cc, sizeof cc);
 			c->npc = nc;
 			c->deadline = n->now + 60.0;
-			ph[0] = 0;			/* the phrase does not exist yet: it needs both nonces and the session (docs/adr/0040) */
 			{
 				char hx[17], kh[65];
 
@@ -1502,8 +1484,8 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				char en[2 * LW_NAME_MAX + 8];
 
 				json_esc(en, sizeof en, c->name);
-				ev_emit(n, "{\"event\":\"ring\",\"call\":\"%s\",\"from\":\"%s\",\"name\":\"%s\",\"key_id\":\"%s\",\"phrase\":\"%s\",\"known\":%s,\"admit\":%s}",
-					hx, f, en, kh, ph, pc ? "true" : "false", admitted ? "true" : "false");
+				ev_emit(n, "{\"event\":\"ring\",\"call\":\"%s\",\"from\":\"%s\",\"name\":\"%s\",\"key_id\":\"%s\",\"known\":%s,\"admit\":%s}",
+					hx, f, en, kh, pc ? "true" : "false", admitted ? "true" : "false");
 			}
 			return;
 		}
@@ -1771,10 +1753,9 @@ void node_timers(lw_node *n)
 				fmt_number(f, c->number);
 				addr_str(&pe->ep, ep, sizeof ep);
 				sas_start(n, pe, c);			/* the committed phrase follows in a moment (sas) */
-				ph[0] = 0;
 				pin_add(n, c->number, pk);		/* the session is proven; the number now belongs to this key */
 				c->state = CALL_UP;
-				ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"direct\",\"ep\":\"%s\",\"phrase\":\"%s\"}", f, ep, ph);
+				ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"direct\",\"ep\":\"%s\"}", f, ep);
 				call_peer_up(n, pe, c->we_caller);
 				break;
 			}
@@ -1815,12 +1796,11 @@ void node_timers(lw_node *n)
 			continue;
 		}
 		if (p->cur.valid && !p->announced) {
-			char fv[16], ph[120];
+			char fv[16];
 
 			p->announced = 1;
 			fmt_number(fv, v->number);
-			phrase_of(ph, sizeof ph, p->dial ? n->id.key_id : p->key_id, p->dial ? p->key_id : n->id.key_id);
-			ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"relay\",\"via\":\"%s\",\"phrase\":\"%s\",\"legacy\":true}", f, fv, ph);
+			ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"relay\",\"via\":\"%s\"}", f, fv);
 			call_peer_up(n, p, p->dial);
 		}
 		if (p->announced && !p->cur.valid) {
@@ -1981,16 +1961,12 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			m = line_member(n, kid);
 		lw_address(addr, kid);
 		lw_hex(kh, kid, 32);
-		if (p && p->cur.valid) {
-			if (p->sas.mode == 1)			/* the committed phrase: its words once the reveal is in, nothing before */
-				snprintf(ph, sizeof ph, "%s", p->sas.state == 1 ? p->sas.words : "");
-			else
-				phrase_of(ph, sizeof ph, p->dial ? n->id.key_id : p->key_id, p->dial ? p->key_id : n->id.key_id);
-		}
+		if (p && p->cur.valid && p->sas.mode == 1)	/* the committed phrase: its words once the reveal is in, nothing before */
+			snprintf(ph, sizeof ph, "%s", p->sas.state == 1 ? p->sas.words : "");
 		len = snprintf(out, cap, "{\"number\":\"%s\",\"you\":%s,\"key_id\":\"%s\",\"address\":\"%s\",\"pinned\":%s,\"line_member\":%s,"
-			"\"connected\":%s,\"path\":\"%s\",\"phrase\":\"%s\",\"legacy\":%s}\n", f, kid == n->id.key_id ? "true" : "false", kh, addr,
+			"\"connected\":%s,\"path\":\"%s\",\"phrase\":\"%s\"}\n", f, kid == n->id.key_id ? "true" : "false", kh, addr,
 			pinned ? "true" : "false", m ? "true" : "false", p && p->cur.valid ? "true" : "false",
-			p && p->cur.valid ? (p->relayed ? "relay" : "direct") : "", ph, p && p->cur.valid && p->sas.mode == 1 ? "false" : "true");
+			p && p->cur.valid ? (p->relayed ? "relay" : "direct") : "", ph);
 		return len;
 	}
 	if (!strncmp(line, "unpin ", 6)) {
@@ -2119,13 +2095,14 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		addr_str(&p->ep, ep, sizeof ep);
 		len += snprintf(o + len, cap - (size_t)len,
 			"%s{\"key_id\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"path\":\"%s\",\"ep\":\"%s\",\"age\":%d,"
-			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu,\"phrase\":\"%s\",\"legacy\":%s}",
+			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu,\"phrase\":\"%s\",\"sas\":\"%s\"}",
 			any ? "," : "", kid, f, sess_state(p), p->relayed ? "relay" : "direct", ep,
 			p->cur.valid ? (int)(n->now - p->cur.born) : -1,
 			(unsigned long long)p->rx_frames, (unsigned long long)p->tx_frames,
 			(unsigned long long)p->rx_bytes, (unsigned long long)p->tx_bytes,
 			(unsigned long long)p->rekeys, (unsigned long long)p->drop_auth,
-			(unsigned long long)p->drop_replay, p->sas.state == 1 ? p->sas.words : "", p->sas.mode == 1 ? "false" : "true");
+			(unsigned long long)p->drop_replay, p->sas.mode == 1 && p->sas.state == 1 ? p->sas.words : "",
+			p->sas.mode == 1 ? (p->sas.state == 1 ? "agreed" : "pending") : "line");	/* "line": a member admitted by the line, or relayed: no phrase (docs/adr/0055) */
 		any = 1;
 	}
 	len += snprintf(o + len, cap - (size_t)len, "],\"calls\":[");
@@ -2140,15 +2117,8 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		fmt_number(f, k->number);
 		lw_hex(hx, k->id, 8);
 		json_esc(cn, sizeof cn, k->name);
-		if (k->state == CALL_RINGING && !k->we_caller) {	/* what a person is asked to compare before picking up */
-			uint8_t ck[32];
-
-			lw_h(ck, k->bundle, LW_BUNDLE);
-			(void)ck;
-			ph[0] = 0;				/* the committed phrase comes once connected */
-		}
-		len += snprintf(o + len, cap - (size_t)len, "%s{\"call\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"we_called\":%s,\"mesh\":%s,\"name\":\"%s\",\"phrase\":\"%s\"}",
-				any ? "," : "", hx, f, SN[k->state], k->we_caller ? "true" : "false", k->auto_ ? "true" : "false", cn, ph);
+		len += snprintf(o + len, cap - (size_t)len, "%s{\"call\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"we_called\":%s,\"mesh\":%s,\"name\":\"%s\"}",
+				any ? "," : "", hx, f, SN[k->state], k->we_caller ? "true" : "false", k->auto_ ? "true" : "false", cn);
 		any = 1;
 	}
 	len += snprintf(o + len, cap - (size_t)len, "],\"line\":");

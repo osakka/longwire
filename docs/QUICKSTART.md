@@ -117,8 +117,7 @@ telephone's menu; on the command line it is in `longwire watch` (or the terminal
 
 **Compare the words on another channel at once** (a message, a phone call). If they match, you have good evidence that nobody is between you: a switchboard that
 put itself in the middle would have about one chance in 2^64 per call ([SECURITY](SECURITY.md#the-safety-phrase-honestly)). If they differ, **hang up at once**
-(`longwire hangup`): the call is already on your line. If the phrase is marked *the old, weaker kind*, the other end is older than 0.5.21 or the call goes through a
-relay, and the words prove less; update the other end. After this first call the other machine's key is pinned.
+(`longwire hangup`): the call is already on your line. After this first call the other machine's key is pinned.
 
 **Or let longwire compare.** Type the words the other end shows into **Verify…** under the call in the pane, or `longwire verify 312-884-076 word word …`: a match is
 recorded and the call is marked *verified*; a difference ends the call. On a server you cannot see, that one command in its console, with the words read off your own

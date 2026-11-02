@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SECURITY 7 "October 2026" "longwire 0.5.37" "longwire manual"
+.TH LONGWIRE-SECURITY 7 "November 2026" "longwire 0.5.38" "longwire manual"
 .SH NAME
 longwire-security \- what longwire protects, what it does not, and how far it has been checked
 .SH DESCRIPTION
@@ -38,10 +38,8 @@ Both ends show the same eight words a moment after the call connects.
 The caller commits to a random number before the callee speaks, the callee adds one, the caller reveals, and the words come from both numbers, both keys and the session,
 so a switchboard in the middle has no offline search and one try per call (about 2^-64).
 Compare them on another channel at once, and hang up if they differ.
-The call is already on the line while you compare; a call to an older node is ended, unless
-.B \-\-allow\-legacy\-phrase
-lets it through with the old, weaker phrase.
-A relayed call between members always shows the old phrase.
+The call is already on the line while you compare.
+A direct call whose other end does not do the exchange is ended; a fellow member of your line, or a relayed call between members, is admitted by the line and shows no phrase.
 On the desktop a note tells the phrase, and it stays under the call in the pane and the telephone's menu.
 .TP
 .B A hostile switchboard

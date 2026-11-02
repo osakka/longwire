@@ -129,8 +129,8 @@ def main():
     rcd, out = A.cmd("dial", rb["number"])
     check(rcd == 0, f"dial accepted: {out}")
     ring = B.w.wait("ring", 10, after=mkB)
-    check(ring is not None and ring["from"] == ra["number"] and ring["known"] is False and ring["phrase"] == "",
-          f"B rings: from {ring and ring['from']}, first call, and no phrase yet (it comes once connected): '{ring and ring['phrase']}'")
+    check(ring is not None and ring["from"] == ra["number"] and ring["known"] is False and "phrase" not in ring,
+          f"B rings: from {ring and ring['from']}, first call, and no phrase (it comes once connected): {ring}")
     time.sleep(1.2)
     check(B.w.wait("connected", 0.1, after=mkB) is None, "B's 'ask' policy waits for a person: nothing connects by itself")
     rcp, out = B.cmd("pickup")
@@ -139,7 +139,7 @@ def main():
     check(bool(ca and cb), "both sides report connected through the NATs")
     if ca and cb:
         sas_a, sas_b = A.w.wait("sas", 20, after=mkA), B.w.wait("sas", 20, after=mkB)
-        check(sas_a and sas_b and sas_a["phrase"] == sas_b["phrase"] and len(sas_a["phrase"].split()) == 8 and sas_a["legacy"] is False and sas_b["legacy"] is False,
+        check(sas_a and sas_b and sas_a["phrase"] == sas_b["phrase"] and len(sas_a["phrase"].split()) == 8 and "legacy" not in sas_a,
               f"the committed safety phrase is the same eight words on both screens: {sas_a and sas_a['phrase']!r} / {sas_b and sas_b['phrase']!r}")
         check(ca["ep"].startswith("192.0.2.102:") and cb["ep"].startswith("192.0.2.101:"),
               f"the path is NAT-to-NAT: A talks to {ca['ep']}, B to {cb['ep']}")

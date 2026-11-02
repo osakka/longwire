@@ -19,7 +19,7 @@
 
 strict
 
-app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.37
+app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.38
 # needs: control-panel/longwire
 
 # The switch (Control Panel > Longwire > Longwire on the Menu Bar, and Menu Bar Items) lives with the pane; the bar reads it.
@@ -152,7 +152,7 @@ fn lwb_announce() {
 
 # A call's safety phrase is told once, as a note, the moment it is agreed: it is what the person must compare, and a row in a menu is easy to miss (docs/adr/0040).
 fn lwb_phrases() {
-	local i cnt num phr leg k
+	local i cnt num phr k
 
 	[ "$LWB_ST" = off ] && { LWB_PHSAID=; return 0; }
 	cnt := json len LWP_S .peers 2> /dev/null || return 0
@@ -163,12 +163,7 @@ fn lwb_phrases() {
 		k="|$num:$phr|"
 		[[ $LWB_PHSAID == *"$k"* ]] && continue
 		LWB_PHSAID+=$k
-		leg := lwp_get ".peers[$i].legacy"
-		if [ "$leg" = true ]; then
-			dt_notep high "Safety phrase with %s (the old, weaker kind): %s. Compare it with theirs; hang up if it differs" "$num" "$phr"
-		else
-			dt_notep high "Safety phrase with %s: %s. Compare it with theirs; hang up if it differs" "$num" "$phr"
-		fi
+		dt_notep high "Safety phrase with %s: %s. Compare it with theirs; hang up if it differs" "$num" "$phr"
 	done
 	return 0
 }
@@ -234,7 +229,7 @@ fn lwb_ring(call) {
 # What the menu holds depends on the state: off offers Turn On (when there is a connection to turn on); on shows the number, who is
 # connected and how fast, any ring to answer, Dial and Turn Off. Settings is always there.
 fn lwb_context(id = "") {
-	local i cnt num state path rr tr p sb text phr leg
+	local i cnt num state path rr tr p sb text phr
 
 	lwb_state
 	dt_menu "Longwire"
@@ -274,9 +269,7 @@ fn lwb_context(id = "") {
 			fi
 			dt_dim "$text"
 			phr := lwp_get ".peers[$i].phrase"
-			leg := lwp_get ".peers[$i].legacy"
 			if [ -n "$phr" ]; then		# the safety phrase, to compare with the other end (docs/adr/0040)
-				[ "$leg" = true ] && phr+=" (old, weaker kind)"
 				dt_dim "  phrase: $phr"
 			fi
 		done

@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.37
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.38
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.37}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.38}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -111,7 +111,7 @@ sb_quiet_why() {
 	case $1 in
 	answers) echo "its host answers, so the switchboard itself is ignoring this node: this node's key may be banned there (its operator: longwire-switchboard bans list), or the key after / in the switchboard address is not the switchboard's" ;;
 	large-lost) echo "small packets come back from its host, but one as large as a handshake's (1276 bytes) does not: something on the way loses large or fragmented UDP. Look at this machine's side first: an MTU under 1280 on a tunnel, container or VPN interface (ip link), or a firewall that drops fragments" ;;
-	silent)  echo "nothing comes back from its host: a firewall on the way (UDP to its port, and the next port), or the switchboard is not running" ;;
+	silent)  echo "nothing comes back from its host: a firewall on the way (UDP to its port, and its echo port: its port + 2747), or the switchboard is not running" ;;
 	*)       echo "a firewall on the way (UDP), the switchboard not running, this node's key banned there, or the wrong switchboard key" ;;
 	esac
 }
@@ -125,8 +125,7 @@ announce() {
 	                  else
 	                       if [ -n "${e[name]}" ]; then say "☎  ${e[from]} is calling, and says it is \"${e[name]}\" (a claim: only the safety phrase proves anything)"
 	                       else say "☎  ${e[from]} is calling"; fi
-	                       if [ -n "${e[phrase]}" ]; then say "   safety phrase: ${e[phrase]}   (the old, weaker kind: the other end is older)"
-	                       else say "   the safety phrase comes once you are connected: compare it with theirs"; fi
+	                       say "   the safety phrase comes once you are connected: compare it with theirs"
 	                       [ "${e[known]}" = true ] || say "   first call from this number"; fi ;;
 	found)            [ "${e[directory]}" = true ] || say "·  this switchboard has no directory" ;;
 	line-joined)      say "·  on line ${e[line]} with ${e[members]} members" ;;
@@ -140,10 +139,8 @@ announce() {
 	address-skipped)  say "⚠  not using ${e[address]}:${e[port]} to reach the other end: it is inside your jack's own network and there is no other road to it (docs/TROUBLESHOOTING.md)" ;;
 	line-complete)    say "·  the line is a full mesh (${e[members]} members)" ;;
 	connected)        if [ "${e[path]}" = relay ]; then say "✓  connected to ${e[number]} through a relay (${e[via]}): no direct path yet, still trying"
-	                  else say "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"; fi
-	                  [ "${e[path]}" != relay ] || say "   safety phrase: ${e[phrase]}   (a relayed call: the old, weaker kind)" ;;
-	sas)              if [ "${e[legacy]}" = true ]; then say "   safety phrase: ${e[phrase]}   (the old, weaker kind: the other end is older). Compare it with theirs; hang up if it differs"
-	                  else say "   safety phrase: ${e[phrase]}   Compare it with theirs now; hang up if it differs"; fi ;;
+	                  else say "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"; fi ;;
+	sas)              say "   safety phrase: ${e[phrase]}   Compare it with theirs now; hang up if it differs" ;;
 	sas-failed)       say "✗  the safety phrase could not be agreed with ${e[number]}: ${e[reason]}. The call was ended" ;;
 	path)             say "·  ${e[number]} is now ${e[path]} (${e[ep]}): the relay is no longer needed" ;;
 	call-failed)      say "✗  call failed: ${e[reason]}" ;;
@@ -202,7 +199,7 @@ profiles_read() {
 		case $k in
 		default) PDEFAULT=$eq ;;
 		profile) cur=$eq; PNAMES+=("$cur") ;;
-		switchboard|token|attach|interface|address|gateway|routes|everything|dns|keep_jack|legacy_phrase|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
+		switchboard|token|attach|interface|address|gateway|routes|everything|dns|keep_jack|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
 		esac
 	done < "$PROFILES"
 }
@@ -215,7 +212,7 @@ profiles_write() {
 		out="$out
 profile $n
 "
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
 			[ -n "${PF[$n.$k]:-}" ] && out="$out  $k = ${PF[$n.$k]}
 "
 		done
@@ -247,7 +244,6 @@ profile_args() {
 	[ -n "${PF[$n.name]:-}" ] && PARGS+=(--name "${PF[$n.name]}")
 	[ "${PF[$n.listed]:-}" = yes ] && PARGS+=(--listed)
 	[ "${PF[$n.everything]:-}" = yes ] && [ "${PF[$n.attach]:-jack}" = jack ] && PARGS+=(--everything)
-	[ "${PF[$n.legacy_phrase]:-}" = yes ] && PARGS+=(--allow-legacy-phrase)	# a call to a node older than 0.5.21 shows the old phrase instead of ending
 	return 0
 }
 
@@ -264,7 +260,7 @@ cmd_profile() {
 		n=${1:-$PDEFAULT}
 		[ -n "$n" ] && profile_exists "$n" || { echo "longwire: no profile${n:+ called $n}" >&2; exit 1; }
 		echo "profile $n$([ "$n" = "$PDEFAULT" ] && echo '   (default)')"
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
 			v=${PF[$n.$k]:-}
 			[ -n "$v" ] || continue
 			[ "$k" = token ] && v="(set, ${#v} characters)"		# the token is not shown: it is in the file, readable by you only
@@ -272,7 +268,7 @@ cmd_profile() {
 		done ;;
 	set)
 		n=${1:-}
-		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer)" >&2; exit 2; }
+		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything dns keep_jack name listed answer)" >&2; exit 2; }
 		shift
 		case $n in ''|*[!A-Za-z0-9._-]*) echo "longwire: a profile name is letters, digits, . _ -" >&2; exit 2 ;; esac
 		profile_exists "$n" || { PNAMES+=("$n"); [ -n "$PDEFAULT" ] || PDEFAULT=$n; }	# the first profile is the default one
@@ -289,11 +285,10 @@ cmd_profile() {
 			routes) case $v in *[!0-9./,]*) echo "longwire: routes are networks like 192.168.150.0/24, separated by commas" >&2; exit 2 ;; esac ;;
 			keep_jack) case $v in yes|no|"") ;; *) echo "longwire: keep_jack is yes or no" >&2; exit 2 ;; esac ;;
 			everything) case $v in yes|no|"") ;; *) echo "longwire: everything is yes or no" >&2; exit 2 ;; esac ;;
-			legacy_phrase) case $v in yes|no|"") ;; *) echo "longwire: legacy_phrase is yes or no" >&2; exit 2 ;; esac ;;
 			dns) case $v in ""|[0-9]*.[0-9]*.[0-9]*.[0-9]*) case $v in *[!0-9.]*) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;; *) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;;
 			listed) case $v in yes|no|"") ;; *) echo "longwire: listed is yes or no" >&2; exit 2 ;; esac ;;
 			answer) case $v in ask|known|auto|never|"") ;; *) echo "longwire: answer is ask, known, auto or never" >&2; exit 2 ;; esac ;;
-			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer)" >&2; exit 2 ;;
+			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything dns keep_jack name listed answer)" >&2; exit 2 ;;
 			esac
 			if [ -n "$v" ]; then PF["$n.$k"]=$v; else unset "PF[$n.$k]"; fi
 		done
@@ -320,7 +315,7 @@ cmd_profile() {
 		[ "$to" = "$n" ] && exit 0
 		profile_exists "$to" && { echo "longwire: there is already a profile called '$to'" >&2; exit 1; }
 		for i in "${!PNAMES[@]}"; do [ "${PNAMES[$i]}" = "$n" ] && PNAMES[$i]=$to; done		# same place in the list, same default
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
 			if [ -n "${PF[$n.$k]:-}" ]; then PF["$to.$k"]=${PF[$n.$k]}; fi
 			unset "PF[$n.$k]"
 		done
@@ -332,7 +327,7 @@ cmd_profile() {
 		local keep=() m
 		for m in "${PNAMES[@]}"; do [ "$m" = "$n" ] || keep+=("$m"); done
 		PNAMES=("${keep[@]}")
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer; do unset "PF[$n.$k]"; done
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do unset "PF[$n.$k]"; done
 		[ "$PDEFAULT" = "$n" ] && PDEFAULT=${PNAMES[0]:-}
 		profiles_write ;;
 	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME" >&2; exit 2 ;;
@@ -982,7 +977,7 @@ verify_set() {
 # `verify`: the calls and their safety phrases, and whether each has been checked; `verify NUMBER WORDS...`: check one by the words the other end shows, typed
 # here, so that nobody compares by eye. A match is recorded; a difference ends the call and forgets the number's key (docs/adr/0054).
 cmd_verify() {
-	local i cnt num phr leg kid st want have mark found=
+	local i cnt num phr kid st want have mark found= k
 	lw status > /dev/null 2>&1 || { echo "longwire: it is off.  longwire on" >&2; exit 1; }
 	json parse S "$(lw status)"
 	cnt := json len S .peers
@@ -991,13 +986,15 @@ cmd_verify() {
 			num := json get S ".peers[$i].number"
 			[ -n "$num" ] || continue
 			phr := json get S ".peers[$i].phrase"
-			leg := json get S ".peers[$i].legacy"
 			kid := json get S ".peers[$i].key_id"
 			st := json get S ".peers[$i].state"
 			mark="not verified"
 			verify_has "$num" "$kid" && mark="verified"
-			[ -n "$phr" ] || { echo "$num  ($st) no safety phrase yet"; continue; }
-			[ "$leg" = true ] && phr+="  (the old, weaker kind)"
+			if [ -z "$phr" ]; then
+				k := json get S ".peers[$i].sas"
+				if [ "$k" = line ]; then echo "$num  no phrase needed: admitted by your line"; else echo "$num  ($st) no safety phrase yet"; fi
+				continue
+			fi
 			echo "$num  $mark  $phr"
 		done
 		return 0

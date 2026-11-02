@@ -15,7 +15,7 @@ static void check(int ok, const char *what)
 		bad = 1;
 }
 
-static lw_node *mknode(const char *dir, int require)
+static lw_node *mknode(const char *dir)
 {
 	lw_cfg c;
 	char err[200];
@@ -29,7 +29,6 @@ static lw_node *mknode(const char *dir, int require)
 	snprintf(c.listen, sizeof c.listen, "127.0.0.1:0");
 	c.maxpeers = 8;
 	c.no_nat_pmp = 1;
-	c.require_sas = require;
 	if (!(n = lw_node_open(&c, err, sizeof err))) {
 		fprintf(stderr, "cannot open a node: %s\n", err);
 		exit(2);
@@ -81,7 +80,7 @@ int main(int argc, char **argv)
 	a.sin_family = AF_INET;
 	a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	bind(sink, (struct sockaddr *)&a, sizeof a);
-	n = mknode(dir, 0);
+	n = mknode(dir);
 
 	/* the callee: a commit, then the right reveal */
 	p = mkpeer(n, 0, sink, 0);
@@ -145,24 +144,24 @@ int main(int argc, char **argv)
 	sas_input(n, p, m, 0);
 	check(p->used, "and short messages are ignored");
 
-	/* silence: the old phrase after five seconds, unless --require-sas */
+	/* silence: no old phrase any more (docs/adr/0055) */
 	p = mkpeer(n, 5, sink, 0);
 	n->now = 1004.0;
 	sas_timers(n);
 	check(p->sas.mode == 1 && p->sas.state == 0, "within five seconds the callee still waits for a commit");
 	n->now = 1006.0;
 	sas_timers(n);
-	check(p->sas.mode == 2 && p->sas.state == 1 && p->sas.words[0], "after five seconds of silence it is the old phrase, said to be old");
-	n2 = mknode(dir2, 1);
-	p = mkpeer(n2, 0, sink, 0);
-	n2->now = 1006.0;
-	sas_timers(n2);
-	check(!p->used, "with --require-sas, silence ends the call instead");
+	check(p->used && p->sas.mode == 1, "an end that has sent nothing at all since the call came up is not judged: it may be gone, which the dead-peer timer reports");
+	p->last_rx = 1005.5;			/* it speaks, but not the exchange: an old node, or one whose exchange was stripped */
+	n->now = 1006.5;
+	sas_timers(n);
+	check(!p->used, "an end that speaks but does not do the exchange within five seconds is ended: there is no old phrase to fall back to");
+	n2 = mknode(dir2);
 	p = mkpeer(n2, 1, sink, 0);
 	p->sas.auto_ = 1;
 	n2->now = 1012.0;
 	sas_timers(n2);
-	check(p->used && p->sas.mode == 2, "but a mesh call to a fellow member (signed in by the line) is not asked");
+	check(p->used && p->sas.mode == 2 && !p->sas.words[0], "a mesh call to a fellow member (signed in by the line) is not asked, and shows no phrase");
 
 	/* a node in the middle: two sessions, two binds, and nonces fixed before the other was known */
 	memset(&s1, 0, sizeof s1); memset(&s2, 0, sizeof s2);
