@@ -42,7 +42,7 @@ What longwire defends against, what it does not, and what is still open. Designe
 - **The first call trusts the switchboard,** exactly as the first SSH connection trusts DNS. To remove even that,
   compare the eight-word **safety phrase** both sides show. A number's key is pinned once a call is up, so from then on a
   lying switchboard cannot substitute another. The phrase is committed to before it is known (the caller commits, the callee adds a number, the caller reveals) and tied to the session, so a switchboard that is itself the attacker has no offline search and one
-  online try per call at about 2^-64; it can still make two ends fall back to the old, weaker phrase by dropping the exchange (`--require-sas` refuses that), and the call is on the line while you compare ([SECURITY](SECURITY.md#the-safety-phrase-honestly)). Dialing a full address (`lw1…`) rather than a number is supported.
+  online try per call at about 2^-64; it can still make two ends fall back to the old, weaker phrase by dropping the exchange (since 0.5.35 that ends the call, unless `--allow-legacy-phrase` is given), and the call is on the line while you compare ([SECURITY](SECURITY.md#the-safety-phrase-honestly)). Dialing a full address (`lw1…`) rather than a number is supported.
 - **What the switchboard sees:** that you're online, your public address and port, which numbers ring which, and when.
   On a public switchboard, that's whoever runs it. If that metadata matters, run your
   own switchboard; it's one more script in the same install (`longwire-switchboard`). See

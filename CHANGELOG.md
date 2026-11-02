@@ -3,6 +3,20 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.35
+
+Hardening after a security review ([ADR 0052](docs/adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)).
+
+- **The committed safety phrase is required by default.** A direct call whose other end does not do the eight-word exchange (a node older than 0.5.21, or a switchboard in the middle that strips
+  the exchange) is now **ended**, with a reason that names the way out, instead of showing the old six words. `--allow-legacy-phrase`, or `legacy_phrase = yes` in a profile, lets an old node through
+  with the old phrase. Mesh calls to fellow members and relayed calls between members are exempt, as before. `--require-sas` is still accepted. **Cost:** a call to a node older than 0.5.21 ends
+  unless the profile allows it: update such nodes.
+- **The echo port has a budget**: 8 answers at once and then 2 a second per source address, 1000 a second in all; what is refused is counted (`echo_shed` in a switchboard's status). It was the one
+  part of a switchboard that answered anyone without limit. A node asks it at most six times when it starts. Many nodes behind one address starting together may show `nat unknown` until they measure again.
+- **New tokens are 128 bits** (32 hex digits), from `longwire-switchboard token new` and the Switchboard window. Tokens already given out keep working. This is for peace of mind: a token can only be
+  guessed online, a full handshake per guess, against strikes and bans, so 80 bits was never the weak point.
+- Tested: the echo budget on a real switchboard (`tests/ban2.sh`: a burst of 20 gets 8, the rest counted, answers again a moment later), tokens (`tests/tokens.sh`, `tests/sw.sh`), the profile key (`tests/jack.sh`).
+
 ## 0.5.34
 
 *Published:* the catalogue (`hibr-apps` `9a4b173`) and the packages (`hibr-apt` `a3cd5b6`, `hibr-rpm` `4c8e704`, `hibr-arch` `c444e5f`). `make check` passed (832 checks).

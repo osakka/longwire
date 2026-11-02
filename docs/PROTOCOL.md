@@ -197,7 +197,7 @@ The full design is a ladder, each rung tried when the one before fails:
   The echo port is IPv4 only, needs no handshake and answers anyone, banned keys included; it holds no state and has no rate limit, so it reflects 15 bytes for every 40 sent to it. A node
   also uses it when its switchboard is silent: after 12 s with no session it sends one `ECHO` to the switchboard host's port + 1, and at 15 s reports whether the host `answers` (the
   switchboard itself is ignoring the node) or is `silent` ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)); when the small one comes back it also sends one padded to 1248 bytes, a
-  handshake datagram's size, and reports `large-lost` if only the small one is answered. A switchboard reached over IPv6 gets no probe.
+  handshake datagram's size, and reports `large-lost` if only the small one is answered. A switchboard reached over IPv6 gets no probe. The echo port answers each source address 8 times at once and then 2 a second, and everyone 1000 a second ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)).
 - **SPRAY** *(built)* (one EIM side, one EDM side). The sender's NAT type travels in the candidate list (the count byte's top bit above), so each end knows the other's. Two seconds after `GO` starts the ordinary punch, if no `PUNCH` has
   come back: the strict end opens 256 extra sockets, each sending a `PUNCH` to the easy end's reflexive (and mapped)
   address, which creates 256 mappings on its NAT; the easy end sends `PUNCH` at 100 packets a second to random ports
@@ -270,7 +270,7 @@ A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. The messages 
 
 **The safety phrase exchange.** When a direct call's session is up, the caller sends kind 0 once a second until kind 1 arrives, then kind 2 once a second (at most 15 times) until kind 3 arrives.
 The callee answers every kind 0 with the same kind 1. A caller that hears no kind 1 within 5 s, or a callee that hears no kind 0 within 5 s, takes the other end to be older and shows the six-word
-phrase marked `legacy`; with `--require-sas` it ends the call instead, unless the call is a mesh call to a fellow member. A callee that has a commitment but no reveal within 20 s ends the call, and
+phrase marked `legacy`; by default (since 0.5.35) it ends the call instead, and shows the six words only with `--allow-legacy-phrase`, unless the call is a mesh call to a fellow member. A callee that has a commitment but no reveal within 20 s ends the call, and
 so does one given a reveal that does not match the commitment. A relayed call has no exchange and shows the legacy phrase.
 
 ### Lines and party lines

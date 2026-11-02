@@ -131,7 +131,7 @@ legacy   = 6 words: bytes 0..5 of BLAKE2b-256(caller.key_id ‖ callee.key_id)
 
 The messages are in [PROTOCOL §6](PROTOCOL.md#6-control-messages-and-lines). The caller commits before it knows `nb`, and `bind` differs on the two sessions of a node in the middle, so a switchboard
 that substitutes keys has one online try per call, with odds of about 2^-64, and nothing to search offline. The legacy phrase depends only on the key ids, so an attacker who chooses keys can search
-for a match offline (about 2^24 pairs); `--require-sas` refuses it. The construction has not been model-checked *(planned: M8)*.
+for a match offline (about 2^24 pairs); it is refused by default since 0.5.35, and shown only with `--allow-legacy-phrase`. The construction has not been model-checked *(planned: M8)*.
 
 ## 5. Key schedule
 

@@ -35,7 +35,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.34
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.35
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -95,8 +95,8 @@ tokens_cmd() {
 		[ "$n" -ge 1 ] && [ "$n" -le 1000 ] || { echo "longwire-switchboard: token new makes 1 to 1000 at a time" >&2; exit 2; }
 		mkdir -p "$(dirname "$file")" || exit 1
 		for ((i = 0; i < n; i++)); do
-			t=$(od -An -N10 -tx1 /dev/urandom | tr -d ' \n')
-			[ ${#t} -eq 20 ] || { echo "longwire-switchboard: no random bytes to make a token from" >&2; exit 1; }
+			t=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+			[ ${#t} -eq 32 ] || { echo "longwire-switchboard: no random bytes to make a token from" >&2; exit 1; }
 			printf '%s\n' "$t" >> "$file" || exit 1
 			echo "$t"
 		done

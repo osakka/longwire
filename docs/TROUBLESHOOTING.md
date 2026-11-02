@@ -10,7 +10,7 @@ Tokens are secrets: leave them out of what you send.
 (`please apt update && please apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
 
 **`longwire show` says `engine 0.6.0`, and updating changes nothing.**
-0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.34-1` (the current version), then
+0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.35-1` (the current version), then
 `longwire off` and `longwire on`. `doctor`'s advice to refresh the catalogue does not apply here.
 
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
@@ -56,7 +56,7 @@ The switchboard wants a token and you gave none, or a wrong or already-used one.
 profile (`longwire profile token home`, then type it). A machine that has registered once does not need one again.
 
 **`… a token has no spaces, quotes or backslashes, and does not start with #`**
-The token has a character a token may not. Tokens made by `openssl rand -hex 10` are fine.
+The token has a character a token may not. Tokens made by `openssl rand -hex 16` are fine.
 
 **`… too many registrations from this address`**
 This switchboard allows a limited number of new registrations per address per hour (20 by default). Wait, or ask the operator.
@@ -94,10 +94,10 @@ number or someone is in the middle. Do not unpin or call back until you have che
 
 **`safety phrase: … (the old, weaker kind: the other end is older)`** / **`(a relayed call: the old, weaker kind)`**
 The other end is older than 0.5.21 (or something on the way dropped the exchange), or the call goes through a relay: the phrase is the old six words, which a switchboard that is the
-attacker could have searched for. Update the other end; for a direct call, `longwire up --require-sas` refuses such calls once every node is up to date ([ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)).
+attacker could have searched for. A direct call shows it only when the profile allows it (`legacy_phrase = yes`); update the other end and take that out ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)).
 
 **`✗ the safety phrase could not be agreed with 447-120-933: …. The call was ended`**
-*the other end cannot do the committed safety phrase (--require-sas)*: it is older than 0.5.21; update it. *the caller's reveal does not match what it committed to*, or *the caller did not
+*the other end cannot do the committed safety phrase: it is older than 0.5.21*: update it, or, for now, `longwire profile set home legacy_phrase=yes` to let it through with the old phrase. *the caller's reveal does not match what it committed to*, or *the caller did not
 reveal its half*: something altered or dropped the exchange; treat it as the phrases differing.
 
 ## It is connected, but nothing works

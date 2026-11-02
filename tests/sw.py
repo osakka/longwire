@@ -202,7 +202,7 @@ echo CLOSED "${{SW[1][nf]-}}" "${{SW[1][fd]-}}"'''
     text = "\n".join(l for l in out if l.startswith("PUT "))
     tok = [l[5:] for l in out if l.startswith("COPY ")]
     filetoks = [l.strip() for l in open(f"{T}/tok/tokens") if l.strip()]
-    check(tok and len(tok[0]) == 20 and filetoks == tok and "Tokens (1 unspent)" in text and "(new)" in text and any("A new token" in l and tok[0] in l for l in out),
+    check(tok and len(tok[0]) == 32 and filetoks == tok and "Tokens (1 unspent)" in text and "(new)" in text and any("A new token" in l and tok[0] in l for l in out),
           f"n makes a token in the file, shows it marked new, a note says it, and Copy takes it: {tok} {filetoks} {r.stderr[-300:]}")
     out, r = drive(S.sock, "switchboard_open 1; switchboard_key 1 t; switchboard_key 1 x; sw_tokdeldo; switchboard_draw 1 22 74 1 1", **tenv)
     text = "\n".join(l for l in out if l.startswith("PUT "))

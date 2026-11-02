@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.34
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.35
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.34}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.35}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -201,7 +201,7 @@ profiles_read() {
 		case $k in
 		default) PDEFAULT=$eq ;;
 		profile) cur=$eq; PNAMES+=("$cur") ;;
-		switchboard|token|attach|interface|address|gateway|routes|everything|dns|keep_jack|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
+		switchboard|token|attach|interface|address|gateway|routes|everything|dns|keep_jack|legacy_phrase|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
 		esac
 	done < "$PROFILES"
 }
@@ -214,7 +214,7 @@ profiles_write() {
 		out="$out
 profile $n
 "
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer; do
 			[ -n "${PF[$n.$k]:-}" ] && out="$out  $k = ${PF[$n.$k]}
 "
 		done
@@ -246,6 +246,7 @@ profile_args() {
 	[ -n "${PF[$n.name]:-}" ] && PARGS+=(--name "${PF[$n.name]}")
 	[ "${PF[$n.listed]:-}" = yes ] && PARGS+=(--listed)
 	[ "${PF[$n.everything]:-}" = yes ] && [ "${PF[$n.attach]:-jack}" = jack ] && PARGS+=(--everything)
+	[ "${PF[$n.legacy_phrase]:-}" = yes ] && PARGS+=(--allow-legacy-phrase)	# a call to a node older than 0.5.21 shows the old phrase instead of ending
 	return 0
 }
 
@@ -262,7 +263,7 @@ cmd_profile() {
 		n=${1:-$PDEFAULT}
 		[ -n "$n" ] && profile_exists "$n" || { echo "longwire: no profile${n:+ called $n}" >&2; exit 1; }
 		echo "profile $n$([ "$n" = "$PDEFAULT" ] && echo '   (default)')"
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer; do
 			v=${PF[$n.$k]:-}
 			[ -n "$v" ] || continue
 			[ "$k" = token ] && v="(set, ${#v} characters)"		# the token is not shown: it is in the file, readable by you only
@@ -270,7 +271,7 @@ cmd_profile() {
 		done ;;
 	set)
 		n=${1:-}
-		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything dns keep_jack name listed answer)" >&2; exit 2; }
+		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer)" >&2; exit 2; }
 		shift
 		case $n in ''|*[!A-Za-z0-9._-]*) echo "longwire: a profile name is letters, digits, . _ -" >&2; exit 2 ;; esac
 		profile_exists "$n" || { PNAMES+=("$n"); [ -n "$PDEFAULT" ] || PDEFAULT=$n; }	# the first profile is the default one
@@ -287,10 +288,11 @@ cmd_profile() {
 			routes) case $v in *[!0-9./,]*) echo "longwire: routes are networks like 192.168.150.0/24, separated by commas" >&2; exit 2 ;; esac ;;
 			keep_jack) case $v in yes|no|"") ;; *) echo "longwire: keep_jack is yes or no" >&2; exit 2 ;; esac ;;
 			everything) case $v in yes|no|"") ;; *) echo "longwire: everything is yes or no" >&2; exit 2 ;; esac ;;
+			legacy_phrase) case $v in yes|no|"") ;; *) echo "longwire: legacy_phrase is yes or no" >&2; exit 2 ;; esac ;;
 			dns) case $v in ""|[0-9]*.[0-9]*.[0-9]*.[0-9]*) case $v in *[!0-9.]*) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;; *) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;;
 			listed) case $v in yes|no|"") ;; *) echo "longwire: listed is yes or no" >&2; exit 2 ;; esac ;;
 			answer) case $v in ask|known|auto|never|"") ;; *) echo "longwire: answer is ask, known, auto or never" >&2; exit 2 ;; esac ;;
-			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything dns keep_jack name listed answer)" >&2; exit 2 ;;
+			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer)" >&2; exit 2 ;;
 			esac
 			if [ -n "$v" ]; then PF["$n.$k"]=$v; else unset "PF[$n.$k]"; fi
 		done
@@ -317,7 +319,7 @@ cmd_profile() {
 		[ "$to" = "$n" ] && exit 0
 		profile_exists "$to" && { echo "longwire: there is already a profile called '$to'" >&2; exit 1; }
 		for i in "${!PNAMES[@]}"; do [ "${PNAMES[$i]}" = "$n" ] && PNAMES[$i]=$to; done		# same place in the list, same default
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer; do
 			if [ -n "${PF[$n.$k]:-}" ]; then PF["$to.$k"]=${PF[$n.$k]}; fi
 			unset "PF[$n.$k]"
 		done
@@ -329,7 +331,7 @@ cmd_profile() {
 		local keep=() m
 		for m in "${PNAMES[@]}"; do [ "$m" = "$n" ] || keep+=("$m"); done
 		PNAMES=("${keep[@]}")
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do unset "PF[$n.$k]"; done
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack legacy_phrase name listed answer; do unset "PF[$n.$k]"; done
 		[ "$PDEFAULT" = "$n" ] && PDEFAULT=${PNAMES[0]:-}
 		profiles_write ;;
 	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME" >&2; exit 2 ;;

@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.34" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.35" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
@@ -42,6 +42,7 @@ is IPv4 only;
 is IPv6 only; a comma separates several.
 The switchboard also answers on the port above (1878 for 1877), over IPv4: the NAT-type check, and the probe of a node it is not answering.
 Let both through a firewall.
+The echo port answers each source address 8 times at once and then 2 a second, and everyone 1000 a second.
 If that port is taken, it runs without it.
 .TP
 .BI \-\-tokens " FILE"

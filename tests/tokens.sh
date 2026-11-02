@@ -12,15 +12,15 @@ bad() { echo "FAIL $1"; fail=1; }
 sb() { SB_DIR="$T/sb" "$HIBR" "$SB" "$@"; }
 
 out=$(sb token new 3 2>&1); rc=$?
-n=$(printf '%s\n' "$out" | grep -c '^[0-9a-f]\{20\}$')
-[ $rc = 0 ] && [ "$n" = 3 ] && ok "three tokens are made, 20 hex digits each" || bad "token new 3: rc=$rc $out"
+n=$(printf '%s\n' "$out" | grep -c '^[0-9a-f]\{32\}$')
+[ $rc = 0 ] && [ "$n" = 3 ] && ok "three tokens are made, 32 hex digits (128 bits) each" || bad "token new 3: rc=$rc $out"
 mode=$(stat -c %a "$T/sb/tokens")
 [ "$mode" = 600 ] && ok "the file is for its owner only" || bad "mode $mode"
 t1=$(printf '%s\n' "$out" | sed -n 1p)
 t2=$(printf '%s\n' "$out" | sed -n 2p)
 [ "$t1" != "$t2" ] && ok "and they differ" || bad "same token twice"
 out2=$(sb token list 2>&1)
-[ "$(printf '%s\n' "$out2" | grep -c '^[0-9a-f]\{20\}$')" = 3 ] && printf '%s' "$out2" | grep -q "(3 unspent)" && ok "list shows them and counts them" || bad "list: $out2"
+[ "$(printf '%s\n' "$out2" | grep -c '^[0-9a-f]\{32\}$')" = 3 ] && printf '%s' "$out2" | grep -q "(3 unspent)" && ok "list shows them and counts them" || bad "list: $out2"
 sb token remove "$t1" > /dev/null 2>&1; rc=$?
 [ $rc = 0 ] && ! grep -q "$t1" "$T/sb/tokens" && grep -q "$t2" "$T/sb/tokens" && ok "remove takes out that one and keeps the rest" || bad "remove: rc=$rc $(cat "$T/sb/tokens")"
 sb token remove "$t1" > /dev/null 2>&1; [ $? = 1 ] && ok "a token that is not there is an error" || bad "remove twice"

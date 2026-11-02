@@ -910,6 +910,43 @@ static void punch_send(lw_node *n, lw_call *c)
 /* ECHO (docs/PROTOCOL.md section 4). A switchboard answers on its second port with the address it sees the asker at; a node
  * compares that with what the first port said. The same port both times means the NAT keeps one mapping however many
  * destinations there are (easy); a different port means it makes a new one for each (strict). */
+/* The echo port answers anyone, with no handshake: a budget per source address (burst 8, then 2 a second; a node asks it at most six times when it starts) and
+ * one for all (2000, then 1000 a second), so it cannot be used to make the switchboard send without end (docs/adr/0052). Sources are told apart by a keyed hash,
+ * like the handshake's (hs.c), so one cannot pick addresses that share a bucket. */
+static int echo_ok(lw_node *n, const struct sockaddr_in *a)
+{
+	uint8_t b[4], hv[8];
+	uint64_t id;
+	int i;
+
+	n->echo_gtok += (n->now - n->echo_gt) * 1000.0;
+	n->echo_gt = n->now;
+	if (n->echo_gtok > 2000.0)
+		n->echo_gtok = 2000.0;
+	if (n->echo_gtok < 1.0)
+		return 0;
+	memcpy(b, &a->sin_addr, 4);
+	crypto_blake2b_keyed(hv, 8, (const uint8_t *)&n->hsalt, 8, b, 4);
+	memcpy(&id, hv, 8);
+	i = (int)(id % SRC_BUCKETS);
+	if (n->echol[i].id != id) {		/* a slot is taken over: the one it held had a full bucket by now, or is a neighbour that shares it */
+		if (!n->echol[i].id || n->echol[i].tok + (n->now - n->echol[i].t) * 2.0 >= 8.0) {
+			n->echol[i].id = id;
+			n->echol[i].tok = 8.0;
+			n->echol[i].t = n->now;
+		}
+	}
+	n->echol[i].tok += (n->now - n->echol[i].t) * 2.0;
+	n->echol[i].t = n->now;
+	if (n->echol[i].tok > 8.0)
+		n->echol[i].tok = 8.0;
+	if (n->echol[i].tok < 1.0)
+		return 0;
+	n->echol[i].tok -= 1.0;
+	n->echo_gtok -= 1.0;
+	return 1;
+}
+
 void echo_serve(lw_node *n)
 {
 	uint8_t in[64], out[15];
@@ -925,6 +962,10 @@ void echo_serve(lw_node *n)
 			break;
 		if (r < 40 || in[0] != T_ECHO || al != sizeof a || a.sin_family != AF_INET)	/* a request is longer than its reply: no amplification */
 			continue;
+		if (!echo_ok(n, &a)) {
+			n->echo_shed++;
+			continue;
+		}
 		out[0] = T_ECHO;
 		memcpy(out + 1, in + 1, 8);
 		memcpy(out + 9, &a.sin_addr, 4);
@@ -1085,7 +1126,7 @@ static void sas_fail(lw_node *n, lw_peer *p, const char *why)
 static void sas_legacy(lw_node *n, lw_peer *p)
 {
 	if (n->cfg.require_sas && !p->sas.auto_) {
-		sas_fail(n, p, "the other end cannot do the committed safety phrase (--require-sas)");
+		sas_fail(n, p, "the other end cannot do the committed safety phrase: it is older than 0.5.21 (--allow-legacy-phrase lets such a call through with the old phrase)");
 		return;
 	}
 	p->sas.mode = 2;

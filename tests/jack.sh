@@ -124,6 +124,10 @@ grep -qx "helper --address 192.168.152.50/24 lw7" "$LWJ_LOG" && ok "a gateway wi
 grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168.152.254 lw7" "$LWJ_LOG" && ok "and the name server with it" || bad "jack dns: $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --routes 10.20.0.0/16 --dns 192.168.152.254 lw7 2>&1)
 grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --routes 10.20.0.0/16 lw7" "$LWJ_LOG" && ok "but not without everything" || bad "jack dns alone: $out $(cat "$LWJ_LOG")"
+out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p legacy_phrase=yes 2>&1); rc=$?
+[ $rc = 0 ] && ok "a profile may allow the old safety phrase (legacy_phrase=yes), which is off by default" || bad "profile legacy_phrase: rc=$rc $out"
+out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p legacy_phrase=sometimes 2>&1); rc=$?
+[ $rc = 2 ] && ok "but only yes or no" || bad "profile legacy_phrase bad: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p dns=192.168.152.254 2>&1); rc=$?
 [ $rc = 0 ] && ok "a profile keeps a name server" || bad "profile dns: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p 'dns=1.1.1.1;id' 2>&1); rc=$?

@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.34" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.35" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -327,8 +327,10 @@ Ask the home router to keep a port open (default on).
 .BI \-\-direct\-retry " S"
 How often a relayed peer tries for a direct path.
 .TP
+.B \-\-allow\-legacy\-phrase
+Let a call to a node older than 0.5.21 through with the old, weaker six\-word phrase; by default such a call is ended (a mesh call to a fellow member is exempt).
 .B \-\-require\-sas
-Refuse a call whose other end does not do the committed safety phrase, instead of showing the old, weaker phrase (a mesh call to a fellow member is exempt).
+is still accepted and asks for the default.
 .TP
 .BI \-\-underlay " DEV"
 The network device to reach peers by when the jack has an address in their network (default: the default route's).

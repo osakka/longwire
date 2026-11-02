@@ -45,7 +45,7 @@ directory. Then make the tokens (one per machine you want to let in, plus a spar
 ```
 please install -m 0600 /dev/null /var/lib/longwire-switchboard/tokens
 please chown "$(stat -c %u /var/lib/private/longwire-switchboard)" /var/lib/longwire-switchboard/tokens
-for i in 1 2 3; do openssl rand -hex 10; done | please tee /var/lib/longwire-switchboard/tokens
+for i in 1 2 3; do openssl rand -hex 16; done | please tee /var/lib/longwire-switchboard/tokens
 ```
 
 The file belongs to the service's own user and nobody else can read it. (A group-readable file would let anyone in the group `longwire` read, and
@@ -69,7 +69,7 @@ Nodes use `--switchboard YOUR.HOST:1877/lw1q7m…k2a`.
   (see [SWITCHBOARD](SWITCHBOARD.md)).
 - **Tokens.** Open registration (no `--tokens`) lets anyone take a number. For a switchboard that matters, use tokens. A token is spent on first
   use; a machine that has registered once is recognised by its key afterwards. Add one with
-  `openssl rand -hex 10 | please tee -a /var/lib/longwire-switchboard/tokens`. The file must be in the state directory: the service cannot
+  `openssl rand -hex 16 | please tee -a /var/lib/longwire-switchboard/tokens`. The file must be in the state directory: the service cannot
   write `/etc`.
 - **Strikes and bans.** On by default (10 strikes in 10 minutes, a 15-minute first ban doubling to a day; `--strikes 0` turns it off). Add your own nodes with `--never-ban ADDR/PREFIX` or `--never-ban KEY` if you ever lock yourself out (`please longwire-switchboard bans clear all` lifts everything at once; a restart of the service does too, since bans are kept in memory, and is what makes a new `--never-ban` take effect).
   Details and why they cannot be turned against your users: [SWITCHBOARD](SWITCHBOARD.md).

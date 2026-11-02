@@ -139,6 +139,31 @@ def main():
     ev = R.w.wait("switchboard-silent", 25, after=0)
     check(ev is not None and ev.get("host") == "silent", f"nothing at that address: the node says nothing comes back from the host: {ev}")
     R.stop()
+    # the echo port has a budget per source (docs/adr/0052): a burst of 20 from one address gets at most 8 answers, and the switchboard says it shed the rest
+    burst = subprocess.run(["nsenter", "-t", str(ns.pid), "-n", "python3", "-I", "-c", r"""
+import socket, os, time
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(0.5)
+for i in range(20):
+    s.sendto(b'\x07' + os.urandom(8) + bytes(31), ('127.0.0.1', 1878))
+n = 0
+try:
+    while True:
+        s.recvfrom(64); n += 1
+except socket.timeout:
+    pass
+time.sleep(1.2)
+s.sendto(b'\x07' + os.urandom(8) + bytes(31), ('127.0.0.1', 1878))
+try:
+    s.recvfrom(64); later = 1
+except socket.timeout:
+    later = 0
+print(n, later)
+"""], capture_output=True, text=True, timeout=30)
+    got = burst.stdout.split()
+    st = S.status()
+    check(len(got) == 2 and 1 <= int(got[0]) <= 8 and got[1] == "1" and st.get("echo_shed", 0) >= 12,
+          f"a burst of 20 echo requests from one address gets at most 8 answers, the rest are shed and counted, and a moment later it answers again: {got} shed={st.get('echo_shed')} {burst.stderr[-200:]}")
+
     # a host whose echo port answers small packets only: the node says large packets are lost on the way (an MTU or fragment problem), not a ban
     stub = subprocess.Popen(["nsenter", "-t", str(ns.pid), "-n", "python3", "-I", "-c", r"""
 import socket

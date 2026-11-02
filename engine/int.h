@@ -314,6 +314,9 @@ struct lw_node {
 	uint8_t  csecret[2][32];	/* cookie secret now and before the last rotation */
 	double   csecret_t;
 	struct { uint64_t id; double tok, t; } srcl[SRC_BUCKETS];	/* per-source budget for cookie holders, under load */
+	struct { uint64_t id; double tok, t; } echol[SRC_BUCKETS];	/* per-source budget for the echo port (docs/adr/0052) */
+	double   echo_gtok, echo_gt;	/* and one for everyone */
+	uint64_t echo_shed;
 };
 
 double lw_now(void);

@@ -18,7 +18,7 @@
 
 strict
 
-app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.34
+app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.35
 # modules: longwire
 command -v dt_app > /dev/null && dt_app switchboard "Switchboard" 24 76 once "☎"
 
@@ -493,7 +493,7 @@ fn sw_tokmade(int n, int st, out = "") {
 		return 0
 	fi
 	if [ -r "$f" ]; then
-		while IFS= read -r t; do t=${t%$'\r'}; [[ $t =~ ^[0-9a-f]{20}$ ]] && break; t=; done < "$f"
+		while IFS= read -r t; do t=${t%$'\r'}; [[ $t =~ ^[0-9a-f]{32}$ ]] && break; t=; done < "$f"
 	fi
 	SWT[$id]["new"]=$t
 	dt_notep low "A new token: %s (c copies it; give it to one machine)" "$t"
