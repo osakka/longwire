@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.34
 
+*Published:* the catalogue (`hibr-apps` `9a4b173`) and the packages (`hibr-apt` `a3cd5b6`, `hibr-rpm` `4c8e704`, `hibr-arch` `c444e5f`). `make check` passed (832 checks).
+
 - **`longwire show` no longer calls a peer with no session "connected".** A peer the node knows but has no session with (`idle`, `handshaking`, `waiting`: the other end went away, or is coming
   back) was listed as `connected … idle direct, -1s`, as vpn-1's first report after its update showed. It is now `not connected … (idle: no session now; it comes back by itself when the other end does)`,
   with what it carried before. Tested (`tests/profile.sh`).
