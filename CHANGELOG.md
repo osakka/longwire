@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.32
 
+*Published:* the catalogue (`hibr-apps` `5986e8a`) and the packages (`hibr-apt` `4b124c7`, `hibr-rpm` `8d08ce9`, `hibr-arch` `bd17ecb`). `make check` passed (829 checks).
+
 - **Tokens in the Switchboard window** ([ADR 0050](docs/adr/0050-a-switchboards-tokens-are-made-in-its-window.md)). View > Tokens (`t`) shows the unspent tokens; **New Token** (`n`) makes one and says it in a note,
   **Remove Token…** (`x`) asks first, **Copy Token** (`c`) takes one to hand to a machine, **Read Again** (`r`). It finds the file the switchboard uses (the service's `--tokens`, or the one beside a
   switchboard run by hand; File > Tokens File… names another). A service's file goes through `please`, and is read only when you ask, so the view never asks for a password by surprise.
