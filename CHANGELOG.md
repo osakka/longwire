@@ -3,6 +3,17 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.36
+
+- **The switchboard has ports of its own** ([ADR 0053](docs/adr/0053-the-switchboard-has-ports-of-its-own.md)). The default listen port is **6741** (was 1877) and the echo port is the listen port + 2747: **9488** by default (was
+  the port above). 1877 and 1878 are assigned by IANA to other services, and two adjacent ports were an easy fingerprint; 6741 and 9488 were unassigned for TCP and UDP. This is housekeeping, not
+  security: a scanner finds a UDP service on any port, and the handshake is what guards it.
+- **Nothing moves by itself.** A switchboard started with `--listen 1877` (as yours is) keeps 1877; its echo port becomes 4624, and it still answers on 1878 for nodes before 0.5.36 until
+  `--echo-legacy off`. A node asks both echo ports, so it measures against a switchboard of any version. **To do:** open the new echo port in the switchboard's firewall (4624 for a switchboard on 1877,
+  9488 for one on 6741), or nodes on 0.5.36 fall back to the old one.
+- An application to register `longwire` (6741/udp) and `longwire-echo` (9488/udp) with IANA is drafted for the owner to submit; until then they are simply unassigned ports.
+- Tested on a real switchboard: ECHO answered on the listen port + 2747 and on + 1 (`tests/ban2.sh`).
+
 ## 0.5.35
 
 *Published:* the catalogue (`hibr-apps` `1f08600`) and the packages (`hibr-apt` `5620c18`, `hibr-rpm` `affcad8`, `hibr-arch` `fa73943`). `make check` passed (835 checks).

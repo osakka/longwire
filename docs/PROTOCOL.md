@@ -188,14 +188,14 @@ The full design is a ladder, each rung tried when the one before fails:
 - **IPv6** *(built)*: a node holds a second socket for it ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)); a global address is a host candidate and a path between two such nodes needs no punching. The switchboard may be reached over either family; one reached over IPv6 sends zero in the IPv4 address field of `NUMBER` and `HBACK`.
 - **More candidates:** PCP, and relay candidates (public members of the line that
   offer relaying) *(planned: M7)*.
-- **Mapping type** *(built)*. A switchboard also listens on its port plus one. A node sends that port an `ECHO`
+- **Mapping type** *(built)*. A switchboard also listens on its echo port, its own port + 2747 (9488 for 6741), and until `--echo-legacy off` on its port + 1 for nodes before 0.5.36; a node asks both ([ADR 0053](adr/0053-the-switchboard-has-ports-of-its-own.md)). A node sends that port an `ECHO`
   (`0x07 ‖ nonce:8`, padded to 40 bytes) and gets back `0x07 ‖ nonce:8 ‖ ip:4 ‖ port:2`, the address it was seen at.
   The reply is shorter than the request, so it cannot be used to amplify. If the port is the one the main port saw,
   the NAT is endpoint-independent (EIM, "easy"); if it differs, endpoint-dependent (EDM, "hard"). The node reports it
   as `nat` (`easy`, `strict` or `unknown`) in its status, measures again every ten minutes, and says so when a call
   fails because of it. A switchboard behind a firewall must let the second port through, or nodes show `unknown`.
   The echo port is IPv4 only, needs no handshake and answers anyone, banned keys included; it holds no state and has no rate limit, so it reflects 15 bytes for every 40 sent to it. A node
-  also uses it when its switchboard is silent: after 12 s with no session it sends one `ECHO` to the switchboard host's port + 1, and at 15 s reports whether the host `answers` (the
+  also uses it when its switchboard is silent: after 12 s with no session it sends one `ECHO` to the switchboard host's echo ports, and at 15 s reports whether the host `answers` (the
   switchboard itself is ignoring the node) or is `silent` ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)); when the small one comes back it also sends one padded to 1248 bytes, a
   handshake datagram's size, and reports `large-lost` if only the small one is answered. A switchboard reached over IPv6 gets no probe. The echo port answers each source address 8 times at once and then 2 a second, and everyone 1000 a second ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)).
 - **SPRAY** *(built)* (one EIM side, one EDM side). The sender's NAT type travels in the candidate list (the count byte's top bit above), so each end knows the other's. Two seconds after `GO` starts the ordinary punch, if no `PUNCH` has

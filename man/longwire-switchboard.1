@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.35" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.36" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
@@ -34,13 +34,16 @@ and keeps its derived code.
 .SH OPTIONS
 .TP
 .BI \-\-listen " PORT|ADDR:PORT|[ADDR]:PORT"
-Where to listen, over UDP (default 1877).
+Where to listen, over UDP (default 6741).
 A bare port is IPv4 and IPv6 on any address;
 .I ADDR:PORT
 is IPv4 only;
 .I [ADDR]:PORT
 is IPv6 only; a comma separates several.
-The switchboard also answers on the port above (1878 for 1877), over IPv4: the NAT-type check, and the probe of a node it is not answering.
+The switchboard also answers ECHO, over IPv4, on its echo port, the listen port + 2747 (9488 for 6741): the NAT-type check, and the probe of a node it is not answering.
+Until
+.B "\-\-echo\-legacy off"
+it answers on the listen port + 1 too, for nodes before 0.5.36.
 Let both through a firewall.
 The echo port answers each source address 8 times at once and then 2 a second, and everyone 1000 a second.
 If that port is taken, it runs without it.
@@ -132,6 +135,9 @@ On a registry: codes asked for per source per day (default 2).
 .BI \-\-release\-after " TIME"
 How long a number may go unheard before it is released, and held back as long again (default 365d; a suffix of s, m, h or d; a bare number is days).
 Its owner coming back in that time gets the same number.
+.TP
+.BR \-\-echo\-legacy " " on | off
+Also answer ECHO on the listen port + 1, for nodes before 0.5.36 (default on).
 .TP
 .BR \-\-caller\-id " " on | off
 Carry the names callers announced (default on).
@@ -226,7 +232,7 @@ as one line:
 .PP
 .nf
 .RS
-ARGS="\-\-listen 1877 \-\-registry none \-\-tokens /var/lib/longwire\-switchboard/tokens"
+ARGS="\-\-listen 6741 \-\-registry none \-\-tokens /var/lib/longwire\-switchboard/tokens"
 .RE
 .fi
 .PP

@@ -13,7 +13,7 @@ they do the same thing and share one saved connection, so you can mix them.
   **Control Panel > Administrative Access**, as this guide uses them, need hibr 0.99.390 or newer: on an older hibr write `sudo` where it says `please`. Call them **A** and **B**.
 - **A switchboard** both can reach. There is no public one to borrow, so you run your own: see [OPERATING](OPERATING.md)
   ("Run a switchboard", about five minutes on any small server). You will need three things from it:
-  its address `HOST:1877`, its **key** (it prints `lw1…` when it starts), and, if you gave it tokens, **one token for each machine**.
+  its address `HOST:6741`, its **key** (it prints `lw1…` when it starts), and, if you gave it tokens, **one token for each machine**.
 - **Your administrator password** on each machine, to make the network device. It is asked for through polkit (`pkexec`; you can tune it in Control Panel > Administrative Access) the first time, and again after a
   restart, because the device does not survive one.
 
@@ -37,7 +37,7 @@ is enough.
 
 1. Open **Control Panel → Longwire**. It says **Longwire is off** and shows a form.
 2. Fill in:
-   - **Switchboard:** `HOST:1877/lw1…`, the address, a slash, and the key.
+   - **Switchboard:** `HOST:6741/lw1…`, the address, a slash, and the key.
    - **Token:** the token for this machine, if your switchboard wants one.
    - **Attach:** `jack`. **Interface:** `lw0`.
    - **Name:** optional, a name callers will see. It is a claim, never proof.
@@ -47,7 +47,7 @@ is enough.
 ### On the command line
 
 ```
-longwire profile set home switchboard=HOST:1877/lw1… attach=jack interface=lw0
+longwire profile set home switchboard=HOST:6741/lw1… attach=jack interface=lw0
 longwire profile token home           # type the token, then Enter (it stays out of your shell history)
 longwire on
 ```

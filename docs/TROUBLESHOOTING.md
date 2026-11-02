@@ -10,7 +10,7 @@ Tokens are secrets: leave them out of what you send.
 (`please apt update && please apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
 
 **`longwire show` says `engine 0.6.0`, and updating changes nothing.**
-0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.35-1` (the current version), then
+0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.36-1` (the current version), then
 `longwire off` and `longwire on`. `doctor`'s advice to refresh the catalogue does not apply here.
 
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
@@ -33,7 +33,7 @@ or follow the two commands the message prints, as root, once.
 Same causes. Run `longwire jack` in a terminal to see the full instructions. If you cancelled the password dialog, press **Turn on** again.
 
 **`longwire: on (profile …), waiting for the switchboard to give a number`**
-The node is running but the switchboard has not answered yet (slow, unreachable, or a firewall on UDP 1877). `longwire show` says **dial tone** when it has. If it never does, after 15 s the log
+The node is running but the switchboard has not answered yet (slow, unreachable, or a firewall on UDP 6741). `longwire show` says **dial tone** when it has. If it never does, after 15 s the log
 and `longwire show` say why as far as the node can tell (below, `⚠ no answer from the switchboard`).
 
 **Control Panel says "Could not make the site node" (splice), or `longwire: the site helper is not installed`**
@@ -199,7 +199,7 @@ A ring is heard while the desktop runs. If it is not running, the node still app
 (create it in the state directory), or an option has no value.
 
 **Nodes cannot reach the switchboard.**
-Open UDP on its listen port and the one above it (1877 and 1878 by default). From a node: its status line says **dial tone** when it can, and after 15 s without it the node says why
+Open UDP on its listen port and its echo port, the listen port + 2747 (6741 and 9488 by default; and the listen port + 1 while nodes before 0.5.36 remain). From a node: its status line says **dial tone** when it can, and after 15 s without it the node says why
 ([OPERATING](OPERATING.md#when-a-node-gets-no-number)).
 
 **I cannot lift a ban: "only the user this runs as may do that".**

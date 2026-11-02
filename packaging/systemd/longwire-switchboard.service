@@ -1,6 +1,6 @@
 # longwire switchboard: the rendezvous that lets nodes find each other, then steps out of the way.
 # Configure /etc/longwire/switchboard.conf with one line, for example
-#     ARGS="--listen 1877 --registry none"
+#     ARGS="--listen 6741 --registry none"
 # then   systemctl enable --now longwire-switchboard
 # The script comes from the catalogue, for the machine:  catalogue --system install cli/longwire-switchboard
 # This is the service that faces the internet. Restart=always: whatever makes the worker exit (a crash, a kill) must only ever be a bounce; `systemctl stop` still

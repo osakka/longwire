@@ -949,6 +949,11 @@ static int echo_ok(lw_node *n, const struct sockaddr_in *a)
 
 void echo_serve(lw_node *n)
 {
+	echo_serve_fd(n, n->udp2);
+}
+
+void echo_serve_fd(lw_node *n, int fd)
+{
 	uint8_t in[64], out[15];
 	struct sockaddr_in a;
 	socklen_t al;
@@ -956,7 +961,7 @@ void echo_serve(lw_node *n)
 
 	for (i = 0; i < 64; i++) {
 		al = sizeof a;
-		ssize_t r = recvfrom(n->udp2, in, sizeof in, 0, (struct sockaddr *)&a, &al);
+		ssize_t r = recvfrom(fd, in, sizeof in, 0, (struct sockaddr *)&a, &al);
 
 		if (r < 0)
 			break;
@@ -971,7 +976,22 @@ void echo_serve(lw_node *n)
 		memcpy(out + 9, &a.sin_addr, 4);
 		put16(out + 13, ntohs(a.sin_port));
 		n->tx_pkts++, n->tx_bytes_all += sizeof out;
-		sendto(n->udp2, out, sizeof out, 0, (struct sockaddr *)&a, sizeof a);
+		sendto(fd, out, sizeof out, 0, (struct sockaddr *)&a, sizeof a);
+	}
+}
+
+/* An ECHO to a switchboard's echo port (its port + 2747) and to its old one (its port + 1), so a node can measure against a switchboard of any version
+ * (docs/adr/0053). The first answer counts; the second is ignored. `a` is the switchboard's own address. */
+static void echo_send(lw_node *n, const struct sockaddr_in *sw, const uint8_t *q, size_t len)
+{
+	struct sockaddr_in a = *sw;
+	int p = ntohs(sw->sin_port);
+
+	a.sin_port = htons((uint16_t)echo_port_of(p));
+	usend(n, n->udp, q, len, (struct sockaddr *)&a, sizeof a);
+	if (p < 65535) {
+		a.sin_port = htons((uint16_t)(p + 1));
+		usend(n, n->udp, q, len, (struct sockaddr *)&a, sizeof a);
 	}
 }
 
@@ -1009,8 +1029,7 @@ static void echo_ask(lw_node *n, lw_peer *s)
 	lw_rand(n->echo_nonce, 8);
 	memcpy(q + 1, n->echo_nonce, 8);
 	memcpy(&a, &s->ep, sizeof a);
-	a.sin_port = htons((uint16_t)(ntohs(a.sin_port) + 1));
-	usend(n, n->udp, q, sizeof q, (struct sockaddr *)&a, sizeof a);	/* not into the jack, if a route sends the switchboard's address there */
+	echo_send(n, &a, q, sizeof q);	/* not into the jack, if a route sends the switchboard's address there */
 	n->echo_tries++;
 	n->next_echo = n->now + 2.0;
 }
@@ -1659,8 +1678,7 @@ static void sb_quiet_timers(lw_node *n)
 		lw_rand(n->sb_probe_nonce, 8);
 		memcpy(q + 1, n->sb_probe_nonce, 8);
 		memcpy(&a, &p->ep, sizeof a);
-		a.sin_port = htons((uint16_t)(ntohs(a.sin_port) + 1));
-		usend(n, n->udp, q, sizeof q, (struct sockaddr *)&a, sizeof a);
+		echo_send(n, &a, q, sizeof q);
 		n->sb_probe = 1;
 	}
 	if (n->sb_probe == 2 && n->sb_big == 0 && n->udp >= 0) {
@@ -1674,8 +1692,7 @@ static void sb_quiet_timers(lw_node *n)
 		lw_rand(n->sb_big_nonce, 8);
 		memcpy(q + 1, n->sb_big_nonce, 8);
 		memcpy(&a, &p->ep, sizeof a);
-		a.sin_port = htons((uint16_t)(ntohs(a.sin_port) + 1));
-		usend(n, n->udp, q, sizeof q, (struct sockaddr *)&a, sizeof a);
+		echo_send(n, &a, q, sizeof q);
 		n->sb_big = 1;
 		n->sb_big_t = n->now;
 	}

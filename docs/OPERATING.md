@@ -28,14 +28,15 @@ first place to look, and [TROUBLESHOOTING](TROUBLESHOOTING.md) the second.
 ## Run a switchboard
 
 The switchboard gives nodes their numbers and introduces two nodes that want to talk. It is not on the data path, so a small server
-is enough, but it must be reachable from the internet on **UDP on its listen port and the one above it** (1877 and 1878 by default; the second answers
-the NAT-type check, and a node's probe when the switchboard is silent to it).
+is enough, but it must be reachable from the internet on **UDP on its listen port and its echo port** (6741 and 9488 by default: the echo port is the listen port + 2747, and
+answers the NAT-type check and a node's probe when the switchboard is silent to it). Nodes before 0.5.36 ask the listen port + 1 instead (6742), which the switchboard also answers
+until `--echo-legacy off` ([ADR 0053](adr/0053-the-switchboard-has-ports-of-its-own.md)).
 
 ```
 please apt install longwire
 catalogue --system install cli/longwire-switchboard
 please mkdir -p /etc/longwire
-echo 'ARGS="--listen 1877 --registry none --tokens /var/lib/longwire-switchboard/tokens"' | please tee /etc/longwire/switchboard.conf
+echo 'ARGS="--listen 6741 --registry none --tokens /var/lib/longwire-switchboard/tokens"' | please tee /etc/longwire/switchboard.conf
 please systemctl enable --now longwire-switchboard
 ```
 
@@ -55,7 +56,7 @@ The switchboard script can make, list and remove tokens itself, with no switchbo
 prints three new tokens and adds them to the file (mode 0600); `token list` shows the unspent ones; `token remove TOKEN` takes one out. Run as root it keeps the file
 owned by the folder's owner, the service. The **Switchboard** window does the same from the desktop (View > Tokens, [DESKTOP](DESKTOP.md#the-switchboard-window)).
 
-Open the firewall (`please ufw allow 1877:1878/udp`, or your own tool), read its address, and give each user a token:
+Open the firewall (`please ufw allow 6741,9488,6742/udp`; 6742 only while nodes before 0.5.36 remain), or your own tool,, read its address, and give each user a token:
 
 ```
 please journalctl -u longwire-switchboard -n 10 --no-pager | grep switchboard
@@ -63,7 +64,7 @@ please journalctl -u longwire-switchboard -n 10 --no-pager | grep switchboard
 please hibr -c 'mod load longwire; lw key address /var/lib/longwire-switchboard/seed'    # the same, any time, from its identity file
 ```
 
-Nodes use `--switchboard YOUR.HOST:1877/lw1q7m…k2a`.
+Nodes use `--switchboard YOUR.HOST:6741/lw1q7m…k2a`.
 
 - **`--registry none`** makes it a private switchboard that keeps its own code. A shared public registry of switchboards is a later step
   (see [SWITCHBOARD](SWITCHBOARD.md)).
@@ -93,7 +94,7 @@ and the node drops as soon as the port is open.
 ```
 please apt install longwire
 catalogue --system install cli/longwire
-echo 'ARGS="--switchboard HOST:1877/lw1… --token YOURTOKEN --answer known"' | please tee /etc/longwire/eth0.conf
+echo 'ARGS="--switchboard HOST:6741/lw1… --token YOURTOKEN --answer known"' | please tee /etc/longwire/eth0.conf
 please chmod 600 /etc/longwire/eth0.conf
 please systemctl enable --now longwire@eth0
 ```
@@ -122,7 +123,7 @@ site key if they are not on one line (`--site-key FILE`, [ARCHITECTURE](ARCHITEC
 Without a desktop, save a connection and turn it on:
 
 ```
-longwire profile set home switchboard=HOST:1877/lw1… attach=jack interface=lw0
+longwire profile set home switchboard=HOST:6741/lw1… attach=jack interface=lw0
 longwire profile token home          # the token on standard input, out of the process list and the shell history
 longwire on
 ```
@@ -202,8 +203,9 @@ up the number.
 
 ## Ports, firewalls and NATs
 
-- A **switchboard** needs UDP inbound on its listen port and the one above it: `please ufw allow 1877:1878/udp`, or in an nftables `inet filter input` chain
-  `please nft add rule inet filter input udp dport '{ 1877, 1878 }' accept`. A provider's firewall in front of the machine needs the same.
+- A **switchboard** needs UDP inbound on its listen port and its echo port (the listen port + 2747), and, while nodes before 0.5.36 remain, the listen port + 1:
+  `please ufw allow 6741,9488,6742/udp`, or in an nftables `inet filter input` chain `please nft add rule inet filter input udp dport '{ 6741, 9488, 6742 }' accept`. A provider's firewall in
+  front of the machine needs the same. A switchboard that keeps `--listen 1877` from before keeps its port; its echo port becomes 4624, and 1878 still answers.
 - A **node** needs no inbound port: it opens one outbound to the switchboard and punches through its NAT. It listens on a port of its
   own choosing (`--listen` fixes it); a firewall that allows outbound UDP and its replies is enough.
 - Two machines behind ordinary home routers connect directly. Two behind *strict* (symmetric) NATs need a relay: another machine of
@@ -212,7 +214,7 @@ up the number.
 ## When a node gets no number
 
 A node with no session with its switchboard after 15 seconds says so in its log (`please journalctl -u longwire@NIC`, or `~/.longwire/log` after `longwire on`), in `longwire watch`, and in
-`longwire show` (`⚠ no answer from it for N s: …`). At 12 seconds it sent one 40-byte packet to the echo port of the switchboard's machine, its port + 1, which answers anyone, banned or not, and when that came back, one as large as a
+`longwire show` (`⚠ no answer from it for N s: …`). At 12 seconds it sent one 40-byte packet to the echo ports of the switchboard's machine (its port + 2747, and its port + 1, which an older switchboard uses), which answer anyone, banned or not, and when that came back, one as large as a
 handshake datagram (1276 bytes on the wire).
 What came back decides the sentence ([ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)):
 
@@ -224,7 +226,7 @@ What came back decides the sentence ([ADR 0048](adr/0048-a-silent-switchboard-is
      Lift it with `please longwire-switchboard bans clear KEY`, or wait (15 minutes, doubling, at most a day);
   3. the switchboard's own port is open, not only the next one;
   4. the switchboard's answers get back: the large probe tests the way there; a handshake's answer is as large on the way back ([PROTOCOL](PROTOCOL.md)), which the probe does not test.
-- **nothing comes back from its host**: UDP to the switchboard's port + 1 is dropped on the way (either side's firewall, or the provider's), or the switchboard is not running
-  (`systemctl status longwire-switchboard`; `please ss -ulpn` shows both ports bound). A switchboard whose firewall opens only its own port, or whose port + 1 was taken by something
+- **nothing comes back from its host**: UDP to the switchboard's echo port is dropped on the way (either side's firewall, or the provider's), or the switchboard is not running
+  (`systemctl status longwire-switchboard`; `please ss -ulpn` shows both ports bound). A switchboard whose firewall opens only its own port, or whose echo port was taken by something
   else, also lands here, whatever the real cause.
 - **no reason given** (the sentence lists every cause): the switchboard's address is IPv6, which the probe does not cover.

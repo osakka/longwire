@@ -11,8 +11,8 @@ exceptions ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)). Anyt
 make                                   # tcc, about a second: build/longwire.so, against ../hibr/include/hibr.h
 export LONGWIRE_MOD=$PWD/build/longwire.so
 
-hibr scripts/longwire-switchboard.hibr --listen 1877 --registry none     # on the switchboard host
-hibr scripts/longwire.hibr up --switchboard HOST:1877/lw1… --splice eth0       # on a node
+hibr scripts/longwire-switchboard.hibr --listen 6741 --registry none     # on the switchboard host
+hibr scripts/longwire.hibr up --switchboard HOST:6741/lw1… --splice eth0       # on a node
 ```
 
 Here the module is built from source and the scripts run from the repository; the packages and the catalogue are below. `make` needs `tcc` and hibr's header directory, `../hibr` by default.
@@ -76,7 +76,7 @@ hibr at `HIBR_MIN` (the oldest release the suite has been run against), and its 
 [ADR 0028](adr/0028-one-deb-and-the-others-from-it.md). The three are published in hibr's own signed repositories, which also carry hibr (set one up as hibr's README says, then
 `apt install longwire`, `dnf install longwire` or `pacman -S longwire`). A Homebrew formula is *(planned: M5)*, and waits for macOS.
 
-**The services.** `longwire-switchboard.service` runs a switchboard: put `ARGS="--listen 1877 --registry none"` (or your
+**The services.** `longwire-switchboard.service` runs a switchboard: put `ARGS="--listen 6741 --registry none"` (or your
 registry) in `/etc/longwire/switchboard.conf` and enable it. `longwire@NIC.service` runs a spliced site node on `NIC` with the
 arguments in `/etc/longwire/NIC.conf`; it holds `CAP_NET_RAW` and nothing else. Both run as a transient user with a state
 directory of their own (`/var/lib/longwire-switchboard`, `/var/lib/longwire`: the identity lives there), and both start the
@@ -93,7 +93,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.35
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.36
 # modules: longwire
 ```
 

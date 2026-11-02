@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.35
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.36
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.35}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.36}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -178,7 +178,7 @@ on_ring() {
 #   default home
 #
 #   profile home
-#     switchboard = vps.example.org:1877/lw1...
+#     switchboard = vps.example.org:6741/lw1...
 #     token = 5fe1c0ab...
 #     attach = jack                      jack | splice | sock (sock is for tests)
 #     interface = lw0                    the tap, the NIC, or LOCAL:PEER for sock

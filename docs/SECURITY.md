@@ -87,7 +87,7 @@ That is the honest sentence behind the word.
 ## What has been done to check it
 
 - **A test suite that builds real networks.** It runs the actual scripts over unprivileged network namespaces with simulated
-  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (835 checks in the run for 0.5.35).
+  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (836 checks in the run for 0.5.36).
 - **An attack on the switchboard,** the one component built to face the public. Before it was released, three readers went through every parser a stranger's bytes can
   reach. It found real flaws, three of them proven by tests that failed on the old code: strangers able to fill the switchboard's
   places for good, a registration token able to write into the policy script's event, and a switchboard able to connect a call nobody
@@ -123,7 +123,7 @@ and [THREAT-MODEL](THREAT-MODEL.md):
 - Floods of handshakes from many *real* addresses cost a key operation each, within a budget; the budget limits, it does not defend.
 - A pin is per switchboard: the same number on a different switchboard is a different pin.
 - Anyone in the group `longwire` on a service machine can occupy half of its event watchers.
-- A switchboard's echo port (its port + 1, IPv4) answers anyone with no handshake: 15 bytes for a 40-byte request (a reflector, not an amplifier), within a budget of 8 then 2 a second per source address and 1000 a second in all ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)). It tells a scanner that a switchboard runs on that host.
+- A switchboard's echo port (its port + 2747, and + 1 for older nodes; IPv4) answers anyone with no handshake: 15 bytes for a 40-byte request (a reflector, not an amplifier), within a budget of 8 then 2 a second per source address and 1000 a second in all ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)). It tells a scanner that a switchboard runs on that host.
 - Bans live in memory: a switchboard that restarts forgets them.
 
 ## What it does not protect against

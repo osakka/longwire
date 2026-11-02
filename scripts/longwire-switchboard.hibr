@@ -9,7 +9,7 @@
 #   longwire-switchboard bans list | clear [KEY|all]   [--state DIR]                                (the bans of the running switchboard)
 #   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
 #                        [--per-ip-hour N] [--rings-per-minute N] [--max-nodes N]
-#                        [--caller-id on|off] [--directory on|off]
+#                        [--caller-id on|off] [--directory on|off] [--echo-legacy on|off]
 #                        [--release-after TIME] [--max-numbers N] [--group NAME|GID]
 #                        [--strikes N] [--strike-window S] [--ban-for S] [--ban-max S] [--net-ban-keys N] [--net-ban-for S] [--ban-ceiling N] [--never-ban KEY|ADDR/PREFIX]...
 #                        --registry HOST:PORT/KEY|none [--issue-codes [--public-switchboard KEY]] [--codes-per-ip-day N]
@@ -18,6 +18,7 @@
 #                 "TOKEN NUMBER" (that token claims that number). A token is
 #                 spent when it is used. Without it, registration is open.
 # --group         let that group use the control socket (mode 0660): the service uses longwire (docs/adr/0032)
+# --echo-legacy off   do not also answer ECHO on the listen port + 1 (the echo port is the listen port + 2747; nodes before 0.5.36 ask + 1)
 # --caller-id off / --directory off   do not carry names on rings / do not answer lookups (both on by default;
 #                 a node only appears in either if it asked to).
 # --registry      the registry of switchboard codes, which gives this switchboard its short code (+1, +20, ...); "none"
@@ -35,16 +36,17 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.35
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.36
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
-listen=1877
+listen=6741
 tokens=
 per_ip_hour=20
 rings_per_min=6
 max_nodes=1024
 caller_id=on
+echo_legacy=on
 directory=on
 registry=
 issue_codes=
@@ -167,7 +169,7 @@ while [ $# -gt 0 ]; do
 	case $1 in
 	-h|--help) sed -n '4,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 	--issue-codes) issue_codes=1; shift; continue ;;
-	--listen|--tokens|--state|--per-ip-hour|--rings-per-minute|--max-nodes|--max-numbers|--registry|--group|--public-switchboard|--codes-per-ip-day|--release-after|--caller-id|--directory|--strikes|--strike-window|--ban-for|--ban-max|--net-ban-keys|--net-ban-for|--ban-ceiling|--never-ban)
+	--listen|--tokens|--state|--per-ip-hour|--rings-per-minute|--max-nodes|--max-numbers|--registry|--group|--public-switchboard|--codes-per-ip-day|--release-after|--caller-id|--echo-legacy|--directory|--strikes|--strike-window|--ban-for|--ban-max|--net-ban-keys|--net-ban-for|--ban-ceiling|--never-ban)
 		need_value "$@" ;;		# a missing value is an error: --tokens with nothing after it must never mean "no tokens"
 	*) echo "longwire-switchboard: unknown option $1" >&2; exit 2 ;;
 	esac
@@ -187,6 +189,7 @@ while [ $# -gt 0 ]; do
 	--strikes|--strike-window|--ban-for|--ban-max|--net-ban-keys|--net-ban-for|--ban-ceiling) need_number "$@"; bargs+=("$1" "$2") ;;
 	--never-ban) bargs+=("$1" "$2") ;;			# a key id or an address with a prefix; the engine checks it
 	--caller-id) need_onoff "$@"; caller_id=$2 ;;
+	--echo-legacy) need_onoff "$@"; echo_legacy=$2 ;;
 	--directory) need_onoff "$@"; directory=$2 ;;
 	esac
 	shift 2
@@ -297,7 +300,7 @@ case "$release_after" in
 esac
 
 run lw key new "$SB_DIR/seed" > /dev/null
-run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --directory "$directory" --registry "$registry" ${group:+--group "$group"} --release-after "$release_secs" --max-numbers "$max_numbers" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} "${bargs[@]}" > /dev/null
+run lw sb start --seed "$SB_DIR/seed" --sock "$LW_SOCK" --state "$SB_DIR" --listen "$listen" --policy script --maxpeers "$max_nodes" --caller-id "$caller_id" --echo-legacy "$echo_legacy" --directory "$directory" --registry "$registry" ${group:+--group "$group"} --release-after "$release_secs" --max-numbers "$max_numbers" ${issue_codes:+--issue-codes} ${public_sb:+--public-switchboard "$public_sb"} "${bargs[@]}" > /dev/null
 addr=$(lw key address "$SB_DIR/seed")
 # on stderr, which hibr does not hold back: under a service these lines reach the journal when they are printed, not when a buffer fills
 echo "switchboard  $addr   (give this full address to your nodes)" >&2

@@ -91,7 +91,7 @@ answers with this policy:
 
 | Option | Default | Does |
 |---|---|---|
-| `--listen PORT\|ADDR:PORT\|[ADDR]:PORT` | `1877` | where to listen (UDP): a bare port is IPv4 and IPv6 on any address, `ADDR:PORT` IPv4 only, `[ADDR]:PORT` IPv6 only, and a comma separates several ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)). It also listens on the next port up (1878) to answer `ECHO`, so a node can tell what kind of NAT it is behind; let both through a firewall, and leave the next port free when running several on one host. The echo port is IPv4 only; if it is taken the switchboard runs without it, every node then reports its NAT as `unknown`, and a node that cannot reach the switchboard is told its host is silent |
+| `--listen PORT\|ADDR:PORT\|[ADDR]:PORT` | `6741` | where to listen (UDP): a bare port is IPv4 and IPv6 on any address, `ADDR:PORT` IPv4 only, `[ADDR]:PORT` IPv6 only, and a comma separates several ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)). It also answers `ECHO` on its echo port, the listen port + 2747 (9488 for 6741), so a node can tell what kind of NAT it is behind, and on the listen port + 1 for nodes before 0.5.36 until `--echo-legacy off`; let them through a firewall, and keep those ports free when running several on one host. The echo port is IPv4 only; if it is taken the switchboard runs without it, every node then reports its NAT as `unknown`, and a node that cannot reach the switchboard is told its host is silent |
 | `--group NAME\|GID` | none | give the control socket to that group at mode 0660 ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); the service uses `longwire`. Without it only the user it runs as may use the socket |
 | `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when used. A spent or unknown token: `a valid token is needed to register here`. A token is visible characters with no spaces, quotes, backslashes or leading `#` (1 to 63); anything else is refused before the script sees it. Lines that are blank or begin with `#` are kept and are never tokens. The file is rewritten whole, beside itself, and moved into place, so **the file must be in a directory the service can write** (for the unit, its state directory, `/var/lib/longwire-switchboard`; the unit cannot write `/etc`): if it cannot be written the token is not spent, and the registration is refused. `longwire-switchboard token new [N] \| list \| remove TOKEN [--tokens FILE] [--state DIR]` makes, lists and removes tokens with no switchboard running; without `--tokens` it works on `$SB_DIR/tokens` (`~/.longwire/switchboard/tokens`), so for the service always say `--tokens /var/lib/longwire-switchboard/tokens` |
 | `--per-ip-hour N` | 20 | registrations per source per hour (`net` in the event: an IPv4 address, or an IPv6 /64) |
@@ -112,6 +112,7 @@ answers with this policy:
 | `--public-switchboard KEY` | none | on a registry: the switchboard (`lw1…` or hex) that is given the code `+1` |
 | `--release-after TIME` | 365d | how long a number may go unheard before it is released, and held back after (`365d`, `12h`, `90s`; a bare number is days) |
 | `--codes-per-ip-day N` | 2 | on a registry: codes asked for per source address per day. The count is kept in memory, so a restart of the registry resets it |
+| `--echo-legacy on\|off` | on | also answer `ECHO` on the listen port + 1, for nodes before 0.5.36 ([ADR 0053](adr/0053-the-switchboard-has-ports-of-its-own.md)) |
 | `--caller-id on\|off` | on | carry the name a caller announced on its rings; off drops names |
 | `--directory on\|off` | on | answer lookups for nodes that listed themselves; off answers none |
 
@@ -160,12 +161,12 @@ Everything the switchboard does not do yet is marked where it is described and l
 ## Running one
 
 ```
-$ longwire-switchboard --listen 1877 --registry none
+$ longwire-switchboard --listen 6741 --registry none
 switchboard  lw1q7m…k2a   (give this full address to your nodes)
-listening    udp 1877    tokens: open registration
+listening    udp 6741    tokens: open registration
 ```
 
-It needs hibr and the module, runs as an ordinary user, needs no capabilities (1877 is above 1024), and keeps
+It needs hibr and the module, runs as an ordinary user, needs no capabilities (6741 is above 1024), and keeps
 everything in `~/.longwire/switchboard/`. Since the policy is a script, changing it (vanity numbers, a different token
 scheme, an allow-list) means editing hibr, not C.
 
@@ -199,6 +200,6 @@ says what was done about that and what is still unknown. What the operator decid
   (a session about 10 KB, a number about 1.3 KB). Past them the switchboard refuses; it does not fall over.
 - **The service.** Run it as the systemd unit: it is sandboxed (a transient user, no capabilities, no home, a system-call
   filter), restarts itself (`Restart=always`), and its control socket belongs to the group `longwire`, so put in that group only
-  people who may watch it. Open UDP on the listen port and the one above it (1877 and 1878 by default; the second answers `ECHO`); nothing else.
+  people who may watch it. Open UDP on the listen port and its echo port (6741 and 9488 by default), and the listen port + 1 while nodes before 0.5.36 remain; nothing else.
 - **What it cannot do for you.** A flood of plain traffic is for the network in front of it.
 

@@ -29,6 +29,8 @@
 #define OFFERS 1024			/* bundles offered ahead of a handshake: hashed by key id, so a flood costs bandwidth, not a few packets */
 #define HS_SLOTS 512			/* handshake fragments being put together: hashed by source, for the same reason */
 #define SRC_BUCKETS 512
+#define LW_ECHO_OFF 2747		/* a switchboard's echo port is its own + this (6741 -> 9488); its own + 1 too, for nodes before 0.5.36 (docs/adr/0053) */
+static inline int echo_port_of(int p) { return p + LW_ECHO_OFF <= 65535 ? p + LW_ECHO_OFF : p - LW_ECHO_OFF; }
 #define ED_OFF (1 + 32 + LW_MLKEM_PK)	/* where a bundle keeps its Ed25519 public key */
 
 typedef struct lw_sess {
@@ -270,7 +272,8 @@ struct lw_node {
 	int      njnet;
 	double   jnet_at;
 	char     jnet_dev[32];
-	int      udp2;			/* a switchboard's second port (udp_port + 1): answers ECHO, so a node can tell its NAT's mapping type */
+	int      udp2;			/* a switchboard's echo port (echo_port_of(udp_port)): answers ECHO, so a node can tell its NAT's mapping type */
+	int      udp3;			/* and the old one, udp_port + 1, for nodes before 0.5.36 (--echo-legacy) */
 	int      nat;			/* 0 not measured, 1 easy (same mapping toward both ports), 2 strict (a new mapping per destination) */
 	uint8_t  echo_nonce[8];
 	int      echo_tries;
@@ -435,6 +438,7 @@ int  under_fd(lw_node *n);
 int  under_tie(lw_node *n, char *err, size_t errn);
 int  ban_count(lw_node *n);
 void no_df(int fd, int family);
+void echo_serve_fd(lw_node *n, int fd);
 int  tie_fd(const lw_node *n, int fd);
 ssize_t usend(lw_node *n, int fd, const void *b, size_t len, const struct sockaddr *sa, socklen_t sl);
 void spray_adopt(lw_node *n, lw_peer *p);

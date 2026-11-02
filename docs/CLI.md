@@ -10,7 +10,7 @@ are hibr scripts built on the module's `lw` builtin (component 3), which your ow
 ## A first run
 
 ```
-$ longwire up --switchboard 203.0.113.7:1877/lw1q7m…k2a --splice eth0
+$ longwire up --switchboard 203.0.113.7:6741/lw1q7m…k2a --splice eth0
 ☎  your number 447-120-933 — dial tone
 ```
 
@@ -81,7 +81,7 @@ comment you put in it is not kept.
 default home
 
 profile home
-  switchboard = vps.example.org:1877/lw1…
+  switchboard = vps.example.org:6741/lw1…
   token = 5fe1c0ab…
   attach = jack                      jack | splice
   interface = lw0                    the tap, or the NIC to splice
@@ -98,7 +98,7 @@ profile home
 ```
 
 ```
-longwire profile set home switchboard=HOST:1877/lw1… token=… attach=jack interface=lw0 answer=known
+longwire profile set home switchboard=HOST:6741/lw1… token=… attach=jack interface=lw0 answer=known
 longwire profile token home            # the token on standard input, so it is never on a command line
 longwire on                            # the default profile, in the background
 longwire off
@@ -202,7 +202,7 @@ script decides whether to dial again), `hangup` (with `by`, `us` or `them`), `dh
 different key than before), `site` (a splice box became `active` or `standby`), and for lines `line-joined` (with `line`,
 `members`), `member-joined`, `member-left` and `member-evicted` (each with `number`), `evicted` (you were put off the
 line), `line-partial` (with `members` and `up`: the mesh is still incomplete 30 seconds after joining) and
-`line-complete`, `sas` (the safety phrase, once the exchange is done; it says whether it is the old kind) and `sas-failed` (the exchange failed and the call was ended), `switchboard-silent` (with `ep` and `host`: no session with the switchboard after 15 s. At 12 s the node sent one small packet to the echo port of the switchboard's host, its port + 1: when that came back, it sent one as large as a handshake datagram. `answers` means both came back, so UDP of every size goes there and back and the switchboard is not completing a handshake with this node (its key banned there, a switchboard key that is not this switchboard's, or the switchboard's own port closed while the next is open); `large-lost` means only the small one came back: something on the way loses large or fragmented UDP; `silent` means nothing came back; "untested" means the switchboard's address is IPv6, which the probe does not cover; [ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)), `roamed` (with `from` and `to`: the road under a node that takes everything changed, so it let go of the jack and is started again on the new one; [ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)), and `address-skipped` (with the address and the port: an address of the other end lies inside the jack's own network and no other road to it could be had, so it is not used; [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). The node script turns them into the sentences above; the desktop turns a ring into a dialog and a call's safety phrase into a note (a switchboard's own events, ban and net-ban, are for its owner: [SWITCHBOARD](SWITCHBOARD.md#its-log)).
+`line-complete`, `sas` (the safety phrase, once the exchange is done; it says whether it is the old kind) and `sas-failed` (the exchange failed and the call was ended), `switchboard-silent` (with `ep` and `host`: no session with the switchboard after 15 s. At 12 s the node sent one small packet to the echo ports of the switchboard's host (its port + 2747, and + 1 for an older switchboard): when that came back, it sent one as large as a handshake datagram. `answers` means both came back, so UDP of every size goes there and back and the switchboard is not completing a handshake with this node (its key banned there, a switchboard key that is not this switchboard's, or the switchboard's own port closed while the next is open); `large-lost` means only the small one came back: something on the way loses large or fragmented UDP; `silent` means nothing came back; "untested" means the switchboard's address is IPv6, which the probe does not cover; [ADR 0048](adr/0048-a-silent-switchboard-is-said-so.md)), `roamed` (with `from` and `to`: the road under a node that takes everything changed, so it let go of the jack and is started again on the new one; [ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)), and `address-skipped` (with the address and the port: an address of the other end lies inside the jack's own network and no other road to it could be had, so it is not used; [ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md)). The node script turns them into the sentences above; the desktop turns a ring into a dialog and a call's safety phrase into a note (a switchboard's own events, ban and net-ban, are for its owner: [SWITCHBOARD](SWITCHBOARD.md#its-log)).
 
 ## Colour
 

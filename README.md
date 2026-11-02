@@ -8,7 +8,7 @@ machine at the other end. Anything designed but not built carries a marker namin
 [roadmap](docs/ROADMAP.md).
 
 ```
-$ longwire up --switchboard 203.0.113.7:1877/lw1q7m…k2a --splice eth0
+$ longwire up --switchboard 203.0.113.7:6741/lw1q7m…k2a --splice eth0
 ☎  your number 447-120-933 — dial tone
 ✓  connected to 312-884-076 (direct, 198.51.100.4:41641)
    safety phrase: gopher daisy castle cactus island flint harbor maple   Compare it with theirs now; hang up if it differs
