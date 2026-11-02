@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.35
 
+*Published:* the catalogue (`hibr-apps` `1f08600`) and the packages (`hibr-apt` `5620c18`, `hibr-rpm` `affcad8`, `hibr-arch` `fa73943`). `make check` passed (835 checks).
+
 Hardening after a security review ([ADR 0052](docs/adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)).
 
 - **The committed safety phrase is required by default.** A direct call whose other end does not do the eight-word exchange (a node older than 0.5.21, or a switchboard in the middle that strips
