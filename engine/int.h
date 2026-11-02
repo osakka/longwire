@@ -431,6 +431,7 @@ int  jack_net_sa(const lw_node *n, const struct sockaddr *sa);
 int  under_fd(lw_node *n);
 int  under_tie(lw_node *n, char *err, size_t errn);
 int  ban_count(lw_node *n);
+void no_df(int fd, int family);
 int  tie_fd(const lw_node *n, int fd);
 ssize_t usend(lw_node *n, int fd, const void *b, size_t len, const struct sockaddr *sa, socklen_t sl);
 void spray_adopt(lw_node *n, lw_peer *p);

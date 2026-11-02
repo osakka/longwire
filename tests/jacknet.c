@@ -53,6 +53,13 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	n->now = 1000.0;
+	{	/* our IPv4 datagrams go without "don't fragment", so a narrower path behind a silent router splits them instead of dropping them (docs/adr/0051) */
+		int v = -1;
+		socklen_t vl = sizeof v;
+
+		check(n->udp >= 0 && getsockopt(n->udp, IPPROTO_IP, 10 /* IP_MTU_DISCOVER */, &v, &vl) == 0 && v == 0 /* IP_PMTUDISC_DONT */,
+		      "the node's socket sends its datagrams without \"don't fragment\"");
+	}
 
 	/* three addresses of the other end: one inside the "jack" 127.0.0.0/8, one in a private net, one public */
 	in[0] = mk(127, 9, 9, 9, 1000, CAND_HOST);

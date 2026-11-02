@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.33
+
+- **longwire's datagrams may be split on the way** ([ADR 0051](docs/adr/0051-longwires-datagrams-may-be-split-on-the-way.md)). Every IPv4 socket of the engine now sends without "don't fragment". On a path narrower than a
+  line's datagrams (up to about 1490 bytes) behind a router that sends no ICMP "fragmentation needed" (a path-MTU black hole, like the one found on the owner's home network), large datagrams were
+  dropped in silence: a call connected and small traffic flowed, but bulk transfers over the line stalled. Now that router splits them and the far end puts them together. The line's sizes are
+  unchanged; probing the real path MTU stays *(planned: M7)*. IPv6 is unchanged (its routers never split). Update the package on every node; nothing changes on the wire.
+- Tested: the option on the node's socket (`tests/jacknet.sh`). Not tried: a real path with a black hole.
+
 ## 0.5.32
 
 *Published:* the catalogue (`hibr-apps` `5986e8a`) and the packages (`hibr-apt` `4b124c7`, `hibr-rpm` `8d08ce9`, `hibr-arch` `bd17ecb`). `make check` passed (829 checks).

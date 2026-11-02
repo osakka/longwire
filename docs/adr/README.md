@@ -59,6 +59,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0048](0048-a-silent-switchboard-is-said-so.md) | A silent switchboard is said so | accepted; built in 0.5.28 |
 | [0049](0049-the-switchboard-window-shows-traffic-and-names-every-key.md) | The Switchboard window shows traffic and names every key | accepted; built in 0.5.29 |
 | [0050](0050-a-switchboards-tokens-are-made-in-its-window.md) | A switchboard's tokens are made in its window | accepted; built in 0.5.32 |
+| [0051](0051-longwires-datagrams-may-be-split-on-the-way.md) | longwire's datagrams may be split on the way | accepted; built in 0.5.33 |
 
 ---
 

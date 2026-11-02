@@ -10,7 +10,7 @@ Tokens are secrets: leave them out of what you send.
 (`please apt update && please apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
 
 **`longwire show` says `engine 0.6.0`, and updating changes nothing.**
-0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.32-1` (the current version), then
+0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.33-1` (the current version), then
 `longwire off` and `longwire on`. `doctor`'s advice to refresh the catalogue does not apply here.
 
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
@@ -109,7 +109,9 @@ does not have it yet); every machine needs its own. Or by hand, `please ip addr 
 Check a firewall on the machine is not dropping traffic on `lw0`.
 
 **Big transfers stall or are slow.**
-The jack's MTU is 1400 so a frame fits one datagram. If you made the device by hand, set `mtu 1400` (`longwire setup jack` prints it).
+The jack's MTU is 1400 so a frame fits one datagram. If you made the device by hand, set `mtu 1400` (`longwire setup jack` prints it). A path narrower than about 1490 bytes on either
+side splits longwire's IPv4 datagrams on the way (since 0.5.33; [ADR 0051](adr/0051-longwires-datagrams-may-be-split-on-the-way.md)), which costs a little speed; a middlebox that drops fragments
+loses them: `ping -M do -s 1460 OTHEREND` tells whether the path carries 1488 bytes whole.
 The cipher alone runs near 290 Mbit/s per core under the project's compiler; end to end it has been measured only in the test suite.
 
 **A call keeps starting and never connects, after you gave your jack an address in the same network as the other end.** (The other side logs the same number joining the line again

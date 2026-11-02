@@ -73,6 +73,7 @@ static int open_one(const lw_node *n, int family, const struct sockaddr *sa, soc
 		return -1;
 	if (family == AF_INET6)
 		setsockopt(*fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof one);
+	no_df(*fd, family);
 	if (tie_fd(n, *fd) < 0 || bind(*fd, sa, sl) < 0) {
 		close(*fd);
 		*fd = -1;
@@ -247,6 +248,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 		if (getsockname(n->udp, (struct sockaddr *)&la, &ll) == 0) {
 			la.sin_port = htons((uint16_t)(n->udp_port + 1));
 			n->udp2 = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+			no_df(n->udp2, AF_INET);
 			if (n->udp2 >= 0 && bind(n->udp2, (struct sockaddr *)&la, sizeof la) < 0) {
 				close(n->udp2);
 				n->udp2 = -1;

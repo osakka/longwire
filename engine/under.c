@@ -8,6 +8,23 @@
 #ifndef SO_BINDTODEVICE
 #define SO_BINDTODEVICE 25
 #endif
+#ifndef IP_MTU_DISCOVER
+#define IP_MTU_DISCOVER 10
+#endif
+#ifndef IP_PMTUDISC_DONT
+#define IP_PMTUDISC_DONT 0
+#endif
+
+/* Our IPv4 datagrams go without "don't fragment" (docs/adr/0051). A path narrower than a datagram, behind a router that does not say so (no ICMP
+ * "fragmentation needed": a black hole), drops a datagram with DF in silence; without it the router splits it, and the far end puts it together. The
+ * line's own sizes stay as they are (ARCHITECTURE §6). IPv6 routers never split, so nothing changes there. */
+void no_df(int fd, int family)
+{
+	int v = IP_PMTUDISC_DONT;
+
+	if (fd >= 0 && family == AF_INET)
+		setsockopt(fd, IPPROTO_IP, IP_MTU_DISCOVER, &v, sizeof v);
+}
 
 static int jack_mode(const lw_node *n)
 {
@@ -210,6 +227,7 @@ int under_fd(lw_node *n)
 		return -1;
 	if ((fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)) < 0)
 		return -1;
+	no_df(fd, AF_INET);
 	memset(&a, 0, sizeof a);
 	a.sin_family = AF_INET;
 	if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, dev, (socklen_t)strlen(dev) + 1) < 0 || bind(fd, (struct sockaddr *)&a, sizeof a) < 0) {
