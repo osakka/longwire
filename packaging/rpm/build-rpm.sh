@@ -45,7 +45,7 @@ License:        GPL-3.0-or-later
 BuildArch:      $ARCH
 Requires:       hibr >= $HVER
 Recommends:     polkit, iproute
-Suggests:       dhcp-client, acl
+Suggests:       dhcp-client, acl, nftables
 
 %description
 longwire joins sites, and single machines, into one Ethernet segment over the

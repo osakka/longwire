@@ -31,6 +31,12 @@
 #define SRC_BUCKETS 512
 #define LW_ECHO_OFF 2747		/* a switchboard's echo port is its own + this: 6741 -> 9488 (docs/adr/0053) */
 static inline int echo_port_of(int p) { return p + LW_ECHO_OFF <= 65535 ? p + LW_ECHO_OFF : p - LW_ECHO_OFF; }
+/* The exit (docs/adr/0056): a node that sends everything through the line sends it to this gateway, which is not a machine: the
+ * jack helper points the table's default route at LW_EXIT_IP with this MAC fixed beside it, and the switch hands every frame for
+ * it to the member chosen as the exit, with that member's own MAC put in. The gateway is a member's key, not an address. */
+static const uint8_t LW_EXIT_MAC[6] = { 0x02, 0x6c, 0x77, 0x65, 0x78, 0x74 };	/* 02:6c:77:65:78:74, "lwext", locally administered */
+#define EXIT_EVERY 10.0			/* an exit says so to each member this often ... */
+#define EXIT_STALE 35.0			/* ... and is no longer one, to a member, after this long without saying it */
 #define ED_OFF (1 + 32 + LW_MLKEM_PK)	/* where a bundle keeps its Ed25519 public key */
 
 typedef struct lw_sess {
@@ -110,6 +116,9 @@ typedef struct lw_peer {
 	uint64_t rx_frames, tx_frames, rx_bytes, tx_bytes;
 	uint64_t rekeys, drop_auth, drop_replay;
 	lw_sas   sas;			/* the phrase of the call that made this peer */
+	double   exit_seen;		/* when this member last said it shares its internet (0: never, on this call) */
+	double   exit_tx;		/* (an exit) when we last said so to this member */
+	uint8_t  exit_mac[6];		/* the MAC its jack has: where frames for the internet go */
 } lw_peer;
 
 typedef struct lw_route {		/* at a relay: a route between two members */
@@ -319,6 +328,10 @@ struct lw_node {
 	struct { uint64_t id; double tok, t; } echol[SRC_BUCKETS];	/* per-source budget for the echo port (docs/adr/0052) */
 	double   echo_gtok, echo_gt;	/* and one for everyone */
 	uint64_t echo_shed;
+	int      exit_pi;		/* the member used as the exit, a peer index; -1 none (docs/adr/0056) */
+	char     exit_using[NUMLEN + 1];	/* its number, as last told in an event ("" none) */
+	int      exit_told;		/* an exit event has been emitted at least once */
+	uint64_t exit_sent, exit_dropped;	/* frames handed to the exit, and frames for it with no exit to hand them to */
 };
 
 double lw_now(void);
@@ -512,6 +525,10 @@ int  line_presented(lw_node *n, const char *number, uint8_t out[ADMIT_LEN]);	/* 
 void line_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len);
 void line_call_up(lw_node *n, lw_peer *p);
 void line_timers(lw_node *n);
+void exit_msg(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len);
+void exit_timers(lw_node *n);
+int  exit_frame(lw_node *n, uint8_t *f, size_t len);
+int  exit_value(lw_node *n, char *o, size_t cap);
 int  line_cmd(lw_node *n, const char *cmd, char *out, size_t cap);
 int  line_status_json(lw_node *n, char *o, size_t cap);
 int  line_value(lw_node *n, char *o, size_t cap);

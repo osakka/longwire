@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "November 2026" "longwire 0.5.38" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "November 2026" "longwire 0.5.39" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -90,6 +90,9 @@ or
 .BR everything ,
 and needs a static
 .BR address .
+Without one,
+.B everything
+goes out through the member that shares its internet.
 .TP
 .B routes
 Networks to reach through the gateway, like 192.168.150.0/24, separated by commas (at most 16).
@@ -102,22 +105,57 @@ they are left out.
 .TP
 .B everything
 .B yes
-sends all of this machine's traffic through the
-.BR gateway ,
-from a routing table of the jack's own; the machine's own default route is never changed, and is used again the moment the node stops.
-Needs
+sends all of this machine's traffic through the line, from a routing table of the jack's own; the machine's own default route is never changed, and is used again the moment the node stops.
+With a
 .B gateway
-and a static
-.BR address .
+(which then needs a static
+.BR address ),
+it goes to that router.
+With no
+.BR gateway ,
+it goes out through the member of the line that shares its internet (see
+.BR exit ):
+nothing is typed but this, and an
+.B address
+of the jack's own, fixed or
+.BR dhcp .
+While no member shares, nothing goes out (it does not leak to the local network).
 For
 .B "attach = jack"
-only.
+only; not with
+.BR exit .
 It fails open: when the node stops, traffic goes the machine's own way again, unencrypted.
+.TP
+.B exit_through
+With
+.B everything
+and no
+.BR gateway :
+the number of the member to go out through, like 447\-120\-933, when more than one shares its internet.
+It must be sharing, or nothing goes out.
+Empty: the only one, or the lowest number.
+.TP
+.B exit
+.B yes
+shares this machine's internet with the line: the members that send everything through the line with no gateway go out through this machine, and the internet sees its address.
+The jack helper turns forwarding on and adds an nftables table of the jack's own that lets only the line's network out, masqueraded, lets only the answers back in, and keeps the line off the machine's other networks; all of it is undone exactly when sharing stops or the jack goes.
+Needs a fixed
+.B address
+(not
+.BR dhcp )
+and nftables.
+For
+.B "attach = jack"
+only; not with
+.BR everything .
+This machine sees everything its users send outside the line, as their internet provider would: share only from a machine the line trusts that much.
+.B longwire exit on
+sets it.
 .TP
 .B dns
 With
 .BR everything :
-a name server asked through the line for every name, set on the jack in systemd\-resolved; passed over, like the routes, whenever no node holds the jack.
+a name server asked through the line for every name (a router on the line, or, out through a member that shares its internet, any resolver such as 1.1.1.1), set on the jack in systemd\-resolved; passed over, like the routes, whenever no node holds the jack.
 Without systemd\-resolved, names stay with the machine's own name server.
 .TP
 .B keep_jack

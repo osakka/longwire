@@ -62,6 +62,11 @@ typedef struct lw_cfg {
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	char underlay[32];		/* the network device to reach the world by when the jack has the other end's network ("": the default route's) */
 	int  everything;		/* everything goes through the line (docs/adr/0045): tie every socket of ours to the real device */
+	int  exit_share;		/* this node shares its machine's internet with its members (docs/adr/0056) */
+	int  has_exit_mac;		/* ... through this MAC rather than the jack's own (a site whose router is the way out) */
+	unsigned char exit_mac[6];
+	int  use_exit;			/* send what goes to the exit gateway to a member that shares its internet */
+	char exit_through[16];		/* ... this one (nine digits), if it offers; "" the only one, or the lowest number */
 	char routes_file[64];		/* the kernel's routes ("": /proc/net/route); a test points it elsewhere */
 	int  strikes, strike_window, ban_for, ban_max, net_keys, net_for, ban_ceiling;	/* switchboard: strikes and bans (docs/adr/0043); strikes 0: off */
 	int  n_never;

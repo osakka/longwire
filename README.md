@@ -63,7 +63,7 @@ repositories, and the scripts, the pane and the menu bar telephone through hibr'
 | Mode | For | One-time privilege | What happens |
 |---|---|---|---|
 | **splice** | a whole site (*the primary case*) | `AmbientCapabilities=CAP_NET_RAW` in the node's service unit | Frames go straight onto the wired NIC. **No interface is created.** |
-| **jack** | one Linux host | `longwire jack` (a root helper makes the tap after one password; or by hand, `ip tuntap add mode tap user $USER`) | The host gets a tap on the far subnet, with an address from the profile or a DHCP server on the line, routes beyond it, or everything through it. |
+| **jack** | one Linux host | `longwire jack` (a root helper makes the tap after one password; or by hand, `ip tuntap add mode tap user $USER`) | The host gets a tap on the far subnet, with an address from the profile or a DHCP server on the line, routes beyond it, or everything through it, out by a member that shares its internet. |
 | **shell** | one Linux user, no privilege at all | none (user namespaces) | A shell whose network *is* the line *(planned: M5)* |
 | **member** | phones, laptops on macOS and Windows | the OS's VPN prompt | longwire acts as an Ethernet host in userspace, so the device gets a real DHCP lease on the far LAN *(planned: M6)* |
 
@@ -98,12 +98,12 @@ repositories, and the scripts, the pane and the menu bar telephone through hibr'
 
 **M0 to M3 are built, and most of M4 (the desktop and distribution):** profiles, the Control Panel pane, the menu bar telephone and the Control Strip, the
 packages and the catalogue entries are published. A jack takes its address from the profile or a DHCP server on the line, reaches networks
-behind a gateway, and can send everything through the line, letting go when the machine changes network; the safety phrase is committed to before it is
+behind a gateway, and can send everything through the line, out through a member that shares its internet (`longwire exit on` there, `everything=yes` here: no gateway typed), letting go when the machine changes network; the safety phrase is committed to before it is
 shown, and the desktop shows it; a switchboard strikes and bans keys that keep failing, says so when it is silent, and its window shows traffic and bans. **M0, M1, M2 and M3** are built with TCC and nothing else and tested end to end: the
 handshake and its cookies, the switchboard, calls through simulated NATs, splice carrying real ping, ARP, TCP and
 broadcasts between LANs that are one subnet, a second box on a segment taking over when the first is killed, lines of
 up to 16 sites that join by number (with an operator, if the line has one), build their own mesh with no prompt, evict a member, and heal after a restart, and nodes behind strict NATs, relays or IPv6. The jack has carried real calls between the author's desktop and a site
-node; routes, everything through the line and a laptop moving between networks have not run on a real tap, and real routers and wide-area links beyond
+node; routes, everything through the line, a member sharing its internet (tested on the engine and in network namespaces) and a laptop moving between networks have not run on a real tap, and real routers and wide-area links beyond
 that are untested. See the [roadmap](docs/ROADMAP.md).
 
 ```

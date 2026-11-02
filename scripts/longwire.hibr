@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.38
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.39
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.38}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.39}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -53,7 +53,8 @@ usage: longwire <command>
   on [PROFILE]                                start the node in the background, from a saved profile (the default one if none is named)
   profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME
                                               saved connections: switchboard, token, attach, interface, name, listed, answer
-  jack [--address A.B.C.D/N] [--via GW [--routes NET/P,...] [--everything [--dns NS]]] [TAP]  make the tap device a single machine attaches to (lw0 by default), with an address if asked; asks for a password once
+  jack [--address A.B.C.D/N] [--via GW [--routes NET/P,...]] [--everything [--dns NS] | --share] [TAP]  make the tap device a single machine attaches to (lw0 by default), with an address if asked; asks for a password once
+  exit [on|off] [PROFILE]                     share this machine's internet with the line (a member that sends everything uses it, no gateway typed); or stop
   site NIC [PROFILE] | site --stop NIC        make this machine a site node for the card NIC from a profile (a service, after one password); or stop it
   setup splice NIC | setup jack [TAP [ADDR]]  print the one-time privileged step for that attach mode, to run by hand
   key export | import                         the identity as 33 words, and back (import reads them on stdin)
@@ -126,6 +127,7 @@ announce() {
 	                       if [ -n "${e[name]}" ]; then say "☎  ${e[from]} is calling, and says it is \"${e[name]}\" (a claim: only the safety phrase proves anything)"
 	                       else say "☎  ${e[from]} is calling"; fi
 	                       say "   the safety phrase comes once you are connected: compare it with theirs"
+	                       say "   picking up adds ${e[from]} to your network (your line): it stays a member, and reconnects by itself, until you evict it"
 	                       [ "${e[known]}" = true ] || say "   first call from this number"; fi ;;
 	found)            [ "${e[directory]}" = true ] || say "·  this switchboard has no directory" ;;
 	line-joined)      say "·  on line ${e[line]} with ${e[members]} members" ;;
@@ -149,6 +151,9 @@ announce() {
 	hangup)           say "·  ${e[number]} hung up (${e[by]})" ;;
 	dhcp-conflict)    say "⚠  two DHCP servers answer on this line (${e[servers]}): clients may get clashing leases" ;;
 	key-changed)      say "⚠  KEY CHANGED for ${e[number]}: ${e[action]}" ;;
+	exit)             if [ -n "${e[number]}" ]; then say "✓  everything goes out through ${e[number]}, which shares its internet"
+	                  elif [ -n "${e[wanted]}" ]; then say "⚠  ${e[wanted]} is not sharing its internet now: nothing goes out through the line until it does (longwire off puts everything back on this machine's own road)"
+	                  else say "⚠  no member of the line shares its internet now: nothing goes out through the line until one does (longwire off puts everything back on this machine's own road)"; fi ;;
 	esac
 }
 
@@ -199,7 +204,7 @@ profiles_read() {
 		case $k in
 		default) PDEFAULT=$eq ;;
 		profile) cur=$eq; PNAMES+=("$cur") ;;
-		switchboard|token|attach|interface|address|gateway|routes|everything|dns|keep_jack|name|listed|answer) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
+		switchboard|token|attach|interface|address|gateway|routes|everything|dns|keep_jack|name|listed|answer|exit|exit_through) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
 		esac
 	done < "$PROFILES"
 }
@@ -212,7 +217,7 @@ profiles_write() {
 		out="$out
 profile $n
 "
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through; do
 			[ -n "${PF[$n.$k]:-}" ] && out="$out  $k = ${PF[$n.$k]}
 "
 		done
@@ -243,7 +248,14 @@ profile_args() {
 	esac
 	[ -n "${PF[$n.name]:-}" ] && PARGS+=(--name "${PF[$n.name]}")
 	[ "${PF[$n.listed]:-}" = yes ] && PARGS+=(--listed)
-	[ "${PF[$n.everything]:-}" = yes ] && [ "${PF[$n.attach]:-jack}" = jack ] && PARGS+=(--everything)
+	if [ "${PF[$n.everything]:-}" = yes ] && [ "${PF[$n.attach]:-jack}" = jack ]; then
+		PARGS+=(--everything)
+		if [ -z "${PF[$n.gateway]:-}" ]; then		# no gateway named: through the member that shares its internet (docs/adr/0056)
+			PARGS+=(--use-exit)
+			[ -z "${PF[$n.exit_through]:-}" ] || PARGS+=(--exit-through "${PF[$n.exit_through]}")
+		fi
+	fi
+	[ "${PF[$n.exit]:-}" = yes ] && [ "${PF[$n.attach]:-jack}" = jack ] && PARGS+=(--exit)
 	return 0
 }
 
@@ -260,7 +272,7 @@ cmd_profile() {
 		n=${1:-$PDEFAULT}
 		[ -n "$n" ] && profile_exists "$n" || { echo "longwire: no profile${n:+ called $n}" >&2; exit 1; }
 		echo "profile $n$([ "$n" = "$PDEFAULT" ] && echo '   (default)')"
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through; do
 			v=${PF[$n.$k]:-}
 			[ -n "$v" ] || continue
 			[ "$k" = token ] && v="(set, ${#v} characters)"		# the token is not shown: it is in the file, readable by you only
@@ -268,7 +280,7 @@ cmd_profile() {
 		done ;;
 	set)
 		n=${1:-}
-		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything dns keep_jack name listed answer)" >&2; exit 2; }
+		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through)" >&2; exit 2; }
 		shift
 		case $n in ''|*[!A-Za-z0-9._-]*) echo "longwire: a profile name is letters, digits, . _ -" >&2; exit 2 ;; esac
 		profile_exists "$n" || { PNAMES+=("$n"); [ -n "$PDEFAULT" ] || PDEFAULT=$n; }	# the first profile is the default one
@@ -287,8 +299,10 @@ cmd_profile() {
 			everything) case $v in yes|no|"") ;; *) echo "longwire: everything is yes or no" >&2; exit 2 ;; esac ;;
 			dns) case $v in ""|[0-9]*.[0-9]*.[0-9]*.[0-9]*) case $v in *[!0-9.]*) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;; *) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;;
 			listed) case $v in yes|no|"") ;; *) echo "longwire: listed is yes or no" >&2; exit 2 ;; esac ;;
+			exit) case $v in yes|no|"") ;; *) echo "longwire: exit is yes or no (yes: this machine shares its internet with the line)" >&2; exit 2 ;; esac ;;
+			exit_through) [[ $v =~ ^([0-9]{3}-?[0-9]{3}-?[0-9]{3})?$ ]] || { echo "longwire: exit_through is a member's number, like 447-120-933" >&2; exit 2; } ;;
 			answer) case $v in ask|known|auto|never|"") ;; *) echo "longwire: answer is ask, known, auto or never" >&2; exit 2 ;; esac ;;
-			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything dns keep_jack name listed answer)" >&2; exit 2 ;;
+			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through)" >&2; exit 2 ;;
 			esac
 			if [ -n "$v" ]; then PF["$n.$k"]=$v; else unset "PF[$n.$k]"; fi
 		done
@@ -315,7 +329,7 @@ cmd_profile() {
 		[ "$to" = "$n" ] && exit 0
 		profile_exists "$to" && { echo "longwire: there is already a profile called '$to'" >&2; exit 1; }
 		for i in "${!PNAMES[@]}"; do [ "${PNAMES[$i]}" = "$n" ] && PNAMES[$i]=$to; done		# same place in the list, same default
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through; do
 			if [ -n "${PF[$n.$k]:-}" ]; then PF["$to.$k"]=${PF[$n.$k]}; fi
 			unset "PF[$n.$k]"
 		done
@@ -327,7 +341,7 @@ cmd_profile() {
 		local keep=() m
 		for m in "${PNAMES[@]}"; do [ "$m" = "$n" ] || keep+=("$m"); done
 		PNAMES=("${keep[@]}")
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer; do unset "PF[$n.$k]"; done
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through; do unset "PF[$n.$k]"; done
 		[ "$PDEFAULT" = "$n" ] && PDEFAULT=${PNAMES[0]:-}
 		profiles_write ;;
 	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME" >&2; exit 2 ;;
@@ -440,6 +454,19 @@ cmd_show() {
 		else
 			echo "   everything    asked, but this machine's traffic is not going through the line: longwire off, then on, puts it back (docs/adr/0045)"
 		fi
+		local xu xn xw
+		xu := json get S .exit.use
+		if [ "$xu" = true ]; then		# through the member that shares its internet (docs/adr/0056)
+			xn := json get S .exit.using
+			xw := json get S .exit.wanted
+			if [ -n "$xn" ]; then
+				echo "   way out       $xn, which shares its internet"
+			elif [ -n "$xw" ]; then
+				lw_out "   ⚠  way out: $xw is not sharing its internet now, so nothing goes out through the line"
+			else
+				lw_out "   ⚠  way out: no member of the line shares its internet now, so nothing goes out through the line"
+			fi
+		fi
 	elif [ "${S[jack_nets]:-0}" -gt 0 ]; then
 		case ${S[underlay_state]:-} in
 		open)   echo "   underlay      ${S[underlay]} (your jack has an address; traffic to peers in its network leaves by this device)" ;;
@@ -467,6 +494,8 @@ cmd_show() {
 			if verify_has "$num" "$k"; then echo "                 safety phrase: $phr   (verified)"; else echo "                 safety phrase: $phr   (not verified: longwire verify $num WORDS)"; fi
 		fi
 	done
+	t := json get S .exit.share
+	[ "$t" = true ] && echo "   sharing       this machine's internet with the line"
 	t := json get S .cand_skipped
 	[ "${t:-0}" -gt 0 ] && lw_out "   ⚠  ${t} address(es) of the other end are inside your jack's own network and could not be reached another way, so they are not used (longwire watch names them)"
 	t := json type S .line
@@ -482,8 +511,7 @@ cmd_show() {
 		if [ "$state" = ringing ] && [ "$we" != true ]; then
 			num := json get S ".calls[$i].number"
 			nm := json get S ".calls[$i].name"
-			phr := json get S ".calls[$i].phrase"
-			echo "   RINGING       $num${nm:+ (\"$nm\", a claim)}   ${phr:+safety phrase: $phr}${phr:-the safety phrase comes once you are connected}   -> longwire pickup | longwire reject"
+			echo "   RINGING       $num${nm:+ (\"$nm\", a claim)}   the safety phrase comes once you are connected   -> longwire pickup | longwire reject"
 		fi
 	done
 }
@@ -603,8 +631,24 @@ jack_has_everything() {
 	fi
 	printf '%s\n' "$rule" | grep -qw "lookup $table" || return 1
 	PATH=$PATH:/usr/sbin:/sbin ip -4 rule show pref 7700 2> /dev/null | grep -q "suppress_prefixlength 0" || return 1
-	PATH=$PATH:/usr/sbin:/sbin ip -4 route show table "$table" 2> /dev/null | grep -q "^default via $via dev $tap\( \|$\)" || return 1
+	if [ -n "$via" ]; then
+		PATH=$PATH:/usr/sbin:/sbin ip -4 route show table "$table" 2> /dev/null | grep -q "^default via $via dev $tap\( \|$\)" || return 1
+	else			# through the member that shares its internet: the exit gateway, and its MAC fixed beside it (docs/adr/0056)
+		PATH=$PATH:/usr/sbin:/sbin ip -4 route show table "$table" 2> /dev/null | grep -q "^default via 169\.254\.77\.1 dev $tap " || return 1
+		PATH=$PATH:/usr/sbin:/sbin ip -4 neigh show 169.254.77.1 dev "$tap" 2> /dev/null | grep -q "02:6c:77:65:78:74 PERMANENT" || return 1
+	fi
 	return 0
+}
+
+# Is the jack shared as asked (yes or no): forwarding on for it, and the helper's note of what it changed (docs/adr/0056)? Asked without privilege.
+jack_has_share() {
+	local tap=$1 want=$2 f=
+	read -r f < "/proc/sys/net/ipv4/conf/$tap/forwarding" 2> /dev/null
+	if [ "$want" = yes ]; then
+		[ "$f" = 1 ] && [ -r "${LONGWIRE_RUN:-/run/longwire}/share-$tap" ]
+	else
+		[ ! -e "${LONGWIRE_RUN:-/run/longwire}/share-$tap" ]
+	fi
 }
 
 # Is the jack's name server in systemd-resolved as asked ("" for none)? Asked without privilege; without resolved there is nothing to ask (docs/adr/0047).
@@ -634,11 +678,12 @@ cmd_jack() {
 		fi
 		return
 	fi
-	local via= routes= r all=no dns=
+	local via= routes= r all=no dns= share=no
 	local extra=()
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--everything) all=yes; shift; continue ;;
+		--share) share=yes; shift; continue ;;
 		--dns) [ $# -ge 2 ] || { echo "longwire: --dns needs a name server's address" >&2; exit 2; }; dns=$2; shift 2; continue ;;
 		--address|--via|--routes)
 			[ $# -ge 2 ] || { echo "usage: longwire jack [--address A.B.C.D/N | dhcp] [--via GATEWAY [--routes NET/PREFIX,...] [--everything [--dns NS]]] [TAP]" >&2; exit 2; }
@@ -655,15 +700,24 @@ cmd_jack() {
 	[ $all = no ] || extra+=(--everything)
 	[ $all = yes ] || dns=				# names through the line only go with everything through it
 	[ -z "$dns" ] || extra+=(--dns "$dns")
-	if [ $all = yes ] && [ -z "$via" ]; then
-		echo "longwire: everything through the line needs a gateway on it: longwire profile set NAME gateway=A.B.C.D" >&2
+	[ $share = no ] || extra+=(--share)
+	if [ $all = yes ] && [ $share = yes ]; then
+		echo "longwire: a machine that shares its internet does not send its own through the line: exit=yes or everything=yes, not both" >&2
 		return 1
 	fi
-	if [ -d "/sys/class/net/$tap" ] && { [ -z "$addr" ] || jack_has_addr "$tap" "$addr"; } && jack_has_routes "$tap" "$via" "$routes" && jack_has_everything "$tap" "$via" $all && jack_has_dns "$tap" "$dns"; then
+	if [ $all = yes ] && [ -z "$via" ] && [ -z "$addr" ]; then
+		echo "longwire: everything through the line needs the jack's own address (address=A.B.C.D/N or address=dhcp in the profile): the answers come back to it" >&2
+		return 1
+	fi
+	if [ $share = yes ] && { [ -z "$addr" ] || [ "$addr" = dhcp ]; }; then
+		echo "longwire: sharing this machine's internet needs a fixed address on the jack (address=A.B.C.D/N in the profile): the line's network is what is let out" >&2
+		return 1
+	fi
+	if [ -d "/sys/class/net/$tap" ] && { [ -z "$addr" ] || jack_has_addr "$tap" "$addr"; } && jack_has_routes "$tap" "$via" "$routes" && jack_has_everything "$tap" "$via" $all && jack_has_dns "$tap" "$dns" && jack_has_share "$tap" $share; then
 		if [ "$addr" = dhcp ]; then
 			echo "longwire: the jack $tap is there, with DHCP"
 		else
-			echo "longwire: the jack $tap is there${addr:+, with $addr}${routes:+, and routes to $routes via $via}$([ $all = yes ] && echo ", and everything goes through $via")"
+			echo "longwire: the jack $tap is there${addr:+, with $addr}${routes:+, and routes to $routes via $via}$([ $all = yes ] && echo ", and everything goes through ${via:-the member that shares its internet}")$([ $share = yes ] && echo ", sharing this machine's internet")"
 		fi
 		return 0
 	fi
@@ -783,6 +837,7 @@ cmd_on() {
 	if [ "${PF[$n.attach]:-jack}" = jack ]; then
 		local ev=()
 		[ "${PF[$n.everything]:-}" = yes ] && ev=(--everything ${PF[$n.dns]:+--dns "${PF[$n.dns]}"})
+		[ "${PF[$n.exit]:-}" = yes ] && ev+=(--share)
 		cmd_jack ${PF[$n.address]:+--address "${PF[$n.address]}"} ${PF[$n.gateway]:+--via "${PF[$n.gateway]}"} ${PF[$n.routes]:+--routes "${PF[$n.routes]}"} "${ev[@]}" "${PF[$n.interface]:-lw0}" || exit 1			# made now, with a password if it must be
 	fi
 	: > "$LW_DIR/log"
@@ -808,6 +863,38 @@ cmd_on() {
 	echo "longwire: it did not start:" >&2
 	tail -n 5 "$LW_DIR/log" >&2
 	return 1
+}
+
+# Share this machine's internet with the line, or stop (docs/adr/0056): the profile's exit key, and the node turned off and on again with it if it is on
+# with that profile, since the jack helper sets the sharing up (one password). With no on or off, say how it is.
+cmd_exit() {
+	local what=${1:-} p= running=0
+	profiles_read
+	[ -r "$LW_DIR/on-profile" ] && lw status > /dev/null 2>&1 && { read -r p < "$LW_DIR/on-profile"; running=1; }
+	[ -n "${2:-}" ] && { [ "$2" = "$p" ] || running=0; p=$2; }
+	[ -n "$p" ] || p=$PDEFAULT
+	[ -n "$p" ] && profile_exists "$p" || { echo "longwire: no profile${p:+ called $p}  (longwire profile list)" >&2; exit 1; }
+	case $what in
+	"")
+		if [ "${PF[$p.exit]:-}" = yes ]; then echo "profile $p shares this machine's internet with the line"
+		else echo "profile $p does not share this machine's internet (longwire exit on)"; fi
+		return 0 ;;
+	on)
+		[ "${PF[$p.attach]:-jack}" = jack ] || { echo "longwire: only a jack shares its machine's internet (profile $p attaches by ${PF[$p.attach]})" >&2; exit 1; }
+		case ${PF[$p.address]:-} in ''|dhcp) echo "longwire: sharing needs a fixed address on the jack: longwire profile set $p address=A.B.C.D/N" >&2; exit 1 ;; esac
+		[ "${PF[$p.everything]:-}" != yes ] || { echo "longwire: profile $p sends everything through the line; a machine that shares its internet does not (longwire profile set $p everything=no)" >&2; exit 1; }
+		PF["$p.exit"]=yes ;;
+	off) unset "PF[$p.exit]" ;;
+	*) echo "usage: longwire exit [on|off] [PROFILE]" >&2; exit 2 ;;
+	esac
+	profiles_write
+	if [ $running = 1 ]; then
+		echo "longwire: turning off and on again with profile $p, to $([ "$what" = on ] && echo share || echo stop sharing)"
+		cmd_off > /dev/null
+		cmd_on "$p"
+	else
+		echo "longwire: profile $p $([ "$what" = on ] && echo "shares this machine's internet" || echo "no longer shares this machine's internet") from the next longwire on"
+	fi
 }
 
 # The road changed under a node that sends everything through the line (docs/adr/0046): the node has let go of the jack already; stop it, wait for a road that is not
@@ -849,14 +936,18 @@ cmd_up() {
 		[ -n "$answer" ] || answer=$PANSWER
 		say "·  profile $profile"
 	fi
-	local k jk= ev=0
+	local k jk= ev=0 ux=0
 	for ((k = 0; k < ${#args[@]}; k++)); do			# a jack whose table takes everything: the node must keep its own traffic off it, whoever started it (docs/adr/0045)
 		[ "${args[$k]}" = --jack ] && [ $((k + 1)) -lt ${#args[@]} ] && jk=${args[$((k + 1))]}
 		[ "${args[$k]}" = --everything ] && ev=1
+		{ [ "${args[$k]}" = --use-exit ] || [ "${args[$k]}" = --exit-through ]; } && ux=1
 	done
 	if [ $ev = 0 ] && [[ $jk =~ ^lw[0-9]{1,2}$ ]] && PATH=$PATH:/usr/sbin:/sbin ip -4 rule show pref 7701 2> /dev/null | grep -qw "lookup $(( 7700 + ${jk#lw} ))"; then
 		args+=(--everything)
 		say "·  everything goes through $jk: the node keeps its own traffic off it"
+	fi
+	if [ $ux = 0 ] && [[ $jk =~ ^lw[0-9]{1,2}$ ]] && PATH=$PATH:/usr/sbin:/sbin ip -4 route show table "$(( 7700 + ${jk#lw} ))" 2> /dev/null | grep -q "^default via 169\.254\.77\.1 "; then
+		args+=(--use-exit)		# the jack's table goes to the exit gateway: the node hands it to the member that shares (docs/adr/0056)
 	fi
 	[ -n "$answer" ] || answer=ask
 	case $answer in ask|known|auto|never) ;; *) echo "longwire: --answer wants ask, known, auto or never" >&2; exit 2 ;; esac
@@ -1056,6 +1147,7 @@ down)    cmd_off ;;
 off)     cmd_off ;;
 on)      cmd_on "$@" ;;
 jack)    cmd_jack "$@" ;;
+exit)    cmd_exit "$@" ;;
 profile) cmd_profile "$@" ;;
 setup)   cmd_setup "$@" ;;
 id)      run lw key new "$LW_SEED" > /dev/null; run lw key id "$LW_SEED" ;;

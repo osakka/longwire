@@ -52,6 +52,8 @@ check: all lint
 	sh tests/ban2.sh
 	sh tests/jacknet.sh
 	sh tests/tunnel.sh
+	sh tests/exit.sh
+	sh tests/exitnet.sh
 	sh tests/events.sh
 	sh tests/doctor.sh
 	sh tests/site.sh

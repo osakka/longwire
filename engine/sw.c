@@ -666,6 +666,8 @@ void sw_from_local(lw_node *n, const uint8_t *in, size_t len)
 	dhcp_watch(n, f, len);
 	if (arp_suppress(n, f, len) || nd_suppress(n, f, len))
 		return;
+	if (exit_frame(n, f, len))		/* for the exit gateway: the chosen member's, or nobody's (docs/adr/0056) */
+		return;
 	if (!(f[0] & 1) && (e = mac_find(n, f, 0))) {
 		if (e->port == -1)
 			return;			/* local to local: never leaves the site */

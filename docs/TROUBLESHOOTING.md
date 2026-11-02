@@ -117,9 +117,37 @@ Your machine has no route there. Set **Gateway** (the router on the line) and **
 should then say `via` the gateway `dev lw0`. If it does and there is still no answer, the far network must have a way back to your Address: its router has to know the line's network (it does when it is the line's router).
 
 **Everything through the line is on, but nothing on the internet answers.**
-`ip route get 1.1.1.1` should say `dev lw0 table 77…`. If it does, the gateway is not passing the traffic on: it must forward it, and, at the edge of its network, translate it to its own address
-(a home router does for its own network's machines; a server needs `ip_forward` and a masquerade rule). Try `ping` to the gateway itself first. If `longwire show` says *asked, but … not going
+`ip route get 1.1.1.1` should say `dev lw0 table 77…` (with no Gateway, `via 169.254.77.1`: that is right, it is the way out to the member that shares its internet, and no machine has that address).
+With no Gateway, look at `longwire show`'s `way out` line first (below). If it names a member, that member is not passing the traffic on: on it, `longwire show` should say `sharing`, and its own
+firewall may drop what it forwards (below). With a Gateway, the gateway is not passing the traffic on: it must forward it, and, at the edge of its network, translate it to its own address
+(a home router does for its own network's machines; a server is easier made an exit with `longwire exit on`). Try `ping` to the gateway itself first. If `longwire show` says *asked, but … not going
 through the line*, turn off and on. To get out at once: turn longwire off; nothing else is needed.
+
+**`⚠ way out: no member of the line shares its internet now, so nothing goes out through the line`** (the pane: **Way out** *none*)
+Everything goes through the line with no Gateway, and no member of the line says it shares its internet: so nothing for the internet goes anywhere (it does not leak to the network you sit on).
+On the machine that should share: `longwire exit on` (or **Share this machine's internet** in its pane), and it must be on the same line and connected (`longwire peers`). A member stops counting
+35 seconds after it last said so, so a member that just went away clears in that time. To use this machine's own internet meanwhile: turn longwire off, or switch off **Send everything through the line**.
+
+**`⚠ way out: 447-120-933 is not sharing its internet now, …`**
+The profile names that member in `exit_through` (the pane: **Through**), and it does not share now; another member that does is not used instead. Turn sharing on there, or empty
+**Through** (`longwire profile set home exit_through=`) to use whichever shares.
+
+**`longwire-jack: sharing this machine's internet needs nft (the nftables package)`**
+The machine that shares needs `nft`: `please apt install nftables` (or the distribution's package of that name), then turn on again. Nothing was changed.
+
+**`longwire-jack: this machine has no default route of its own to share`**
+The machine that shares has no way to the internet but the line. Share from a machine whose own default route leaves by a real device.
+
+**`longwire: sharing this machine's internet needs a fixed address on the jack`** / **`longwire-jack: --share needs the jack's own address (--address)`**
+The line's network is what is let out, so the machine that shares needs a fixed **Address** (not `dhcp`): `longwire profile set home address=192.168.152.1/24`.
+
+**`… a machine that shares its internet does not send its own through the line`**
+A profile has both `exit = yes` and `everything = yes`. Pick one: `longwire exit off`, or `longwire profile set home everything=no`.
+
+**It shares (`longwire show` says `sharing`), and the others see it as their way out, but nothing gets out.**
+The exit's own firewall comes first. A machine with Docker, or any firewall whose forward policy is drop, may drop the line's forwarded traffic before longwire's table lets it out:
+`please nft list ruleset` shows the chains on the `forward` hook. Let traffic from the jack (`lw0`) out to the machine's own device there, or share from another machine. Also check that the
+provider allows the machine to forward at all (some containers do not).
 
 **Everything goes through the line, but names do not resolve.**
 `resolvectl dns lw0` names the server asked. It must answer on the line's side: try `resolvectl query example.org`. Empty the **Name server** to go back to your own. `longwire show` has a `names` line.
@@ -127,17 +155,18 @@ through the line*, turn off and on. To get out at once: turn longwire off; nothi
 **`⚠ no answer from the switchboard … its host answers`**
 UDP of every size gets to the switchboard's machine and back, but no handshake completes. In this order: the key after `/` in your switchboard address is not the switchboard's (compare it with a node
 that works); this node's key is banned there for a while (on the switchboard, `please longwire-switchboard bans list` shows it, its log says why, and `please longwire-switchboard bans clear KEY`
-lifts it; a ban ends by itself, 15 minutes, doubling at each repeat, at most a day; a restart of the switchboard forgets every ban); or the switchboard's own port is closed while the next is open ([OPERATING](OPERATING.md#when-a-node-gets-no-number)).
+lifts it; a ban ends by itself, 15 minutes, doubling at each repeat, at most a day; a restart of the switchboard forgets every ban); or the switchboard's own port is closed while its echo port is open ([OPERATING](OPERATING.md#when-a-node-gets-no-number)).
 
 **`⚠ no answer from the switchboard … small packets come back from its host, but one as large as a handshake's (1276 bytes) does not`**
 Something between you and the switchboard loses large or fragmented UDP, and a handshake needs it. Look at this machine first: `ip link` for an interface with an MTU under 1280 (a tunnel, a
 container's network, another VPN), and a firewall that drops IP fragments. Fix that and the node registers by itself.
 
 **`⚠ no answer from the switchboard … nothing comes back from its host`**
-UDP does not get there and back: a firewall on either side (the switchboard's port and the next one), or the switchboard is not running.
+UDP does not get there and back: a firewall on either side (the switchboard's port and its echo port, the port + 2747), or the switchboard is not running.
 
 **`longwire-jack: routes need the jack's own address (--address); with DHCP …`** / **`the gateway … is not on the jack's network`**
-Gateway, Routes and Send everything through the line need a static **Address** (not `dhcp`), and the Gateway must be in that address's network: a machine the line reaches directly.
+Gateway and Routes need a static **Address** (not `dhcp`), and the Gateway must be in that address's network: a machine the line reaches directly. Send everything through the line with no Gateway
+needs only an Address, static or `dhcp`.
 
 **`longwire-jack: something else already takes everything (…); turn it off there first`** / **`the place in the rules longwire uses (7700) is taken`**
 Another jack, or another program, already sends this machine's traffic somewhere with the same rules. Turn that off, then turn longwire on.

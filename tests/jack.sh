@@ -119,7 +119,9 @@ grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --everything 
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 lw7 2>&1)
 grep -qx "helper --address 192.168.152.50/24 lw7" "$LWJ_LOG" && ok "a gateway with nothing to be the gateway for is not passed on" || bad "lone via: $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --everything lw7 2>&1); rc=$?
-[ $rc != 0 ] && echo "$out" | grep -q "needs a gateway" && ! grep -q helper "$LWJ_LOG" && ok "everything without a gateway is refused, with what to set" || bad "jack everything no gw: rc=$rc $out"
+grep -qx "helper --address 192.168.152.50/24 --everything lw7" "$LWJ_LOG" && ok "everything without a gateway asks the helper for everything through the member that shares its internet (docs/adr/0056)" || bad "jack everything no gw: rc=$rc $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --everything lw7 2>&1); rc=$?
+[ $rc != 0 ] && echo "$out" | grep -q "own address" && ! grep -q helper "$LWJ_LOG" && ok "...and with no address on the jack it is refused, with what to set" || bad "jack everything no addr: rc=$rc $out"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168.152.254 lw7 2>&1)
 grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168.152.254 lw7" "$LWJ_LOG" && ok "and the name server with it" || bad "jack dns: $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --routes 10.20.0.0/16 --dns 192.168.152.254 lw7 2>&1)
@@ -212,7 +214,7 @@ LWJ_HELD=1 run --address 192.168.152.50/24 --via 192.168.152.254 --everything lw
 : > "$LWJ_LOG"; out=$("$HIBR" "$H" --via 192.168.152.254 --everything lw7 1000 2>&1); rc=$?
 [ $rc = 2 ] && echo "$out" | grep -q "need the jack's own address" && ok "everything needs a static address" || bad "no addr: rc=$rc $out"
 : > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --everything lw7 1000 2>&1); rc=$?
-[ $rc = 2 ] && echo "$out" | grep -q "name it with --via" && [ ! -s "$LWJ_LOG" ] && ok "and a gateway" || bad "no via: rc=$rc $out"
+[ $rc = 0 ] && grep -q "route replace default via 169.254.77.1 dev lw7 onlink table 7707" "$LWJ_LOG" && ok "with no gateway, the exit gateway (docs/adr/0056)" || bad "no via: rc=$rc $out"
 : > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --via 192.168.10.1 --everything lw7 1000 2>&1); rc=$?
 [ $rc = 2 ] && echo "$out" | grep -q "not on the jack's network" && ok "on the jack's own network" || bad "via off-net: rc=$rc $out"
 
@@ -247,6 +249,25 @@ mkdir -p "$T/othersys/lw7"; echo 2000 > "$T/othersys/lw7/owner"
 echo 1000 > "$T/othersys/lw7/owner"
 : > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$H" --address 192.168.152.50/24 lw7 1000 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "addr replace 192.168.152.50/24 dev lw7" "$LWJ_LOG" && ! grep -q "tuntap" "$LWJ_LOG" && ok "the user's own is changed in place" || bad "own: rc=$rc $out"
+
+echo "-- jack: sharing this machine's internet, and everything through the member that shares (docs/adr/0056)"
+: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$H" --dhcp --share lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && echo "$out" | grep -q "fixed\|own address" && ! grep -q "route\|addr\|link set" "$LWJ_LOG" && ok "--share with DHCP is refused before anything is run: the line's network must be known" || bad "share dhcp: rc=$rc $out"
+: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$H" --share lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && ! grep -q "route replace\|addr replace\|link set" "$LWJ_LOG" && ok "--share with no address is refused" || bad "share noaddr: rc=$rc $out"
+: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$H" --address 192.168.152.1/24 --share --everything lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && echo "$out" | grep -q "does not send its own" && ok "--share and --everything together are refused" || bad "share+everything: rc=$rc $out"
+: > "$LWJ_LOG"; out=$(PATH=$T/bin:/usr/bin:/bin LONGWIRE_SYSNET=$T/othersys "$HIBR" "$H" --address 192.168.152.1/24 --share lw7 1000 2>&1); rc=$?
+if command -v nft > /dev/null 2>&1 && [ "$(command -v nft)" != "$T/bin/nft" ]; then
+	ok "(nft is installed here: the refusal without it is not tried)"
+else
+	[ $rc = 3 ] && echo "$out" | grep -q "nftables" && ! grep -q "addr replace\|link set" "$LWJ_LOG" && ok "--share without nft says to install nftables, and changes nothing" || bad "share nonft: rc=$rc $out"
+fi
+: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$H" --everything lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && echo "$out" | grep -q "own address" && ok "everything through the exit needs the jack's own address" || bad "everything noaddr: rc=$rc $out"
+: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$H" --address 192.168.152.50/24 --everything lw7 1000 2>&1); rc=$?
+[ $rc = 0 ] && grep -q "neigh replace 169.254.77.1 lladdr 02:6c:77:65:78:74 dev lw7 nud permanent" "$LWJ_LOG" && grep -q "route replace default via 169.254.77.1 dev lw7 onlink table 7707" "$LWJ_LOG" \
+	&& ok "with no gateway named, everything goes to the exit gateway, its MAC fixed beside it" || bad "everything exit: rc=$rc $out $(cat "$LWJ_LOG")"
 
 [ $fail = 0 ] && echo "all jack checks passed"
 exit $fail

@@ -35,7 +35,8 @@ Use these words consistently in the CLI, the docs, the hibr desktop and the Andr
 | **trunk / leaf** | full-mesh site node / single-session device (leaf *(planned: M6)*) | server / client |
 | **safety phrase** | the 8 words that verify a first call | SAS, fingerprint |
 | **gateway** | the router on the line that takes traffic onward | next hop, exit node |
-| **everything through the line** | all of a machine's traffic leaves by the far site | full tunnel, default route |
+| **everything through the line** | all of a machine's traffic leaves through the line, by a gateway or a member that shares its internet | full tunnel, default route |
+| **shares its internet** / **way out** | a member whose internet the others go out by (the command is `longwire exit`) / the member a machine goes out through | exit node, NAT gateway |
 | **road** | the machine's own network, which the line itself travels on (status output still says `underlay`) | uplink |
 | **ban** / **strike** | a key a switchboard ignores for a while / what earns one | block, blacklist |
 

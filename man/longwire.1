@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "November 2026" "longwire 0.5.38" "longwire manual"
+.TH LONGWIRE 1 "November 2026" "longwire 0.5.39" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -72,6 +72,12 @@ See
 .B show
 How the node is, in a few lines and no JSON:
 your number, the switchboard, who is connected and what they have carried with each call's safety phrase, the line, and any ringing call.
+With everything through the line and no gateway, its
+.B way out
+line names the member it goes out through, or warns that none shares its internet now, so nothing goes out;
+on a machine that shares, a
+.B sharing
+line says so.
 When the switchboard has not answered for 15 seconds, a line says so and why, as far as the node can tell.
 .TP
 .B status
@@ -102,6 +108,7 @@ A name cannot be dialled: find its number with
 .TP
 .BR pickup " [" \fIid\fR ]
 Answer the ringing call.
+Picking up adds the caller to your network (your line): it stays a member, and reconnects by itself, until you evict it.
 .I id
 is the call id from the ring, needed only when several rings are waiting.
 .TP
@@ -195,8 +202,11 @@ The keys are
 .BR keep_jack " (" yes " or " no ),
 .BR name ,
 .BR listed " (" yes " or " no ),
+.BR answer " (" ask ", " known ", " auto " or " never ),
+.BR exit " (" yes " or " no ),
 and
-.BR answer ;
+.B exit_through
+(a member's number);
 see
 .BR longwire-profiles (5).
 An empty value removes the field.
@@ -217,7 +227,7 @@ Delete a profile.
 .BR jack " " \-\-remove " [" \fItap\fR ]
 Take the jack away, with a DHCP client of ours on it; only one that is the user's own.
 .TP
-.BR jack " [" \-\-address " " \fIA.B.C.D/N\fR | dhcp "] [" \-\-via " " \fIgateway\fR " [" \-\-routes " " \fInet/prefix,...\fR "] [" \-\-everything " [" \-\-dns " " \fInameserver\fR "]]] [" \fItap\fR ]
+.BR jack " [" \-\-address " " \fIA.B.C.D/N\fR | dhcp "] [" \-\-via " " \fIgateway\fR " [" \-\-routes " " \fInet/prefix,...\fR "]] [" \-\-everything " [" \-\-dns " " \fInameserver\fR "] | " \-\-share "] [" \fItap\fR ]
 Make the tap device a single machine attaches to
 .RB ( lw0
 to
@@ -228,6 +238,38 @@ A small root helper does it through polkit, which asks for a password.
 The device does not survive a restart, so it is asked for again then.
 .B on
 does this by itself when the jack, or its address, is missing.
+.B \-\-everything
+with
+.B \-\-via
+sends all of this machine's traffic to that gateway;
+without it, out through the member of the line that shares its internet, and then it needs only the jack's own address, fixed or
+.BR dhcp .
+.B \-\-share
+shares this machine's internet with the line: forwarding on for the jack and for the device the machine's own default route leaves by, and an nftables table of the jack's own
+.RB ( longwire\-lwN )
+that lets the line's network out through that device, masqueraded, lets only the answers back in, and lets nothing from the line reach the machine's other networks.
+It needs a fixed address and
+.BR nft ,
+does not go with
+.BR \-\-everything ,
+and is undone exactly when the jack is made again without it, or removed.
+.TP
+.BR exit " [" on | off "] [" \fIprofile\fR ]
+Share this machine's internet with the line, or stop:
+set the profile's
+.B exit
+key (the running profile's, else the default one) and, if the node is on with that profile, turn it off and on again so that the jack helper sets the sharing up (one password).
+With neither, say whether the profile shares.
+It needs a jack with a fixed address and no
+.BR everything ,
+and nftables on the machine.
+The other members use it with
+.B everything = yes
+and no
+.B gateway
+in their profiles: no address of a gateway is typed anywhere.
+The exit sees everything its users send outside the line, as their internet provider would, and the internet sees its address; see
+.BR longwire-security (7).
 .TP
 .B site \fInic\fR [\fIprofile\fR]
 .TQ
@@ -353,6 +395,42 @@ Needs
 .B up
 adds it by itself when the jack's table already takes everything.
 .TP
+.B \-\-use\-exit
+Hand every frame for the exit gateway (169.254.77.1, whose MAC 02:6c:77:65:78:74 the jack helper fixes beside it when
+.B longwire jack \-\-everything
+has no
+.BR \-\-via )
+to the member that shares its internet, with that member's own MAC put in, and to nobody else.
+With no such member the frames are dropped and counted, and nothing goes out.
+.B up
+adds it from a profile with
+.B everything = yes
+and no
+.BR gateway ,
+and by itself when the jack's table goes to that gateway.
+.TP
+.BI \-\-exit\-through " NUMBER"
+The member to go out through when more than one shares; it must offer, or nothing goes out.
+Without it: the only one, or the lowest number.
+Implies
+.BR \-\-use\-exit .
+.TP
+.B \-\-exit
+Share this machine's internet: tell every member of the line, inside its session, every 10 seconds, the MAC of the jack.
+.B longwire jack \-\-share
+does the kernel's side.
+Not with
+.BR \-\-use\-exit ;
+needs
+.BR \-\-jack ,
+or
+.BR \-\-exit\-mac .
+.TP
+.BI \-\-exit\-mac " MAC"
+On a spliced LAN: the way out is the machine with this MAC (its router), not a jack.
+Implies
+.BR \-\-exit .
+.TP
 .BI \-\-keepalive " S" "\fR, \fP" \-\-rekey " S"
 Keepalive (25) and rekey (120) intervals, in seconds.
 .TP
@@ -428,6 +506,11 @@ See
 .TP
 .I /usr/lib/longwire/jack
 The root helper that makes the tap device, run through polkit.
+.TP
+.I /run/longwire/share\-lwN
+What the jack helper changed to share this machine's internet through the jack
+.BR lwN ,
+so that it is undone exactly.
 .TP
 .I /usr/lib/longwire/site
 The root helper that makes this machine a site node (writes
@@ -526,6 +609,23 @@ longwire pickup
 .RE
 .fi
 .PP
+Share this machine's internet with the line, on the machine that has it:
+.PP
+.nf
+.RS
+longwire profile set home address=192.168.152.1/24
+longwire exit on
+.RE
+.fi
+.PP
+and send everything out through it, on another member:
+.PP
+.nf
+.RS
+longwire profile set home address=192.168.152.2/24 everything=yes dns=1.1.1.1
+.RE
+.fi
+.PP
 Watch the node narrate itself:
 .PP
 .nf
@@ -548,6 +648,7 @@ See
 QUICKSTART.md, DESKTOP.md, OPERATING.md, SECURITY.md, TROUBLESHOOTING.md, CLI.md
 .SH BUGS
 The jack has carried real calls between the author's desktop and a site node; routes, everything through the line, a laptop moving between networks, a real systemd\-resolved and real wide\-area links have not been tried.
+Sharing a machine's internet is tested on the engine and on the real kernel in network namespaces; a real tap under a real node end to end, and a real exit on the internet, have not been tried.
 The graphical items have been tested against stubs and the desktop's own code, and are used on the author's desktop.
 Choosing the attach mode automatically *(planned: M4)*.
 .SH AUTHORS

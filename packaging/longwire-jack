@@ -11,6 +11,13 @@
 # without --everything, it takes its rules away if they are there.
 # With --dns A.B.C.D as well, the machine asks that name server, through the line, for every name (docs/adr/0047): set on the jack in systemd-resolved, which
 # passes over a device with no carrier as the kernel does, so names come back to the machine's own name server whenever the node is gone.
+# longwire-jack --address A.B.C.D/N --everything TAP [UID] -- everything through the line with no gateway named: through the member that shares its internet
+# (docs/adr/0056). The table's default route goes to 169.254.77.1 on the jack, with the MAC 02:6c:77:65:78:74 fixed beside it; no machine has either, and the
+# node hands every frame for that MAC to the exit it chose, a member's key. A DHCP address does as well as a fixed one.
+# longwire-jack --address A.B.C.D/N --share TAP [UID] -- this machine shares its internet with the line (docs/adr/0056): forwarding on for the jack and for the
+# device the machine's own default route leaves by, and an nftables table of the jack's own (longwire-lwN) that lets the line's network out through that device,
+# masqueraded, lets only the answers back in, and lets nothing from the line reach the machine's other networks. Run without --share, or with --remove, it takes
+# the table away and puts that device's forwarding back as it was.
 # longwire-jack [--address A.B.C.D/N | --dhcp] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
 # bring it up, with the address if one is given, or with a DHCP client started on it (so that nobody runs `ip addr` or `dhclient` by hand). The
 # client keeps asking until the line answers, so the tunnel need not be up yet; it sets the address and the network route only, never a
@@ -37,6 +44,7 @@ via=
 routes=
 everything=
 dns=
+share=
 while [ $# -gt 0 ]; do
 	case $1 in
 	--address)
@@ -46,6 +54,7 @@ while [ $# -gt 0 ]; do
 	--dhcp) dhcp=1; shift ;;
 	--remove) remove=1; shift ;;
 	--everything) everything=1; shift ;;
+	--share) share=1; shift ;;
 	--dns)
 		[ $# -ge 2 ] || fail "--dns wants a name server's address"
 		dns=$2
@@ -62,7 +71,8 @@ while [ $# -gt 0 ]; do
 	esac
 done
 [ -z "$addr" ] || [ -z "$dhcp" ] || fail "an address or --dhcp, not both"
-[ -z "$remove" ] || [ -z "$addr$dhcp" ] || fail "--remove takes no address and no --dhcp"
+[ -z "$remove" ] || [ -z "$addr$dhcp$share" ] || fail "--remove takes no address, no --dhcp and no --share"
+[ -z "$share" ] || [ -z "$everything" ] || fail "a machine that shares its internet (--share) does not send its own through the line (--everything)"
 tap=${1:-lw0}
 uid=${PKEXEC_UID:-${2:-}}
 
@@ -85,12 +95,27 @@ fn rules_off() {
 	done
 }
 
+# Sharing (docs/adr/0056): what was done is written in the run directory, so that it can be undone exactly, after a reboot as well as now.
+rundir=${LONGWIRE_RUN:-/run/longwire}
+sharef=$rundir/share-$tap
+nftt=longwire-$tap
+fn share_off() {
+	local dev= was=
+	[ -r "$sharef" ] || return 0
+	read -r dev was < "$sharef"
+	command -v nft > /dev/null && nft delete table ip "$nftt" 2> /dev/null
+	[ -e "$proc/ipv4/conf/$tap/forwarding" ] && echo 0 > "$proc/ipv4/conf/$tap/forwarding"
+	if [[ $dev =~ ^[A-Za-z0-9._@-]{1,15}$ ]] && [[ $was =~ ^[01]$ ]] && [ -e "$proc/ipv4/conf/$dev/forwarding" ]; then
+		echo "$was" > "$proc/ipv4/conf/$dev/forwarding"
+	fi
+	rm -f "$sharef"
+}
+
 if [ -n "$remove" ]; then
 	[ -d "$sys/$tap" ] || { echo "longwire-jack: $tap is not there; nothing to remove"; exit 0; }
 	owner=
 	read -r owner < "$sys/$tap/owner" 2> /dev/null
 	[ "$owner" = "$uid" ] || fail "$tap is not this user's jack (owner ${owner:-unknown}); not removing it" 3
-	rundir=${LONGWIRE_RUN:-/run/longwire}
 	pidf=$rundir/dhcp-$tap.pid
 	if [ -r "$pidf" ]; then			# a DHCP client of ours on it: stop it first
 		old=
@@ -105,6 +130,7 @@ if [ -n "$remove" ]; then
 	fi
 	rm -f "$pidf" "$rundir/dhcp-hook-$tap" "$rundir/dhcp-$tap.leases"
 	rules_off
+	share_off
 	ip link delete "$tap" || exit 1
 	echo "longwire-jack: $tap is removed"
 	exit 0
@@ -124,7 +150,8 @@ fi
 # none the default route, none overlapping the jack's own network. (The engine keeps its own traffic off whatever is routed here: docs/adr/0044.)
 rl=()
 [ -z "$routes" ] || [ -n "$via" ] || fail "--routes and --via go together: the networks, and the gateway on the line that reaches them"
-[ -z "$everything" ] || [ -n "$via" ] || fail "--everything goes through a gateway on the line: name it with --via"
+[ -z "$everything" ] || [ -n "$via" ] || [ -n "$addr$dhcp" ] || fail "--everything through the member that shares its internet needs the jack's own address (--address or --dhcp): the answers come back to it"
+[ -z "$share" ] || [ -n "$addr" ] || fail "--share needs the jack's own address (--address): the line's network is what is let out"
 [ -z "$via" ] || [ -n "$routes$everything" ] || fail "--via is the gateway for --routes or --everything: give one of them"
 if [ -n "$dns" ]; then
 	[ -n "$everything" ] || fail "--dns goes with --everything: names through the line, with everything else"
@@ -167,6 +194,25 @@ if [ -n "$via" ]; then
 	done
 fi
 
+if [ -n "$share" ]; then		# checked before anything changes: the way out, and the tool to let the line out through it
+	command -v nft > /dev/null || fail "sharing this machine's internet needs nft (the nftables package)" 3
+	out=$(ip -4 route show default 2> /dev/null)
+	odev=
+	while read -r line; do
+		[[ $line =~ \ dev\ ([A-Za-z0-9._@-]{1,15})(\ |$) ]] || continue
+		odev=${M[1]}			# kept now: the next match replaces M
+		[[ $odev =~ ^lw[0-9]{1,2}$ ]] && { odev=; continue; }
+		break
+	done <<< "$out"
+	[ -n "$odev" ] || fail "this machine has no default route of its own to share" 3
+	[ -e "$proc/ipv4/conf/$odev/forwarding" ] || fail "cannot find the forwarding switch of $odev" 3
+	[ "$pre" -ge 8 ] || fail "the jack's network is too wide to share"
+	full=4294967295
+	smask=$(( (full << (32 - pre)) & full ))
+	snet=$(( (o1 * 16777216 + o2 * 65536 + o3 * 256 + o4) & smask ))
+	lnet="$(( snet >> 24 & 255 )).$(( snet >> 16 & 255 )).$(( snet >> 8 & 255 )).$(( snet & 255 ))/$pre"
+fi
+
 if [ -n "$everything" ]; then		# one device at a time has everything, and the two places in the rules must be free or ours
 	held=$(ip -4 rule show pref 7701 2> /dev/null)
 	if [ -n "$held" ] && ! printf '%s\n' "$held" | grep -qw "lookup $table"; then
@@ -204,7 +250,12 @@ if [ -n "$everything" ]; then
 	elif [ -d "$proc/ipv6" ]; then
 		echo "longwire-jack: IPv6 is not sent into the line on this machine (its safety net cannot be set on $tap): IPv6 goes the machine's own way" >&2
 	fi
-	ip route replace default via "$via" dev "$tap" table "$table" || exit 1
+	if [ -n "$via" ]; then
+		ip route replace default via "$via" dev "$tap" table "$table" || exit 1
+	else			# the exit gateway: an address and a MAC no machine has, which the node hands to the member that shares (docs/adr/0056)
+		ip neigh replace 169.254.77.1 lladdr 02:6c:77:65:78:74 dev "$tap" nud permanent || exit 1
+		ip route replace default via 169.254.77.1 dev "$tap" onlink table "$table" || exit 1
+	fi
 	if [ "${#fams[@]}" -gt 1 ]; then	# IPv6 goes into the line too, where nothing answers it unless the far side routes it: it does not leak past the line
 		ip -6 route replace default dev "$tap" table "$table" || exit 1
 	fi
@@ -214,6 +265,38 @@ if [ -n "$everything" ]; then
 	done
 else
 	rules_off
+fi
+if [ -n "$share" ]; then
+	mkdir -p "$rundir" && chmod 755 "$rundir" || exit 1
+	if [ ! -r "$sharef" ]; then		# what the way out's forwarding was, once, before it is first turned on
+		was=0
+		read -r was < "$proc/ipv4/conf/$odev/forwarding"
+		printf '%s %s\n' "$odev" "${was:-0}" > "$sharef" || exit 1
+	fi
+	nft -f - <<NFT || fail "nft refused the table that shares this machine's internet" 3
+table ip $nftt
+delete table ip $nftt
+table ip $nftt {
+	chain forward {
+		type filter hook forward priority filter; policy accept;
+		iifname "$tap" oifname "$odev" ip saddr $lnet accept
+		iifname "$odev" oifname "$tap" ct state established,related accept
+		iifname "$tap" drop
+		oifname "$tap" drop
+	}
+	chain in {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+	chain out {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "$odev" ip saddr $lnet masquerade
+	}
+}
+NFT
+	echo 1 > "$proc/ipv4/conf/$tap/forwarding" || fail "cannot turn forwarding on for $tap" 3
+	echo 1 > "$proc/ipv4/conf/$odev/forwarding" || fail "cannot turn forwarding on for $odev" 3
+else
+	share_off
 fi
 # Names (docs/adr/0047): set on the jack in systemd-resolved, or taken off it. Without resolved, said plainly; everything else stands.
 names=
@@ -284,4 +367,4 @@ if [ -n "$dhcp" ]; then
 		fail "no DHCP client found: install isc-dhcp-client, dhcpcd or udhcpc (busybox)" 3
 	fi
 fi
-echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}${routes:+, routes to $routes via $via}${everything:+, everything through $via}$names"
+echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}${routes:+, routes to $routes via $via}${everything:+, everything through ${via:-the member that shares its internet}}${share:+, sharing this machine's internet through $odev}$names"

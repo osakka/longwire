@@ -710,6 +710,7 @@ int node_init(lw_node *n, char *err, size_t errn)
 		return -1;
 	}
 	n->sb = -1;
+	n->exit_pi = -1;
 	n->ncalls = n->maxpeers;
 	n->calls = calloc((size_t)n->ncalls, sizeof *n->calls);
 	if (!n->calls) {
@@ -1589,6 +1590,10 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 		sas_input(n, p, pl, len);
 		return;
 	}
+	if (msg == M_EXIT) {
+		exit_msg(n, p, pl, len);
+		return;
+	}
 	if (msg >= M_LINEHELLO && msg <= M_LINEKEY && msg != M_RELAY_REQ && msg != M_RELAY_OK)
 		line_msg(n, p, msg, pl, len);
 	else if (msg == M_RELAY_REQ || msg == M_RELAY_OK || msg == M_RELAY_NO)
@@ -1831,6 +1836,7 @@ void node_timers(lw_node *n)
 	}
 	relay_timers(n);
 	line_timers(n);
+	exit_timers(n);
 }
 
 /* ---- commands from the control socket ---------------------------------------- */
@@ -2095,14 +2101,15 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		addr_str(&p->ep, ep, sizeof ep);
 		len += snprintf(o + len, cap - (size_t)len,
 			"%s{\"key_id\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"path\":\"%s\",\"ep\":\"%s\",\"age\":%d,"
-			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu,\"phrase\":\"%s\",\"sas\":\"%s\"}",
+			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu,\"phrase\":\"%s\",\"sas\":\"%s\",\"exit\":%s}",
 			any ? "," : "", kid, f, sess_state(p), p->relayed ? "relay" : "direct", ep,
 			p->cur.valid ? (int)(n->now - p->cur.born) : -1,
 			(unsigned long long)p->rx_frames, (unsigned long long)p->tx_frames,
 			(unsigned long long)p->rx_bytes, (unsigned long long)p->tx_bytes,
 			(unsigned long long)p->rekeys, (unsigned long long)p->drop_auth,
 			(unsigned long long)p->drop_replay, p->sas.mode == 1 && p->sas.state == 1 ? p->sas.words : "",
-			p->sas.mode == 1 ? (p->sas.state == 1 ? "agreed" : "pending") : "line");	/* "line": a member admitted by the line, or relayed: no phrase (docs/adr/0055) */
+			p->sas.mode == 1 ? (p->sas.state == 1 ? "agreed" : "pending") : "line",	/* "line": a member admitted by the line, or relayed: no phrase (docs/adr/0055) */
+			p->exit_seen > 0 && n->now - p->exit_seen <= EXIT_STALE ? "true" : "false");
 		any = 1;
 	}
 	len += snprintf(o + len, cap - (size_t)len, "],\"calls\":[");
@@ -2121,7 +2128,9 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 				any ? "," : "", hx, f, SN[k->state], k->we_caller ? "true" : "false", k->auto_ ? "true" : "false", cn);
 		any = 1;
 	}
-	len += snprintf(o + len, cap - (size_t)len, "],\"line\":");
+	len += snprintf(o + len, cap - (size_t)len, "],\"exit\":");
+	len += exit_value(n, o + len, cap - (size_t)len);
+	len += snprintf(o + len, cap - (size_t)len, ",\"line\":");
 	{
 		int l = line_value(n, o + len, cap - (size_t)len);
 

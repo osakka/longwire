@@ -3,6 +3,27 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.39
+
+**A member can share its internet, and sending everything through the line needs no gateway typed in** ([ADR 0056](docs/adr/0056-a-member-can-share-its-internet.md)).
+Update every node together.
+
+- **Share this machine's internet**: `longwire exit on` (profile key `exit = yes`, the pane's *Share this machine's internet*). The jack helper turns forwarding on for the jack and
+  the machine's own way out, and adds an nftables table of the jack's own that masquerades the line's network out, lets only answers back, and keeps the line off the machine's other
+  networks; it is undone exactly when sharing stops. It needs a fixed address on the jack and `nft` (packages now suggest nftables). The node tells every member, inside the session,
+  every 10 s (`M_EXIT`).
+- **Send everything with no gateway**: `everything = yes` with no `gateway` goes out through the member that shares its internet: the only one, the lowest number, or the one named
+  in `exit_through`. The jack's table points at a gateway no machine has (169.254.77.1, its MAC fixed by the helper), and the node hands those frames to the chosen exit's session with
+  the exit's MAC: the gateway is a member's key, so no other member can take it over by claiming an address. With no exit, nothing goes out through the line, and `show`, `watch`, the
+  pane (*Way out*) and the `exit` event say so. A fixed address or a DHCP lease on the jack both work. `gateway` still works as before, for a router on the line.
+- **Name server**: the pane's row appears as soon as everything goes through the line, and says plainly that, left empty, this machine's own name server sees every name looked up.
+  Any resolver works (`dns = 1.1.1.1`): it is asked through the exit.
+- **Picking up says what it means**: the ring, in the pane and in the terminal, says that picking up adds the caller to your network, where it stays and reconnects by itself until
+  evicted.
+- Tested: the exit in the engine with real nodes (`tests/exit.sh`: frames reach only the chosen exit, with its MAC; two exits; the exit going; refusals), on the real kernel in
+  namespaces (`tests/exitnet.sh`: the client's table and fixed neighbour, fail-open; the exit's forwarding and masquerade, the line kept off its LAN, nothing let in, undone
+  exactly; needs `nft`), the helper's refusals (`tests/jack.sh`), the pane (`tests/pane.sh`). Not tried: a real tap under a real node end to end, a real exit on the internet.
+
 ## 0.5.38
 
 **No legacy and no backwards compatibility** ([ADR 0055](docs/adr/0055-no-legacy.md)). Update every node and switchboard together.

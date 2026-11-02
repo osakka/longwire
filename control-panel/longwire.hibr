@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.38
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.39
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.38}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.39}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -248,7 +248,7 @@ fn lwp_profiles(force = "") {
 		default) LWP_PDEF=$eq ;;
 		profile) cur=$eq; LWP_PNAMES+=("$cur") ;;
 		token) [ -n "$cur" ] && LWP_PF["$cur.token"]=${#v} ;;
-		switchboard | attach | interface | address | gateway | routes | everything | dns | keep_jack | name | listed | answer) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
+		switchboard | attach | interface | address | gateway | routes | everything | dns | keep_jack | name | listed | answer | exit | exit_through) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
 		esac
 	done < "$f"
 }
@@ -361,7 +361,13 @@ fn longwire_rows(int w) {
 			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Send everything through the line"; CP[$w][$n]["wtype"]=bool	# docs/adr/0045
 			CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.everything]-}" = yes ] && CP[$w][$n]["val"]=on
 			CP[$w][$n]["key"]=everything; n=$((n + 1))
-			[ "${LWP_PF[$p.everything]-}" = yes ] && { lwp_row "$w" "$n" action "Name server" "${LWP_PF[$p.dns]:-this machine's own}" dns; n=$((n + 1)); }	# docs/adr/0047
+			if [ "${LWP_PF[$p.everything]-}" = yes ]; then
+				[ -n "${LWP_PF[$p.gateway]-}" ] || { lwp_row "$w" "$n" action "Through" "${LWP_PF[$p.exit_through]:-the member that shares its internet}" exitthrough; n=$((n + 1)); }	# docs/adr/0056
+				lwp_row "$w" "$n" action "Name server" "${LWP_PF[$p.dns]:-this machine's own (names are not private)}" dns; n=$((n + 1))	# docs/adr/0047
+			fi
+			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Share this machine's internet"; CP[$w][$n]["wtype"]=bool	# docs/adr/0056
+			CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.exit]-}" = yes ] && CP[$w][$n]["val"]=on
+			CP[$w][$n]["key"]=shareexit; n=$((n + 1))
 		fi
 		if [ "${LWP_PF[$p.attach]:-jack}" = jack ]; then
 			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Keep the jack when turned off"; CP[$w][$n]["wtype"]=bool
@@ -405,6 +411,14 @@ fn longwire_rows(int w) {
 	lwp_row "$w" "$n" action "Name" "${name:-none}" none; n=$((n + 1))
 	lwp_row "$w" "$n" action "Switchboard" "$sw" none; n=$((n + 1))
 	lwp_row "$w" "$n" action "NAT" "$nat" none; n=$((n + 1))
+	local xu xn xs
+	xu := lwp_get .exit.use
+	xs := lwp_get .exit.share
+	if [ "$xu" = true ]; then			# docs/adr/0056
+		xn := lwp_get .exit.using
+		lwp_row "$w" "$n" action "Way out" "${xn:-none: no member shares its internet now, so nothing goes out}" none; n=$((n + 1))
+	fi
+	[ "$xs" = true ] && { lwp_row "$w" "$n" action "Sharing" "this machine's internet, with the line" none; n=$((n + 1)); }
 	if [ -n "$LWP_SOCK" ]; then
 		lwp_row "$w" "$n" action "Runs as" "a service (longwire@${LWP_SOCK%/ctl})" none; n=$((n + 1))
 		lwp_row "$w" "$n" action "Stop the service" "" stopsvc; n=$((n + 1))
@@ -420,10 +434,9 @@ fn longwire_rows(int w) {
 		call := lwp_get ".calls[$i].call"
 		num := lwp_get ".calls[$i].number"
 		nm := lwp_get ".calls[$i].name"
-		phr := lwp_get ".calls[$i].phrase"
 		if [ "$state" = ringing ] && [ "$we" != true ]; then
 			lwp_row "$w" "$n" action "$num rings${nm:+ ($nm, a claim)}" "pick up?" "ring:$call"; n=$((n + 1))
-			lwp_row "$w" "$n" action "  safety phrase" "${phr:-comes once connected}" none; n=$((n + 1))
+			lwp_row "$w" "$n" action "  safety phrase" "comes once connected" none; n=$((n + 1))
 			lwp_row "$w" "$n" action "  decline" "" "rej:$call"; n=$((n + 1))
 		elif [ "$state" != up ]; then
 			lwp_row "$w" "$n" action "$num" "$state" "hang:$num"; n=$((n + 1))
@@ -559,6 +572,7 @@ fn lwp_setiface(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset inter
 fn lwp_setaddress(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset address "$text"; return 0; }
 fn lwp_setgateway(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset gateway "$text"; return 0; }
 fn lwp_setdns(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset dns "$text"; return 0; }
+fn lwp_setexitthrough(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset exit_through "$text"; return 0; }
 fn lwp_setroutes(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset routes "$text"; return 0; }
 fn lwp_setname(text, int? id = "") { lwp_pset name "$text"; return 0; }
 fn cp_set_lwpolicy(int? id = "", value = "") { lwp_setpolicy "$value"; }
@@ -805,8 +819,24 @@ fn lwp_haseverything(iface, gw, want) {
 		return 0
 	fi
 	printf '%s\n' "$rule" | grep -qw "lookup $table" || return 1
-	PATH=$PATH:/usr/sbin:/sbin ip -4 route show table "$table" 2> /dev/null | grep -q "^default via $gw dev $iface\( \|$\)" || return 1
+	if [ -n "$gw" ]; then
+		PATH=$PATH:/usr/sbin:/sbin ip -4 route show table "$table" 2> /dev/null | grep -q "^default via $gw dev $iface\( \|$\)" || return 1
+	else			# the exit gateway (docs/adr/0056)
+		PATH=$PATH:/usr/sbin:/sbin ip -4 route show table "$table" 2> /dev/null | grep -q "^default via 169\.254\.77\.1 dev $iface " || return 1
+		PATH=$PATH:/usr/sbin:/sbin ip -4 neigh show 169.254.77.1 dev "$iface" 2> /dev/null | grep -q "02:6c:77:65:78:74 PERMANENT" || return 1
+	fi
 	return 0
+}
+
+# Is the jack shared as asked (yes or no)? Asked without privilege (docs/adr/0056).
+fn lwp_hasshare(iface, want) {
+	local f=
+	read -r f < "/proc/sys/net/ipv4/conf/$iface/forwarding" 2> /dev/null
+	if [ "$want" = yes ]; then
+		[ "$f" = 1 ] && [ -r "${LONGWIRE_RUN:-/run/longwire}/share-$iface" ]
+	else
+		[ ! -e "${LONGWIRE_RUN:-/run/longwire}/share-$iface" ]
+	fi
 }
 
 # Is the jack's name server in systemd-resolved as asked ("" for none)? Without resolved there is nothing to ask (docs/adr/0047).
@@ -820,7 +850,7 @@ fn lwp_hasdns(iface, dns) {
 }
 
 fn lwp_turnon(int w) {
-	local p sb attach iface addr gw rts ev ns
+	local p sb attach iface addr gw rts ev ns sh
 
 	if ! command -v longwire > /dev/null; then
 		dt_notep high "longwire is not installed. Find it in the Catalogue (Commands)."
@@ -850,20 +880,27 @@ fn lwp_turnon(int w) {
 	gw=${LWP_PF[$p.gateway]-}
 	rts=${LWP_PF[$p.routes]-}
 	ev=${LWP_PF[$p.everything]:-no}
-	if [ "$ev" = yes ] && [ -z "$gw" ]; then
+	sh=${LWP_PF[$p.exit]:-no}
+	if [ "$ev" = yes ] && [ -z "$gw" ] && [ -z "$addr" ]; then
 		LWP_ON=
-		dt_notep high "Sending everything through the line needs a Gateway: the router on the line that takes it onward."
+		dt_notep high "Sending everything through the line needs this machine's Address on it (or dhcp): the answers come back to it."
 		return 1
 	fi
-	[[ $iface =~ ^lw[0-9]{1,2}$ ]] || ev=no
+	if [ "$sh" = yes ] && { [ -z "$addr" ] || [ "$addr" = dhcp ]; }; then
+		LWP_ON=
+		dt_notep high "Sharing this machine's internet needs a fixed Address on the line, like 192.168.152.1/24."
+		return 1
+	fi
+	[[ $iface =~ ^lw[0-9]{1,2}$ ]] || { ev=no; sh=no; }
 	ns=
 	[ "$ev" = yes ] && ns=${LWP_PF[$p.dns]-}
-	if [ "$attach" = jack ] && { [ ! -d "/sys/class/net/$iface" ] || { [ -n "$addr" ] && ! lwp_hasaddr "$iface" "$addr"; } || ! lwp_hasroutes "$iface" "$gw" "$rts" || ! lwp_haseverything "$iface" "$gw" "$ev" || ! lwp_hasdns "$iface" "$ns"; }; then
+	if [ "$attach" = jack ] && { [ ! -d "/sys/class/net/$iface" ] || { [ -n "$addr" ] && ! lwp_hasaddr "$iface" "$addr"; } || ! lwp_hasroutes "$iface" "$gw" "$rts" || ! lwp_haseverything "$iface" "$gw" "$ev" || ! lwp_hasdns "$iface" "$ns" || ! lwp_hasshare "$iface" "$sh"; }; then
 		LWP_BUSY=1
 		[ -n "$rts" ] || [ "$ev" = yes ] || gw=
-		local evf=
+		local evf= shf=
 		[ "$ev" = yes ] && evf=--everything
-		LWP_JOB := dt_ptyjob longwire jack lwp_jackdone lwp_pkprompt longwire jack ${addr:+--address "$addr"} ${gw:+--via "$gw"} ${rts:+--routes "$rts"} ${evf:+"$evf"} ${ns:+--dns "$ns"} "$iface"
+		[ "$sh" = yes ] && shf=--share
+		LWP_JOB := dt_ptyjob longwire jack lwp_jackdone lwp_pkprompt longwire jack ${addr:+--address "$addr"} ${gw:+--via "$gw"} ${rts:+--routes "$rts"} ${evf:+"$evf"} ${ns:+--dns "$ns"} ${shf:+"$shf"} "$iface"
 		[ -n "$LWP_JOB" ] || { LWP_BUSY=0; dt_notep high "Could not start pkexec"; return 1; }
 		dt_notep low "Making the jack $iface${GL[ellipsis]}"
 		return 0
@@ -882,11 +919,10 @@ fn lwp_ring(call) {
 		c := lwp_get ".calls[$i].call"
 		[ "$c" = "$call" ] || continue
 		num := lwp_get ".calls[$i].number"
-		phr := lwp_get ".calls[$i].phrase"
 		nm := lwp_get ".calls[$i].name"
 		LWP_PEND_KIND=pickup
 		LWP_PEND_ARG=$call
-		dt_confirm "$num${nm:+ ($nm, a claim)} rings. ${phr:+Safety phrase: $phr. }${phr:-The safety phrase comes once you are connected: compare it with theirs. }Pick up?" lwp_yes
+		dt_confirm "$num${nm:+ ($nm, a claim)} rings. The safety phrase comes once you are connected: compare it with theirs. Picking up adds $num to your network: it stays a member, and reconnects by itself, until you evict it. Pick up?" lwp_yes
 		return 0
 	done
 	dt_notep low "That call has ended."
@@ -914,11 +950,27 @@ fn longwire_do(int w, k, int dir) {
 		p := lwp_cur
 		if [ "${LWP_PF[$p.everything]-}" = yes ]; then
 			lwp_pset everything no
-		elif [ -z "${LWP_PF[$p.gateway]-}" ]; then
-			dt_notep high "Set the Gateway first: the router on the line that takes everything onward."
 		else
 			lwp_pset everything yes
-			dt_notep low "Everything goes through the line from the next Turn on. The far router must pass it on to the internet."
+			[ "${LWP_PF[$p.exit]-}" = yes ] && lwp_pset exit no		# a machine that shares does not send its own through another
+			if [ -n "${LWP_PF[$p.gateway]-}" ]; then
+				dt_notep low "Everything goes through the line from the next Turn on, to the Gateway. It must pass it on to the internet."
+			else
+				dt_notep low "Everything goes through the line from the next Turn on, out through the member that shares its internet."
+			fi
+		fi ;;
+	shareexit)
+		p := lwp_cur
+		if [ "${LWP_PF[$p.exit]-}" = yes ]; then
+			lwp_pset exit no
+		else
+			case ${LWP_PF[$p.address]-} in
+			'' | dhcp) dt_notep high "Sharing needs a fixed Address on the line first, like 192.168.152.1/24." ;;
+			*)
+				lwp_pset exit yes
+				[ "${LWP_PF[$p.everything]-}" = yes ] && lwp_pset everything no
+				dt_notep low "This machine shares its internet with the line from the next Turn on (one password: it needs nftables)." ;;
+			esac
 		fi ;;
 	keepjack)
 		p := lwp_cur
@@ -934,7 +986,8 @@ fn longwire_do(int w, k, int dir) {
 	token) dt_ask "Token" "Token" "" lwp_settoken "the invite token your switchboard gave you; empty removes it. It is kept in a file only you can read" 1 ;;
 	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "for jack, the tap (lw0 to lw99, made for you); for splice, the NIC" ;;
 	gateway) p := lwp_cur; dt_ask "Gateway" "Gateway" "${LWP_PF[$p.gateway]-}" lwp_setgateway "a router on the line, like 192.168.152.254, that reaches the networks below; empty for none" ;;
-	dns) p := lwp_cur; dt_ask "Name server" "Address" "${LWP_PF[$p.dns]-}" lwp_setdns "a name server reached through the line, like the far router 192.168.152.254, asked for every name while everything goes through it (needs systemd-resolved); empty for this machine's own" ;;
+	dns) p := lwp_cur; dt_ask "Name server" "Address" "${LWP_PF[$p.dns]-}" lwp_setdns "a name server asked through the line for every name while everything goes through it, like 1.1.1.1 or a router on the line (needs systemd-resolved); empty for this machine's own, which then sees every name you look up" ;;
+	exitthrough) p := lwp_cur; dt_ask "Through" "Number" "${LWP_PF[$p.exit_through]-}" lwp_setexitthrough "the number of the member to go out through, when more than one shares its internet; empty for the only one (or the lowest number)" ;;
 	routes) p := lwp_cur; dt_ask "Routes" "Networks" "${LWP_PF[$p.routes]-}" lwp_setroutes "networks to reach through the gateway, like 192.168.150.0/24,10.20.0.0/16 (never the default route); empty for none" ;;
 	address) p := lwp_cur; dt_ask "Address" "Address" "${LWP_PF[$p.address]-}" lwp_setaddress "this machine's address on the line, like 10.77.0.2/24 (every machine its own, in one subnet), or dhcp to ask a DHCP server on the line; empty to leave it alone" ;;
 	name) p := lwp_cur; dt_ask "Name" "Name" "${LWP_PF[$p.name]-}" lwp_setname "what callers see (a claim, not proof); empty for none" ;;

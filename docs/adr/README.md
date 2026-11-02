@@ -64,6 +64,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0053](0053-the-switchboard-has-ports-of-its-own.md) | The switchboard has ports of its own | accepted; built in 0.5.36 |
 | [0054](0054-a-phrase-is-checked-by-typing-the-other-ends-words.md) | A phrase is checked by typing the other end's words | accepted; built in 0.5.37 |
 | [0055](0055-no-legacy.md) | No legacy, no backwards compatibility | accepted; built in 0.5.38 |
+| [0056](0056-a-member-can-share-its-internet.md) | A member can share its internet; the gateway is a member's key, not an address | accepted; built in 0.5.39 |
 
 ---
 

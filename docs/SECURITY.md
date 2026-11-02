@@ -56,7 +56,7 @@ are worth knowing:
 - **Least privilege.** The node never runs as root. Bridging a whole site needs one capability, granted by the service manager and
   dropped as soon as the network port is open. A single machine uses a tap device it owns. The root helper that makes it runs through polkit, which asks for an administrator's
   password and keeps the approval for a few minutes. Besides making the device it may put an IPv4 address on it (or start a DHCP client that takes only the address and the network route), add up to 16 routes through a
-  gateway on the jack's own network (each /8 to /32, never the default route), send everything through the line, set one name server on the jack in systemd-resolved, and remove a jack the user owns; it touches only a jack
+  gateway on the jack's own network (each /8 to /32, never the default route), send everything through the line, set one name server on the jack in systemd-resolved, share the machine's internet with the line (forwarding on for the jack and for the device the machine's own default route leaves by, and an nftables table of the jack's own, `longwire-lwN`, that lets only the line's network out, masqueraded, lets only answers back and keeps the line off the machine's other networks; written down in `/run/longwire/share-lwN` and undone exactly: [ADR 0056](adr/0056-a-member-can-share-its-internet.md)), and remove a jack the user owns; it touches only a jack
   the asking user owns, and checks every value before anything changes. A second helper, also run through polkit, starts a site node as a service; it reads the options from a file only the user can write and lets
   through five options with values of the shape each must have. The services run as a transient user with no home, a system-call filter and a memory limit; the switchboard holds no capabilities, and a site node only `CAP_NET_RAW`.
 - **The secret never leaves the worker.** Your identity is one 32-byte seed. It is read inside the engine, never put in a shell
@@ -86,7 +86,7 @@ That is the honest sentence behind the word.
 ## What has been done to check it
 
 - **A test suite that builds real networks.** It runs the actual scripts over unprivileged network namespaces with simulated
-  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (843 checks in the run for 0.5.38).
+  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (898 checks in the run for 0.5.39).
 - **An attack on the switchboard,** the one component built to face the public. Before it was released, three readers went through every parser a stranger's bytes can
   reach. It found real flaws, three of them proven by tests that failed on the old code: strangers able to fill the switchboard's
   places for good, a registration token able to write into the policy script's event, and a switchboard able to connect a call nobody
@@ -105,7 +105,7 @@ That is the honest sentence behind the word.
 | **ML-KEM is not cross-checked** | There is no second implementation on the machine to compare against. It is the vendored reference code, and two nodes built from it agree with each other. |
 | **Constant-time behaviour is unchecked** | The libraries are written to avoid timing leaks, but nobody has measured the code as TCC compiles it. |
 | **The engine is written in C** | Memory-safety bugs are possible in any C code. The fuzzer and the bounds checker lower that risk; they do not remove it. The node runs unprivileged, which limits the damage. |
-| **Real-world conditions are mostly untested** | The tests simulate NATs, and stand-ins play `ip`, `systemctl`, `resolvectl` and the DHCP clients. Not tried by the author: real routers, the wide-area internet, a real tap device, everything through the line with real traffic to the internet, a laptop really moving between networks, a real systemd-resolved, a real DHCP lease, the helpers under a real `pkexec`, the services under a live systemd, a long real attack on a switchboard's bans, and a clean install from the packages. |
+| **Real-world conditions are mostly untested** | The tests simulate NATs, and stand-ins play `ip`, `systemctl`, `resolvectl` and the DHCP clients. Not tried by the author: real routers, the wide-area internet, a real tap device, everything through the line with real traffic to the internet, a real exit on the internet (sharing is tested on the engine and in network namespaces on the real kernel), a laptop really moving between networks, a real systemd-resolved, a real DHCP lease, the helpers under a real `pkexec`, the services under a live systemd, a long real attack on a switchboard's bans, and a clean install from the packages. |
 
 These gaps are tracked in [THREAT-MODEL](THREAT-MODEL.md) and the [ROADMAP](ROADMAP.md) (M8 is the verification milestone).
 
@@ -139,6 +139,10 @@ and [THREAT-MODEL](THREAT-MODEL.md):
   line's own network and the routed networks, which then goes to the local network's router unencrypted. A switch that blocks traffic while the line is down *(planned: M4)*.
 - **Names, unless you set them.** With everything through the line but no `dns` in the profile, every name the machine looks up still goes to its own name server, usually on the network it sits on. With `dns` set,
   names go through the line only while the node holds the jack, and only with systemd-resolved.
+- **An exit sees what its users send.** A member that shares its internet ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)) sees everything the members going out through it send outside the line, as their internet provider would,
+  and its address is what the internet sees. Share only from a machine the line trusts that much. The way out is a member's key, not an address: frames for it go only to the member that said, inside its
+  session, that it shares, so another member cannot become the gateway by claiming its address or answering ARP for it. While a node that sends everything has no exit, its internet traffic stops (it
+  does not leak to the local network); when the node stops, it fails open as above. An exit whose own firewall drops forwarded traffic (Docker's does) may still drop the line's.
 - **IPv6 with everything through the line** is sent into the line and is lost there unless the far side routes it: it does not leak, and it does not work.
 - **A jack that stays.** By default the jack outlives the node (`keep_jack`), with its address and any DHCP client of ours. `keep_jack = no` or `longwire jack --remove` takes it away.
 - **Floods of plain traffic.** A switchboard or node behind a thin link can be filled with garbage by someone with enough

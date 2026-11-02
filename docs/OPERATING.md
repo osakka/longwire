@@ -222,7 +222,7 @@ What came back decides the sentence ([ADR 0048](adr/0048-a-silent-switchboard-is
   1. the key after `/` in the switchboard address is the switchboard's own: compare with `please journalctl -u longwire-switchboard -o cat | grep '^switchboard '` on it;
   2. this node's key is not banned: `please longwire-switchboard bans list` on the switchboard, or a `ban` line in its log starting with the first 16 hex digits of the node's `longwire id`.
      Lift it with `please longwire-switchboard bans clear KEY`, or wait (15 minutes, doubling, at most a day);
-  3. the switchboard's own port is open, not only the next one;
+  3. the switchboard's own port is open, not only its echo port;
   4. the switchboard's answers get back: the large probe tests the way there; a handshake's answer is as large on the way back ([PROTOCOL](PROTOCOL.md)), which the probe does not test.
 - **nothing comes back from its host**: UDP to the switchboard's echo port is dropped on the way (either side's firewall, or the provider's), or the switchboard is not running
   (`systemctl status longwire-switchboard`; `please ss -ulpn` shows both ports bound). A switchboard whose firewall opens only its own port, or whose echo port was taken by something

@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SECURITY 7 "November 2026" "longwire 0.5.38" "longwire manual"
+.TH LONGWIRE-SECURITY 7 "November 2026" "longwire 0.5.39" "longwire manual"
 .SH NAME
 longwire-security \- what longwire protects, what it does not, and how far it has been checked
 .SH DESCRIPTION
@@ -73,7 +73,7 @@ No formal proof of the handshake.
 ML-KEM has not been compared with a second implementation.
 Constant-time behaviour, as the code is compiled, is unmeasured.
 The engine is written in C.
-Real routers, the wide\-area internet, everything through the line with real traffic, a laptop moving between networks, a real systemd\-resolved, a real DHCP lease, the helpers under a real
+Real routers, the wide\-area internet, everything through the line with real traffic, a real exit on the internet, a laptop moving between networks, a real systemd\-resolved, a real DHCP lease, the helpers under a real
 .BR pkexec ,
 the services under a live systemd and a clean install from the packages have not been tried by the author.
 .SH "PRIVILEGED HELPERS"
@@ -83,7 +83,14 @@ each asking for an administrator's password, which polkit keeps for a few minute
 .I /usr/lib/longwire/jack
 makes a tap
 .BR lw0 \(en lw99
-owned by the user, acts only on a jack that user owns, and may add an address, a DHCP client, routes through a gateway on the line, the table and rules that send everything through the line, and a name server in systemd\-resolved; every value is checked before anything changes.
+owned by the user, acts only on a jack that user owns, and may add an address, a DHCP client, routes through a gateway on the line, the table and rules that send everything through the line, and a name server in systemd\-resolved.
+It may also share the machine's internet with the line: forwarding on for the jack and for the device the machine's own default route leaves by, and an nftables table of the jack's own
+.RB ( longwire\-lwN )
+that lets only the line's network out, masqueraded, lets only the answers back in, and keeps the line off the machine's other networks.
+What it changed is written in
+.I /run/longwire/share\-lwN
+and undone exactly when sharing stops or the jack is removed.
+Every value is checked before anything changes.
 .I /usr/lib/longwire/site
 writes a site node's options, letting through only
 .BR \-\-switchboard ,
@@ -104,6 +111,12 @@ Loss of the seed: it is your number.
 .PP
 Everything through the line fails open: when the node stops, crashes or the machine changes network, all traffic, including traffic for the line's own network, goes out on the local network unencrypted.
 Without a name server set in the profile, every name is still looked up on the local network.
+.PP
+A member that shares its internet (an exit) sees everything its users send outside the line, as their internet provider would, and its address is what the internet sees:
+share only from a machine the line trusts that much.
+The way out is a member's key, not an address: frames for it go only to the member that said, inside its session, that it shares, so another member cannot take it over by claiming the gateway's address.
+While a node that sends everything has no exit, its traffic for the internet stops; it does not leak to the local network.
+An exit whose own firewall drops forwarded traffic (Docker's does) may still drop the line's.
 The jack stays after the node stops unless the profile says
 .BR "keep_jack = no" .
 .SH "USING IT SAFELY"

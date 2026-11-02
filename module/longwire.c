@@ -24,7 +24,7 @@
 #include "../engine/lw.h"
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.38"
+#define LW_VERSION "0.5.39"
 #endif
 
 static void default_sock(char *out, size_t n)
@@ -310,6 +310,14 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->everything = 1;
 			continue;
 		}
+		if (!strcmp(a, "--exit") && !role) {		/* share this machine's internet with the line (docs/adr/0056) */
+			c->exit_share = 1;
+			continue;
+		}
+		if (!strcmp(a, "--use-exit") && !role) {	/* send what goes to the exit gateway to a member that shares */
+			c->use_exit = 1;
+			continue;
+		}
 		if (!strcmp(a, "--cand-loopback")) {
 			c->cand_loopback = 1;
 			continue;
@@ -435,7 +443,37 @@ static int do_start(sh *s, int ac, char **av, int role)
 			}
 		} else if (!strcmp(a, "--direct-retry"))
 			c->direct_retry = atoi(v);
-		else if (!strcmp(a, "--underlay")) {
+		else if (!strcmp(a, "--exit-mac") && !role) {	/* the way out is this machine on the spliced LAN, not the jack */
+			unsigned m[6];
+			int k;
+			char tail;
+
+			if (sscanf(v, "%2x:%2x:%2x:%2x:%2x:%2x%c", &m[0], &m[1], &m[2], &m[3], &m[4], &m[5], &tail) != 6 || strlen(v) != 17 || (m[0] & 1)) {
+				hibr_fail(s, "lw start: --exit-mac wants a MAC address like 52:54:00:12:34:56");
+				goto out;
+			}
+			for (k = 0; k < 6; k++)
+				c->exit_mac[k] = (unsigned char)m[k];
+			c->has_exit_mac = 1;
+			c->exit_share = 1;
+		} else if (!strcmp(a, "--exit-through") && !role) {	/* which member to use as the exit: a number */
+			int k, d = 0;
+
+			for (k = 0; v[k]; k++) {
+				if (v[k] >= '0' && v[k] <= '9' && d < 9)
+					c->exit_through[d++] = v[k];
+				else if (v[k] != '-' || d == 0) {
+					d = -1;
+					break;
+				}
+			}
+			if (d != 9) {
+				hibr_fail(s, "lw start: --exit-through wants a number like 447-120-933");
+				goto out;
+			}
+			c->exit_through[9] = 0;
+			c->use_exit = 1;
+		} else if (!strcmp(a, "--underlay")) {
 			if (!v || strlen(v) >= sizeof c->underlay) {
 				hibr_fail(s, "lw start: --underlay wants a network device name");
 				goto out;
@@ -464,6 +502,14 @@ static int do_start(sh *s, int ac, char **av, int role)
 	}
 	if (!c->port_kind[0]) {
 		hibr_fail(s, "lw start: need --splice NIC, --jack TAPNAME (or --sock-port LOCAL:PEER for tests)");
+		goto out;
+	}
+	if (c->exit_share && c->use_exit) {
+		hibr_fail(s, "lw start: a node that shares its internet (--exit) does not send its own through another (--use-exit)");
+		goto out;
+	}
+	if (c->exit_share && !c->has_exit_mac && strcmp(c->port_kind, "jack")) {
+		hibr_fail(s, "lw start: --exit shares through the jack; on a spliced LAN say which machine is the way out with --exit-mac");
 		goto out;
 	}
 	{

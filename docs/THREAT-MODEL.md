@@ -30,7 +30,7 @@ What longwire defends against, what it does not, and what is still open. Designe
 | **Malicious peer on a call** | everything a host on your LAN can do: ARP spoofing, DHCP, scanning | read other peers' sessions *in transit* (it sees what is flooded to it, as any LAN host would) |
 | **Malicious relay** | see sizes and timing of the traffic it relays; drop it | read or alter it: relayed packets are end-to-end sessions, and a relay is only a member of the line. It can also refuse or stall the pair: they notice, ask another member, and keep trying for a direct path |
 | **Stolen device** | be that device: the seed *is* the number and the key | outlast an eviction: any member can evict it (`longwire evict`), which removes it from every member's list, rotates the line key, and bars it from ringing back in. Its own number and key stay its own, so the identity itself is replaced to be rid of it elsewhere |
-| **Malicious line member** | everything a peer on a call can do, and also vouch for other nodes and evict any member: there is no owner and no quorum | read other members' sessions in transit. Any member can be evicted by any other, which is the trust a line implies. A line may instead name an operator ([ADR 0026](adr/0026-a-line-may-have-an-operator.md)): then members can neither admit nor evict, and the power sits in one key |
+| **Malicious line member** | everything a peer on a call can do, and also vouch for other nodes and evict any member: there is no owner and no quorum; offer itself as the way out to the internet, and then see the outside traffic of whoever goes out through it | read other members' sessions in transit; become another member's way out by claiming an address (the way out is a member's key: [ADR 0056](adr/0056-a-member-can-share-its-internet.md)). Any member can be evicted by any other, which is the trust a line implies. A line may instead name an operator ([ADR 0026](adr/0026-a-line-may-have-an-operator.md)): then members can neither admit nor evict, and the power sits in one key |
 | **Line operator's key** (stolen or lost) | stolen: admit any node and evict any member of that line. Lost: no one new can join and no one can be evicted, while the line goes on | keep the operator's seed offline, on a machine that runs no node, with a backup. Rotating it means founding a new line |
 | **Attacker on a site's own LAN segment** | do anything a LAN host can; flood the segment; replay a recorded probe to keep a dead box looking alive for up to about 30 seconds after it was recorded | forge a probe or a host list (both are authenticated with the site secret); join the line |
 
@@ -63,10 +63,14 @@ device of that name owned by anyone else is refused), and in the same step it ma
 - start `dhclient`, `dhcpcd` or `udhcpc` with a hook that drops the default route, the name servers and the rest;
 - add 1 to 16 routes (/8 to /32; not loopback, link-local, multicast, or overlapping the jack's network) through a gateway on the jack's own network;
 - with `--everything`, add the jack's own table and the rules 7700 and 7701, refusing if something else holds them or if the jack has carrier ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md));
-- set one name server on the jack in systemd-resolved ([ADR 0047](adr/0047-names-through-the-line-are-set-on-the-jack.md)).
+- set one name server on the jack in systemd-resolved ([ADR 0047](adr/0047-names-through-the-line-are-set-on-the-jack.md));
+- with `--share`, which needs a fixed address and `nft`, share the machine's internet with the line ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)): turn forwarding on for the jack and for the device the machine's own
+  default route leaves by (that device's earlier setting is written in `/run/longwire/share-lwN`), and load an nftables table of the jack's own, `longwire-lwN`, that lets the jack's own network out
+  through that device, masqueraded, lets only established and related traffic back, and drops anything else from or to the jack that is forwarded. Made again without `--share`, or with `--remove`, it deletes the table and
+  puts the forwarding back as it was written.
 
 `--remove` deletes only a jack the asking user owns, and stops a DHCP client only if its process is one of those three. polkit keeps an approval for a few minutes (`auth_admin_keep`), and in that time a
-program running as the same user can run either helper again without a prompt, so the checks above are the boundary. The routes and rules it adds affect every user of the machine. The node
+program running as the same user can run either helper again without a prompt, so the checks above are the boundary. The routes, rules, forwarding and nftables table it adds affect every user of the machine. The node
 itself still never runs as root and still holds no capability. Not tested: `pkexec` behind the desktop's pseudo-terminal job with a real polkit agent, and the helper on a machine with `/dev/net/tun`.
 
 ## Port mapping
@@ -83,6 +87,14 @@ passing over the routes of a jack with no carrier, so the design fails open: whe
 networks included) goes out on whatever network the machine is on, unencrypted. Between a change of road and the engine noticing it (up to a second), packets go into a line that cannot carry them. A
 switch that blocks instead *(planned: M4)*. The network the machine sits on sees every name it looks up unless `dns` is set and systemd-resolved is present. The engine's own datagrams never enter the jack,
 because every socket is tied to the real device; a program on the machine that ties its own socket to that device also bypasses the line, as it would with any tunnel.
+
+**The exit** ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)). With everything through the line and no gateway, the jack's default route goes to 169.254.77.1, whose MAC the helper fixes
+(`nud permanent`), so no ARP answer is ever asked or believed; the engine hands every frame for that MAC to the member chosen as the exit, and to nobody else, or drops it. A member is an exit only
+while it says so (`EXIT`, every 10 s) inside its own session and is a current member of the line, so the way out is a member's key: a malicious member can offer itself as an exit, and is then
+used if it has the lowest number or is the one asked for, but it cannot take over another member's way out by claiming an address or answering ARP. Whoever is the exit sees all the outside
+traffic of those who use it, as an internet provider does, and the internet sees its address: share only from a machine the line trusts that much, and name it with `exit_through` when more than one
+member may offer. While no member offers, internet traffic stops rather than leaking to the local network; when the node stops, the fail-open above is unchanged. On the exit, the nftables table
+keeps the line off the machine's other networks, but a firewall of its own whose forward policy drops (Docker's) comes first and may drop the line's traffic.
 
 ## Handshake floods
 
@@ -121,7 +133,7 @@ that matters should hand out tokens. Raw bandwidth is for the network in front o
   checked against published known-answer vectors *(planned: M8)*; X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 as TCC builds them agree with
   independent implementations on 2,100 random cases (`tests/kat.sh`), ML-KEM was not cross-checked, and constant-time behaviour as TCC compiles it is unchecked. The fuzzer
   ([ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md)) finds memory errors in what it generates; it does not prove their absence.
-- **Not run:** the services under a live systemd, a clean install of each package, a long soak, real routers and wide-area links, everything through the line on a real tap with real traffic, a laptop really moving, a real systemd-resolved, a real DHCP lease, the helpers under a real `pkexec`, a long real attack on bans.
+- **Not run:** the services under a live systemd, a clean install of each package, a long soak, real routers and wide-area links, everything through the line on a real tap with real traffic, a real exit on the internet (sharing ran on the engine, `tests/exit.sh`, and in network namespaces on the real kernel, `tests/exitnet.sh`), a laptop really moving, a real systemd-resolved, a real DHCP lease, the helpers under a real `pkexec`, a long real attack on bans.
 - **VLAN-tagged traffic through a splice box is neither handled nor tested** *(planned)*, and the jack port is untested.
   IPv6 has been tested only on loopback and between namespaces, not on a real network.
 

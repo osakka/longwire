@@ -40,9 +40,10 @@ optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is pa
 `make check` runs, in this order: `m0` (handshake, frames, rekeys), `m1` (switchboard and NAT), `m2` (splice, site failover), `m3` (a four-site line), `m3b` (relay and path upgrade), `crossed`,
 `names`, `registry`, `key`, `dhcp`, `release`, `pmp`, `operator`, `ipv6`, `panel`, `pane`, `sw` (the Switchboard window), `group`, `profile`, `jack` (the jack helper against a stand-in `ip`),
 `sas` (the safety phrase, bounds-checked), `ban` (ban tables, bounds-checked), `ban2` (bans and a silent switchboard on a real switchboard), `jacknet` (the underlay, tying and roaming), `tunnel`
-(everything through the line on the real kernel, a veth standing in for the tap), `events`, `doctor`, `site` (the site helper), `tokens`, `bar` (the menu bar and the strip, with the safety
+(everything through the line on the real kernel, a veth standing in for the tap), `exit` (a member sharing its internet: real nodes on sock ports), `exitnet` (the exit's and its users' side on the
+real kernel in namespaces, a veth standing in for the tap), `events`, `doctor`, `site` (the site helper), `tokens`, `bar` (the menu bar and the strip, with the safety
 phrase), `man`, `fuzz`, `kat`, `start`, `pkg`, then `python3 -I tests/docs.py`. Each is `tests/NAME.sh`. Some skip rather than fail when a tool is missing: `pkg` without `dpkg-deb`, `rpmbuild` or
-`makepkg`; `kat` without Python's `cryptography`; `man` without `groff`; `tunnel` without user and network namespaces.
+`makepkg`; `kat` without Python's `cryptography`; `man` without `groff`; `tunnel` without user and network namespaces; and the exit side of `exitnet` without `nft`.
 
 ## How it ships
 
@@ -93,7 +94,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.38
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.39
 # modules: longwire
 ```
 
@@ -146,7 +147,7 @@ init system is documented once it has been tested *(planned: M5)*. The capabilit
 opened the packet socket, and then it's cleared in every process
 ([ARCHITECTURE §2](ARCHITECTURE.md#2-attaching-a-node-ports)).
 
-Jack mode needs no service, and no privilege but the jack's setup (the tap, and any address, DHCP client, routes, everything through the line and name server the profile asks for), which `longwire jack` (or `longwire on`, or the Control Panel's Turn on) does through
+Jack mode needs no service, and no privilege but the jack's setup (the tap, and any address, DHCP client, routes, everything through the line, name server and sharing of the machine's internet the profile asks for), which `longwire jack` (or `longwire on`, or the Control Panel's Turn on) does through
 a small root helper after one password ([ADR 0034](adr/0034-a-connection-is-a-profile.md)). Then `longwire on` runs it in the background, or `longwire up --jack lw0` in a terminal,
 under `hold`, or as a systemd *user* unit.
 

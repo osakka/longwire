@@ -25,6 +25,7 @@
 #define M_BYE      0x08		/* leave(1) */
 #define M_SAS      0x0b		/* the committed safety phrase (docs/adr/0040), inside the session: kind(1) then 0 commit(32) from the caller, 1 nonce(16) from the callee, 2 reveal(16) from the caller, 3 acknowledged */
 #define M_RELAY_NO  0x0a	/* peer_key_id(32) */
+#define M_EXIT      0x0c	/* mac(6): this member shares its internet, through the machine with this MAC (docs/adr/0056); said every 10 s */
 /* node <-> switchboard */
 #define M_REGISTER 0x20		/* token_len(1) token */
 #define M_NUMBER   0x21		/* number(9) observed(6) */

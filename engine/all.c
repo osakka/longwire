@@ -7,6 +7,7 @@
 #include "sw.c"
 #include "site.c"
 #include "line.c"
+#include "exit.c"
 #include "relay.c"
 #include "pmp.c"
 #include "port.c"

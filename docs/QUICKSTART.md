@@ -84,13 +84,29 @@ The line is one segment: everything on it is reached with no route. A network *b
 
 ### Everything through the line
 
-To have all of this machine's traffic leave by the far site (a café's Wi-Fi, home's internet), set **Gateway** to the router there and switch on **Send everything through the line**
-(`longwire profile set home everything=yes`; it also needs a static Address), then turn on. `longwire show` says `everything  through the line (lw0)`. Your own network (the printer) stays yours, and the moment longwire is off or
-stops, everything goes the usual way again. The router at the far end must pass the traffic on, which a home or office router does for any machine on its network. Set **Name server** (often the same router) to
-look names up there too, rather than on the network you sit on (with systemd-resolved). Moving from Wi-Fi to a cable while on is handled: longwire lets go for a moment, so the machine uses its own network meanwhile, and starts again on the new one
+To have all of this machine's traffic leave by another member's internet (a laptop on a café's Wi-Fi going out by a server you run, or by home), let one member share its internet and the others
+send everything through the line ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)). No gateway address is typed anywhere, and nothing is set up by hand on either side:
+
+- **On the machine that shares** (a server, like your VPS): give its jack a fixed Address, then switch on **Share this machine's internet** in the pane, or
+  `longwire profile set home address=192.168.152.1/24` and `longwire exit on`. The same password step as the device turns on forwarding and adds a firewall table of the jack's own
+  (it needs nftables: `nft`); `longwire show` then says `sharing  this machine's internet with the line`.
+- **On each machine that goes out through it:** switch on **Send everything through the line** and leave **Gateway** empty (`longwire profile set home everything=yes`; it needs an Address,
+  fixed or `dhcp`), then turn on. `longwire show` says `everything  through the line (lw0)` and `way out  447-120-933, which shares its internet`. Set **Name server** to any resolver, like
+  `1.1.1.1` (`longwire profile set home dns=1.1.1.1`): it is asked through the line and goes out by the exit, so the network you sit on does not see what you look up (with systemd-resolved).
+
+When more than one member shares, the lowest number is used, or the one in **Through** (`exit_through=NUMBER`). The machine that shares sees everything the others send outside the line, as their
+internet provider would, and its address is what the internet sees: share only from a machine the line trusts that much. If no member shares, nothing goes out (it does not leak to the network you
+sit on), and `longwire show` warns `way out: no member of the line shares its internet now`. Your own network (the printer) stays yours, and the moment longwire is off or stops, everything goes the
+usual way again.
+
+If the far site already has a router on the line that passes traffic on (a home or office router does for any machine on its network), you can name it in **Gateway** instead
+(`longwire profile set home gateway=192.168.152.254 everything=yes`; then the Address must be static); **Name server** is then often that same router.
+
+Moving from Wi-Fi to a cable while on is handled: longwire lets go for a moment, so the machine uses its own network meanwhile, and starts again on the new one
 (tested on the engine; a laptop really moving has not been tried). It fails open: while longwire is off or restarting, traffic goes the usual way; a switch that blocks everything while the line is down
-*(planned: M4)*. Switching this on or off takes effect at the next Turn on. IPv6 is sent into the line too, so it does not leak past it, and it works only if the far side routes it
-([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md), [ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)).
+*(planned: M4)*. Switching this on or off takes effect at the next Turn on. IPv6 is sent into the line too, so it does not leak past it, and it works only if the far side routes it; an exit does not
+carry it out ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md), [ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)).
+Sharing is tested on the engine and on the real kernel in network namespaces; a real exit on the internet has not been tried.
 
 ## 5. Make the first call
 

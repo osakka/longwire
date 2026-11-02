@@ -81,11 +81,18 @@ every network connected to the jack and every IPv4 route the kernel sends throug
 (`SO_BINDTODEVICE`, no privilege, Linux 5.7 and later), and never offers its own jack address as a candidate ([ADR 0037](adr/0037-traffic-to-the-other-end-never-goes-into-our-own-jack.md),
 [ADR 0044](adr/0044-routes-beyond-the-line-go-through-a-gateway-on-it.md)).
 
-**Everything through the line** ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)). The helper puts a default route through a gateway on the line into a table of
+**Everything through the line** ([ADR 0045](adr/0045-everything-through-the-line-is-a-table-of-the-jacks-own.md)). The helper puts a default route through a gateway on the line (or the exit gateway, below) into a table of
 the jack's own (7700 + N for `lwN`), with two rules: `7700: lookup main suppress_prefixlength 0` and `7701: lookup 7700+N`. The main table is never touched; an IPv6 default route into the
 jack goes into the same table. Every socket of the engine is tied to the real device before it is bound. The helper sets `ignore_routes_with_linkdown` on the jack and refuses unless the jack
 has no carrier: a tap that no process holds has none, so when the node stops or crashes the kernel passes over the jack's routes and the machine is back on its own road. This fails open;
 a switch that blocks instead *(planned: M4)*.
+
+**The exit** ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)). With no gateway named, the default route goes to 169.254.77.1, with the MAC 02:6c:77:65:78:74 fixed beside it by the
+helper (`nud permanent`): no machine has either, and no ARP is asked or believed. A member that shares its internet (`--exit`) tells every member it has a session with, every 10 s, `M_EXIT` with
+its jack's MAC; the switch hands every frame for 02:6c:77:65:78:74 to the chosen exit's session, with that MAC put in, and with no exit drops it and counts it (never floods it). So the gateway
+is a member's key, not an address. The exit's side is its kernel's: the helper's `--share` turns forwarding on and adds an nftables table of the jack's own (`longwire-lwN`) that masquerades the
+line's network out through the machine's own default device, lets only answers back and keeps the line off the machine's other networks; it is written down in `/run/longwire/share-lwN` and
+undone exactly.
 
 **Roaming** ([ADR 0046](adr/0046-a-node-that-takes-everything-lets-go-when-the-road-changes.md)). Once a second the engine compares the default route's device (not the jack) with the one its
 sockets are tied to. When it changes or goes, the engine closes the jack, which drops its carrier, and emits `roamed`; the node script then starts the node again on the new road. A device named
@@ -217,6 +224,7 @@ engine/                      plain C99: never includes hibr.h, so the Android ap
   sw.c                       the switch: MAC table, flood, split horizon, frame split, MSS clamp, ARP, re-segmenting
   site.c                     site groups: probes, election, standby, takeover
   line.c                     lines: members, admits, eviction, persistence, the mesh maintainer
+  exit.c                     the exit: a member that shares its internet says so (M_EXIT), the choice of exit, frames for the exit gateway handed to it (ADR 0056)
   relay.c                    relaying: the route table, wrapped datagrams, relay requests, path upgrade
   spray.c                    port spray: a strict NAT end opens many sockets, the easy end probes, the socket that is hit becomes that peer's
   pmp.c                      NAT-PMP: ask the home router to keep a port open, offered as a candidate

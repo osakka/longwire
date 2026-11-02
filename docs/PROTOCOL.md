@@ -267,12 +267,21 @@ A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. The messages 
 | `0x09` | `PMTU` | probe result *(planned: M7)* |
 | `0x0a` | `RELAY_NO` | `key_id:32`: this node will not relay to that member (§5) |
 | `0x0b` | `SAS` | `kind:1` then: kind 0 `commit:32` (caller), kind 1 `nonce:16` (callee), kind 2 `reveal:16` (caller), kind 3 nothing (callee: acknowledged). The committed safety phrase ([CRYPTO §4.1](CRYPTO.md#41-the-safety-phrase), [ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)) |
+| `0x0c` | `EXIT` | `mac:6`: this member shares its internet, through the machine with this MAC (its jack's own, or the one given with `--exit-mac`) ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)) |
 
 **The safety phrase exchange.** When a direct call's session is up, the caller sends kind 0 once a second until kind 1 arrives, then kind 2 once a second (at most 15 times) until kind 3 arrives.
 The callee answers every kind 0 with the same kind 1. A caller that hears no kind 1 within 5 s, or a callee that hears no kind 0 within 5 s, ends the call, once it has heard anything at all from the other end (an end that has sent nothing may be gone, which the dead-peer timer reports as a lost
 call), unless it is a mesh call to a fellow member, which the
 line's signatures admit and which goes on with no phrase ([ADR 0055](adr/0055-no-legacy.md)). A callee that has a commitment but no reveal within 20 s ends the call, and
 so does one given a reveal that does not match the commitment. A relayed call has no exchange and no phrase: only members are relayed.
+
+**The exit.** A node started with `--exit` sends `EXIT` inside each session with a current member of its line as soon as the session is up, and again every 10 s; it is never sent to a
+switchboard. A receiver believes it only from a current member of its own line, and only a MAC that is unicast, not zero and not the exit gateway's own; it holds that member as an exit
+while the session is up and the last `EXIT` is no more than 35 s old. A node started with `--use-exit` picks one: the number given with `--exit-through` if that member offers, else the
+lowest number that offers (so the only one, when there is one). On the frames from its own port, the switch looks for the destination MAC `02:6c:77:65:78:74` (the exit gateway, which no
+machine has: the jack helper fixes it beside 169.254.77.1, and nothing answers ARP for it) before its MAC table: such a frame goes to the chosen exit's session alone, with the exit's MAC
+put in as the destination, and with no exit it is dropped and counted (`dropped` in the status), never flooded. Every change of exit is told in an `exit` event
+([ADR 0056](adr/0056-a-member-can-share-its-internet.md)).
 
 ### Lines and party lines
 
