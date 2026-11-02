@@ -24,6 +24,8 @@ Update every node together.
   namespaces (`tests/exitnet.sh`: the client's table and fixed neighbour, fail-open; the exit's forwarding and masquerade, the line kept off its LAN, nothing let in, undone
   exactly; needs `nft`), the helper's refusals (`tests/jack.sh`), the pane (`tests/pane.sh`). Not tried: a real tap under a real node end to end, a real exit on the internet.
 
+*Published:* the catalogue (`hibr-apps` `b250788`) and the packages (`hibr-apt` `846e622`, `hibr-rpm` `03bb702`, `hibr-arch` `3523a14`). `make check` passed (898 checks).
+
 ## 0.5.38
 
 **No legacy and no backwards compatibility** ([ADR 0055](docs/adr/0055-no-legacy.md)). Update every node and switchboard together.
