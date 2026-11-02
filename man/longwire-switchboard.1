@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.36" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "October 2026" "longwire 0.5.37" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
@@ -43,7 +43,7 @@ is IPv6 only; a comma separates several.
 The switchboard also answers ECHO, over IPv4, on its echo port, the listen port + 2747 (9488 for 6741): the NAT-type check, and the probe of a node it is not answering.
 Until
 .B "\-\-echo\-legacy off"
-it answers on the listen port + 1 too, for nodes before 0.5.36.
+it answers on the listen port + 1 too, for nodes before 0.5.37.
 Let both through a firewall.
 The echo port answers each source address 8 times at once and then 2 a second, and everyone 1000 a second.
 If that port is taken, it runs without it.
@@ -137,7 +137,7 @@ How long a number may go unheard before it is released, and held back as long ag
 Its owner coming back in that time gets the same number.
 .TP
 .BR \-\-echo\-legacy " " on | off
-Also answer ECHO on the listen port + 1, for nodes before 0.5.36 (default on).
+Also answer ECHO on the listen port + 1, for nodes before 0.5.37 (default on).
 .TP
 .BR \-\-caller\-id " " on | off
 Carry the names callers announced (default on).

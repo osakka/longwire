@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.36
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.37
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.36}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.37}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -39,6 +39,7 @@ usage: longwire <command>
   hangup [NUMBER]                             end every call and leave the line; or just the call with NUMBER
   peers                                       the line: its members and which of them are connected
   evict NUMBER                                remove a member from the line for good, and change its key
+  verify [NUMBER WORDS...]                    the calls and their safety phrases; with a number, check it by the words the other end shows (a mismatch ends the call)
   who NUMBER                                  what this node knows of a number: its full address, pin, path and safety phrase
   who NAME|lw1...                             ask the switchboard's directory (if it has one) for listed nodes by name or full address
   unpin NUMBER                                forget a number's key: the next call from it is a first call again
@@ -406,7 +407,7 @@ cmd_doctor() {
 }
 
 cmd_show() {
-	local i cnt n num st path age rx tx t members id calls we state nm phr notes line
+	local i cnt n num st path age rx tx t members id calls we state nm phr notes line k
 
 	if ! lw status > /dev/null 2>&1; then
 		echo "longwire is off.   longwire on   turns it on"
@@ -466,7 +467,10 @@ cmd_show() {
 			echo "   not connected $num  ($st: no session now; it comes back by itself when the other end does)  carried in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
 		fi
 		phr := json get S ".peers[$i].phrase"
-		[ -z "$phr" ] || echo "                 safety phrase: $phr"
+		if [ -n "$phr" ]; then
+			k := json get S ".peers[$i].key_id"
+			if verify_has "$num" "$k"; then echo "                 safety phrase: $phr   (verified)"; else echo "                 safety phrase: $phr   (not verified: longwire verify $num WORDS)"; fi
+		fi
 	done
 	t := json get S .cand_skipped
 	[ "${t:-0}" -gt 0 ] && lw_out "   ⚠  ${t} address(es) of the other end are inside your jack's own network and could not be reached another way, so they are not used (longwire watch names them)"
@@ -943,6 +947,88 @@ EOF
 	esac
 }
 
+# Words, the way they are compared: lower case, one space between, whatever a person typed between them (spaces, commas, dashes).
+fn verify_norm(text) {
+	local -a w
+	text=${text,,}
+	text=${text//,/ }
+	text=${text//-/ }
+	text=${text//./ }
+	read -r -a w <<< "$text"
+	ret "${w[*]}"
+}
+
+# Whether a number is recorded as verified with this key (docs/adr/0054): ~/.longwire/verified holds "NUMBER KEYID" lines.
+verify_has() {
+	local num=$1 kid=$2 a b
+	[ -r "$LW_DIR/verified" ] || return 1
+	while read -r a b; do
+		[ "$a" = "$num" ] && [ "$b" = "$kid" ] && return 0
+	done < "$LW_DIR/verified"
+	return 1
+}
+
+verify_set() {
+	local num=$1 kid=$2 a b out=
+	if [ -r "$LW_DIR/verified" ]; then
+		while read -r a b; do
+			[ "$a" = "$num" ] || out+="$a $b"$'\n'
+		done < "$LW_DIR/verified"
+	fi
+	[ -n "$kid" ] && out+="$num $kid"$'\n'
+	printf '%s' "$out" > "$LW_DIR/verified.new" && chmod 600 "$LW_DIR/verified.new" && mv "$LW_DIR/verified.new" "$LW_DIR/verified"
+}
+
+# `verify`: the calls and their safety phrases, and whether each has been checked; `verify NUMBER WORDS...`: check one by the words the other end shows, typed
+# here, so that nobody compares by eye. A match is recorded; a difference ends the call and forgets the number's key (docs/adr/0054).
+cmd_verify() {
+	local i cnt num phr leg kid st want have mark found=
+	lw status > /dev/null 2>&1 || { echo "longwire: it is off.  longwire on" >&2; exit 1; }
+	json parse S "$(lw status)"
+	cnt := json len S .peers
+	if [ $# -eq 0 ]; then
+		for ((i = 0; i < ${cnt:-0}; i++)); do
+			num := json get S ".peers[$i].number"
+			[ -n "$num" ] || continue
+			phr := json get S ".peers[$i].phrase"
+			leg := json get S ".peers[$i].legacy"
+			kid := json get S ".peers[$i].key_id"
+			st := json get S ".peers[$i].state"
+			mark="not verified"
+			verify_has "$num" "$kid" && mark="verified"
+			[ -n "$phr" ] || { echo "$num  ($st) no safety phrase yet"; continue; }
+			[ "$leg" = true ] && phr+="  (the old, weaker kind)"
+			echo "$num  $mark  $phr"
+		done
+		return 0
+	fi
+	[ $# -ge 2 ] || { echo "usage: longwire verify [NUMBER WORDS...]   (the words the other end shows)" >&2; exit 2; }
+	want=${1//-/}
+	shift
+	for ((i = 0; i < ${cnt:-0}; i++)); do
+		num := json get S ".peers[$i].number"
+		[ "${num//-/}" = "$want" ] || continue
+		found=1
+		phr := json get S ".peers[$i].phrase"
+		kid := json get S ".peers[$i].key_id"
+		break
+	done
+	[ -n "$found" ] || { echo "longwire: no call with $1 here (longwire verify lists them)" >&2; exit 1; }
+	[ -n "$phr" ] || { echo "longwire: $num has no safety phrase yet: the call is not up, or the words are still being agreed" >&2; exit 1; }
+	want := verify_norm "$*"
+	have := verify_norm "$phr"
+	if [ "$want" = "$have" ]; then
+		verify_set "$num" "$kid"
+		say "✓  $num: the words match. Recorded as verified, with its key (${kid:0:16}…)"
+		return 0
+	fi
+	lw hangup "$num" > /dev/null 2>&1
+	lw unpin "$num" > /dev/null 2>&1
+	verify_set "$num" ""
+	say "✗  $num: the words differ. The call is ended and its key forgotten: either it was the wrong number or someone is in the middle. Do not call back until you have checked with them another way"
+	return 1
+}
+
 mkdir -p "$LW_DIR" && chmod 700 "$LW_DIR"
 
 cmd=${1:-}
@@ -962,6 +1048,7 @@ who)     [ $# -eq 1 ] || { usage >&2; exit 2; }
          *) cmd_find "$1" ;;
          esac ;;
 unpin)   [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw unpin "$1" ;;
+verify)  cmd_verify "$@" ;;
 status)  run lw status ;;
 answer)  case "${1:-}" in
          "") if [ -r "$LW_DIR/answer" ]; then cat "$LW_DIR/answer"; else echo ask; fi ;;

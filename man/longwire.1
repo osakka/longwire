@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "October 2026" "longwire 0.5.36" "longwire manual"
+.TH LONGWIRE 1 "October 2026" "longwire 0.5.37" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -134,6 +134,15 @@ Ask the switchboard's directory for listed nodes whose name contains the text, o
 .BI unpin " number"
 Forget a number's key.
 The next call from it is a first call again.
+.TP
+.BR verify " [" \fInumber\fR " " \fIwords\fR ...]
+With nothing: each call, its safety phrase, and whether it is verified.
+With a number and the words the other end shows: compare them with this end's (any case, any spacing).
+A match is recorded in
+.I ~/.longwire/verified
+and marked in
+.BR show ;
+a difference ends the call and forgets the number's key.
 .SS The line
 .TP
 .B peers

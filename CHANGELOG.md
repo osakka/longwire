@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.37
+
+- **`longwire verify`: check a call's safety phrase by typing the other end's words** ([ADR 0054](docs/adr/0054-a-phrase-is-checked-by-typing-the-other-ends-words.md)). `longwire verify` lists each call, its phrase,
+  and whether it is verified; `longwire verify NUMBER word word …` compares the words the other end shows with this end's (any case, any spacing): **a match is recorded** with the number's key
+  (`show` and the pane say *verified*), **a difference ends the call and forgets the key**. On a server you cannot see, like a site node in a container, that one command in its console, with the
+  words read off your own screen, is the whole check. The pane has a **Verify…** row under each call's phrase until it is verified.
+- Tested on two real nodes (`tests/bar.sh`): the list, a match typed in capitals with commas, `show` and the pane marking it, a mismatch ending the call and dropping the record.
+
 ## 0.5.36
 
 *Published:* the catalogue (`hibr-apps` `e8ca543`) and the packages (`hibr-apt` `22b86fb`, `hibr-rpm` `24d2991`, `hibr-arch` `5f66876`). `make check` passed (836 checks).

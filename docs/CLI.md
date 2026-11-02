@@ -50,6 +50,7 @@ and on the other machine's `up` terminal:
 | `longwire operator new FILE`, `operator authority FILE` | make an operator's key (the file is its seed: keep it offline), or show its public key |
 | `longwire operator admit FILE LINEID NODE`, `operator evict FILE LINEID NODE` | sign an admit or an eviction for `NODE` (its `lw1…` address or key id) on the line `LINEID` (the 16 hex digits of `id_full` in the founder's status). Print it; it needs no running node |
 | `longwire unpin NUMBER` | forget a number's key: the next call from it is a first call again |
+| `longwire verify [NUMBER WORDS…]` | with nothing: each call, its safety phrase, and whether it is verified. With a number and the words the other end shows: compare them with this end's (any case, any spacing); a match is recorded (`show` and the pane say *verified*), a difference ends the call and forgets the key ([ADR 0054](adr/0054-a-phrase-is-checked-by-typing-the-other-ends-words.md)) |
 | `longwire status` | what the node is doing, as JSON ([fields](#status)) |
 | `longwire down` | stop the node |
 | `longwire id`, `longwire address`, `longwire bundle` | your key id (hex), your full address (`lw1…`), your public bundle (hex, for `--peer`) |

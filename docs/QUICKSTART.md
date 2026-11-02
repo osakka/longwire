@@ -120,6 +120,10 @@ put itself in the middle would have about one chance in 2^64 per call ([SECURITY
 (`longwire hangup`): the call is already on your line. If the phrase is marked *the old, weaker kind*, the other end is older than 0.5.21 or the call goes through a
 relay, and the words prove less; update the other end. After this first call the other machine's key is pinned.
 
+**Or let longwire compare.** Type the words the other end shows into **Verify…** under the call in the pane, or `longwire verify 312-884-076 word word …`: a match is
+recorded and the call is marked *verified*; a difference ends the call. On a server you cannot see, that one command in its console, with the words read off your own
+screen, is the whole check ([ADR 0054](adr/0054-a-phrase-is-checked-by-typing-the-other-ends-words.md)).
+
 ## 6. See that it works
 
 ```

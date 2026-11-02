@@ -10,7 +10,7 @@ Tokens are secrets: leave them out of what you send.
 (`please apt update && please apt install --only-upgrade longwire`), and a running node keeps the engine it started with (`longwire off`, then `longwire on`). `longwire doctor` says whether the scripts, the installed engine and the running node agree, and what to do if not; `longwire show`, `longwire on` and the Control Panel say it too (**Out of step** rows).
 
 **`longwire show` says `engine 0.6.0`, and updating changes nothing.**
-0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.36-1` (the current version), then
+0.6.0 was published by mistake and withdrawn (it is 0.5.1); apt never goes down a version on its own. `please apt install --allow-downgrades longwire=0.5.37-1` (the current version), then
 `longwire off` and `longwire on`. `doctor`'s advice to refresh the catalogue does not apply here.
 
 **"☎ your number 447-120-933 — dial tone", and then nothing happens.**
@@ -88,7 +88,7 @@ A number you have called before answered with a *different* key. Either the mach
 Check with the person over another channel. If it is legitimate, `longwire unpin 447-120-933`; the next call is then a first call. If you
 cannot confirm, leave it.
 
-**The safety phrases differ.**
+**The safety phrases differ** (or `longwire verify` says *the words differ*).
 Hang up at once (`longwire hangup NUMBER`, or the call's row in the pane). The phrase appears only after the call connects, so the call is already on your line; either it was the wrong
 number or someone is in the middle. Do not unpin or call back until you have checked with the person another way.
 

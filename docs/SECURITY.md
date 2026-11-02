@@ -44,6 +44,7 @@ are worth knowing:
   at that point; holding the call off the line until the words are confirmed is not built *(planned: M8)*.
 - **An older node gets the old phrase.** If the other end does not answer the exchange within five seconds, it is taken to be an older version and the old six-word phrase is shown, marked as the weaker kind. Something on the path that drops the exchange's
   messages can force that. Since 0.5.35 such a call is ended by default (a mesh call to a fellow member, which the line's signatures already admit, is exempt); `--allow-legacy-phrase`, or `legacy_phrase = yes` in a profile, lets a node older than 0.5.21 through with the old phrase ([ADR 0052](adr/0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md)). A relayed call between members always shows the old phrase; its admission is the line's signatures. A callee ends the call if the caller's reveal does not match its commitment, or does not come within 20 seconds.
+- **Let longwire compare.** `longwire verify NUMBER WORDS…` (or **Verify…** in the pane) takes the other end's words and compares them for you; a difference ends the call and forgets the key, and a match is remembered with the key ([ADR 0054](adr/0054-a-phrase-is-checked-by-typing-the-other-ends-words.md)).
 - **After the first call it is moot.** The key is pinned. If the same number later answers with another key, the call is dropped and you
   are warned.
 - **If the switchboard is yours, none of this matters.**
@@ -87,7 +88,7 @@ That is the honest sentence behind the word.
 ## What has been done to check it
 
 - **A test suite that builds real networks.** It runs the actual scripts over unprivileged network namespaces with simulated
-  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (836 checks in the run for 0.5.36).
+  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (843 checks in the run for 0.5.37).
 - **An attack on the switchboard,** the one component built to face the public. Before it was released, three readers went through every parser a stranger's bytes can
   reach. It found real flaws, three of them proven by tests that failed on the old code: strangers able to fill the switchboard's
   places for good, a registration token able to write into the policy script's event, and a switchboard able to connect a call nobody

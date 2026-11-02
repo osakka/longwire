@@ -188,6 +188,23 @@ def main():
     check(any(l == "DIM   phrase: " + ph for l in log), f"...the bar's menu shows it under the call: {[l for l in log if 'phrase' in l]}")
     check(f"ROW {ph}" in r.stdout, f"...and the pane has a safety phrase row under the connected call: {r.stdout[-300:]!r}")
 
+    # longwire verify (docs/adr/0054): the words the other end shows, typed here, compared for you
+    rc, out = B.cmd("verify")
+    check(rc == 0 and num["A"] in out and "not verified" in out and ph in out, f"`longwire verify` lists the call, its phrase, and that it is not verified yet: {out!r}")
+    rc, out = B.cmd("verify", num["A"], ph.upper().replace(" ", ",  "))
+    check(rc == 0 and "the words match" in out, f"the words typed (in any case, with commas) match: recorded: {out!r}")
+    rc, out = B.cmd("show")
+    check(f"{ph}   (verified)" in out, f"show marks the phrase verified: {out[-300:]!r}")
+    log, r = drive(envB, "lwp_poll; longwire_rows 1; for ((i = 0; i < 80; i++)); do [ \"${CP[1][$i][text]-}\" = '  safety phrase' ] && echo \"ROW ${CP[1][$i][val]}\"; [ \"${CP[1][$i][key]-}\" = verify:%s ] && echo VERIFYROW; done" % num["A"])
+    check(f"ROW {ph}  (verified)" in r.stdout and "VERIFYROW" not in r.stdout, f"the pane marks it verified, and offers no Verify row for it: {r.stdout[-200:]!r}")
+
+    rc, out = B.cmd("verify", num["A"], "wrong words entirely")
+    check(rc != 0 and "the words differ" in out and "ended" in out, f"words that differ end the call and forget the key: {out!r}")
+    gone = until(lambda: not any(p.get("number") == num["A"] and p.get("state") == "up" for p in B.status().get("peers", [])), 15)
+    check(bool(gone), "and the call is indeed ended")
+    rc, out = B.cmd("verify")
+    check(f"{num['A']}  verified" not in out, f"it is no longer recorded as verified: {out!r}")
+
     # --- the strip --------------------------------------------------------------------------------------------------------------
     log, r = drive(envB, "lwstrip_draw 1 4")
     check("CONSOLE pen good face" in log and any(l.startswith("CONSOLE put 1 4 ☎") for l in log), f"on, the strip's telephone is green: {log}")

@@ -105,7 +105,7 @@ first start only: once the node has registered, the switchboard knows its key, a
 Replace `eth0` with the NIC on the LAN (the instance name after the `@` is the NIC). Each instance has its own identity and state
 (`/var/lib/longwire/eth0/`), so two NICs are two nodes. Use the node from a terminal or the desktop with
 `LW_SOCK=/run/longwire/eth0/ctl longwire show` if you are in the group `longwire` (`please usermod -aG longwire YOU`, then log in again).
-Members of that group can dial, hang up and evict through the socket; they cannot stop the service or read a key. `longwire answer` does not reach a service (it writes
+Members of that group can dial, hang up and evict through the socket; they cannot stop the service or read a key. To check a call on a site node you cannot see, run `LW_SOCK=/run/longwire/eth0/ctl longwire verify NUMBER WORDS…` with the words the other machine shows ([ADR 0054](adr/0054-a-phrase-is-checked-by-typing-the-other-ends-words.md)). `longwire answer` does not reach a service (it writes
 your own `~/.longwire/answer`): change `--answer` in `/etc/longwire/eth0.conf` and restart. Its log, including why it has no number, is `please journalctl -u longwire@eth0`.
 
 **A machine that joins the bridged network.** A machine with a jack that takes an address in the network you bridge would send its own packets for the site box

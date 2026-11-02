@@ -18,7 +18,7 @@
 #                 "TOKEN NUMBER" (that token claims that number). A token is
 #                 spent when it is used. Without it, registration is open.
 # --group         let that group use the control socket (mode 0660): the service uses longwire (docs/adr/0032)
-# --echo-legacy off   do not also answer ECHO on the listen port + 1 (the echo port is the listen port + 2747; nodes before 0.5.36 ask + 1)
+# --echo-legacy off   do not also answer ECHO on the listen port + 1 (the echo port is the listen port + 2747; nodes before 0.5.37 ask + 1)
 # --caller-id off / --directory off   do not carry names on rings / do not answer lookups (both on by default;
 #                 a node only appears in either if it asked to).
 # --registry      the registry of switchboard codes, which gives this switchboard its short code (+1, +20, ...); "none"
@@ -36,7 +36,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.36
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.37
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
