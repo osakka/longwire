@@ -272,7 +272,7 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     labels = {x[1]: x[2] for x in rows if x[0] == "action"}
     check(len(er) == 1 and er[0][2] == "on" and any("member that shares its internet" in l for l in log),
           f"the 'Send everything through the line' switch turns on with no Gateway: out through the member that shares its internet: {er} {log}")
-    check(labels.get("Through") == "the member that shares its internet" and "names are not private" in labels.get("Name server", ""),
+    check(labels.get("Through") == "the member that shares its internet" and "names are not private" in labels.get("Name servers", ""),
           f"with no Gateway, a Through row and a Name server row that says names are not private without one: {labels}")
     check(any(l == "PTYJOB longwire jack --address 127.0.0.1/8 --everything lw9" for l in log), f"and Turn on asks the jack for everything, with no gateway: {log}")
     rows, log, r = drive(envF, 'lwp_pset everything ""; longwire_do 1 shareexit 1; dump 1; longwire_do 1 on 1')
@@ -291,10 +291,22 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     check(any(l == "PTYJOB longwire jack --address 127.0.0.1/8 --via 127.0.0.254 --everything lw9" for l in log), f"and Turn on asks the jack for everything through the gateway: {log}")
     rows, log, r = drive(envF, 'lwp_pset dns 192.168.152.254; dump 1; longwire_do 1 on 1')
     labels = {x[1]: x[2] for x in rows if x[0] == "action"}
-    check(labels.get("Name server") == "192.168.152.254", f"with everything on, a Name server row: {labels}")
+    check(labels.get("Name servers") == "192.168.152.254", f"with everything on, a Name server row: {labels}")
     check(any(l == "PTYJOB longwire jack --address 127.0.0.1/8 --via 127.0.0.254 --everything --dns 192.168.152.254 lw9" for l in log), f"and Turn on asks for names through the line: {log}")
+    rows, log, r = drive(envF, 'lwp_setdns "1.1.1.1 9.9.9.9"; dump 1; longwire_do 1 on 1')
+    labels = {x[1]: x[2] for x in rows if x[0] == "action"}
+    check(labels.get("Name servers") == "1.1.1.1, 9.9.9.9" and any(l.endswith("--everything --dns 1.1.1.1,9.9.9.9 lw9") for l in log),
+          f"two name servers typed with a space are kept as a list, shown with a comma, and given to the jack together: {labels.get('Name servers')} {log}")
+    rows, log, r = drive(envF, 'lwp_setroutes "192.168.150.0/24 10.20.0.0/16"; dump 1')
+    labels = {x[1]: x[2] for x in rows if x[0] == "action"}
+    check(labels.get("Routes") == "192.168.150.0/24, 10.20.0.0/16", f"two networks typed with a space are two routes, not one run together: {labels.get('Routes')}")
+    rows, log, r = drive(envF, 'lwp_setroutes "192.168.150.0/2410.20.0.0/16"; dump 1')
+    labels = {x[1]: x[2] for x in rows if x[0] == "action"}
+    check(labels.get("Routes") == "192.168.150.0/24, 10.20.0.0/16" and any("is not a network like" in l for l in log),
+          f"a network run together is refused with its name, and the routes stay as they were: {labels.get('Routes')} {log}")
+    drive(envF, 'lwp_pset routes ""; lwp_pset dns 192.168.152.254')
     rows, log, r = drive(envF, 'lwp_pset dns ""; lwp_pset everything ""; dump 1; longwire_do 1 on 1')
-    check(not any(x[1] == "Name server" for x in rows), f"with everything off, no Name server row: {[x[1] for x in rows]}")
+    check(not any(x[1] == "Name servers" for x in rows), f"with everything off, no Name server row: {[x[1] for x in rows]}")
     check(any(l == "PTYJOB longwire jack --address 127.0.0.1/8 lw9" for l in log), f"switched off, a gateway with no routes is not passed on: {log}")
     rows, log, r = drive(envF, 'lwp_pset gateway ""; lwp_pset routes ""; lwp_pset address ""; lwp_pset interface lw9')
     rows, log, r = drive(envF, 'lwp_pset attach splice; longwire_do 1 on 1')

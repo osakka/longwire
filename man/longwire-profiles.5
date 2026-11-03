@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "November 2026" "longwire 0.5.41" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "November 2026" "longwire 0.5.42" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -95,7 +95,12 @@ Without one,
 goes out through the member that shares its internet.
 .TP
 .B routes
-Networks to reach through the gateway, like 192.168.150.0/24, separated by commas (at most 16).
+Networks to reach through the gateway, like 192.168.150.0/24 10.20.0.0/16 (at most 16), typed with commas, spaces or semicolons between them and kept with commas.
+Each is written as its first address and a prefix of 8 to 32; a wrong one is named and nothing is changed.
+Routes need a
+.B gateway
+and a fixed
+.BR address .
 Never the default route, nothing wider than a /8, nothing on the line itself; put on with the device, and gone with it.
 Needs a static
 .BR address .
@@ -155,7 +160,7 @@ sets it.
 .B dns
 With
 .BR everything :
-a name server asked through the line for every name (a router on the line, or, out through a member that shares its internet, any resolver such as 1.1.1.1), set on the jack in systemd\-resolved; passed over, like the routes, whenever no node holds the jack.
+up to three name servers, typed like the routes, asked through the line for every name (a router on the line, or, out through a member that shares its internet, any resolver such as 1.1.1.1), set on the jack in systemd\-resolved; passed over, like the routes, whenever no node holds the jack.
 Without systemd\-resolved, names stay with the machine's own name server.
 .TP
 .B keep_jack

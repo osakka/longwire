@@ -114,6 +114,10 @@ grep -qx "helper lw7" "$LWJ_LOG" && ok "and with neither, neither" || bad "jack 
 export PATH="$T/bin:$PATH"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24,10.20.0.0/16 lw7 2>&1)
 grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24,10.20.0.0/16 lw7" "$LWJ_LOG" && ok "longwire jack passes the gateway and the routes to the helper" || bad "jack routes: $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --routes 192.168.150.0/24 lw7 2>&1); rc=$?
+[ $rc != 0 ] && echo "$out" | grep -q "set the gateway" && ! grep -q helper "$LWJ_LOG" && ok "routes with no gateway are refused before any password, saying what to set (not dropped quietly)" || bad "routes no gw: rc=$rc $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address dhcp --via 192.168.152.254 --routes 192.168.150.0/24 lw7 2>&1); rc=$?
+[ $rc != 0 ] && echo "$out" | grep -q "fixed address" && ! grep -q helper "$LWJ_LOG" && ok "routes with a DHCP address are refused before any password, saying why" || bad "routes dhcp: rc=$rc $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --everything lw7 2>&1)
 grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --everything lw7" "$LWJ_LOG" && ok "longwire jack passes everything through the line to the helper" || bad "jack everything: $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 lw7 2>&1)
@@ -226,7 +230,9 @@ run --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168
 grep -n "rule add pref 7701\|resolvectl dns" "$LWJ_LOG" | head -1 | grep -q "rule add" && ok "after the route to it is there" || bad "dns order: $(cat "$LWJ_LOG")"
 run --address 192.168.152.50/24 lw7 1000
 grep -qx "resolvectl revert lw7" "$LWJ_LOG" && ok "without --dns, the jack's name server is taken away" || bad "revert: $(cat "$LWJ_LOG")"
-for d in 127.0.0.53 0.0.0.0 224.0.0.1 "1.1.1.1;id" 1.1.1 dns.example; do
+run --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 1.1.1.1,9.9.9.9 lw7 1000
+[ $rc = 0 ] && grep -qx "resolvectl dns lw7 1.1.1.1 9.9.9.9" "$LWJ_LOG" && ok "several name servers go on the jack together, in order" || bad "dns list: rc=$rc $out $(cat "$LWJ_LOG")"
+for d in 127.0.0.53 0.0.0.0 224.0.0.1 "1.1.1.1;id" 1.1.1 dns.example 1.1.1.1,9.9.9.9,8.8.8.8,4.4.4.4 1.1.1.1,127.0.0.1; do
 	: > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns "$d" lw7 1000 2>&1); rc=$?
 	[ $rc = 2 ] && [ ! -s "$LWJ_LOG" ] && ok "refused before anything is run: --dns '$d'" || bad "dns '$d': rc=$rc $out"
 done

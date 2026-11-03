@@ -155,7 +155,7 @@ The exit's own firewall comes first. A machine with Docker, or any firewall whos
 provider allows the machine to forward at all (some containers do not).
 
 **Everything goes through the line, but names do not resolve.**
-`resolvectl dns lw0` names the server asked. It must answer on the line's side: try `resolvectl query example.org`. Empty the **Name server** to go back to your own. `longwire show` has a `names` line.
+`resolvectl dns lw0` names the server asked. It must answer on the line's side: try `resolvectl query example.org`. Empty the **Name servers** to go back to your own. `longwire show` has a `names` line.
 
 **`⚠ no answer from the switchboard … its host answers`**
 UDP of every size gets to the switchboard's machine and back, but no handshake completes. In this order: the key after `/` in your switchboard address is not the switchboard's (compare it with a node
@@ -183,7 +183,7 @@ Everything through the line is put on only while no node holds the jack, so that
 A device of that name belongs to another user of this machine; longwire changes only your own. Choose another **Interface** (`lw1` …).
 
 **`longwire-jack: names still go to this machine's own name server: … needs systemd-resolved`**
-Without systemd-resolved, **Name server** is not used; everything else goes through the line. `longwire show` says so on its `names` line.
+Without systemd-resolved, **Name servers** is not used; everything else goes through the line. `longwire show` says so on its `names` line.
 
 **`· the road changed (wlan0 to none): …`**, then **`· waiting for a network`**
 With everything through the line, the machine changed network (or lost it). longwire let go at once, so the machine is on its own network, and starts again by itself when there is one

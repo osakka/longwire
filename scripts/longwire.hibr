@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.41
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.42
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.41}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.42}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -236,6 +236,59 @@ profile_exists() {
 }
 
 # The arguments for `lw start` that profile $1 stands for, in PARGS; its answer policy in PANSWER.
+# Values a person types into a profile, checked in one place (the pane sets them through here too). An IPv4 address is four numbers of 0 to 255
+# with no leading zeros; its value lands in V4. A list is typed with commas, spaces or semicolons between its entries, in any number, and is
+# kept with commas.
+ip4_ok() {
+	local o1 o2 o3 o4
+	[[ $1 =~ ^(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})$ ]] || return 1
+	o1=${M[1]}; o2=${M[2]}; o3=${M[3]}; o4=${M[4]}
+	[ "$o1" -le 255 ] && [ "$o2" -le 255 ] && [ "$o3" -le 255 ] && [ "$o4" -le 255 ] || return 1
+	V4=$(( o1 * 16777216 + o2 * 65536 + o3 * 256 + o4 ))
+	return 0
+}
+
+list_split() {
+	local t=${1//[,;]/ }
+	LIST=()
+	read -r -a LIST <<< "$t"
+}
+
+list_join() {
+	local x out=
+	for x in "${LIST[@]}"; do out=${out:+$out,}$x; done
+	printf '%s' "$out"
+}
+
+# routes: 1 to 16 networks, each written as its first address and a prefix of 8 to 32 (never the default route, never link-local or loopback).
+routes_ok() {
+	local r a pre mask full=4294967295
+	list_split "$1"
+	[ "${#LIST[@]}" -le 16 ] || { echo "longwire: at most 16 networks in routes" >&2; return 1; }
+	for r in "${LIST[@]}"; do
+		a=${r%/*}; pre=${r#*/}
+		if [ "$a" = "$r" ] || ! ip4_ok "$a" || ! [[ $pre =~ ^[0-9]{1,2}$ ]] || [ "$pre" -lt 8 ] || [ "$pre" -gt 32 ]; then
+			echo "longwire: '$r' is not a network like 192.168.150.0/24 (routes are networks, separated by commas or spaces; a prefix of 8 to 32)" >&2; return 1
+		fi
+		case $a in 0.* | 127.* | 169.254.* | 22[4-9].* | 2[3-5][0-9].*) echo "longwire: '$r' is not a network that can be routed" >&2; return 1 ;; esac
+		mask=$(( (full << (32 - pre)) & full ))
+		[ $(( V4 & mask )) -eq "$V4" ] || { echo "longwire: '$r' has host bits set: write the network's first address, like 192.168.150.0/24" >&2; return 1; }
+	done
+	return 0
+}
+
+# dns: 1 to 3 name servers, each an IPv4 address that can be reached (not 0., 127., multicast or above).
+dns_ok() {
+	local a
+	list_split "$1"
+	[ "${#LIST[@]}" -le 3 ] || { echo "longwire: at most 3 name servers in dns" >&2; return 1; }
+	for a in "${LIST[@]}"; do
+		if ! ip4_ok "$a"; then echo "longwire: '$a' is not a name server's address like 1.1.1.1 (name servers are separated by commas or spaces)" >&2; return 1; fi
+		case $a in 0.* | 127.* | 22[4-9].* | 2[3-5][0-9].*) echo "longwire: '$a' is not a name server that can be reached through the line" >&2; return 1 ;; esac
+	done
+	return 0
+}
+
 profile_args() {
 	local n=$1
 	PARGS=()
@@ -294,11 +347,11 @@ cmd_profile() {
 			switchboard|token|name|interface) ;;
 			address) case $v in dhcp|"") ;; [0-9]*.[0-9]*.[0-9]*.[0-9]*/[0-9]*) case $v in *[!0-9./]*) echo "longwire: address is like 10.77.0.2/24, or dhcp" >&2; exit 2 ;; esac ;; *) echo "longwire: address is like 10.77.0.2/24, or dhcp" >&2; exit 2 ;; esac ;;
 			attach) case $v in jack|splice|sock|"") ;; *) echo "longwire: attach is jack or splice" >&2; exit 2 ;; esac ;;
-			gateway) case $v in ""|[0-9]*.[0-9]*.[0-9]*.[0-9]*) case $v in *[!0-9.]*) echo "longwire: gateway is an address like 192.168.152.254" >&2; exit 2 ;; esac ;; *) echo "longwire: gateway is an address like 192.168.152.254" >&2; exit 2 ;; esac ;;
-			routes) case $v in *[!0-9./,]*) echo "longwire: routes are networks like 192.168.150.0/24, separated by commas" >&2; exit 2 ;; esac ;;
+			gateway) v=${v//[[:space:]]/}; [ -z "$v" ] || ip4_ok "$v" || { echo "longwire: gateway is an address like 192.168.152.254" >&2; exit 2; } ;;
+			routes) routes_ok "$v" || exit 2; v=$(list_join) ;;
 			keep_jack) case $v in yes|no|"") ;; *) echo "longwire: keep_jack is yes or no" >&2; exit 2 ;; esac ;;
 			everything) case $v in yes|no|"") ;; *) echo "longwire: everything is yes or no" >&2; exit 2 ;; esac ;;
-			dns) case $v in ""|[0-9]*.[0-9]*.[0-9]*.[0-9]*) case $v in *[!0-9.]*) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;; *) echo "longwire: dns is a name server's address like 192.168.152.254" >&2; exit 2 ;; esac ;;
+			dns) dns_ok "$v" || exit 2; v=$(list_join) ;;
 			listed) case $v in yes|no|"") ;; *) echo "longwire: listed is yes or no" >&2; exit 2 ;; esac ;;
 			exit) case $v in yes|no|"") ;; *) echo "longwire: exit is yes or no (yes: this machine shares its internet with the line)" >&2; exit 2 ;; esac ;;
 			exit_through) [[ $v =~ ^([0-9]{3}-?[0-9]{3}-?[0-9]{3})?$ ]] || { echo "longwire: exit_through is a member's number, like 447-120-933" >&2; exit 2; } ;;
@@ -653,12 +706,13 @@ jack_has_share() {
 
 # Is the jack's name server in systemd-resolved as asked ("" for none)? Asked without privilege; without resolved there is nothing to ask (docs/adr/0047).
 jack_has_dns() {
-	local tap=$1 dns=$2 have
+	local tap=$1 dns=$2 have x out=
+	local hl=()
 	command -v resolvectl > /dev/null || return 0
 	have=$(resolvectl dns "$tap" 2> /dev/null)
-	have=${have#*:}
-	have=${have// /}
-	[ "$have" = "$dns" ]
+	read -r -a hl <<< "${have#*:}"			# "Link 5 (lw0): 1.1.1.1 9.9.9.9": the servers, in order, as the profile keeps them
+	for x in "${hl[@]}"; do out=${out:+$out,}$x; done
+	[ "$out" = "$dns" ]
 }
 
 cmd_jack() {
@@ -694,6 +748,14 @@ cmd_jack() {
 	done
 	[ "$addr" = dhcp ] && mode=--dhcp
 	tap=${1:-lw0}
+	if [ -n "$routes" ] && [ -z "$via" ]; then			# said before any password is asked: these are the helper's rules too
+		echo "longwire: routes go through a gateway on the line: set the gateway (gateway=A.B.C.D), the router there that reaches them" >&2
+		return 1
+	fi
+	if [ -n "$routes" ] && { [ -z "$addr" ] || [ "$addr" = dhcp ]; }; then
+		echo "longwire: routes need a fixed address on the jack (address=A.B.C.D/N): with DHCP the gateway's network is not known in advance" >&2
+		return 1
+	fi
 	[ -n "$routes" ] || [ $all = yes ] || via=		# a gateway with nothing to be the gateway for is not passed on
 	[ -z "$via" ] || extra=(--via "$via")
 	[ -z "$routes" ] || [ -z "$via" ] || extra+=(--routes "$routes")

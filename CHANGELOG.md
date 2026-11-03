@@ -3,6 +3,21 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.42
+
+**Routes and name servers are lists you can type as you like, and a wrong one is named before any password.**
+
+- The pane's Routes and Name server fields deleted every space, so `192.168.150.0/24 10.20.0.0/16` became one run-together "network"; the profile check only looked at
+  the characters, let it through, and the root helper refused it after the password: "Could not make the jack". Now `longwire profile set`, which the pane uses too, is
+  the one place these are checked: entries are split on commas, spaces or semicolons, each is checked as a real network (its first address, a prefix of 8 to 32, never the
+  default route) or address, a wrong one is named, and the list is kept with commas. The pane passes what was typed and shows lists with a space after each comma.
+- **Several name servers**: `dns` takes up to three (`dns = 1.1.1.1,9.9.9.9`, or with spaces), given to systemd-resolved on the jack together and in order; the pane's
+  row is *Name servers*.
+- Routes with no gateway were dropped quietly, and routes with a DHCP address were refused only after the password. Both are now said by `longwire jack` (and Turn on)
+  before anything is asked: routes need a gateway on the line and a fixed address.
+- Tested: the profile check and the pane with spaces, commas, semicolons and a run-together entry (`tests/pane.sh`), several name servers on the jack and the refusals
+  (`tests/jack.sh`).
+
 ## 0.5.41
 
 **Send everything through the line no longer stops a node from starting.** With *Send everything through the line* on, `longwire on` failed with "cannot resolve"

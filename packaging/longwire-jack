@@ -9,7 +9,7 @@
 # win, and its own default route is never touched. The routes through the jack are skipped by the kernel when the jack has no carrier, which is when no
 # node holds it, so a node that stops or crashes leaves the machine on its own road, not on none; the helper checks that before it adds anything. Run
 # without --everything, it takes its rules away if they are there.
-# With --dns A.B.C.D as well, the machine asks that name server, through the line, for every name (docs/adr/0047): set on the jack in systemd-resolved, which
+# With --dns A.B.C.D[,A.B.C.D...] (up to three) as well, the machine asks those name servers, through the line, for every name (docs/adr/0047): set on the jack in systemd-resolved, which
 # passes over a device with no carrier as the kernel does, so names come back to the machine's own name server whenever the node is gone.
 # longwire-jack --address A.B.C.D/N --everything TAP [UID] -- everything through the line with no gateway named: through the member that shares its internet
 # (docs/adr/0056). The table's default route goes to 169.254.77.1 on the jack, with the MAC 02:6c:77:65:78:74 fixed beside it; no machine has either, and the
@@ -153,12 +153,17 @@ rl=()
 [ -z "$everything" ] || [ -n "$via" ] || [ -n "$addr$dhcp" ] || fail "--everything through the member that shares its internet needs the jack's own address (--address or --dhcp): the answers come back to it"
 [ -z "$share" ] || [ -n "$addr" ] || fail "--share needs the jack's own address (--address): the line's network is what is let out"
 [ -z "$via" ] || [ -n "$routes$everything" ] || fail "--via is the gateway for --routes or --everything: give one of them"
+dnsl=()
 if [ -n "$dns" ]; then
 	[ -n "$everything" ] || fail "--dns goes with --everything: names through the line, with everything else"
 	octet='(0|[1-9][0-9]{0,2})'
-	[[ $dns =~ ^$octet\.$octet\.$octet\.$octet$ ]] || fail "--dns '$dns' is not an address like 192.168.152.254"
-	[ "${M[1]}" -le 255 ] && [ "${M[2]}" -le 255 ] && [ "${M[3]}" -le 255 ] && [ "${M[4]}" -le 255 ] || fail "--dns '$dns' is not an address"
-	[ "${M[1]}" -ne 0 ] && [ "${M[1]}" -ne 127 ] && [ "${M[1]}" -lt 224 ] || fail "--dns '$dns' is not a name server that can be reached through the line"
+	read -r -a dnsl <<< "${dns//,/ }"
+	[ "${#dnsl[@]}" -ge 1 ] && [ "${#dnsl[@]}" -le 3 ] || fail "--dns wants 1 to 3 name servers, separated by commas"
+	for a in "${dnsl[@]}"; do
+		[[ $a =~ ^$octet\.$octet\.$octet\.$octet$ ]] || fail "--dns '$a' is not an address like 192.168.152.254"
+		[ "${M[1]}" -le 255 ] && [ "${M[2]}" -le 255 ] && [ "${M[3]}" -le 255 ] && [ "${M[4]}" -le 255 ] || fail "--dns '$a' is not an address"
+		[ "${M[1]}" -ne 0 ] && [ "${M[1]}" -ne 127 ] && [ "${M[1]}" -lt 224 ] || fail "--dns '$a' is not a name server that can be reached through the line"
+	done
 fi
 if [ -n "$via" ]; then
 	[ -n "$addr" ] || fail "routes need the jack's own address (--address); with DHCP the gateway's network is not known in advance"
@@ -302,8 +307,8 @@ fi
 names=
 if command -v resolvectl > /dev/null; then
 	if [ -n "$dns" ]; then
-		resolvectl dns "$tap" "$dns" && resolvectl domain "$tap" '~.' && resolvectl default-route "$tap" yes || fail "could not set the name server $dns on $tap in systemd-resolved" 3
-		names=", names through $dns"
+		resolvectl dns "$tap" "${dnsl[@]}" && resolvectl domain "$tap" '~.' && resolvectl default-route "$tap" yes || fail "could not set the name servers $dns on $tap in systemd-resolved" 3
+		names=", names through ${dns//,/, }"
 	else
 		resolvectl revert "$tap" 2> /dev/null
 	fi

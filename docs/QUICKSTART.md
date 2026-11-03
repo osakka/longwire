@@ -91,7 +91,7 @@ send everything through the line ([ADR 0056](adr/0056-a-member-can-share-its-int
   `longwire profile set home address=192.168.152.1/24` and `longwire exit on`. The same password step as the device turns on forwarding and adds a firewall table of the jack's own
   (it needs nftables: `nft`); `longwire show` then says `sharing  this machine's internet with the line`.
 - **On each machine that goes out through it:** switch on **Send everything through the line** and leave **Gateway** empty (`longwire profile set home everything=yes`; it needs an Address,
-  fixed or `dhcp`), then turn on. `longwire show` says `everything  through the line (lw0)` and `way out  447-120-933, which shares its internet`. Set **Name server** to any resolver, like
+  fixed or `dhcp`), then turn on. `longwire show` says `everything  through the line (lw0)` and `way out  447-120-933, which shares its internet`. Set **Name servers** to any resolver, like
   `1.1.1.1` (`longwire profile set home dns=1.1.1.1`): it is asked through the line and goes out by the exit, so the network you sit on does not see what you look up (with systemd-resolved).
 
 When more than one member shares, the lowest number is used, or the one in **Through** (`exit_through=NUMBER`). The machine that shares sees everything the others send outside the line, as their
@@ -100,7 +100,7 @@ sit on), and `longwire show` warns `way out: no member of the line shares its in
 usual way again.
 
 If the far site already has a router on the line that passes traffic on (a home or office router does for any machine on its network), you can name it in **Gateway** instead
-(`longwire profile set home gateway=192.168.152.254 everything=yes`; then the Address must be static); **Name server** is then often that same router.
+(`longwire profile set home gateway=192.168.152.254 everything=yes`; then the Address must be static); **Name servers** is then often that same router.
 
 Moving from Wi-Fi to a cable while on is handled: longwire lets go for a moment, so the machine uses its own network meanwhile, and starts again on the new one
 (tested on the engine; a laptop really moving has not been tried). It fails open: while longwire is off or restarting, traffic goes the usual way; a switch that blocks everything while the line is down
