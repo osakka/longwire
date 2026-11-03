@@ -25,6 +25,8 @@ the engine, which waited 2 s for it. A script slower than that (a busy machine) 
 refused for want of a token and struck until the node was banned. Now an accept answers with what happened (`{"registered":"NUMBER"}` or `{"refused":"WHY"}`), and the
 script looks a token up, answers, and spends it only on `registered`; the engine waits 10 s for a verdict, and refusing because none came earns no strike.
 
+*Published:* the catalogue (`hibr-apps` `d6412ac`) and the packages (`hibr-apt` `39d011a`, `hibr-rpm` `7cf64bb`, `hibr-arch` `ff897aa`). `make check` passed (910 checks).
+
 ## 0.5.40
 
 **Built for hibr's module ABI 17.** hibr 0.99.430 refuses a module built for ABI 16 ("abi 16, shell expects 17"), which the engine of 0.5.39 and earlier is: after
