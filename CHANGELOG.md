@@ -18,6 +18,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 - Tested: the profile check and the pane with spaces, commas, semicolons and a run-together entry (`tests/pane.sh`), several name servers on the jack and the refusals
   (`tests/jack.sh`).
 
+*Published:* the catalogue (`hibr-apps` `5e46bb5`) and the packages (`hibr-apt` `8ffc84a`, `hibr-rpm` `4c15770`, `hibr-arch` `8c37d9c`). `make check` passed (918 checks).
+
 ## 0.5.41
 
 **Send everything through the line no longer stops a node from starting.** With *Send everything through the line* on, `longwire on` failed with "cannot resolve"
