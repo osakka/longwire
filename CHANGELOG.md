@@ -17,6 +17,8 @@ Also: the pane's Turn on with routes but no Gateway no longer starts quietly wit
 now asks `longwire jack`, which says routes need a gateway, before any password. The safety phrase's two failure messages say "the other end" (the end that commits
 is the lower key id, not whoever dialled). The documentation and the manual pages are brought up to date with everything from 0.5.39 on.
 
+*Published:* the catalogue (`hibr-apps` `5df81d6`) and the packages (`hibr-apt` `9b90610`, `hibr-rpm` `2ca6d51`, `hibr-arch` `21222a5`). `make check` passed (933 checks).
+
 ## 0.5.44
 
 **Prompts say whose password, and every dialog fits.** The pane's password dialog always said "the administrator's (root) password", even when polkit was
