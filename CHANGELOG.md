@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 updating hibr, longwire would not start. The engine is rebuilt against 0.99.430, which the packages now require (`HIBR_MIN`); nothing else changed. Update hibr and longwire
 together.
 
+*Published:* the catalogue (`hibr-apps` `4b1efd7`) and the packages (`hibr-apt` `358f61e`, `hibr-rpm` `c8d03bd`, `hibr-arch` `bfc7aab`). `make check` passed (898 checks).
+
 ## 0.5.39
 
 **A member can share its internet, and sending everything through the line needs no gateway typed in** ([ADR 0056](docs/adr/0056-a-member-can-share-its-internet.md)).
