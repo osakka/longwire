@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.42
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.43
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.42}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.43}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -635,6 +635,19 @@ cmd_watch() {
 	say "·  the node stopped"
 }
 
+# pkexec, said plainly when it does not run the helper: 126 is a password dialog dismissed, 127 a password polkit did not accept (or no way to ask
+# for one). Neither ran the helper, so nothing changed. The helpers themselves exit 1 to 3, never these.
+pk() {
+	local rc
+	pkexec "$@"
+	rc=$?
+	case $rc in
+	126) echo "longwire: the password step was cancelled: nothing was changed" >&2 ;;
+	127) echo "longwire: the password was not accepted (polkit: not authorized), so nothing was changed. Whose password is asked is set in Control Panel > Administrative Access (org.longwire.jack, org.longwire.site); if your own password is right and still refused, see docs/TROUBLESHOOTING.md (\"The password is not accepted\")" >&2 ;;
+	esac
+	return $rc
+}
+
 # The jack: a tap device owned by the person, made by a small root helper (packaging/longwire-jack) that polkit lets the desktop's
 # user run after one password. A person never types `ip tuntap` for it; setup jack prints that for those who want to do it by hand.
 jack_helper() {
@@ -725,7 +738,7 @@ cmd_jack() {
 		if [ "$(id -u)" = 0 ]; then
 			"$helper" --remove "$tap" "${SUDO_UID:-}"
 		elif command -v pkexec > /dev/null; then
-			pkexec "$helper" --remove "$tap"
+			pk "$helper" --remove "$tap"
 		else
 			echo "longwire: there is no pkexec to ask for the password with. By hand, as root: ip link delete $tap" >&2
 			return 1
@@ -796,7 +809,7 @@ cmd_jack() {
 	if [ "$(id -u)" = 0 ]; then
 		"$helper" ${mode:-${addr:+--address "$addr"}} "${extra[@]}" "$tap" "${SUDO_UID:-}"
 	elif command -v pkexec > /dev/null; then
-		pkexec "$helper" ${mode:-${addr:+--address "$addr"}} "${extra[@]}" "$tap"
+		pk "$helper" ${mode:-${addr:+--address "$addr"}} "${extra[@]}" "$tap"
 	else
 		echo "longwire: there is no pkexec to ask for the password with. By hand, once, as root:" >&2
 		cmd_setup jack "$tap" ${addr:+"$addr"} >&2
@@ -827,7 +840,7 @@ cmd_site() {
 	if [ "${1:-}" = --stop ]; then
 		nic=${2:-}
 		[ -n "$nic" ] || { echo "usage: longwire site --stop NIC" >&2; exit 2; }
-		if [ "$(id -u)" = 0 ]; then "$helper" --stop "$nic"; else pkexec "$helper" --stop "$nic"; fi
+		if [ "$(id -u)" = 0 ]; then "$helper" --stop "$nic"; else pk "$helper" --stop "$nic"; fi
 		return
 	fi
 	nic=${1:-}
@@ -852,7 +865,7 @@ cmd_site() {
 	if [ "$(id -u)" = 0 ]; then
 		"$helper" "$nic" "$argsf" "${SUDO_UID:-}"
 	else
-		pkexec "$helper" "$nic" "$argsf"
+		pk "$helper" "$nic" "$argsf"
 	fi
 	uid=$?
 	rm -f "$argsf"

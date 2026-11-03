@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.43
+
+**A refused password is said as one.** When polkit did not accept the password for the jack or site helper, the pane said "Could not make the jack" and the terminal
+showed pkexec's "This incident has been reported". Now both say that the password was not accepted (or the step was cancelled) and that nothing changed, and point to
+Control Panel > Administrative Access and a new TROUBLESHOOTING entry: polkit 126 checks passwords in a sandboxed service with its PAM file in `/usr/lib/pam.d`, where
+an LDAP account can be refused that sudo accepts; `pkexec true` asks for an administrator and is no test of it; and how to make the jack as root meanwhile. Run as root,
+the `longwire` launcher says why it does not use a script installed for a user (that user could change it) and names the jack helper to run instead.
+
 ## 0.5.42
 
 **Routes and name servers are lists you can type as you like, and a wrong one is named before any password.**

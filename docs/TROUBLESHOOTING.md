@@ -13,6 +13,21 @@ Tokens are secrets: leave them out of what you send.
 Nothing is wrong. `longwire up` *is* the node: it stays in the foreground and prints events as they happen. Use another terminal for
 commands, or start it in the background with `longwire on`. Ctrl-C stops the node.
 
+**The password is not accepted ("the password was not accepted (polkit: not authorized)", or pkexec's "This incident has been reported").**
+Making or changing the jack (an address, routes, everything through the line, sharing) is done by a root helper through polkit, which asks for a password
+first; nothing changes when it is refused. Whose password is asked is set in Control Panel > Administrative Access: *Create the network device longwire uses
+on this computer* (`org.longwire.jack`), and *Make this computer a site node* (`org.longwire.site`). It works without one once the jack is as the profile says,
+which is why a profile with no routes may turn on while one with routes asks. When your own password is right and still refused, polkit cannot check it:
+
+- polkit 126 and later keeps its PAM file in `/usr/lib/pam.d/polkit-1` (not `/etc/pam.d`) and checks passwords in a sandboxed service,
+  `polkit-agent-helper@.service`. An account from LDAP or sssd may be refused there when `please` (sudo) accepts it. The journal says why, right after a refusal:
+  `journalctl -b --since "-5min" | grep -iE "polkit|pam_|sss|ldap"`.
+- `pkexec true` is no test of this: it asks for an *administrator*, and polkit counts as administrators the group `sudo` only, unless told otherwise
+  (`polkit.addAdminRule` in `/etc/polkit-1/rules.d/`). An account that is an administrator through another group is asked for root's password there.
+- Until it is fixed, make the jack as root with the helper and your user id, then turn on as usual (nothing more is asked while the jack is as the profile says;
+  `keep_jack = yes` keeps it after `longwire off`): `please /usr/lib/longwire/jack --address 192.168.152.51/24 --via 192.168.152.254 --routes 192.168.15.0/24 lw0 $(id -u)`.
+  (`please longwire jack …` does not work: as root, the script installed for your user is not used.)
+
 **"cannot resolve HOST" with Send everything on, and it starts with it off.**
 Before 0.5.41 the node looked up the switchboard's name after attaching the jack, and a jack that takes everything takes name lookups too, with no
 way out yet. 0.5.41 looks it up first. Update the package (the engine). If it still says so, the name really does not resolve on this machine:

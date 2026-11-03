@@ -101,12 +101,18 @@ FH
 chmod +x "$T/fake-helper"
 cat > "$T/bin/pkexec" <<'PK'
 #!/bin/sh
+[ -n "${LWJ_PK:-}" ] && { echo "Error executing command as another user: Not authorized"; exit "$LWJ_PK"; }	# polkit refused (127) or the dialog was dismissed (126)
 exec "$@"
 PK
 chmod +x "$T/bin/pkexec"
 export LONGWIRE_JACK=$T/fake-helper LONGWIRE_MOD=$PWD/build/longwire.so HOME=$T LW_SOCK=$T/none.sock LW_DIR=$T/lw
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address dhcp lw7 2>&1)
 grep -qx "helper --dhcp lw7" "$LWJ_LOG" && ok "longwire jack --address dhcp asks the helper for --dhcp" || bad "jack dhcp: $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$(LWJ_PK=127 "$HIBR" scripts/longwire.hibr jack --address 10.77.0.2/24 lw7 2>&1); rc=$?
+[ $rc = 127 ] && ! grep -q helper "$LWJ_LOG" && printf '%s\n' "$out" | tail -1 | grep -q "password was not accepted.*nothing was changed" \
+	&& ok "a password polkit does not accept is said as one, last (the pane shows the last line), and nothing ran" || bad "pk 127: rc=$rc $out"
+: > "$LWJ_LOG"; out=$(LWJ_PK=126 "$HIBR" scripts/longwire.hibr jack --address 10.77.0.2/24 lw7 2>&1); rc=$?
+[ $rc = 126 ] && printf '%s\n' "$out" | tail -1 | grep -q "cancelled: nothing was changed" && ok "a dismissed password dialog says it was cancelled" || bad "pk 126: rc=$rc $out"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 10.77.0.2/24 lw7 2>&1)
 grep -qx "helper --address 10.77.0.2/24 lw7" "$LWJ_LOG" && ok "and an address as --address" || bad "jack addr: $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack lw7 2>&1)

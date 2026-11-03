@@ -34,6 +34,10 @@ if ! script := find_script; then
 	echo "$name: its script is not installed. Fetch it from the catalogue:" >&2
 	echo "$name:     catalogue install cli/$name        (for this user)" >&2
 	echo "$name:     catalogue --system install cli/$name        (for the machine, and for the services)" >&2
+	if [ "$(id -u)" = 0 ]; then			# run as root (sudo, please): a script installed for a user is not looked for, since that user can change it
+		echo "$name: (as root, a script installed for a user is not used: that user can change it, and it would run as root." >&2
+		[ "$name" = longwire ] && echo "$name:  To make a jack as root, run its helper: /usr/lib/longwire/jack --address A.B.C.D/N [--via GW --routes NET,...] lwN UID)" >&2
+	fi
 	exit 127
 fi
 exec "$HIBR" "$script" "$@"			# $HIBR: the hibr this was started under, not whichever comes first on PATH
