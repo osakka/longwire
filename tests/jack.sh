@@ -281,5 +281,25 @@ fi
 [ $rc = 0 ] && grep -q "neigh replace 169.254.77.1 lladdr 02:6c:77:65:78:74 dev lw7 nud permanent" "$LWJ_LOG" && grep -q "route replace default via 169.254.77.1 dev lw7 onlink table 7707" "$LWJ_LOG" \
 	&& ok "with no gateway named, everything goes to the exit gateway, its MAC fixed beside it" || bad "everything exit: rc=$rc $out $(cat "$LWJ_LOG")"
 
+echo "-- two permissions, one helper: the device as jack, everything and sharing as jack-everything (docs/adr/0058)"
+mkdir -p "$T/lib"; ln -sf "$H" "$T/lib/jack"; ln -sf "$H" "$T/lib/jack-everything"
+for a in "--address 192.168.152.50/24 --everything" "--address 192.168.152.1/24 --share"; do
+	: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$T/lib/jack" $a lw7 1000 2>&1); rc=$?
+	[ $rc = 2 ] && echo "$out" | grep -q "its own permission" && ! grep -q "route\|addr replace\|link set" "$LWJ_LOG" \
+		&& ok "run as jack, '$a' is refused before anything is run: it is org.longwire.everything's" || bad "jack $a: rc=$rc $out"
+done
+: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$T/lib/jack" --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24 lw7 1000 2>&1); rc=$?
+[ $rc = 0 ] && grep -q "route replace 192.168.150.0/24 via 192.168.152.254 dev lw7" "$LWJ_LOG" && ok "run as jack, the device with its address and routes is made" || bad "jack routes: rc=$rc $out"
+: > "$LWJ_LOG"; out=$(LWJ_HELD=1 LONGWIRE_SYSNET=$T/othersys "$HIBR" "$T/lib/jack" --address 192.168.152.50/24 lw7 1000 2>&1); rc=$?
+[ $rc = 0 ] && ok "and run as jack it may still take everything away again (turning off never needs the wider permission)" || bad "jack off: rc=$rc $out"
+: > "$LWJ_LOG"; out=$(LONGWIRE_SYSNET=$T/othersys "$HIBR" "$T/lib/jack-everything" --address 192.168.152.50/24 --everything lw7 1000 2>&1); rc=$?
+[ $rc = 0 ] && grep -q "route replace default via 169.254.77.1" "$LWJ_LOG" && ok "run as jack-everything, everything through the line is set" || bad "jack-everything: rc=$rc $out"
+printf '#!/bin/sh\necho "plain $*" >> "$LWJ_LOG"\n' > "$T/lib2-jack"; mkdir -p "$T/lib2"; mv "$T/lib2-jack" "$T/lib2/jack"
+printf '#!/bin/sh\necho "wide $*" >> "$LWJ_LOG"\n' > "$T/lib2/jack-everything"; chmod +x "$T/lib2/jack" "$T/lib2/jack-everything"
+: > "$LWJ_LOG"; out=$(LONGWIRE_JACK=$T/lib2/jack "$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.150.0/24 lw7 2>&1)
+grep -q "^plain " "$LWJ_LOG" && ! grep -q "^wide " "$LWJ_LOG" && ok "longwire jack with routes asks the device's helper (org.longwire.jack)" || bad "pick plain: $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$(LONGWIRE_JACK=$T/lib2/jack "$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --everything lw7 2>&1)
+grep -q "^wide " "$LWJ_LOG" && ! grep -q "^plain " "$LWJ_LOG" && ok "and with everything through the line, the other one (org.longwire.everything)" || bad "pick wide: $out $(cat "$LWJ_LOG")"
+
 [ $fail = 0 ] && echo "all jack checks passed"
 exit $fail

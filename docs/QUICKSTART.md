@@ -15,7 +15,9 @@ they do the same thing and share one saved connection, so you can mix them.
   ("Run a switchboard", about five minutes on any small server). You will need three things from it:
   its address `HOST:6741`, its **key** (it prints `lw1…` when it starts), and, if you gave it tokens, **one token for each machine**.
 - **Your administrator password** on each machine, to make the network device. It is asked for through polkit (`pkexec`; you can tune it in Control Panel > Administrative Access) the first time, and again after a
-  restart, because the device does not survive one.
+  restart, because the device does not survive one. Set *Set up the network device longwire uses on this computer* (`org.longwire.jack`) to no password there and turning on and off asks none;
+  sending everything through the line and sharing the internet are a second action, `org.longwire.everything`, which still asks
+  ([ADR 0058](adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)).
 
 ## 1. Install
 
@@ -92,7 +94,7 @@ send everything through the line ([ADR 0056](adr/0056-a-member-can-share-its-int
   (it needs nftables: `nft`); `longwire show` then says `sharing  this machine's internet with the line`.
 - **On each machine that goes out through it:** switch on **Send everything through the line** and leave **Gateway** empty (`longwire profile set home everything=yes`; it needs an Address,
   fixed or `dhcp`), then turn on. `longwire show` says `everything  through the line (lw0)` and `way out  447-120-933, which shares its internet`. Set **Name servers** to any resolver, like
-  `1.1.1.1` (`longwire profile set home dns=1.1.1.1`): it is asked through the line and goes out by the exit, so the network you sit on does not see what you look up (with systemd-resolved).
+  `1.1.1.1`, or up to three (`longwire profile set home dns=1.1.1.1,9.9.9.9`): it is asked through the line and goes out by the exit, so the network you sit on does not see what you look up (with systemd-resolved).
 
 When more than one member shares, the lowest number is used, or the one in **Through** (`exit_through=NUMBER`). The machine that shares sees everything the others send outside the line, as their
 internet provider would, and its address is what the internet sees: share only from a machine the line trusts that much. If no member shares, nothing goes out (it does not leak to the network you
@@ -121,6 +123,7 @@ On **A** the telephone shows `☎ ◉ 312-884-076` and a dialog appears (on the 
 ```
 ☎  312-884-076 is calling
    the safety phrase comes once you are connected: compare it with theirs
+   picking up adds 312-884-076 to your network (your line): it stays a member, and reconnects by itself, until you evict it
    first call from this number
    run: longwire pickup | longwire reject
 ```

@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.44
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.45
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.44}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.45}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -662,7 +662,11 @@ fn lwp_pkprompt(int n, text) {
 	done < "$DTJ_DIR/$n.out"
 	name=${who%%" ("*}; name=${name%%,*}
 	user=${who##*"("}; user=${user%%")"*}
-	case ${DTJ[$n]["tag"]} in site) what="To make this computer a site node" ;; *) what="To set up longwire's network device" ;; esac
+	case ${DTJ[$n]["tag"]} in
+	site) what="To make this computer a site node" ;;
+	everything) what="To send this computer's traffic via longwire" ;;
+	*) what="To set up longwire's network device" ;;
+	esac
 	if [ -z "$who" ]; then
 		dt_ask "Password" "Password:" "" lwp_pwgive "$what" 1 54 lwp_pwcancel > /dev/null
 	elif [ "$user" = root ] || [ "$user" = "$who" ]; then
@@ -816,7 +820,8 @@ fn lwp_hasroutes(iface, gw, rts) {
 	local have r
 	local rl=()
 
-	[ -n "$gw" ] && [ -n "$rts" ] || return 0
+	[ -n "$rts" ] || return 0
+	[ -n "$gw" ] || return 1			# routes with no gateway are not "there": `longwire jack` says what is missing, before any password
 	have=$(PATH=$PATH:/usr/sbin:/sbin ip -4 route show dev "$iface" 2> /dev/null)
 	read -r -a rl <<< "${rts//,/ }"
 	for r in "${rl[@]}"; do
@@ -918,7 +923,7 @@ fn lwp_turnon(int w) {
 		local evf= shf=
 		[ "$ev" = yes ] && evf=--everything
 		[ "$sh" = yes ] && shf=--share
-		LWP_JOB := dt_ptyjob longwire jack lwp_jackdone lwp_pkprompt longwire jack ${addr:+--address "$addr"} ${gw:+--via "$gw"} ${rts:+--routes "$rts"} ${evf:+"$evf"} ${ns:+--dns "$ns"} ${shf:+"$shf"} "$iface"
+		LWP_JOB := dt_ptyjob longwire "${evf:+everything}${shf:+everything}" lwp_jackdone lwp_pkprompt longwire jack ${addr:+--address "$addr"} ${gw:+--via "$gw"} ${rts:+--routes "$rts"} ${evf:+"$evf"} ${ns:+--dns "$ns"} ${shf:+"$shf"} "$iface"
 		[ -n "$LWP_JOB" ] || { LWP_BUSY=0; dt_notep high "Could not start pkexec"; return 1; }
 		dt_notep low "Making the jack $iface${GL[ellipsis]}"
 		return 0

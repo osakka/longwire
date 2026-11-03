@@ -6,8 +6,8 @@
   <vendor>longwire</vendor>
   <vendor_url>https://git.home.arpa/itdlabs/longwire</vendor_url>
   <action id="org.longwire.jack">
-    <description>Create the network device longwire uses on this computer</description>
-    <message>Authentication is required to create a longwire network device (a jack)</message>
+    <description>Set up the network device longwire uses on this computer (its address and routes)</description>
+    <message>Authentication is required to set up longwire's network device</message>
     <defaults>
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>

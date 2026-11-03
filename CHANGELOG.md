@@ -3,6 +3,20 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.45
+
+**Connecting and disconnecting can need no password, without that also letting anyone reroute the machine** ([ADR 0058](docs/adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)).
+Everything the jack needs root for went through one polkit action, so allowing it with no password also allowed sending the whole machine's traffic through the line
+and sharing its internet. Now there are two: *Set up the network device longwire uses on this computer (its address and routes)* (`org.longwire.jack`,
+`/usr/lib/longwire/jack`) and *Send all of this computer's traffic through longwire, or share its internet* (`org.longwire.everything`, the same helper installed as
+`/usr/lib/longwire/jack-everything`). Run as `jack`, the helper refuses everything through the line and sharing, and still takes them away again. Set the first to no
+password in Control Panel > Administrative Access to connect and disconnect, routes or not and with `keep_jack = no`, without being asked. Update the package: it
+carries the new helper and action. Tested in `tests/jack.sh` and `tests/pkg.sh`.
+
+Also: the pane's Turn on with routes but no Gateway no longer starts quietly without them (it found nothing to do, so the helper never said what was missing); it
+now asks `longwire jack`, which says routes need a gateway, before any password. The safety phrase's two failure messages say "the other end" (the end that commits
+is the lower key id, not whoever dialled). The documentation and the manual pages are brought up to date with everything from 0.5.39 on.
+
 ## 0.5.44
 
 **Prompts say whose password, and every dialog fits.** The pane's password dialog always said "the administrator's (root) password", even when polkit was

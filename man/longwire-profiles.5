@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "November 2026" "longwire 0.5.44" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "November 2026" "longwire 0.5.45" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -100,13 +100,11 @@ Each is written as its first address and a prefix of 8 to 32; a wrong one is nam
 Routes need a
 .B gateway
 and a fixed
-.BR address .
+.BR address :
+without them,
+.B longwire jack
+and turning on say so before any password is asked.
 Never the default route, nothing wider than a /8, nothing on the line itself; put on with the device, and gone with it.
-Needs a static
-.BR address .
-Without a
-.B gateway
-they are left out.
 .TP
 .B everything
 .B yes
@@ -165,7 +163,8 @@ Without systemd\-resolved, names stay with the machine's own name server.
 .TP
 .B keep_jack
 .BR yes " (the default) or " no .
-With yes, turning the node off leaves the jack, so the next time needs no password; with no, it removes the jack too.
+With yes, turning the node off leaves the jack, so the next time needs no password; with no, it removes the jack too, and the next time asks again.
+Neither asks when polkit's org.longwire.jack is set to no password in Control Panel > Administrative Access; everything through the line and sharing are org.longwire.everything, which still asks.
 .B longwire off
 reads it from the profile the node was turned on with.
 .TP

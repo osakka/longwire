@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "November 2026" "longwire 0.5.44" "longwire manual"
+.TH LONGWIRE 1 "November 2026" "longwire 0.5.45" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -55,7 +55,7 @@ Saying it again reports that it is already on.
 Stop the node.
 When the profile it was turned on with says
 .BR "keep_jack = no" ,
-take the jack away too (one more password).
+take the jack away too (one more password, unless polkit's org.longwire.jack is set to ask none).
 Same as
 .BR down .
 .TP
@@ -235,6 +235,15 @@ to
 .B lw0
 by default) and give it to you, with an IPv4 address if one is given.
 A small root helper does it through polkit, which asks for a password.
+The device, its address, a DHCP client and routes are polkit's org.longwire.jack
+.RI ( /usr/lib/longwire/jack );
+with
+.B \-\-everything
+or
+.B \-\-share
+the same helper is run as
+.I /usr/lib/longwire/jack\-everything
+(org.longwire.everything), a permission of its own, so allowing the first with no password in Control Panel > Administrative Access does not allow rerouting the machine.
 The device does not survive a restart, so it is asked for again then.
 .B on
 does this by itself when the jack, or its address, is missing.
@@ -258,7 +267,7 @@ and is undone exactly when the jack is made again without it, or removed.
 Share this machine's internet with the line, or stop:
 set the profile's
 .B exit
-key (the running profile's, else the default one) and, if the node is on with that profile, turn it off and on again so that the jack helper sets the sharing up (one password).
+key (the running profile's, else the default one) and, if the node is on with that profile, turn it off and on again so that the jack helper sets the sharing up (one password, for org.longwire.everything).
 With neither, say whether the profile shares.
 It needs a jack with a fixed address and no
 .BR everything ,
@@ -477,7 +486,8 @@ Both ends show the same eight-word
 a moment after the call connects (the ring shows none):
 it is committed to before either end could pick it, and tied to the session.
 Compare it on another channel, and hang up at once if the words differ.
-A call whose other end does not do the exchange is ended; see
+Every session reached through a switchboard has one, a fellow member's and a relayed one included; the end with the lower key id commits, whoever dialled.
+A call whose other end keeps talking and does not take part in the exchange within 10 seconds is ended; see
 .BR longwire-security (7).
 .SH FILES
 .TP
@@ -505,7 +515,10 @@ See
 .BR longwire-profiles (5).
 .TP
 .I /usr/lib/longwire/jack
-The root helper that makes the tap device, run through polkit.
+The root helper that makes the tap device, with its address and routes, run through polkit (org.longwire.jack).
+.TP
+.I /usr/lib/longwire/jack\-everything
+The same helper as a second polkit action (org.longwire.everything): it may also send everything through the line, or share this machine's internet.
 .TP
 .I /run/longwire/share\-lwN
 What the jack helper changed to share this machine's internet through the jack

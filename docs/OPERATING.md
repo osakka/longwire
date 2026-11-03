@@ -16,7 +16,7 @@ first place to look, and [TROUBLESHOOTING](TROUBLESHOOTING.md) the second.
 | your identity (the seed; it *is* your number) | `~/.longwire/seed`, 32 bytes, mode 0600 |
 | saved connections (profiles, with tokens) | `~/.config/longwire/profiles`, mode 0600 |
 | a node's control socket, pins, answer policy, log | `~/.longwire/` (`ctl`, `known`, `answer`, `log`) |
-| the root helpers (through polkit): the network device, and a site node | `/usr/lib/longwire/jack`, `/usr/lib/longwire/site` |
+| the root helpers (through polkit): the network device; the same helper for everything through the line and sharing; a site node | `/usr/lib/longwire/jack`, `/usr/lib/longwire/jack-everything`, `/usr/lib/longwire/site` |
 | the engine | `/usr/lib/hibr/longwire.so` |
 | the scripts | hibr's catalogue: `catalogue install cli/longwire`, `cli/longwire-switchboard` |
 | the services | `longwire-switchboard.service`, `longwire@NIC.service` |
@@ -130,6 +130,12 @@ longwire on
 `longwire` with nothing after it does the same from the default profile and then shows how it is. To bring it up at login, run `longwire on`
 from your session start-up. A node started this way keeps running after you log out of the terminal; `longwire off` stops it.
 
+The jack is made by a root helper through polkit, so the first `longwire on` after a restart asks for a password. To have it ask none, set
+*Set up the network device longwire uses on this computer (its address and routes)* (`org.longwire.jack`) to no password in Control Panel > Administrative
+Access: turning on and off then needs none, routes or not and with `keep_jack = no`. Sending everything through the line and sharing this machine's internet are
+a second action, *Send all of this computer's traffic through longwire, or share its internet* (`org.longwire.everything`, the helper
+`/usr/lib/longwire/jack-everything`), which still asks unless it is allowed too ([ADR 0058](adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)).
+
 ## Lines and operators
 
 A line is the set of machines that are connected as one network. By default members **vouch** for new members. For a line you control,
@@ -185,7 +191,8 @@ LW_SOCK=/run/longwire/eth0/ctl longwire show      # the engine line of a site no
 
 A release note that says it is a switchboard fix needs the package on the switchboard's machine and that restart; a switchboard's status does not name its
 engine. If `doctor` still says the package is older after the upgrade, `apt policy longwire` shows what is installed and what the repository offers. A script
-newer than the module can fail with `unknown option` (for example, `--max-numbers` against an older module): upgrade the package first.
+newer than the module can fail with `unknown option` (for example, `--max-numbers` against an older module): upgrade the package first. The package needs hibr 0.99.430
+or newer (module ABI 17): hibr refuses an engine built for another ABI ("abi 16, shell expects 17"), so update hibr and longwire together.
 
 ## Remove
 

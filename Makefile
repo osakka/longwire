@@ -81,8 +81,11 @@ install: all
 			> $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u && chmod 644 $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u; done
 	install -m 644 packaging/longwire.sysusers $(DESTDIR)$(PREFIX)/lib/sysusers.d/longwire.conf
 	install -m 755 packaging/longwire-jack $(DESTDIR)$(PREFIX)/lib/longwire/jack
+	install -m 755 packaging/longwire-jack $(DESTDIR)$(PREFIX)/lib/longwire/jack-everything
 	sed -e 's|/usr/lib/longwire/jack|$(PREFIX)/lib/longwire/jack|' packaging/org.longwire.jack.policy \
 		> $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.jack.policy && chmod 644 $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.jack.policy
+	sed -e 's|/usr/lib/longwire/jack-everything|$(PREFIX)/lib/longwire/jack-everything|' packaging/org.longwire.everything.policy \
+		> $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.everything.policy && chmod 644 $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.everything.policy
 	install -m 755 packaging/longwire-site $(DESTDIR)$(PREFIX)/lib/longwire/site
 	sed -e 's|/usr/lib/longwire/site|$(PREFIX)/lib/longwire/site|' packaging/org.longwire.site.policy \
 		> $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.site.policy && chmod 644 $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.site.policy

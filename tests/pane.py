@@ -305,6 +305,9 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     labels = {x[1]: x[2] for x in rows if x[0] == "action"}
     check(labels.get("Routes") == "192.168.150.0/24, 10.20.0.0/16" and any("is not a network like" in l for l in log),
           f"a network run together is refused with its name, and the routes stay as they were: {labels.get('Routes')} {log}")
+    rows, log, r = drive(envF, 'lwp_pset everything ""; lwp_pset gateway ""; lwp_setroutes "192.168.150.0/24"; longwire_do 1 on 1')
+    check(any(l.startswith("PTYJOB longwire jack") and "--routes" in l for l in log),
+          f"routes with no Gateway do not turn on quietly without them: Turn on asks longwire jack, which says what is missing before any password: {log}")
     drive(envF, 'lwp_pset routes ""; lwp_pset dns 192.168.152.254')
     rows, log, r = drive(envF, 'lwp_pset dns ""; lwp_pset everything ""; dump 1; longwire_do 1 on 1')
     check(not any(x[1] == "Name servers" for x in rows), f"with everything off, no Name server row: {[x[1] for x in rows]}")

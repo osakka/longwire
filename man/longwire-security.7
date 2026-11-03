@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SECURITY 7 "November 2026" "longwire 0.5.44" "longwire manual"
+.TH LONGWIRE-SECURITY 7 "November 2026" "longwire 0.5.45" "longwire manual"
 .SH NAME
 longwire-security \- what longwire protects, what it does not, and how far it has been checked
 .SH DESCRIPTION
@@ -39,7 +39,7 @@ The end with the lower key id commits to a random number before the other speaks
 so a switchboard in the middle has no offline search and one try per call (about 2^-64).
 Compare them on another channel at once, and hang up if they differ.
 The call is already on the line while you compare.
-Every session reached through a switchboard has a phrase, a fellow member's and a relayed one included, and a call whose other end does not take part is ended.
+Every session reached through a switchboard has a phrase, a fellow member's and a relayed one included, and a call whose other end keeps talking but does not take part within 10 seconds is ended.
 The desktop interrupts only for calls a person made or answered.
 On the desktop a note tells the phrase, and it stays under the call in the pane and the telephone's menu.
 .TP
@@ -80,12 +80,18 @@ the services under a live systemd and a clean install from the packages have not
 .SH "PRIVILEGED HELPERS"
 Two root helpers run through
 .BR pkexec ,
-each asking for an administrator's password, which polkit keeps for a few minutes.
+as three polkit actions, each asking for an administrator's password by default, which polkit keeps for a few minutes.
 .I /usr/lib/longwire/jack
-makes a tap
+(org.longwire.jack) makes a tap
 .BR lw0 \(en lw99
-owned by the user, acts only on a jack that user owns, and may add an address, a DHCP client, routes through a gateway on the line, the table and rules that send everything through the line, and a name server in systemd\-resolved.
-It may also share the machine's internet with the line: forwarding on for the jack and for the device the machine's own default route leaves by, and an nftables table of the jack's own
+owned by the user, acts only on a jack that user owns, and may add an address, a DHCP client and routes through a gateway on the line.
+Installed again as
+.I /usr/lib/longwire/jack\-everything
+(org.longwire.everything), it may also add the table and rules that send everything through the line, with name servers in systemd\-resolved,
+and share the machine's internet with the line; run as
+.I jack
+it refuses to add those (it still takes them away), so allowing the device with no password does not allow rerouting the machine.
+Sharing means: forwarding on for the jack and for the device the machine's own default route leaves by, and an nftables table of the jack's own
 .RB ( longwire\-lwN )
 that lets only the line's network out, masqueraded, lets only the answers back in, and keeps the line off the machine's other networks.
 What it changed is written in

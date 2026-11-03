@@ -10,8 +10,8 @@
 # they come from hibr's catalogue, the one route for them (docs/adr/0028).
 #
 # The package depends on libc at the newest symbol version the module uses (read from it, not guessed) and on hibr at
-# HIBR_MIN, the oldest release the test suite has been run against: a module is built for one hibr module ABI (16, the same
-# for all of 0.99.74 to now), and hibr refuses one it cannot satisfy.
+# HIBR_MIN, the oldest release the test suite has been run against: a module is built for one hibr module ABI (17 since
+# hibr 0.99.430, 16 before), and hibr refuses one it cannot satisfy.
 
 set -eu
 

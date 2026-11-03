@@ -38,7 +38,7 @@ the built module ([BUILD](docs/BUILD.md)).
   encrypted, and move to a direct path as soon as one exists.
 - **It never runs as root.** Bridging a whole site needs one capability, granted once by the service manager and
   dropped as soon as the network port is open. Joining a single Linux host needs one tap device you own, made by a small root helper after one password (again after a
-  restart), with its address and routes.
+  restart, or never, if the administrator allows the device with none), with its address and routes; sending the whole machine's traffic through the line is a permission of its own.
 - **Its key exchange is quantum-resistant.** The handshake is hybrid X25519 + ML-KEM-768, so a quantum computer would have to break ML-KEM-768 as
   well as X25519 to read traffic recorded today; the data is ChaCha20-Poly1305 and keys rotate every two minutes. The signatures that vouch for line membership
   (Ed25519) are not post-quantum, the handshake has had no formal analysis or outside review *(planned: M8)*, and none of this is a claim to be
@@ -98,12 +98,12 @@ repositories, and the scripts, the pane and the menu bar telephone through hibr'
 
 **M0 to M3 are built, and most of M4 (the desktop and distribution):** profiles, the Control Panel pane, the menu bar telephone and the Control Strip, the
 packages and the catalogue entries are published. A jack takes its address from the profile or a DHCP server on the line, reaches networks
-behind a gateway, and can send everything through the line, out through a member that shares its internet (`longwire exit on` there, `everything=yes` here: no gateway typed), letting go when the machine changes network; the safety phrase is committed to before it is
-shown, and the desktop shows it; a switchboard strikes and bans keys that keep failing, says so when it is silent, and its window shows traffic and bans. **M0, M1, M2 and M3** are built with TCC and nothing else and tested end to end: the
+behind a gateway, and can send everything through the line, out through a member that shares its internet (`longwire exit on` there, `everything=yes` here: no gateway typed), letting go when the machine changes network; connecting and disconnecting can need no password while rerouting the whole machine still asks; the safety phrase is committed to before it is
+shown, agreed with every peer a switchboard reached (fellow members and relayed ones too), and the desktop shows it; a switchboard strikes and bans keys that keep failing, says so when it is silent, and its window shows traffic and bans. **M0, M1, M2 and M3** are built with TCC and nothing else and tested end to end: the
 handshake and its cookies, the switchboard, calls through simulated NATs, splice carrying real ping, ARP, TCP and
 broadcasts between LANs that are one subnet, a second box on a segment taking over when the first is killed, lines of
 up to 16 sites that join by number (with an operator, if the line has one), build their own mesh with no prompt, evict a member, and heal after a restart, and nodes behind strict NATs, relays or IPv6. The jack has carried real calls between the author's desktop and a site
-node; routes, everything through the line, a member sharing its internet (tested on the engine and in network namespaces) and a laptop moving between networks have not run on a real tap, and real routers and wide-area links beyond
+node; routes, everything through the line, a member sharing its internet (tested on the engine and in network namespaces) and a laptop moving between networks have not run on a real tap end to end, a real exit on the internet has not been tried, and real routers and wide-area links beyond
 that are untested. See the [roadmap](docs/ROADMAP.md).
 
 ```

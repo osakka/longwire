@@ -176,8 +176,9 @@ int parse_full(const lw_node *n, const char *in, char out[NUMLEN + 1], char *err
 }
 
 
-/* ---- the committed safety phrase (docs/adr/0040) ------------------------------------------------------------------
- * Inside the session, once it is up: the caller commits to a random nonce, the callee adds its own, the caller reveals, and both
+/* ---- the committed safety phrase (docs/adr/0040, 0057) ------------------------------------------------------------
+ * Inside the session, once it is up: the committing end (the lower key id; "caller" below) commits to a random nonce, the other ("callee") adds
+ * its own, the first reveals, and both
  * derive eight words from the two nonces, the two key ids and a value only the two ends of this session share. A node in the middle holds two
  * sessions and had to commit before it knew the other nonce: there is nothing to search offline. */
 
@@ -1114,13 +1115,14 @@ lw_peer *peer_by_number(lw_node *n, const char *num)
 }
 
 /* A call is up: the two ends find out whether either holds a line. */
-/* The committed safety phrase runs inside the session, a few messages after the call connects (docs/adr/0040):
+/* The committed safety phrase runs inside the session, a few messages after it comes up (docs/adr/0040, 0057). "caller" is the committing end, the one
+ * with the lower key id, whichever end dialled; "callee" is the other:
  *   caller -> callee   0 commit(32)      H(na, caller's key id): bound before the callee has said anything
  *   callee -> caller   1 nb(16)          a nonce the caller could not have chosen
  *   caller -> callee   2 na(16)          the reveal; the callee checks it against the commit
  *   callee -> caller   3                 acknowledged
  * Both then derive eight words from na, nb, the two key ids and the session's own binding. A node that is in the middle of two sessions had to commit
- * before it knew the other nonce, so it has no search to run. A node that does not answer within five seconds is taken to be older: the old phrase. */
+ * before it knew the other nonce, so it has no search to run. An end that keeps talking but does not take part within SAS_WAIT ends the call (docs/adr/0055). */
 #define SAS_WAIT 10.0			/* the exchange is retried every second; an end that keeps talking and never takes part in it for this long is not doing it */
 
 /* Whether a person here made or answered a call to this peer: a mesh call to a fellow member, dialled or admitted without anyone, is not. It decides only what
@@ -1235,7 +1237,7 @@ static void sas_input(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 		}
 		sas_commit(chk, pl + 1, p->key_id);
 		if (crypto_verify32(chk, p->sas.c)) {
-			sas_fail(n, p, "the caller's reveal does not match what it committed to");
+			sas_fail(n, p, "the other end's reveal does not match what it committed to");
 			return;
 		}
 		memcpy(p->sas.na, pl + 1, 16);
@@ -1285,7 +1287,7 @@ void sas_timers(lw_node *n)
 			if (!p->sas.have_c && n->now - p->sas.born > SAS_WAIT)
 				sas_none(n, p);
 			else if (p->sas.have_c && n->now - p->sas.born > 20.0)
-				sas_fail(n, p, "the caller did not reveal its half of the safety phrase");
+				sas_fail(n, p, "the other end did not reveal its half of the safety phrase");
 		}
 	}
 }

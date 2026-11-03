@@ -73,6 +73,12 @@ done
 [ -z "$addr" ] || [ -z "$dhcp" ] || fail "an address or --dhcp, not both"
 [ -z "$remove" ] || [ -z "$addr$dhcp$share" ] || fail "--remove takes no address, no --dhcp and no --share"
 [ -z "$share" ] || [ -z "$everything" ] || fail "a machine that shares its internet (--share) does not send its own through the line (--everything)"
+# Two polkit actions, one helper (docs/adr/0058): installed as jack it sets up the user's own device (address, DHCP, routes, and takes everything or sharing
+# away); installed as jack-everything it may also send all of the machine's traffic through the line, or share its internet. polkit decides by the path pkexec
+# runs, so what this was started as is what the person allowed.
+if [ "${0##*/}" = jack ] && [ -n "$everything$share" ]; then
+	fail "sending everything through the line, or sharing this machine's internet, is its own permission: run as jack-everything (polkit's org.longwire.everything)"
+fi
 tap=${1:-lw0}
 uid=${PKEXEC_UID:-${2:-}}
 

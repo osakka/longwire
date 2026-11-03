@@ -15,8 +15,10 @@ commands, or start it in the background with `longwire on`. Ctrl-C stops the nod
 
 **The password is not accepted ("the password was not accepted (polkit: not authorized)", or pkexec's "This incident has been reported").**
 Making or changing the jack (an address, routes, everything through the line, sharing) is done by a root helper through polkit, which asks for a password
-first; nothing changes when it is refused. Whose password is asked is set in Control Panel > Administrative Access: *Create the network device longwire uses
-on this computer* (`org.longwire.jack`), and *Make this computer a site node* (`org.longwire.site`). It works without one once the jack is as the profile says,
+first; nothing changes when it is refused. Whose password is asked, or none, is set in Control Panel > Administrative Access: *Set up the network device longwire uses
+on this computer (its address and routes)* (`org.longwire.jack`: the device, its address and routes, connect and disconnect), *Send all of this computer's traffic through longwire, or share its
+internet* (`org.longwire.everything`), and *Make this computer a longwire site node for a network card* (`org.longwire.site`). Set the first to no password to connect and disconnect,
+routes or not, without being asked ([ADR 0058](adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)). It works without one once the jack is as the profile says,
 which is why a profile with no routes may turn on while one with routes asks. When your own password is right and still refused, polkit cannot check it:
 
 - polkit 126 and later keeps its PAM file in `/usr/lib/pam.d/polkit-1` (not `/etc/pam.d`) and checks passwords in a sandboxed service,
@@ -26,6 +28,7 @@ which is why a profile with no routes may turn on while one with routes asks. Wh
   (`polkit.addAdminRule` in `/etc/polkit-1/rules.d/`). An account that is an administrator through another group is asked for root's password there.
 - Until it is fixed, make the jack as root with the helper and your user id, then turn on as usual (nothing more is asked while the jack is as the profile says;
   `keep_jack = yes` keeps it after `longwire off`): `please /usr/lib/longwire/jack --address 192.168.152.51/24 --via 192.168.152.254 --routes 192.168.15.0/24 lw0 $(id -u)`.
+  With everything through the line or sharing, the helper is `/usr/lib/longwire/jack-everything` (the same options, with `--everything` or `--share`).
   (`please longwire jack …` does not work: as root, the script installed for your user is not used.)
 
 **"cannot resolve HOST" with Send everything on, and it starts with it off.**
@@ -44,6 +47,10 @@ There is no saved connection. Fill in the Control Panel form, or `longwire profi
 A single machine needs a network device (the *jack*). `longwire jack` makes it after one password, through the helper
 `/usr/lib/longwire/jack` and polkit's `pkexec`. If the package is missing the helper, upgrade it; if `pkexec` is missing, install it (`please apt install pkexec`, or `sudo apt install pkexec` on a machine that has no `please` yet);
 or follow the two commands the message prints, as root, once.
+
+**`longwire: /usr/lib/longwire/jack-everything is not installed (the longwire package has it): update the package`** / **`longwire-jack: sending everything through the line, or sharing this machine's internet, is its own permission`**
+Since 0.5.45 everything through the line and sharing are a second polkit action, `org.longwire.everything`, run through a second copy of the helper ([ADR 0058](adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)).
+The scripts are newer than the package: update the package (`please apt install --only-upgrade longwire`). The helper itself says the second when it is run as `jack` with `--everything` or `--share`.
 
 **Control Panel says "Could not start pkexec" or "Could not make the jack".**
 Same causes. Run `longwire jack` in a terminal to see the full instructions. If you cancelled the password dialog, press **Turn on** again.
@@ -109,8 +116,9 @@ Hang up at once (`longwire hangup NUMBER`, or the call's row in the pane). The p
 number or someone is in the middle. Do not unpin or call back until you have checked with the person another way.
 
 **`✗ the safety phrase could not be agreed with 447-120-933: …. The call was ended`**
-*the other end did not do the safety phrase exchange*: it is older than 0.5.21 (update it: there is no way to let it through) or something on the way stripped the exchange. *the caller's reveal does not match what it committed to*, or *the caller did not
-reveal its half*: something altered or dropped the exchange; treat it as the phrases differing.
+*the other end did not take part in the safety phrase exchange*: it kept talking for 10 s and gave no part of the exchange. It is older than 0.5.41, whose ends agree who commits by their key ids
+(every node updates together: there is no way to let it through), or something on the way stripped the exchange. *the other end's reveal does not match what it committed to*, or *the other end did not
+reveal its half of the safety phrase*: something altered or dropped the exchange; treat it as the phrases differing.
 
 ## It is connected, but nothing works
 

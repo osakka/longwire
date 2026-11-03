@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.44
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.45
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.44}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.45}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -643,7 +643,7 @@ pk() {
 	rc=$?
 	case $rc in
 	126) echo "longwire: the password step was cancelled: nothing was changed" >&2 ;;
-	127) echo "longwire: the password was not accepted (polkit: not authorized), so nothing was changed. Whose password is asked is set in Control Panel > Administrative Access (org.longwire.jack, org.longwire.site); if your own password is right and still refused, see docs/TROUBLESHOOTING.md (\"The password is not accepted\")" >&2 ;;
+	127) echo "longwire: the password was not accepted (polkit: not authorized), so nothing was changed. Whose password is asked is set in Control Panel > Administrative Access (org.longwire.jack, org.longwire.everything, org.longwire.site); if your own password is right and still refused, see docs/TROUBLESHOOTING.md (\"The password is not accepted\")" >&2 ;;
 	esac
 	return $rc
 }
@@ -796,7 +796,15 @@ cmd_jack() {
 		fi
 		return 0
 	fi
-	if ! helper=$(jack_helper); then
+	if helper=$(jack_helper) && { [ $all = yes ] || [ $share = yes ]; }; then	# its own polkit action, beside the jack helper (docs/adr/0058)
+		if [ -x "${helper%/*}/jack-everything" ]; then
+			helper=${helper%/*}/jack-everything
+		elif [ -z "${LONGWIRE_JACK:-}" ]; then			# (a test's stand-in may be one file for both)
+			echo "longwire: ${helper%/*}/jack-everything is not installed (the longwire package has it): update the package" >&2
+			return 1
+		fi
+	fi
+	if [ -z "$helper" ]; then
 		echo "longwire: the jack helper is not installed (the longwire package has it). By hand, once, as root:" >&2
 		cmd_setup jack "$tap" ${addr:+"$addr"} >&2
 		if [ -n "$routes" ]; then

@@ -38,10 +38,10 @@ optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is pa
 ## The tests
 
 `make check` runs, in this order: `m0` (handshake, frames, rekeys), `m1` (switchboard and NAT), `m2` (splice, site failover), `m3` (a four-site line), `m3b` (relay and path upgrade), `crossed`,
-`names`, `registry`, `key`, `dhcp`, `release`, `pmp`, `operator`, `ipv6`, `panel`, `pane`, `sw` (the Switchboard window), `group`, `profile`, `jack` (the jack helper against a stand-in `ip`),
+`names`, `registry`, `key`, `dhcp`, `release`, `pmp`, `operator`, `ipv6`, `panel`, `pane`, `sw` (the Switchboard window), `group`, `profile`, `jack` (the jack helper against a stand-in `ip`, as `jack` and as `jack-everything`),
 `sas` (the safety phrase, bounds-checked), `ban` (ban tables, bounds-checked), `ban2` (bans and a silent switchboard on a real switchboard), `jacknet` (the underlay, tying and roaming), `tunnel`
 (everything through the line on the real kernel, a veth standing in for the tap), `exit` (a member sharing its internet: real nodes on sock ports), `exitnet` (the exit's and its users' side on the
-real kernel in namespaces, a veth standing in for the tap), `events`, `doctor`, `site` (the site helper), `tokens`, `bar` (the menu bar and the strip, with the safety
+real kernel in namespaces, a veth standing in for the tap), `events`, `doctor`, `site` (the site helper), `tokens`, `policy` (a token spent only once its node has a number, and a late verdict earning no strike), `bar` (the menu bar and the strip, with the safety
 phrase), `man`, `fuzz`, `kat`, `start`, `pkg`, then `python3 -I tests/docs.py`. Each is `tests/NAME.sh`. Some skip rather than fail when a tool is missing: `pkg` without `dpkg-deb`, `rpmbuild` or
 `makepkg`; `kat` without Python's `cryptography`; `man` without `groff`; `tunnel` without user and network namespaces; and the exit side of `exitnet` without `nft`.
 
@@ -55,7 +55,7 @@ phrase), `man`, `fuzz`, `kat`, `start`, `pkg`, then `python3 -I tests/docs.py`. 
 | 1b. switchboard app | `apps/switchboard.hibr`, its own entry, the catalogue's `switchboard` in the `apps` kind | the desktop's `apps` kind | a desktop scan root |
 | 2b. control panel pane | `control-panel/longwire.hibr`, its own entry, the catalogue's `longwire` in the `control-panel` kind | the desktop's `control-panel` kind | a desktop scan root |
 | launchers + services | `packaging/launcher.hibr` (twice), `packaging/systemd/` | in the package | `/usr/bin/`, `/usr/lib/systemd/system/` |
-| root helpers | `packaging/longwire-jack`, `packaging/longwire-site`, their polkit actions, `packaging/longwire.sysusers` | in the package | `/usr/lib/longwire/`, `/usr/share/polkit-1/actions/`, `/usr/lib/sysusers.d/`; manual pages and these documents in `/usr/share/man`, `/usr/share/doc/longwire` |
+| root helpers | `packaging/longwire-jack` (installed twice, as `jack` and `jack-everything`), `packaging/longwire-site`, their three polkit actions (`packaging/org.longwire.jack.policy`, `packaging/org.longwire.everything.policy`, `packaging/org.longwire.site.policy`), `packaging/longwire.sysusers` | in the package | `/usr/lib/longwire/`, `/usr/share/polkit-1/actions/`, `/usr/lib/sysusers.d/`; manual pages and these documents in `/usr/share/man`, `/usr/share/doc/longwire` |
 
 ```
 please apt install longwire                       # a laptop: the module and the launchers (or dnf / pacman)
@@ -94,7 +94,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.44
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.45
 # modules: longwire
 ```
 
@@ -195,6 +195,6 @@ Measured in the design spike (x86_64, TCC 0.9.27): the complete crypto test harn
 
 ## The module and hibr's ABI
 
-A module built out of tree in this repository against `../hibr/include/hibr.h` loads with `mod load` in hibr 0.99.x
-at **ABI 16**. Nothing in the hibr tree has to change. When hibr's ABI moves, only `module/longwire.c` needs
+A module built out of tree in this repository against `../hibr/include/hibr.h` loads with `mod load` in hibr 0.99.430 and later,
+at **ABI 17** (hibr refuses a module built for another ABI: "abi 16, shell expects 17"; the packages require `HIBR_MIN`). Nothing in the hibr tree has to change. When hibr's ABI moves, only `module/longwire.c` needs
 attention; `engine/` doesn't include `hibr.h` and doesn't care.
