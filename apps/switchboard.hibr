@@ -18,7 +18,7 @@
 
 strict
 
-app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.43
+app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.44
 # modules: longwire
 command -v dt_app > /dev/null && dt_app switchboard "Switchboard" 24 76 once "☎"
 
@@ -436,11 +436,24 @@ fn sw_tokrun(int id, then, ...args) {
 	"$then" 0 $? "$out"
 }
 
+# polkit names the account it asks for ("Authenticating as: ..."): the dialog says that one, short enough to fit.
 fn sw_tokprompt(int n, text) {
+	local line who= name user
 	case $text in *"assword: "|*"assword:") ;; *) return 1 ;; esac
 	[ -n "${DTJ[$n]["asking"]}" ] && return 0
 	DTJ[$n]["asking"]=1
-	dt_ask "Authentication" "Password:" "" sw_tokpw "The switchboard's tokens belong to its service: the administrator's (root) password" 1 76 sw_tokpwno > /dev/null
+	while IFS= read -r line; do
+		case $line in "Authenticating as: "*) who=${line#Authenticating as: } ;; esac
+	done < "$DTJ_DIR/$n.out" 2> /dev/null
+	name=${who%%" ("*}; name=${name%%,*}
+	user=${who##*"("}; user=${user%%")"*}
+	if [ -z "$who" ]; then
+		dt_ask "Password" "Password:" "" sw_tokpw "For the switchboard's tokens" 1 54 sw_tokpwno > /dev/null
+	elif [ "$user" = root ] || [ "$user" = "$who" ]; then
+		dt_ask "Root's password" "Password:" "" sw_tokpw "For the switchboard's tokens" 1 54 sw_tokpwno > /dev/null
+	else
+		dt_ask "Password for ${name:-$user} ($user)" "Password:" "" sw_tokpw "For the switchboard's tokens" 1 54 sw_tokpwno > /dev/null
+	fi
 	return 0
 }
 
@@ -518,7 +531,7 @@ fn sw_tokdelask(int id) {
 	[ "${SWT[$id]["n"]:-0}" -gt 0 ] || { dt_notep low "No token chosen"; return 0; }
 	SW_TOKDEL=${SWT[$id]["t$sel"]%% *}
 	SW_TOKCUR=$id
-	dt_confirm "Remove the token ${SW_TOKDEL:0:8}${GL[ellipsis]}? A machine that has not used it yet can no longer register with it." sw_tokdeldo
+	dt_confirm "Remove token ${SW_TOKDEL:0:8}${GL[ellipsis]}? It stops working." sw_tokdeldo
 }
 
 fn sw_tokdeldo() {
@@ -848,10 +861,10 @@ fn switchboard_key(int id, key) {
 	   SW[$id]["sel"]=0; SW[$id]["top"]=0; return 0 ;;
 	r) [ "${SW[$id]["view"]}" = tokens ] || return 1; SW_TOKCUR=$id; sw_tokrun "$id" sw_toklisted list; return 0 ;;
 	n) [ "${SW[$id]["view"]}" = tokens ] || return 1; SW_TOKCUR=$id; sw_tokrun "$id" sw_tokmade new 1; return 0 ;;
-	T) dt_ask "Tokens file" "File" "$DT_SW_TOKENS" swb_settokens "the switchboard's tokens file (its --tokens); empty to find it"; return 0 ;;
+	T) dt_ask "Tokens file" "File" "$DT_SW_TOKENS" swb_settokens "its --tokens file; empty to find it"; return 0 ;;
 	x | delete) if [ "${SW[$id]["view"]}" = tokens ]; then sw_tokdelask "$id"; else sw_liftask "$id"; fi; return 0 ;;
 	c) command -v dt_editdo > /dev/null && dt_editdo copy; return 0 ;;	# the desktop's own Copy, which asks switchboard_copy
-	s) dt_ask "Switchboard socket" "Socket" "$DT_SW_SOCK" swb_setsock "the worker's control socket; empty for the usual one"; return 0 ;;
+	s) dt_ask "Switchboard socket" "Socket" "$DT_SW_SOCK" swb_setsock "its control socket; empty for the usual"; return 0 ;;
 	*) return 1 ;;
 	esac
 	sel := dt_scrollsel "$sel" "$n"
@@ -878,7 +891,7 @@ fn sw_liftask(int id) {
 	fi
 	SW_LIFT=${SWB[$id]["k$sel"]}
 	SW_LIFTID=$id
-	dt_confirm "Lift the ban on key ${SW_LIFT:0:16}${GL[ellipsis]}? It can call and register again at once." sw_liftdo
+	dt_confirm "Lift the ban on ${SW_LIFT:0:16}${GL[ellipsis]}?" sw_liftdo
 }
 
 fn sw_liftdo() {

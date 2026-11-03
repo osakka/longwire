@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.43
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.44
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.43}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.44}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -650,11 +650,26 @@ fn lwp_setpolicy(p) {
 # `ip tuntap`. The password is asked for here, in the desktop, the way the Networks item asks for its own: pkexec runs on a pty
 # and its "Password:" is answered from a masked dialog.
 
+# The password polkit asks for, in a dialog that says whose: polkit names the account on its own line ("Authenticating as: Omar Sakka,,, (osakka)"),
+# which is set in Control Panel > Administrative Access, so the dialog repeats it rather than guessing. Short, so that it fits.
 fn lwp_pkprompt(int n, text) {
+	local line who= name user what
 	case $text in *"assword: ") ;; *) return 1 ;; esac
 	[ -n "${DTJ[$n]["asking"]}" ] && return 0
 	DTJ[$n]["asking"]=1
-	dt_ask "Authentication" "Password:" "" lwp_pwgive "To create the network device longwire uses, once: the administrator's (root) password" 1 76 lwp_pwcancel > /dev/null
+	while IFS= read -r line; do
+		case $line in "Authenticating as: "*) who=${line#Authenticating as: } ;; esac
+	done < "$DTJ_DIR/$n.out"
+	name=${who%%" ("*}; name=${name%%,*}
+	user=${who##*"("}; user=${user%%")"*}
+	case ${DTJ[$n]["tag"]} in site) what="To make this computer a site node" ;; *) what="To set up longwire's network device" ;; esac
+	if [ -z "$who" ]; then
+		dt_ask "Password" "Password:" "" lwp_pwgive "$what" 1 54 lwp_pwcancel > /dev/null
+	elif [ "$user" = root ] || [ "$user" = "$who" ]; then
+		dt_ask "Root's password" "Password:" "" lwp_pwgive "$what" 1 54 lwp_pwcancel > /dev/null
+	else
+		dt_ask "Password for ${name:-$user} ($user)" "Password:" "" lwp_pwgive "$what" 1 54 lwp_pwcancel > /dev/null
+	fi
 	return 0
 }
 
@@ -925,7 +940,7 @@ fn lwp_ring(call) {
 		nm := lwp_get ".calls[$i].name"
 		LWP_PEND_KIND=pickup
 		LWP_PEND_ARG=$call
-		dt_confirm "$num${nm:+ ($nm, a claim)} rings. The safety phrase comes once you are connected: compare it with theirs. Picking up adds $num to your network: it stays a member, and reconnects by itself, until you evict it. Pick up?" lwp_yes
+		dt_confirm "$num${nm:+ ($nm)} rings. Pick up? It joins your network." lwp_yes
 		return 0
 	done
 	dt_notep low "That call has ended."
@@ -985,15 +1000,15 @@ fn longwire_do(int w, k, int dir) {
 		p := lwp_cur
 		v := cp_next "$p" "$dir" "${LWP_PNAMES[@]}"
 		cp_set_lwprofile "" "$v" ;;
-	sb) p := lwp_cur; dt_ask "Switchboard" "HOST:PORT/KEY" "${LWP_PF[$p.switchboard]-}" lwp_setsb "the switchboard's address, then / and its key" ;;
-	token) dt_ask "Token" "Token" "" lwp_settoken "the invite token your switchboard gave you; empty removes it. It is kept in a file only you can read" 1 ;;
-	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "for jack, the tap (lw0 to lw99, made for you); for splice, the NIC" ;;
-	gateway) p := lwp_cur; dt_ask "Gateway" "Gateway" "${LWP_PF[$p.gateway]-}" lwp_setgateway "a router on the line, like 192.168.152.254, that reaches the networks below; empty for none" ;;
-	dns) p := lwp_cur; dt_ask "Name server" "Address" "${LWP_PF[$p.dns]-}" lwp_setdns "up to three name servers asked through the line for every name while everything goes through it, like 1.1.1.1 9.9.9.9, separated by commas or spaces (needs systemd-resolved); empty for this machine's own, which then sees every name you look up" ;;
-	exitthrough) p := lwp_cur; dt_ask "Through" "Number" "${LWP_PF[$p.exit_through]-}" lwp_setexitthrough "the number of the member to go out through, when more than one shares its internet; empty for the only one (or the lowest number)" ;;
-	routes) p := lwp_cur; dt_ask "Routes" "Networks" "${LWP_PF[$p.routes]-}" lwp_setroutes "networks to reach through the gateway, like 192.168.150.0/24 10.20.0.0/16, separated by commas or spaces (never the default route); empty for none" ;;
-	address) p := lwp_cur; dt_ask "Address" "Address" "${LWP_PF[$p.address]-}" lwp_setaddress "this machine's address on the line, like 10.77.0.2/24 (every machine its own, in one subnet), or dhcp to ask a DHCP server on the line; empty to leave it alone" ;;
-	name) p := lwp_cur; dt_ask "Name" "Name" "${LWP_PF[$p.name]-}" lwp_setname "what callers see (a claim, not proof); empty for none" ;;
+	sb) p := lwp_cur; dt_ask "Switchboard" "HOST:PORT/KEY" "${LWP_PF[$p.switchboard]-}" lwp_setsb "HOST:PORT/KEY, from your switchboard" ;;
+	token) dt_ask "Token" "Token" "" lwp_settoken "your switchboard's invite; empty removes it" 1 ;;
+	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "jack: lw0 to lw99; splice: the network card" ;;
+	gateway) p := lwp_cur; dt_ask "Gateway" "Gateway" "${LWP_PF[$p.gateway]-}" lwp_setgateway "a router on the line; empty for none" ;;
+	dns) p := lwp_cur; dt_ask "Name server" "Address" "${LWP_PF[$p.dns]-}" lwp_setdns "up to 3, like 1.1.1.1 9.9.9.9; empty: your own" ;;
+	exitthrough) p := lwp_cur; dt_ask "Through" "Number" "${LWP_PF[$p.exit_through]-}" lwp_setexitthrough "a member's number; empty: the only one" ;;
+	routes) p := lwp_cur; dt_ask "Routes" "Networks" "${LWP_PF[$p.routes]-}" lwp_setroutes "like 192.168.150.0/24 10.20.0.0/16" ;;
+	address) p := lwp_cur; dt_ask "Address" "Address" "${LWP_PF[$p.address]-}" lwp_setaddress "like 192.168.152.10/24, or dhcp" ;;
+	name) p := lwp_cur; dt_ask "Name" "Name" "${LWP_PF[$p.name]-}" lwp_setname "what callers see; empty for none" ;;
 	newprofile) dt_ask "New profile" "Name" "" lwp_newprofile "letters, digits, . _ -" ;;
 	renprofile) p := lwp_cur; dt_ask "Rename profile" "Name" "$p" lwp_renameprofile "the new name: letters, digits, . _ -" ;;
 	rmprofile)
@@ -1005,7 +1020,7 @@ fn longwire_do(int w, k, int dir) {
 		LWP_PEND_KIND=stopsvc
 		LWP_PEND_ARG=${LWP_SOCK%/ctl}
 		LWP_PEND_ARG=${LWP_PEND_ARG##*/}
-		dt_confirm "Stop the site node on ${LWP_PEND_ARG}? Its calls end, and it will not start again at boot." lwp_yes ;;
+		dt_confirm "Stop the site node on ${LWP_PEND_ARG}? It stays off." lwp_yes ;;
 	lwnode)
 		DT_LW_NODE := cp_next "${LWP_SOCK:--}" "$dir" "${LWP_NODEA[@]}"
 		LWP_T=-100
@@ -1021,7 +1036,7 @@ fn longwire_do(int w, k, int dir) {
 	ring:*) lwp_ring "${k#ring:}" ;;
 	rej:*) lwp_run reject "${k#rej:}"; LWP_T=-100 ;;
 	hang:*) lwp_ask hangup "${k#hang:}" "Hang up on ${k#hang:}?" ;;
-	verify:*) LWP_VNUM=${k#verify:}; dt_ask "Verify $LWP_VNUM" "Their words" "" lwp_verifygo "the eight words the other end shows for this call; if they differ from yours, the call is ended" ;;
+	verify:*) LWP_VNUM=${k#verify:}; dt_ask "Verify $LWP_VNUM" "Their words" "" lwp_verifygo "the 8 words they see; a mismatch ends the call" ;;
 	evict:*) lwp_ask evict "${k#evict:}" "Evict ${k#evict:}? Every member drops it and the line key changes." ;;
 	esac
 	cp_save

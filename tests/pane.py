@@ -20,7 +20,7 @@ fn dt_want(int ms) { return 0; }
 fn dt_ms() { ret "${DRV_MS:-0}"; }
 fn dt_notep(prio, text, ...rest) { printf 'NOTE %%s %%s\n' "$prio" "$text ${rest[*]}" >> "$LOG"; }
 fn dt_confirm(msg, cmd) { printf 'CONFIRM %%s -> %%s\n' "$msg" "$cmd" >> "$LOG"; DRV_CMD=$cmd; }
-fn dt_ask(title, label, value, then, hint = "", ...rest) { printf 'ASK %%s -> %%s\n' "$title" "$then" >> "$LOG"; DRV_THEN=$then; }
+fn dt_ask(title, label, value, then, hint = "", ...rest) { printf 'ASK %%s -> %%s\n' "$title" "$then" >> "$LOG"; printf 'HINT %%s\n' "$hint" >> "$LOG"; DRV_THEN=$then; }
 fn dt_ptyjob(kind, tag, then, prompt, ...cmd) { printf 'PTYJOB %%s\n' "${cmd[*]}" >> "$LOG"; ret 7; }
 fn dt_jobfile(int n, which) { ret "/nonexistent/$n.$which"; }
 fn dt_joblast(int n) { ret ""; }
@@ -123,7 +123,8 @@ def main():
           f"...and it says the safety phrase comes once connected (the ring has none): {ring}")
     key = ringrow[0][3] if ringrow else "ring:x"
     rows, log, r = drive(envB, f'dump 1 > /dev/null; longwire_do 1 "{key}" 1; $DRV_CMD')
-    check(any(l.startswith("CONFIRM") and "comes once you are connected" in l and "Alice, a claim" in l for l in log), f"clicking it asks, and says the phrase comes once connected: {[l for l in log if l.startswith('CONFIRM')]}")
+    check(any(l.startswith("CONFIRM") and "(Alice) rings. Pick up? It joins your network." in l and len(l.split(" -> ")[0]) - 8 <= 60 for l in log),
+          f"clicking it asks in one short line, with the name it gave: {[l for l in log if l.startswith('CONFIRM')]}")
     check(B.w.wait("connected", 20, after=mk) is not None, "answering yes picks up and the call connects")
     time.sleep(1.5)
     rows, log, r = drive(envB, "dump 1")
@@ -311,6 +312,15 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     rows, log, r = drive(envF, 'lwp_pset gateway ""; lwp_pset routes ""; lwp_pset address ""; lwp_pset interface lw9')
     rows, log, r = drive(envF, 'lwp_pset attach splice; longwire_do 1 on 1')
     check(any(l == "PTYJOB longwire site lw9 home" for l in log), f"splice asks for a site node for the card, through the site helper (one password): {log}")
+    # the password dialog says whose password polkit asks for, as polkit names it, and fits its 54 columns
+    os.makedirs(f"{T}/jobs", exist_ok=True)
+    for who, want in (("Omar Sakka,,, (osakka)", "Password for Omar Sakka (osakka)"), ("root", "Root's password")):
+        open(f"{T}/jobs/7.out", "w").write(f"==== AUTHENTICATING FOR org.longwire.jack ====\nAuthentication is required\nAuthenticating as: {who}\nPassword: ")
+        rows, log, r = drive(envF, f'DTJ_DIR={T}/jobs; DTJ[7]["tag"]=jack; lwp_pkprompt 7 "Password: "')
+        title = next((l[4:].split(" -> ")[0] for l in log if l.startswith("ASK ")), "")
+        hint = next((l[5:] for l in log if l.startswith("HINT ")), "")
+        check(title == want and hint == "To set up longwire's network device" and len(title) <= 50,
+              f"the password dialog's title names the account polkit asks for, and its line fits: {title!r} / {hint!r}")
     rows, log, r = drive(envF, 'LWP_SITE=svc9; lwp_sitedone 7 0; echo "NODE $DT_LW_NODE"')
     check(r.stdout.strip().endswith("/longwire/svc9/ctl") and any(l.startswith("NOTE low Site node running") for l in log), f"when it is made, the pane has a note and follows the service: {r.stdout.strip()[-60:]} {log}")
     rows, log, r = drive(envF, 'LWP_SITE=; lwp_sitedone 7 1; echo "NODE [$DT_LW_NODE]"')

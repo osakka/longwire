@@ -3,6 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.44
+
+**Prompts say whose password, and every dialog fits.** The pane's password dialog always said "the administrator's (root) password", even when polkit was
+asking for the person's own (Control Panel > Administrative Access decides which), so the right password was easy to get wrong. It now reads the account polkit
+names on its own "Authenticating as:" line and says it in the title: *Password for Omar Sakka (osakka)*, or *Root's password*; the Switchboard window's token
+prompt does the same. hibr's dialogs are one line and cut what does not fit; every question's hint and every confirmation in the pane, the menu bar and the
+Switchboard window is now short enough for one (the ring: "447-120-933 (Alice) rings. Pick up? It joins your network."), with the detail kept in the docs.
+Tested: the dialog's title from polkit's line, for one's own account and for root, and the ring in one short line (`tests/pane.sh`).
+
 ## 0.5.43
 
 **A refused password is said as one.** When polkit did not accept the password for the jack or site helper, the pane said "Could not make the jack" and the terminal

@@ -60,7 +60,7 @@ The page says **Longwire is off** and shows the connection. These rows are shown
 When the pane, the installed engine and the running node are not the same version it says so at the top (**Out of step**), with what to do; the scripts come from the catalogue and the engine from the package, and a running node keeps its old engine until it is turned off and on.
 
 The first profile you make becomes the default. When you press **Turn on** and the network device has to be made (the first time, and after each restart, because the device does
-not survive one), a dialog asks for your administrator password. It is only for making the device, and polkit remembers an approval for a few minutes. Who is asked, with whose password, whether it is remembered, and whether a group gets it with no password at all, is set in **Control Panel > Administrative Access**, where longwire's two actions (*Create the network device longwire uses on this computer*, `org.longwire.jack`, and *Make this computer a longwire site node*, `org.longwire.site`) are listed beside every other package's; longwire ships no rule of its own. If `pkexec` is not
+not survive one), a dialog asks for a password, and its title says whose: polkit names the account (*Password for Omar Sakka (osakka)* when your own is asked, *Root's password* when it wants root's). It is only for making the device, and polkit remembers an approval for a few minutes. Who is asked, with whose password, whether it is remembered, and whether a group gets it with no password at all, is set in **Control Panel > Administrative Access**, where longwire's two actions (*Create the network device longwire uses on this computer*, `org.longwire.jack`, and *Make this computer a longwire site node*, `org.longwire.site`) are listed beside every other package's; longwire ships no rule of its own. If `pkexec` is not
 installed, or the password is refused, the pane says it could not make the jack and why; `longwire jack` in a terminal prints the full
 instructions, including the two commands to run by hand as root.
 
@@ -101,7 +101,9 @@ modern handset or the classic rotary phone (classic needs hibr 0.99.366 and Blit
 
 When someone rings you, a note appears and a dialog asks:
 
-> 312-884-076 (Alice, a claim) rings. The safety phrase comes once you are connected: compare it with theirs. Picking up adds 312-884-076 to your network: it stays a member, and reconnects by itself, until you evict it. Pick up?
+> 312-884-076 (Alice) rings. Pick up? It joins your network.
+
+Picking up adds the caller to your network (your line): it stays a member, and reconnects by itself, until you evict it. The name is the caller's own claim.
 
 Answer **Yes** to pick up, **No** to leave it. A moment after the call connects, a note tells the **safety phrase**: eight words, the same at both ends, which stay under
 the call in the pane and in the telephone's menu. **Compare them with the caller on another channel.** A match is good evidence that nobody is in the middle
