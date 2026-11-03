@@ -12,6 +12,8 @@ prompt does the same. hibr's dialogs are one line and cut what does not fit; eve
 Switchboard window is now short enough for one (the ring: "447-120-933 (Alice) rings. Pick up? It joins your network."), with the detail kept in the docs.
 Tested: the dialog's title from polkit's line, for one's own account and for root, and the ring in one short line (`tests/pane.sh`).
 
+*Published:* the catalogue (`hibr-apps` `2ec6afa`) and the packages (`hibr-apt` `19549c0`, `hibr-rpm` `67a46eb`, `hibr-arch` `72111f0`). `make check` passed (922 checks).
+
 ## 0.5.43
 
 **A refused password is said as one.** When polkit did not accept the password for the jack or site helper, the pane said "Could not make the jack" and the terminal
