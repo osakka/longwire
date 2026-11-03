@@ -254,7 +254,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 			}
 		}
 	}
-	if (port_open(n, err, errn) || ctl_open(n, err, errn))
+	if (sb_lookup(n, err, errn) || port_open(n, err, errn) || ctl_open(n, err, errn))	/* the switchboard's name before the jack: see sb_lookup */
 		goto fail;
 	if (n->role ? board_open(n, err, errn) : node_init(n, err, errn))
 		goto fail;

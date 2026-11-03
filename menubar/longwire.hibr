@@ -19,7 +19,7 @@
 
 strict
 
-app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.40
+app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.41
 # needs: control-panel/longwire
 
 # The switch (Control Panel > Longwire > Longwire on the Menu Bar, and Menu Bar Items) lives with the pane; the bar reads it.
@@ -160,6 +160,8 @@ fn lwb_phrases() {
 		num := lwp_get ".peers[$i].number"
 		phr := lwp_get ".peers[$i].phrase"
 		[ -n "$num" ] && [ -n "$phr" ] || continue
+		k := lwp_get ".peers[$i].mesh"
+		[ "$k" = true ] && continue		# a member the line brought, with no call a person here made or answered: its phrase is in the menu, not in a note (docs/adr/0057)
 		k="|$num:$phr|"
 		[[ $LWB_PHSAID == *"$k"* ]] && continue
 		LWB_PHSAID+=$k

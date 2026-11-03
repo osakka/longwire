@@ -35,7 +35,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.40
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.41
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -212,10 +212,12 @@ tidy() {
 	if [ $d -ne $day_now ] || [ ${#seend[@]} -gt 100000 ]; then seend=(); day_now=$d; fi
 }
 
-# Take a token out of the file: prints the reserved number, if it has one. Fails when the token isn't there, or the file cannot be
-# written (a token must never be good twice). Blank lines and lines that begin with # are kept and are never tokens.
-spend_token() {
-	local want=$1 line tok num found=1 out=
+# Look a token up (look), or take it out of the file (spend): prints the reserved number, if it has one. Fails when the token isn't there, or,
+# spending, when the file cannot be written (a token must never be good twice). A token is looked up before the engine is answered and spent
+# only once the engine says the node has its number: a verdict that came too late, or a registration that failed, leaves the token for the
+# node's next try. Blank lines and lines that begin with # are kept and are never tokens.
+token() {
+	local how=$1 want=$2 line tok num found=1 out=
 	while IFS= read -r line || [ -n "$line" ]; do		# (a last line with no newline is a line too)
 		case $line in
 		''|'#'*) out="$out$line
@@ -236,7 +238,7 @@ spend_token() {
 "
 		fi
 	done < "$tokens"
-	if [ $found -eq 0 ]; then			# written whole beside the file, then put in its place: a crash keeps every token
+	if [ $found -eq 0 ] && [ "$how" = spend ]; then	# written whole beside the file, then put in its place: a crash keeps every token
 		printf '%s' "$out" > "$tokens.new" && mv "$tokens.new" "$tokens" || return 1
 	fi
 	return $found
@@ -261,8 +263,12 @@ on_register() {
 		lw sb reply "${e[id]}" refuse "too many registrations from this address" > /dev/null; return
 	fi
 	if [ -n "$tokens" ]; then
-		if num=$(spend_token "${e[token]}"); then
-			if [ -n "$num" ]; then lw sb reply "${e[id]}" accept "$num" > /dev/null; else lw sb reply "${e[id]}" accept > /dev/null; fi
+		if num=$(token look "${e[token]}"); then
+			local out
+			if [ -n "$num" ]; then out=$(lw sb reply "${e[id]}" accept "$num"); else out=$(lw sb reply "${e[id]}" accept); fi
+			case $out in
+			*'"registered"'*) token spend "${e[token]}" > /dev/null || echo "token        could not be taken out of $tokens: it is still good" >&2 ;;
+			esac
 		else
 			lw sb reply "${e[id]}" refuse "a valid token is needed to register here" > /dev/null
 		fi

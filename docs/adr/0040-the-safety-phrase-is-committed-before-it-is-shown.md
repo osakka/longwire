@@ -1,6 +1,6 @@
 # 0040 — The safety phrase is committed to before it is shown
 
-Status: accepted; stage 1 built in 0.5.21 (the commitment, the exchange, the eight words, `--require-sas`). Stage 2, holding an unconfirmed call off the line *(planned: M8)*, is not built.
+Status: accepted; stage 1 built in 0.5.21, roles amended by [0057](0057-the-safety-phrase-belongs-to-the-session.md) (the lower key id commits, once per session) (the commitment, the exchange, the eight words, `--require-sas`). Stage 2, holding an unconfirmed call off the line *(planned: M8)*, is not built.
 
 ## Context
 

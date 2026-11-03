@@ -1,6 +1,6 @@
 # 0055 — No legacy, no backwards compatibility
 
-Status: accepted; built in 0.5.38. Supersedes the compatibility parts of [0040](0040-the-safety-phrase-is-committed-before-it-is-shown.md), [0052](0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md) and [0053](0053-the-switchboard-has-ports-of-its-own.md).
+Status: accepted; built in 0.5.38; which calls have a phrase amended by [0057](0057-the-safety-phrase-belongs-to-the-session.md) (every session reached through a switchboard has one). Supersedes the compatibility parts of [0040](0040-the-safety-phrase-is-committed-before-it-is-shown.md), [0052](0052-the-strong-phrase-is-the-default-the-echo-has-a-budget-tokens-are-128-bits.md) and [0053](0053-the-switchboard-has-ports-of-its-own.md).
 
 ## Context
 

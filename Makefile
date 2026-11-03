@@ -58,6 +58,7 @@ check: all lint
 	sh tests/doctor.sh
 	sh tests/site.sh
 	sh tests/tokens.sh
+	sh tests/policy.sh
 	sh tests/bar.sh
 	sh tests/man.sh
 	sh tests/fuzz.sh

@@ -147,6 +147,14 @@ def main():
     out = start("--sock-port", f"{T}/z/p:{T}/z/h", "--exit-mac", "01:00:5e:00:00:01")
     check("MAC address like" in out, f"--exit-mac refuses a group address: {out.strip()[:120]}")
 
+    # --- the switchboard's name is looked up before the jack is attached: once a jack takes everything, there is no way out to look it up -----
+    os.makedirs(f"{T}/z2", exist_ok=True)
+    r = subprocess.run([HIBR, "-c", f"mod load {MOD}; lw start --seed {T}/z2/seed --sock {T}/z2/ctl --state {T}/z2 --switchboard nosuchhost.invalid:6741/{sba} "
+                        f"--sock-port {T}/z2/p:{T}/z2/h || echo \"ERR $ERRMSG\""], capture_output=True, text=True)
+    out = r.stdout + r.stderr
+    check("cannot resolve nosuchhost.invalid" in out and not os.path.exists(f"{T}/z2/p"),
+          f"a switchboard name is looked up before the port is attached: it fails with the port never opened ({out.strip()[:90]})")
+
     L.finish("exit")
 
 

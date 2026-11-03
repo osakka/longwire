@@ -65,11 +65,10 @@ typedef struct frag {		/* frames being put back together, per peer */
 	struct { int used; uint16_t id; int total, got; double t; uint8_t buf[FRAME_MAX]; } s[4];
 } frag;
 
-typedef struct lw_sas {			/* the committed safety phrase of one call (docs/adr/0040) */
-	int      mode;			/* 0 no call of ours made this peer, 1 the committed phrase, 2 the old one (the other end did not answer: it is older, or something drops its messages) */
-	int      caller, state;		/* state: 0 waiting, 1 the phrase is known, 2 refused */
-	int      auto_;			/* a mesh call to a fellow member: admitted by the line, no phrase needed */
-	uint8_t  na[16], nb[16], c[32];	/* the caller's nonce and its commitment, the callee's nonce */
+typedef struct lw_sas {			/* the committed safety phrase of a peer's session (docs/adr/0040, 0057): one per peer, whatever calls led to it */
+	int      mode;			/* 0 not started (a peer named by its bundle, or no session yet), 1 the exchange runs or ran */
+	int      caller, state;		/* caller: this end commits first, which is the end with the lower key id (both ends know both); state: 0 waiting, 1 the phrase is known, 2 refused */
+	uint8_t  na[16], nb[16], c[32];	/* the committing end's nonce and its commitment, the other end's nonce */
 	int      have_na, have_nb, have_c;
 	uint8_t  bind[32];		/* what both ends of this session share and a node in the middle does not */
 	int      tries;
@@ -328,6 +327,8 @@ struct lw_node {
 	struct { uint64_t id; double tok, t; } echol[SRC_BUCKETS];	/* per-source budget for the echo port (docs/adr/0052) */
 	double   echo_gtok, echo_gt;	/* and one for everyone */
 	uint64_t echo_shed;
+	struct sockaddr_storage sb_pre;	/* the switchboard's address, looked up before the jack is attached (sb_pre_len 0: not yet) */
+	socklen_t sb_pre_len;
 	int      exit_pi;		/* the member used as the exit, a peer index; -1 none (docs/adr/0056) */
 	char     exit_using[NUMLEN + 1];	/* its number, as last told in an event ("" none) */
 	int      exit_told;		/* an exit event has been emitted at least once */
@@ -371,6 +372,7 @@ lw_peer *peer_by_key(lw_node *n, const uint8_t key_id[32]);
 lw_peer *peer_for_unknown(lw_node *n, const uint8_t key_id[32]);	/* switchboard: a stranger that offered itself */
 void peer_drop(lw_node *n, lw_peer *p);
 int  ctl_msg_send(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *payload, size_t len);
+int  sb_lookup(lw_node *n, char *err, size_t errn);
 
 /* site.c: boxes sharing one LAN segment elect one to forward */
 int  site_init(lw_node *n, char *err, size_t errn);

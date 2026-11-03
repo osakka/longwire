@@ -3,6 +3,28 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.41
+
+**Send everything through the line no longer stops a node from starting.** With *Send everything through the line* on, `longwire on` failed with "cannot resolve"
+the switchboard's name: the engine attached the jack first, and a jack that takes everything takes the name lookup too, with no call up yet to carry it. The
+switchboard's name is now looked up before the jack is attached (`tests/exit.sh` checks the order: a name that cannot be looked up fails with the port never
+opened). The script read the status twice where it checks a node that is starting, and a node that was failing could be gone between the two reads ("hibr: json:
+malformed input"); it reads it once.
+
+**The safety phrase belongs to the session: calls no longer end themselves** ([ADR 0057](docs/adr/0057-the-safety-phrase-belongs-to-the-session.md)). The exchange was
+started per call, with the call's direction as the roles and its kind deciding whether a phrase was wanted. Two members that dialled each other at once, or a person's call
+to a member whose session had dropped (admitted by the line at the other end), left one end waiting for a phrase the other was not giving, and since 0.5.38 that ended the
+call after five seconds. Now one exchange per peer starts in one place when its session is up; the end with the lower key id commits, which both ends decide alike; every
+session reached through a switchboard has a phrase, a fellow member's and a relayed one included (status `sas`: `agreed`, `pending`, or `none` for a peer named by its
+bundle); an end gets 10 s of retries, and is judged as refusing only if it is still talking in the second half of them (one that went silent
+is reported lost, as before). The `sas` event and each peer carry `mesh`, and the desktop interrupts only for calls a person made or answered. Tested: the roles,
+the one start and crossed calls (`tests/sas.sh`), a relayed session agreeing at both ends (`tests/m3b.sh`), `tests/m1.sh`, where it showed, run repeatedly.
+
+**A token is spent only once its node has a number, and a slow policy no longer bans anyone.** The switchboard's script took a token out of its file and then answered
+the engine, which waited 2 s for it. A script slower than that (a busy machine) had its answer dropped: the token was gone, the node had no number, and each retry was
+refused for want of a token and struck until the node was banned. Now an accept answers with what happened (`{"registered":"NUMBER"}` or `{"refused":"WHY"}`), and the
+script looks a token up, answers, and spends it only on `registered`; the engine waits 10 s for a verdict, and refusing because none came earns no strike.
+
 ## 0.5.40
 
 **Built for hibr's module ABI 17.** hibr 0.99.430 refuses a module built for ABI 16 ("abi 16, shell expects 17"), which the engine of 0.5.39 and earlier is: after

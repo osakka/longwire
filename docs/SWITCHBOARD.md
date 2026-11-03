@@ -32,7 +32,7 @@ connected, the switchboard can go away and the call stays up.
   back, as long as the switchboard still has its record.
 - **Tokens (optional).** A private switchboard can require an invite token to register (`--tokens FILE`). A token
   can carry a reserved number, so only the key that presents that token can have that number; the token is spent
-  when it is used.
+  once that key has its number.
 - **Released after a year unheard, then held.** The registry keeps the time each number was last heard (a `seen` line in
   `numbers.log`, at most once an hour per node). A number unheard for `--release-after` (a year) is released: it stops
   ringing and the switchboard emits `number-released`. It is then **held back** for as long again, and no stranger can
@@ -71,11 +71,13 @@ A node counts as **online** if its session is up and it has been heard from in t
 adds its own observation (the address it sees each side at) to every candidate list, since that is the best candidate
 there is. A ring that nobody answers is dropped after 65 seconds with `REJECTED` (no answer).
 
-**Policy is a script's decision.** With `--policy script` the worker emits an event, and waits up to 2 seconds for the
-script's verdict before refusing:
+**Policy is a script's decision.** With `--policy script` the worker emits an event, and waits up to 10 seconds for the
+script's verdict before refusing; that refusal is the switchboard's own doing and earns the node no strike, and the node asks again:
 
 - `register`: a key it has not seen before wants a number (`id`, `key_id`, `ip`, `net`, `token`, and the `name` it announced and whether it is `listed`). The script answers
-  `lw sb reply ID accept [NUMBER]` or `lw sb reply ID refuse REASON...`.
+  `lw sb reply ID accept [NUMBER]` or `lw sb reply ID refuse REASON...`. An accept answers with what happened: `{"registered":"NUMBER"}`, or
+  `{"refused":"WHY"}` (the number reserved for the token is taken, none is left, ...). The shipped script looks a token up, answers, and takes the
+  token out of its file only on `registered`: a verdict that came too late, or a registration that failed, leaves the token good for the node's next try.
 - `register` with `switchboard` true: another switchboard asks this registry for its code (`id`, `key_id`, `ip`, `net`). The shipped script
   allows `--codes-per-ip-day` of them (default 2) per address.
 - `dial`: a registered node rings another (`id`, `from`, `to`, `ip`, `net`). The script answers `lw sb reply ID accept` or
@@ -93,7 +95,7 @@ answers with this policy:
 |---|---|---|
 | `--listen PORT\|ADDR:PORT\|[ADDR]:PORT` | `6741` | where to listen (UDP): a bare port is IPv4 and IPv6 on any address, `ADDR:PORT` IPv4 only, `[ADDR]:PORT` IPv6 only, and a comma separates several ([ADR 0027](adr/0027-ipv6-is-a-second-socket.md)). It also answers `ECHO` on its echo port, the listen port + 2747 (9488 for 6741), so a node can tell what kind of NAT it is behind; let both through a firewall, and keep them free when running several on one host. The echo port is IPv4 only; if it is taken the switchboard runs without it, every node then reports its NAT as `unknown`, and a node that cannot reach the switchboard is told its host is silent |
 | `--group NAME\|GID` | none | give the control socket to that group at mode 0660 ([ADR 0032](adr/0032-the-services-share-their-control-socket-with-a-group.md)); the service uses `longwire`. Without it only the user it runs as may use the socket |
-| `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when used. A spent or unknown token: `a valid token is needed to register here`. A token is visible characters with no spaces, quotes, backslashes or leading `#` (1 to 63); anything else is refused before the script sees it. Lines that are blank or begin with `#` are kept and are never tokens. The file is rewritten whole, beside itself, and moved into place, so **the file must be in a directory the service can write** (for the unit, its state directory, `/var/lib/longwire-switchboard`; the unit cannot write `/etc`): if it cannot be written the token is not spent, and the registration is refused. `longwire-switchboard token new [N] \| list \| remove TOKEN [--tokens FILE] [--state DIR]` makes, lists and removes tokens with no switchboard running; without `--tokens` it works on `$SB_DIR/tokens` (`~/.longwire/switchboard/tokens`), so for the service always say `--tokens /var/lib/longwire-switchboard/tokens` |
+| `--tokens FILE` | open registration | a token per line, `TOKEN` or `TOKEN NUMBER` (that token reserves that number). A token is spent when the node it let in has its number (not before: a late verdict or a failed registration leaves it good). A spent or unknown token: `a valid token is needed to register here`. A token is visible characters with no spaces, quotes, backslashes or leading `#` (1 to 63); anything else is refused before the script sees it. Lines that are blank or begin with `#` are kept and are never tokens. The file is rewritten whole, beside itself, and moved into place, so **the file must be in a directory the service can write** (for the unit, its state directory, `/var/lib/longwire-switchboard`; the unit cannot write `/etc`): if it cannot be written the token is not spent, and the registration is refused. `longwire-switchboard token new [N] \| list \| remove TOKEN [--tokens FILE] [--state DIR]` makes, lists and removes tokens with no switchboard running; without `--tokens` it works on `$SB_DIR/tokens` (`~/.longwire/switchboard/tokens`), so for the service always say `--tokens /var/lib/longwire-switchboard/tokens` |
 | `--per-ip-hour N` | 20 | registrations per source per hour (`net` in the event: an IPv4 address, or an IPv6 /64) |
 | `--rings-per-minute N` | 6 | rings per callee per minute |
 | `--state DIR` | `$SB_DIR`, else `~/.longwire/switchboard` | the seed, the control socket, `numbers.log`, `names.log`, `codes.log` |
@@ -153,7 +155,7 @@ Everything the switchboard does not do yet is marked where it is described and l
   pays the extra round trip. A handshake costs a few milliseconds of CPU under TCC (about 5 ms for both ends together, [CRYPTO §6](CRYPTO.md#6-measured)), most of it on the responder.
 - **Abuse limits:** registrations per source (an IPv4 address, or an IPv6 /64) per hour and rings per callee per minute (the
   script); the handshake budget, 10 control messages a second from a session, one registration in five seconds, a dial every
-  two seconds (the worker); one registration pending per asker and at most a line's worth (16) of dials or calls, 100,000 numbers (`--max-numbers`).
+  two seconds, 10 seconds for the script's verdict (the worker); one registration pending per asker and at most a line's worth (16) of dials or calls, 100,000 numbers (`--max-numbers`).
   The script empties its counters every hour and day.
 - **One switchboard per deployment.** Numbers are local to it. Federation (`number@sb`), redundancy and a larger number space *(planned: M9)*.
 

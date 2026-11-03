@@ -13,6 +13,11 @@ Tokens are secrets: leave them out of what you send.
 Nothing is wrong. `longwire up` *is* the node: it stays in the foreground and prints events as they happen. Use another terminal for
 commands, or start it in the background with `longwire on`. Ctrl-C stops the node.
 
+**"cannot resolve HOST" with Send everything on, and it starts with it off.**
+Before 0.5.41 the node looked up the switchboard's name after attaching the jack, and a jack that takes everything takes name lookups too, with no
+way out yet. 0.5.41 looks it up first. Update the package (the engine). If it still says so, the name really does not resolve on this machine:
+`getent hosts HOST` with longwire off, or use the switchboard's address in the profile.
+
 **`lw start: need --splice NIC, --jack TAPNAME (or --sock-port LOCAL:PEER for tests)`**
 No attach mode was given. Save a connection that has one (`longwire profile set home … attach=jack interface=lw0`) and use
 `longwire on`, or fill in **Attach** and **Interface** in Control Panel → Longwire.

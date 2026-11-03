@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "November 2026" "longwire 0.5.40" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "November 2026" "longwire 0.5.41" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
@@ -51,7 +51,7 @@ Registration needs a token: one per line,
 or
 .BR "TOKEN NUMBER" ,
 where the second form reserves that number for that token.
-A token is spent when it is used.
+A token is spent once the node it let in has its number: a late verdict or a failed registration leaves it good.
 A token is visible characters with no spaces, quotes or backslashes, and does not begin with
 .BR # .
 Lines that are blank or begin with
@@ -89,7 +89,7 @@ Failures on an authenticated session, within
 .BR \-\-strike\-window
 seconds (default 600), that earn a ban (default 10; 0 turns bans off).
 A refused registration counts two; a malformed registration, a dial faster than the limit and a dial of a number that does not exist one each; a control message over the session's budget a quarter.
-A registration repeated within 5 seconds on one session is ignored, not counted.
+A registration repeated within 5 seconds on one session is ignored, not counted, and a refusal because the policy script did not answer within 10 seconds is the switchboard's doing and is not counted either.
 Nothing before the handshake ever counts: a spoofed address cannot get anyone banned.
 .TP
 .BI \-\-strike\-window " S"

@@ -41,7 +41,7 @@ are worth knowing:
   values, and had to commit before it knew the other number: there is nothing to search offline. Each attempt is one call somebody sees, and it succeeds with probability about 2^-64.
 - **You compare it after connecting.** The phrase needs the session, so it appears a moment after the call connects, on both ends (the ring shows none). Compare it on another channel and **hang up at once if the words differ**. The call is already on the line
   at that point; holding the call off the line until the words are confirmed is not built *(planned: M8)*.
-- **No exchange, no call.** If the other end does not answer the exchange within five seconds (a node older than 0.5.21, or something on the path that drops its messages), the call is ended as soon as anything arrives from that end (an end that sends nothing is left to the dead-peer timer): there is no weaker phrase to fall back to ([ADR 0055](adr/0055-no-legacy.md)). A mesh call to a fellow member, or a relayed call between members, needs no phrase: the line's signatures admitted them. A callee also ends the call if the caller's reveal does not match its commitment, or does not come within 20 seconds.
+- **Every session has one, and no exchange means no call.** Every peer reached through a switchboard, a fellow member or a relayed one included, agrees a phrase once its session is up; the end with the lower key id commits, so both ends take their part alike whatever calls crossed ([ADR 0057](adr/0057-the-safety-phrase-belongs-to-the-session.md)). If the other end keeps talking but does not take part within ten seconds (something on the path drops its messages), the call is ended (an end that has gone silent is left to the dead-peer timer): there is no weaker phrase to fall back to ([ADR 0055](adr/0055-no-legacy.md)). The call also ends if the reveal does not match its commitment, or does not come within 20 seconds. The desktop interrupts only for calls a person made or answered; a member the line brought shows its phrase in the pane and the menu.
 - **Let longwire compare.** `longwire verify NUMBER WORDS…` (or **Verify…** in the pane) takes the other end's words and compares them for you; a difference ends the call and forgets the key, and a match is remembered with the key ([ADR 0054](adr/0054-a-phrase-is-checked-by-typing-the-other-ends-words.md)).
 - **After the first call it is moot.** The key is pinned. If the same number later answers with another key, the call is dropped and you
   are warned.
@@ -86,7 +86,7 @@ That is the honest sentence behind the word.
 ## What has been done to check it
 
 - **A test suite that builds real networks.** It runs the actual scripts over unprivileged network namespaces with simulated
-  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (898 checks in the run for 0.5.40).
+  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (910 checks in the run for 0.5.41).
 - **An attack on the switchboard,** the one component built to face the public. Before it was released, three readers went through every parser a stranger's bytes can
   reach. It found real flaws, three of them proven by tests that failed on the old code: strangers able to fill the switchboard's
   places for good, a registration token able to write into the policy script's event, and a switchboard able to connect a call nobody

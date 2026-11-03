@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.40
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.41
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.40}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.41}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -142,7 +142,8 @@ announce() {
 	line-complete)    say "·  the line is a full mesh (${e[members]} members)" ;;
 	connected)        if [ "${e[path]}" = relay ]; then say "✓  connected to ${e[number]} through a relay (${e[via]}): no direct path yet, still trying"
 	                  else say "✓  connected to ${e[number]} (${e[path]}, ${e[ep]})"; fi ;;
-	sas)              say "   safety phrase: ${e[phrase]}   Compare it with theirs now; hang up if it differs" ;;
+	sas)              if [ "${e[mesh]}" = true ]; then say "·  safety phrase with ${e[number]}, a member of your line: ${e[phrase]}   (longwire verify ${e[number]} WORDS checks it)"
+	                  else say "   safety phrase with ${e[number]}: ${e[phrase]}   Compare it with theirs now; hang up if it differs"; fi ;;
 	sas-failed)       say "✗  the safety phrase could not be agreed with ${e[number]}: ${e[reason]}. The call was ended" ;;
 	path)             say "·  ${e[number]} is now ${e[path]} (${e[ep]}): the relay is no longer needed" ;;
 	call-failed)      say "✗  call failed: ${e[reason]}" ;;
@@ -418,11 +419,10 @@ cmd_doctor() {
 cmd_show() {
 	local i cnt n num st path age rx tx t members id calls we state nm phr notes line k
 
-	if ! lw status > /dev/null 2>&1; then
+	if ! LWST=$(lw status 2> /dev/null) || [ -z "$LWST" ] || ! json parse S "$LWST" 2> /dev/null; then	# read once: a node that is failing can be gone a moment later
 		echo "longwire is off.   longwire on   turns it on"
 		return 0
 	fi
-	json parse S "$(lw status)"
 	n=${S[full]:-}
 	profiles_read
 	if [ -n "$n" ]; then
@@ -818,8 +818,7 @@ cmd_off() {
 # Start the node in the background and say how it went: the number it was given, or why not.
 cmd_on() {
 	local n=${1:-} i notes line
-	if lw status > /dev/null 2>&1; then
-		json parse S "$(lw status)"
+	if LWST=$(lw status 2> /dev/null) && [ -n "$LWST" ] && json parse S "$LWST" 2> /dev/null; then
 		echo "longwire: already on${S[number]:+: your number is ${S[number]}}"
 		notes=$(engine_notes "${S[version]:-}")
 		[ -z "$notes" ] || printf '%s\n' "$notes" | while IFS= read -r line; do echo "longwire: ⚠  $line" >&2; done
@@ -844,8 +843,7 @@ cmd_on() {
 	printf '%s\n' "$n" > "$LW_DIR/on-profile"		# for `off`, which takes the jack away if this profile says so
 	nohup setsid "${LONGWIRE_HIBR:-hibr}" "$0" up --profile "$n" >> "$LW_DIR/log" 2>&1 < /dev/null &
 	for ((i = 0; i < 150; i++)); do			# up to 15 s for the switchboard to give a number
-		if lw status > /dev/null 2>&1; then
-			json parse S "$(lw status)"
+		if LWST=$(lw status 2> /dev/null) && [ -n "$LWST" ] && json parse S "$LWST" 2> /dev/null; then	# read once: a node that fails to start answers for a moment
 			if [ -n "${S[number]:-}" ]; then echo "longwire: on, your number is ${S[number]}   (profile $n)"; return 0; fi
 		fi
 		sleep 0.1
@@ -1069,8 +1067,7 @@ verify_set() {
 # here, so that nobody compares by eye. A match is recorded; a difference ends the call and forgets the number's key (docs/adr/0054).
 cmd_verify() {
 	local i cnt num phr kid st want have mark found= k
-	lw status > /dev/null 2>&1 || { echo "longwire: it is off.  longwire on" >&2; exit 1; }
-	json parse S "$(lw status)"
+	{ LWST=$(lw status 2> /dev/null) && [ -n "$LWST" ] && json parse S "$LWST" 2> /dev/null; } || { echo "longwire: it is off.  longwire on" >&2; exit 1; }
 	cnt := json len S .peers
 	if [ $# -eq 0 ]; then
 		for ((i = 0; i < ${cnt:-0}; i++)); do
@@ -1083,7 +1080,7 @@ cmd_verify() {
 			verify_has "$num" "$kid" && mark="verified"
 			if [ -z "$phr" ]; then
 				k := json get S ".peers[$i].sas"
-				if [ "$k" = line ]; then echo "$num  no phrase needed: admitted by your line"; else echo "$num  ($st) no safety phrase yet"; fi
+				if [ "$k" = none ]; then echo "$num  no safety phrase: named by its bundle, not reached through a switchboard"; else echo "$num  ($st) no safety phrase yet"; fi
 				continue
 			fi
 			echo "$num  $mark  $phr"

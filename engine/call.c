@@ -671,6 +671,24 @@ static int pin_remove(lw_node *n, const char *num)
 }
 
 /* Register with a switchboard given as HOST:PORT/KEY (for a switchboard worker: the registry of codes). */
+/* A node's switchboard is looked up before the jack is attached: once a node holds a jack that takes everything (docs/adr/0045, 0056), every
+ * packet of the machine goes into the line, name lookups too, and there is no way out through it until a call is up. */
+int sb_lookup(lw_node *n, char *err, size_t errn)
+{
+	char hp[200];
+	const char *spec = n->cfg.switchboard, *slash = strrchr(spec, '/');
+
+	if (n->role || !spec[0] || !slash || (size_t)(slash - spec) >= sizeof hp)
+		return 0;			/* nothing to look up, or sb_connect says what is wrong with it */
+	snprintf(hp, sizeof hp, "%.*s", (int)(slash - spec), spec);
+	if (lw_resolve(hp, &n->sb_pre, &n->sb_pre_len)) {
+		n->sb_pre_len = 0;
+		snprintf(err, errn, "cannot resolve %s", hp);
+		return -1;
+	}
+	return 0;
+}
+
 int sb_connect(lw_node *n, const char *spec, char *err, size_t errn)
 {
 	char hp[200];
@@ -691,7 +709,10 @@ int sb_connect(lw_node *n, const char *spec, char *err, size_t errn)
 		snprintf(err, errn, "peer table full");
 		return -1;
 	}
-	if (lw_resolve(hp, &p->ep, &p->eplen)) {
+	if (n->sb_pre_len && !n->role) {		/* looked up before the jack was attached (sb_lookup) */
+		memcpy(&p->ep, &n->sb_pre, sizeof p->ep);
+		p->eplen = n->sb_pre_len;
+	} else if (lw_resolve(hp, &p->ep, &p->eplen)) {
 		snprintf(err, errn, "cannot resolve %s", hp);
 		return -1;
 	}
@@ -1100,14 +1121,26 @@ lw_peer *peer_by_number(lw_node *n, const char *num)
  *   callee -> caller   3                 acknowledged
  * Both then derive eight words from na, nb, the two key ids and the session's own binding. A node that is in the middle of two sessions had to commit
  * before it knew the other nonce, so it has no search to run. A node that does not answer within five seconds is taken to be older: the old phrase. */
-#define SAS_WAIT 5.0
+#define SAS_WAIT 10.0			/* the exchange is retried every second; an end that keeps talking and never takes part in it for this long is not doing it */
+
+/* Whether a person here made or answered a call to this peer: a mesh call to a fellow member, dialled or admitted without anyone, is not. It decides only what
+ * the desktop puts in front of the person (docs/adr/0057); the exchange itself is the same for every peer. */
+static int peer_mesh(lw_node *n, const lw_peer *p)
+{
+	int i, idx = (int)(p - n->peers);
+
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state != CALL_IDLE && n->calls[i].peer == idx && !n->calls[i].auto_)
+			return 0;
+	return 1;
+}
 
 static void sas_ev(lw_node *n, lw_peer *p)
 {
 	char f[16];
 
 	fmt_number(f, p->number);
-	ev_emit(n, "{\"event\":\"sas\",\"number\":\"%s\",\"phrase\":\"%s\"}", f, p->sas.words);
+	ev_emit(n, "{\"event\":\"sas\",\"number\":\"%s\",\"phrase\":\"%s\",\"mesh\":%s}", f, p->sas.words, peer_mesh(n, p) ? "true" : "false");
 }
 
 static void sas_fail(lw_node *n, lw_peer *p, const char *why)
@@ -1126,31 +1159,26 @@ static void sas_fail(lw_node *n, lw_peer *p, const char *why)
 	peer_drop(n, p);
 }
 
-/* The other end did not do the committed phrase (an old node, or something on the way stripped it): the call ends. A mesh call to a fellow member is admitted by
- * the line's signatures and needs no phrase: it goes on, with none (docs/adr/0055). */
+/* The other end keeps talking but never takes part in the exchange: something on the way strips it, or it is not longwire as we know it. The call ends (docs/adr/0055).
+ * Keeps talking means heard from in the second half of the wait: an end that said something just as the session came up and then went silent has gone, and
+ * the dead-peer timer says so (call-lost). Until it speaks again it is not judged. */
 static void sas_none(lw_node *n, lw_peer *p)
 {
-	if (!p->sas.auto_) {
-		if (p->last_rx <= p->sas.born)
-			return;		/* nothing at all from the other end since the call came up: it may be gone, and the dead-peer timer says so (call-lost); judged when it speaks */
-		sas_fail(n, p, "the other end did not do the safety phrase exchange (a node older than 0.5.21, or something on the way stripped it)");
+	if (p->last_rx <= p->sas.born + SAS_WAIT / 2)
 		return;
-	}
-	p->sas.mode = 2;
-	p->sas.state = 0;
-	p->sas.words[0] = 0;
+	sas_fail(n, p, "the other end did not take part in the safety phrase exchange");
 }
 
-/* The session of a call is up: the exchange starts (the caller speaks first). */
-static void sas_start(lw_node *n, lw_peer *pe, lw_call *c)
+/* A peer reached through the switchboard has its session: the exchange starts, once for the peer, whatever calls led to it, crossed or not (docs/adr/0057).
+ * Which end commits first is decided by the two key ids, which both ends know alike; a call's direction can differ between the ends. */
+static void sas_start(lw_node *n, lw_peer *pe)
 {
 	memset(&pe->sas, 0, sizeof pe->sas);
 	pe->sas.mode = 1;
-	pe->sas.caller = c->we_caller;
-	pe->sas.auto_ = c->auto_;
+	pe->sas.caller = memcmp(n->id.key_id, pe->key_id, 32) < 0;
 	pe->sas.born = n->now;
 	sas_bind_of(pe->sas.bind, &pe->cur);
-	if (c->we_caller) {
+	if (pe->sas.caller) {
 		uint8_t m[33];
 
 		lw_rand(pe->sas.na, 16);
@@ -1230,6 +1258,8 @@ void sas_timers(lw_node *n)
 	for (i = 0; i < n->maxpeers; i++) {
 		lw_peer *p = &n->peers[i];
 
+		if (p->used && !p->is_sb && p->number[0] && p->cur.valid && p->sas.mode == 0)
+			sas_start(n, p);		/* the one place it starts: a peer of a call, direct or relayed, with its session up */
 		if (!p->used || p->sas.mode != 1 || !p->cur.valid)
 			continue;
 		if (p->sas.caller) {
@@ -1757,7 +1787,6 @@ void node_timers(lw_node *n)
 
 				fmt_number(f, c->number);
 				addr_str(&pe->ep, ep, sizeof ep);
-				sas_start(n, pe, c);			/* the committed phrase follows in a moment (sas) */
 				pin_add(n, c->number, pk);		/* the session is proven; the number now belongs to this key */
 				c->state = CALL_UP;
 				ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"direct\",\"ep\":\"%s\"}", f, ep);
@@ -2101,14 +2130,15 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		addr_str(&p->ep, ep, sizeof ep);
 		len += snprintf(o + len, cap - (size_t)len,
 			"%s{\"key_id\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"path\":\"%s\",\"ep\":\"%s\",\"age\":%d,"
-			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu,\"phrase\":\"%s\",\"sas\":\"%s\",\"exit\":%s}",
+			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu,\"phrase\":\"%s\",\"sas\":\"%s\",\"mesh\":%s,\"exit\":%s}",
 			any ? "," : "", kid, f, sess_state(p), p->relayed ? "relay" : "direct", ep,
 			p->cur.valid ? (int)(n->now - p->cur.born) : -1,
 			(unsigned long long)p->rx_frames, (unsigned long long)p->tx_frames,
 			(unsigned long long)p->rx_bytes, (unsigned long long)p->tx_bytes,
 			(unsigned long long)p->rekeys, (unsigned long long)p->drop_auth,
 			(unsigned long long)p->drop_replay, p->sas.mode == 1 && p->sas.state == 1 ? p->sas.words : "",
-			p->sas.mode == 1 ? (p->sas.state == 1 ? "agreed" : "pending") : "line",	/* "line": a member admitted by the line, or relayed: no phrase (docs/adr/0055) */
+			p->sas.mode == 1 ? (p->sas.state == 1 ? "agreed" : "pending") : "none",	/* "none": a peer named by its bundle, with no switchboard call (docs/adr/0057) */
+			peer_mesh(n, p) ? "true" : "false",
 			p->exit_seen > 0 && n->now - p->exit_seen <= EXIT_STALE ? "true" : "false");
 		any = 1;
 	}

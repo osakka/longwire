@@ -16,6 +16,7 @@
 #define PRESENT 80.0			/* a node is online if it was heard this recently */
 #define MAXPEND 256
 #define MAXCALLS 256
+#define POLICY_WAIT 10.0		/* how long the policy script has for a verdict: a script on a busy machine is slow, and a node waits rather than being refused for it */
 
 typedef struct reg {
 	char    number[NUMLEN + 1];
@@ -663,12 +664,19 @@ static void refuse(lw_node *n, lw_peer *p, const char *why)
 	strike(n, p, 2.0, "registration refused");		/* a refusal is the shape of a guess at a token (docs/adr/0043) */
 }
 
+/* A refusal that is the switchboard's own doing (its policy did not answer in time): the node asks again, and earns no strike for it. */
+static void refuse_ours(lw_node *n, lw_peer *p, const char *why)
+{
+	ctl_msg_send(n, p, M_REFUSED, (const uint8_t *)why, strlen(why));
+}
+
 int board_known_key(lw_node *n, const uint8_t kid[32])
 {
 	return n->bd && reg_by_key(n->bd, kid) != 0;
 }
 
-static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char *name, int listed)
+/* Register p's key; NULL when it has its number, else why not (the node has been told). The policy script spends a token only on NULL. */
+static const char *do_register(lw_node *n, lw_peer *p, const char *reserved, const char *name, int listed)
 {
 	struct board *b = n->bd;
 	reg r;
@@ -678,7 +686,7 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 
 	if (!held_by_key(b, p->key_id) && b->n >= (n->cfg.max_numbers > 0 ? n->cfg.max_numbers : 100000)) {	/* every number is a bundle in memory and a line in a file */
 		refuse(n, p, "this switchboard has no numbers left to give (--max-numbers)");
-		return;
+		return "this switchboard has no numbers left to give (--max-numbers)";
 	}
 	memset(&r, 0, sizeof r);
 	memcpy(r.bundle, p->bundle, LW_BUNDLE);
@@ -687,7 +695,7 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 		if (strlen(reserved) != NUMLEN || !damm_ok(reserved, NUMLEN) || reg_by_number(b, reserved) ||
 		    ((h = held_by_number(b, reserved)) && crypto_verify32(h->key_id, p->key_id))) {
 			refuse(n, p, "the number reserved for this token is not available");
-			return;
+			return "the number reserved for this token is not available";
 		}
 		memcpy(r.number, reserved, NUMLEN + 1);
 	} else if ((h = held_by_key(b, p->key_id))) {	/* released while away, and now back: the same number, if still held */
@@ -701,11 +709,11 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 		}
 	if (reg_by_number(b, r.number)) {
 		refuse(n, p, "no number available");
-		return;
+		return "no number available";
 	}
 	if ((why = name_apply(b, p->key_id, name, listed, 1))) {	/* the script took a while: the name may have gone */
 		refuse(n, p, why);
-		return;
+		return why;
 	}
 	if ((h = held_by_number(b, r.number)))		/* the same key, restored (a stranger was refused or skipped above) */
 		held_drop(b, h);
@@ -715,13 +723,14 @@ static void do_register(lw_node *n, lw_peer *p, const char *reserved, const char
 	r.listed = listed;
 	if (b->n == b->cap && !grow((void **)&b->regs, &b->cap, 64, sizeof *b->regs)) {
 		refuse(n, p, "switchboard busy");
-		return;
+		return "switchboard busy";
 	}
 	b->regs[b->n++] = r;
 	idx_added(b);
 	p->sb_registered = 1;
 	persist(b, &r);
 	send_number(n, p, &r, n->home_code);
+	return 0;
 }
 
 /* The number of whoever holds `key`, or NULL: a caller with several dials open is told which one was refused. */
@@ -923,7 +932,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 						return;
 					}
 					memcpy(q->key, p->key_id, 32);
-					q->deadline = n->now + 2.0;
+					q->deadline = n->now + POLICY_WAIT;
 					lw_hex(kh, p->key_id, 32);
 					ev_emit_owner(n, "{\"event\":\"register\",\"id\":%d,\"key_id\":\"%s\",\"ip\":\"%s\",\"net\":\"%s\",\"token\":\"\",\"name\":\"\",\"listed\":false,\"switchboard\":true}",
 						q->id, kh, ep, net);
@@ -971,7 +980,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 				return;
 			}
 			memcpy(q->key, p->key_id, 32);
-			q->deadline = n->now + 2.0;
+			q->deadline = n->now + POLICY_WAIT;
 			snprintf(q->name, sizeof q->name, "%s", nm_);
 			q->listed = listed_;
 			lw_hex(kh, p->key_id, 32);
@@ -985,7 +994,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 					q->id, kh, ep, net, te, en, listed_ ? "true" : "false");
 			}
 		} else
-			do_register(n, p, 0, nm_, listed_);
+			(void)do_register(n, p, 0, nm_, listed_);
 		return;
 	case M_HEARTBEAT:
 		if (!r)
@@ -1126,7 +1135,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 				memcpy(q->admit, admit, ADMIT_LEN);
 				q->alen = alen;
 			}
-			q->deadline = n->now + 2.0;
+			q->deadline = n->now + POLICY_WAIT;
 			fmt_number(f1, r->number);
 			fmt_number(f2, ce->number);
 			ev_emit_owner(n, "{\"event\":\"dial\",\"id\":%d,\"from\":\"%s\",\"to\":\"%s\",\"ip\":\"%s\",\"net\":\"%s\"}", q->id, f1, f2, ep, net);
@@ -1219,14 +1228,15 @@ void board_timers(lw_node *n)
 			lw_peer *p = peer_by_key(n, q->key);
 
 			if (p && p->cur.valid)
-				refuse(n, p, "no decision from the switchboard policy");
+				refuse_ours(n, p, "no decision from the switchboard's policy in time: asking again");
 		} else
 			rejected(n, q->key, 0, R_POLICY, num_of(b, q->callee));
 		q->used = 0;
 	}
 }
 
-/* reply ID accept [NUMBER]   |   reply ID refuse [REASON...] */
+/* reply ID accept [NUMBER]   |   reply ID refuse [REASON...]
+ * A registration's accept answers {"registered":"NUMBER"} or {"refused":"WHY"}: what happened, not only that the reply was taken. */
 /* The registry as a page: up to NODEPAGE entries from `from`, each a number, the name it gave (a claim), whether it listed
  * itself, whether it is online and how long since it was heard. No addresses and no keys: those stay in the worker. */
 #define NODEPAGE 24
@@ -1293,10 +1303,17 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 
 			if (!p || !p->cur.valid)
 				return snprintf(out, cap, "{\"error\":\"the node has gone\"}\n");
-			if (!strcmp(verdict, "accept"))
-				do_register(n, p, arg[0] ? arg : 0, q->name, q->listed);
-			else
-				refuse(n, p, arg[0] ? arg : "registration refused");
+			if (!strcmp(verdict, "accept")) {	/* the outcome, so that the script spends a token only on a registration that happened */
+				const char *why = do_register(n, p, arg[0] ? arg : 0, q->name, q->listed);
+				const reg *r = why ? 0 : reg_by_key(b, q->key);
+				char f[16] = "", we[200];
+
+				if (r)
+					fmt_number(f, r->number);
+				json_esc(we, sizeof we, why ? why : "");
+				return snprintf(out, cap, why ? "{\"refused\":\"%s\"}\n" : "{\"registered\":\"%s\"}\n", why ? we : f);
+			}
+			refuse(n, p, arg[0] ? arg : "registration refused");
 		} else if (!strcmp(verdict, "accept"))
 			route_dial(n, q->key, q->callee, q->cc, q->ncc, q->strict, q->admit, q->alen);
 		else

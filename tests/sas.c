@@ -144,24 +144,51 @@ int main(int argc, char **argv)
 	sas_input(n, p, m, 0);
 	check(p->used, "and short messages are ignored");
 
-	/* silence: no old phrase any more (docs/adr/0055) */
+	/* silence: no old phrase any more (docs/adr/0055), and ten seconds of retries before an end that keeps talking is judged (docs/adr/0057) */
 	p = mkpeer(n, 5, sink, 0);
-	n->now = 1004.0;
+	n->now = 1009.0;
 	sas_timers(n);
-	check(p->sas.mode == 1 && p->sas.state == 0, "within five seconds the callee still waits for a commit");
-	n->now = 1006.0;
+	check(p->sas.mode == 1 && p->sas.state == 0, "within ten seconds the callee still waits for a commit");
+	n->now = 1011.0;
 	sas_timers(n);
-	check(p->used && p->sas.mode == 1, "an end that has sent nothing at all since the call came up is not judged: it may be gone, which the dead-peer timer reports");
-	p->last_rx = 1005.5;			/* it speaks, but not the exchange: an old node, or one whose exchange was stripped */
-	n->now = 1006.5;
+	check(p->used && p->sas.mode == 1, "an end that has sent nothing at all since the session came up is not judged: it may be gone, which the dead-peer timer reports");
+	p->last_rx = 1000.02;			/* it spoke just as the session came up, then went silent: killed, or its machine gone */
 	sas_timers(n);
-	check(!p->used, "an end that speaks but does not do the exchange within five seconds is ended: there is no old phrase to fall back to");
+	check(p->used && p->sas.mode == 1, "nor is one that spoke just as the session came up and then went silent: it is the dead-peer timer's (call-lost)");
+	p->last_rx = 1010.5;			/* it speaks, but not the exchange: something on the way stripped it */
+	n->now = 1011.5;
+	sas_timers(n);
+	check(!p->used, "an end that speaks but does not take part in the exchange is ended: there is no old phrase to fall back to");
+
+	/* one exchange per peer, started in one place, its roles from the two key ids (docs/adr/0057) */
 	n2 = mknode(dir2);
-	p = mkpeer(n2, 1, sink, 0);
-	p->sas.auto_ = 1;
-	n2->now = 1012.0;
-	sas_timers(n2);
-	check(p->used && p->sas.mode == 2 && !p->sas.words[0], "a mesh call to a fellow member (signed in by the line) is not asked, and shows no phrase");
+	n2->now = 2000.0;
+	{
+		lw_peer *q[2];
+		int k, c0 = 0;
+
+		for (k = 0; k < 2; k++) {
+			q[k] = mkpeer(n2, 1 + k, sink, 0);
+			memset(&q[k]->sas, 0, sizeof q[k]->sas);	/* nothing started: the timers start it */
+			memset(q[k]->key_id, k ? 0xff : 0x00, 32);	/* one key id below ours, one above (ours is a random one) */
+		}
+		n2->calls[0].state = CALL_UP; n2->calls[0].peer = 1; n2->calls[0].auto_ = 1; n2->calls[0].we_caller = 1;	/* crossed: a mesh call we made ... */
+		n2->calls[1].state = CALL_UP; n2->calls[1].peer = 1; n2->calls[1].auto_ = 0; n2->calls[1].we_caller = 0;	/* ... and a call from them, picked up by a person */
+		sas_timers(n2);
+		for (k = 0; k < 2; k++)
+			c0 += q[k]->sas.mode == 1;
+		check(c0 == 2, "a peer of a call starts its exchange once its session is up, whatever calls led to it");
+		check(q[0]->sas.caller == (memcmp(n2->id.key_id, q[0]->key_id, 32) < 0) && q[1]->sas.caller == (memcmp(n2->id.key_id, q[1]->key_id, 32) < 0)
+		      && q[0]->sas.caller != q[1]->sas.caller,
+		      "the end with the lower key id commits first, whichever end dialled: both ends decide it alike");
+		check(q[0]->sas.have_na == q[0]->sas.caller && q[1]->sas.have_na == q[1]->sas.caller, "and only the committing end has a nonce to commit to");
+		check(!peer_mesh(n2, q[0]) && peer_mesh(n2, q[1]), "a peer with a call a person made or answered is shown; one with only mesh calls, or none, is not");
+		q[1]->number[0] = 0;
+		memset(&q[1]->sas, 0, sizeof q[1]->sas);
+		sas_timers(n2);
+		check(q[1]->sas.mode == 0, "a peer named by its bundle, not reached through the switchboard, has no exchange");
+		n2->calls[0].state = n2->calls[1].state = CALL_IDLE;
+	}
 
 	/* a node in the middle: two sessions, two binds, and nonces fixed before the other was known */
 	memset(&s1, 0, sizeof s1); memset(&s2, 0, sizeof s2);
