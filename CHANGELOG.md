@@ -11,6 +11,8 @@ Control Panel > Administrative Access and a new TROUBLESHOOTING entry: polkit 12
 an LDAP account can be refused that sudo accepts; `pkexec true` asks for an administrator and is no test of it; and how to make the jack as root meanwhile. Run as root,
 the `longwire` launcher says why it does not use a script installed for a user (that user could change it) and names the jack helper to run instead.
 
+*Published:* the catalogue (`hibr-apps` `806b0ce`) and the packages (`hibr-apt` `60d4420`, `hibr-rpm` `deef449`, `hibr-arch` `82ebd36`). `make check` passed (920 checks).
+
 ## 0.5.42
 
 **Routes and name servers are lists you can type as you like, and a wrong one is named before any password.**
