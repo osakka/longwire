@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.40
+
+**Built for hibr's module ABI 17.** hibr 0.99.430 refuses a module built for ABI 16 ("abi 16, shell expects 17"), which the engine of 0.5.39 and earlier is: after
+updating hibr, longwire would not start. The engine is rebuilt against 0.99.430, which the packages now require (`HIBR_MIN`); nothing else changed. Update hibr and longwire
+together.
+
 ## 0.5.39
 
 **A member can share its internet, and sending everything through the line needs no gateway typed in** ([ADR 0056](docs/adr/0056-a-member-can-share-its-internet.md)).

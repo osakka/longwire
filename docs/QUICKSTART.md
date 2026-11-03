@@ -8,7 +8,7 @@ they do the same thing and share one saved connection, so you can mix them.
 
 ## What you need
 
-- **Two Linux machines** with hibr installed (the package asks for 0.99.315 or newer; the menu bar
+- **Two Linux machines** with hibr installed (the package asks for 0.99.430 or newer, the first with module ABI 17; the menu bar
   telephone wants 0.99.351 or newer, and the Blit telephone icons 0.99.364). `please` (hibr's way to run one command as root) and
   **Control Panel > Administrative Access**, as this guide uses them, need hibr 0.99.390 or newer: on an older hibr write `sudo` where it says `please`. Call them **A** and **B**.
 - **A switchboard** both can reach. There is no public one to borrow, so you run your own: see [OPERATING](OPERATING.md)

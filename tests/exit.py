@@ -76,8 +76,9 @@ def main():
     MC, MD = bytes.fromhex("020000000c01"), bytes.fromhex("020000000d01")
     hc = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM); hd = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     X.frames.drain(); D.frames.drain(); C.frames.drain()
-    for i in range(20):
+    for i in range(20):					# paced, as the other tests send: a busy machine drops a burst on loopback
         hc.sendto(frame(EXIT_MAC, MC, b"out%02d" % i + os.urandom(300)), f"{T}/C/p")
+        time.sleep(0.02)
     gx, gd = X.frames.drain(), D.frames.drain()
     check(len(gx) == 20 and all(f[:6] == MX and f[6:12] == MC for f in gx),
           f"20 frames for the exit gateway reach X, addressed to X's own MAC (X got {len(gx)})")
