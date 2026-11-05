@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.45
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.46
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.45}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.46}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -53,7 +53,7 @@ usage: longwire <command>
   on [PROFILE]                                start the node in the background, from a saved profile (the default one if none is named)
   profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME
                                               saved connections: switchboard, token, attach, interface, name, listed, answer
-  jack [--address A.B.C.D/N] [--via GW [--routes NET/P,...]] [--everything [--dns NS] | --share] [TAP]  make the tap device a single machine attaches to (lw0 by default), with an address if asked; asks for a password once
+  jack [--address A.B.C.D/N] [--via GW [--routes NET/P,...]] [--everything | --share] [--dns NS,...] [TAP]  make the tap device a single machine attaches to (lw0 by default), with an address if asked; asks for a password once
   exit [on|off] [PROFILE]                     share this machine's internet with the line (a member that sends everything uses it, no gateway typed); or stop
   site NIC [PROFILE] | site --stop NIC        make this machine a site node for the card NIC from a profile (a service, after one password); or stop it
   setup splice NIC | setup jack [TAP [ADDR]]  print the one-time privileged step for that attach mode, to run by hand
@@ -258,6 +258,33 @@ list_join() {
 	local x out=
 	for x in "${LIST[@]}"; do out=${out:+$out,}$x; done
 	printf '%s' "$out"
+}
+
+# Without everything through the line, each name server must be one the line reaches: in the jack's own network (a fixed address) or one of the routes.
+dns_reached() {
+	local dns=$1 addr=$2 routes=$3 a r pre jm jn rm full=4294967295 hit
+	local dl=() rl=()
+	read -r -a dl <<< "${dns//,/ }"
+	read -r -a rl <<< "${routes//,/ }"
+	if [ -z "$addr" ] || [ "$addr" = dhcp ]; then
+		echo "longwire: name servers without everything through the line need a fixed address on the jack (address=A.B.C.D/N): they must be on the line's network or a route" >&2
+		return 1
+	fi
+	ip4_ok "${addr%/*}" || return 1
+	pre=${addr#*/}; jm=$(( (full << (32 - pre)) & full )); jn=$(( V4 & jm ))
+	for a in "${dl[@]}"; do
+		ip4_ok "$a" || return 1
+		local d=$V4
+		hit=
+		[ $(( d & jm )) -eq "$jn" ] && hit=1
+		for r in "${rl[@]}"; do
+			ip4_ok "${r%/*}" || continue
+			rm=$(( (full << (32 - ${r#*/})) & full ))
+			[ $(( d & rm )) -eq $(( V4 & rm )) ] && hit=1
+		done
+		[ -n "$hit" ] || { echo "longwire: the name server $a is not on the line's network or one of your routes: add a route to it, or turn on Send everything" >&2; return 1; }
+	done
+	return 0
 }
 
 # routes: 1 to 16 networks, each written as its first address and a prefix of 8 to 32 (never the default route, never link-local or loopback).
@@ -549,6 +576,12 @@ cmd_show() {
 	done
 	t := json get S .exit.share
 	[ "$t" = true ] && echo "   sharing       this machine's internet with the line"
+	if [ -z "${S[tied]:-}" ] && [ "${S[port]%%:*}" = jack ] && command -v resolvectl > /dev/null; then	# names through the line without everything (docs/adr/0059)
+		local nsd
+		nsd=$(resolvectl dns "${S[port]#*:}" 2> /dev/null)
+		nsd=${nsd#*:}
+		[ -z "${nsd// /}" ] || echo "   names         through the line, from${nsd}"
+	fi
 	t := json get S .cand_skipped
 	[ "${t:-0}" -gt 0 ] && lw_out "   ⚠  ${t} address(es) of the other end are inside your jack's own network and could not be reached another way, so they are not used (longwire watch names them)"
 	t := json type S .line
@@ -753,7 +786,7 @@ cmd_jack() {
 		--share) share=yes; shift; continue ;;
 		--dns) [ $# -ge 2 ] || { echo "longwire: --dns needs a name server's address" >&2; exit 2; }; dns=$2; shift 2; continue ;;
 		--address|--via|--routes)
-			[ $# -ge 2 ] || { echo "usage: longwire jack [--address A.B.C.D/N | dhcp] [--via GATEWAY [--routes NET/PREFIX,...] [--everything [--dns NS]]] [TAP]" >&2; exit 2; }
+			[ $# -ge 2 ] || { echo "usage: longwire jack [--address A.B.C.D/N | dhcp] [--via GATEWAY [--routes NET/PREFIX,...]] [--everything | --share] [--dns NS,...] [TAP]" >&2; exit 2; }
 			case $1 in --address) addr=$2 ;; --via) via=$2 ;; --routes) routes=$2 ;; esac
 			shift 2 ;;
 		*) break ;;
@@ -773,7 +806,9 @@ cmd_jack() {
 	[ -z "$via" ] || extra=(--via "$via")
 	[ -z "$routes" ] || [ -z "$via" ] || extra+=(--routes "$routes")
 	[ $all = no ] || extra+=(--everything)
-	[ $all = yes ] || dns=				# names through the line only go with everything through it
+	if [ -n "$dns" ] && [ $all = no ] && ! dns_reached "$dns" "$addr" "$routes"; then		# said before any password: the helper's rule too (docs/adr/0059)
+		return 1
+	fi
 	[ -z "$dns" ] || extra+=(--dns "$dns")
 	[ $share = no ] || extra+=(--share)
 	if [ $all = yes ] && [ $share = yes ]; then
@@ -918,7 +953,8 @@ cmd_on() {
 	profile_exists "$n" || { echo "longwire: no profile called '$n'  (longwire profile list)" >&2; exit 1; }
 	if [ "${PF[$n.attach]:-jack}" = jack ]; then
 		local ev=()
-		[ "${PF[$n.everything]:-}" = yes ] && ev=(--everything ${PF[$n.dns]:+--dns "${PF[$n.dns]}"})
+		[ "${PF[$n.everything]:-}" = yes ] && ev=(--everything)
+		[ -z "${PF[$n.dns]:-}" ] || ev+=(--dns "${PF[$n.dns]}")		# with everything, or through the line to servers it reaches (docs/adr/0059)
 		[ "${PF[$n.exit]:-}" = yes ] && ev+=(--share)
 		cmd_jack ${PF[$n.address]:+--address "${PF[$n.address]}"} ${PF[$n.gateway]:+--via "${PF[$n.gateway]}"} ${PF[$n.routes]:+--routes "${PF[$n.routes]}"} "${ev[@]}" "${PF[$n.interface]:-lw0}" || exit 1			# made now, with a password if it must be
 	fi

@@ -9,7 +9,7 @@
 # win, and its own default route is never touched. The routes through the jack are skipped by the kernel when the jack has no carrier, which is when no
 # node holds it, so a node that stops or crashes leaves the machine on its own road, not on none; the helper checks that before it adds anything. Run
 # without --everything, it takes its rules away if they are there.
-# With --dns A.B.C.D[,A.B.C.D...] (up to three) as well, the machine asks those name servers, through the line, for every name (docs/adr/0047): set on the jack in systemd-resolved, which
+# With --dns A.B.C.D[,A.B.C.D...] (up to three), the machine asks those name servers (with everything, or, without it, when the line reaches them: docs/adr/0059), through the line, for every name (docs/adr/0047): set on the jack in systemd-resolved, which
 # passes over a device with no carrier as the kernel does, so names come back to the machine's own name server whenever the node is gone.
 # longwire-jack --address A.B.C.D/N --everything TAP [UID] -- everything through the line with no gateway named: through the member that shares its internet
 # (docs/adr/0056). The table's default route goes to 169.254.77.1 on the jack, with the MAC 02:6c:77:65:78:74 fixed beside it; no machine has either, and the
@@ -161,7 +161,6 @@ rl=()
 [ -z "$via" ] || [ -n "$routes$everything" ] || fail "--via is the gateway for --routes or --everything: give one of them"
 dnsl=()
 if [ -n "$dns" ]; then
-	[ -n "$everything" ] || fail "--dns goes with --everything: names through the line, with everything else"
 	octet='(0|[1-9][0-9]{0,2})'
 	read -r -a dnsl <<< "${dns//,/ }"
 	[ "${#dnsl[@]}" -ge 1 ] && [ "${#dnsl[@]}" -le 3 ] || fail "--dns wants 1 to 3 name servers, separated by commas"
@@ -202,6 +201,27 @@ if [ -n "$via" ]; then
 		if [ "$rint" -le "$bc" ] && [ "$net" -le "$rend" ]; then
 			fail "'$r' overlaps the jack's own network ($addr), which the line reaches already with no route"
 		fi
+	done
+fi
+
+# Name servers without everything through the line (docs/adr/0059): asked through the line only, so each must be one the line reaches, in the jack's own
+# network or in one of the routes. With everything, any server is reached through the line's way out.
+if [ -n "$dns" ] && [ -z "$everything" ]; then
+	[ -n "$addr" ] || fail "--dns without --everything needs the jack's own address (--address): the name servers must be on the line's network or a route"
+	full=4294967295
+	jmask=$(( (full << (32 - pre)) & full ))
+	jnet=$(( (o1 * 16777216 + o2 * 65536 + o3 * 256 + o4) & jmask ))
+	for a in "${dnsl[@]}"; do
+		IFS=. read -r d1 d2 d3 d4 <<< "$a"
+		dint=$(( d1 * 16777216 + d2 * 65536 + d3 * 256 + d4 ))
+		reach=
+		[ $(( dint & jmask )) -eq "$jnet" ] && reach=1
+		for r in "${rl[@]}"; do
+			rp=${r#*/}; IFS=. read -r r1 r2 r3 r4 <<< "${r%/*}"
+			rmask=$(( (full << (32 - rp)) & full ))
+			[ $(( dint & rmask )) -eq $(( (r1 * 16777216 + r2 * 65536 + r3 * 256 + r4) & rmask )) ] && reach=1
+		done
+		[ -n "$reach" ] || fail "the name server $a is not on the line's network or one of the routes: without --everything, the line does not reach it"
 	done
 fi
 

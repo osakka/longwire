@@ -310,7 +310,7 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
           f"routes with no Gateway do not turn on quietly without them: Turn on asks longwire jack, which says what is missing before any password: {log}")
     drive(envF, 'lwp_pset routes ""; lwp_pset dns 192.168.152.254')
     rows, log, r = drive(envF, 'lwp_pset dns ""; lwp_pset everything ""; dump 1; longwire_do 1 on 1')
-    check(not any(x[1] == "Name servers" for x in rows), f"with everything off, no Name server row: {[x[1] for x in rows]}")
+    check(any(x[1] == "Name servers" and x[2] == "this machine's own" for x in rows), f"with everything off, the Name servers row stays (for servers the line reaches): {[x[1] for x in rows]}")
     check(any(l == "PTYJOB longwire jack --address 127.0.0.1/8 lw9" for l in log), f"switched off, a gateway with no routes is not passed on: {log}")
     rows, log, r = drive(envF, 'lwp_pset gateway ""; lwp_pset routes ""; lwp_pset address ""; lwp_pset interface lw9')
     rows, log, r = drive(envF, 'lwp_pset attach splice; longwire_do 1 on 1')

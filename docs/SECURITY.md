@@ -87,7 +87,7 @@ That is the honest sentence behind the word.
 ## What has been done to check it
 
 - **A test suite that builds real networks.** It runs the actual scripts over unprivileged network namespaces with simulated
-  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (933 checks in the run for 0.5.45).
+  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (936 checks in the run for 0.5.46).
 - **An attack on the switchboard,** the one component built to face the public. Before it was released, three readers went through every parser a stranger's bytes can
   reach. It found real flaws, three of them proven by tests that failed on the old code: strangers able to fill the switchboard's
   places for good, a registration token able to write into the policy script's event, and a switchboard able to connect a call nobody

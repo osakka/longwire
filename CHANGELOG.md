@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.46
+
+**Name servers work with routes, not only with Send everything** ([ADR 0059](docs/adr/0059-name-servers-without-everything.md)). The `dns` in a profile was set on the
+jack only while everything went through the line, so routes to a far network with its own name servers (`routes = 192.168.15.0/24`, `dns = 192.168.15.200,...`)
+had no effect on names. Now `dns` applies either way; without everything each server must be one the line reaches (the jack's network or a route), which `longwire
+jack` and Turn on say before any password and the root helper refuses otherwise. The pane's *Name servers* row is always there for a jack, and `longwire show` names
+the servers in use. Tested in `tests/jack.sh` and `tests/pane.sh`.
+
 ## 0.5.45
 
 **Connecting and disconnecting can need no password, without that also letting anyone reroute the machine** ([ADR 0058](docs/adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)).

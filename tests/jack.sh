@@ -135,7 +135,7 @@ grep -qx "helper --address 192.168.152.50/24 --everything lw7" "$LWJ_LOG" && ok 
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168.152.254 lw7 2>&1)
 grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --everything --dns 192.168.152.254 lw7" "$LWJ_LOG" && ok "and the name server with it" || bad "jack dns: $out $(cat "$LWJ_LOG")"
 : > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --via 192.168.152.254 --routes 10.20.0.0/16 --dns 192.168.152.254 lw7 2>&1)
-grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --routes 10.20.0.0/16 lw7" "$LWJ_LOG" && ok "but not without everything" || bad "jack dns alone: $out $(cat "$LWJ_LOG")"
+grep -qx "helper --address 192.168.152.50/24 --via 192.168.152.254 --routes 10.20.0.0/16 --dns 192.168.152.254 lw7" "$LWJ_LOG" && ok "and without everything too, for a name server the line reaches (docs/adr/0059)" || bad "jack dns alone: $out $(cat "$LWJ_LOG")"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p legacy_phrase=yes 2>&1); rc=$?
 [ $rc = 2 ] && ok "there is no way to allow the old safety phrase (no legacy_phrase key)" || bad "profile legacy_phrase: rc=$rc $out"
 out=$(XDG_CONFIG_HOME=$T/cfg "$HIBR" scripts/longwire.hibr profile set p dns=192.168.152.254 2>&1); rc=$?
@@ -243,7 +243,13 @@ for d in 127.0.0.53 0.0.0.0 224.0.0.1 "1.1.1.1;id" 1.1.1 dns.example 1.1.1.1,9.9
 	[ $rc = 2 ] && [ ! -s "$LWJ_LOG" ] && ok "refused before anything is run: --dns '$d'" || bad "dns '$d': rc=$rc $out"
 done
 : > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --dns 192.168.152.254 lw7 1000 2>&1); rc=$?
-[ $rc = 2 ] && echo "$out" | grep -q "goes with --everything" && ok "names through the line only with everything through it" || bad "dns alone: rc=$rc $out"
+[ $rc = 0 ] && grep -qx "resolvectl dns lw7 192.168.152.254" "$LWJ_LOG" && ok "without everything, a name server on the line's own network is asked through it (docs/adr/0059)" || bad "dns on the line: rc=$rc $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --via 192.168.152.254 --routes 192.168.15.0/24 --dns 192.168.15.200,192.168.15.100 lw7 1000 2>&1); rc=$?
+[ $rc = 0 ] && grep -qx "resolvectl dns lw7 192.168.15.200 192.168.15.100" "$LWJ_LOG" && ok "and name servers on a routed network, through the route" || bad "dns via route: rc=$rc $out $(cat "$LWJ_LOG")"
+: > "$LWJ_LOG"; out=$("$HIBR" "$H" --address 192.168.152.50/24 --dns 1.1.1.1 lw7 1000 2>&1); rc=$?
+[ $rc = 2 ] && echo "$out" | grep -q "not on the line's network or one of the routes" && ! grep -q "resolvectl dns" "$LWJ_LOG" && ok "but one the line does not reach is refused, before anything is run" || bad "dns unreached: rc=$rc $out"
+: > "$LWJ_LOG"; out=$("$HIBR" scripts/longwire.hibr jack --address 192.168.152.50/24 --dns 1.1.1.1 lw7 2>&1); rc=$?
+[ $rc != 0 ] && echo "$out" | grep -q "add a route to it, or turn on Send everything" && ok "longwire jack says so too, before any password" || bad "script dns unreached: rc=$rc $out"
 mv "$T/bin/resolvectl" "$T/resolvectl.off"
 OPATH=$PATH; PATH=$T/bin:/usr/bin:/bin
 command -v resolvectl > /dev/null || {

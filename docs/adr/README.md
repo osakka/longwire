@@ -67,6 +67,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0056](0056-a-member-can-share-its-internet.md) | A member can share its internet; the gateway is a member's key, not an address | accepted; built in 0.5.39 |
 | [0057](0057-the-safety-phrase-belongs-to-the-session.md) | The safety phrase belongs to the session; the lower key id commits first | accepted; built in 0.5.41 |
 | [0058](0058-the-device-and-the-whole-machine-are-two-permissions.md) | The device and the whole machine are two permissions | accepted; built in 0.5.45 |
+| [0059](0059-name-servers-without-everything.md) | Name servers through the line without everything | accepted; built in 0.5.46 |
 
 ---
 

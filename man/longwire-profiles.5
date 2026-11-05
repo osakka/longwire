@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-PROFILES 5 "November 2026" "longwire 0.5.45" "longwire manual"
+.TH LONGWIRE-PROFILES 5 "November 2026" "longwire 0.5.46" "longwire manual"
 .SH NAME
 longwire-profiles \- saved longwire connections
 .SH SYNOPSIS
@@ -156,9 +156,14 @@ This machine sees everything its users send outside the line, as their internet 
 sets it.
 .TP
 .B dns
-With
-.BR everything :
-up to three name servers, typed like the routes, asked through the line for every name (a router on the line, or, out through a member that shares its internet, any resolver such as 1.1.1.1), set on the jack in systemd\-resolved; passed over, like the routes, whenever no node holds the jack.
+Up to three name servers, typed like the routes, asked through the line for every name.
+Without
+.BR everything ,
+each must be on the line's network (a fixed
+.BR address )
+or one of the
+.BR routes ;
+with it, any server (a router on the line, or, out through a member that shares its internet, any resolver such as 1.1.1.1), set on the jack in systemd\-resolved; passed over, like the routes, whenever no node holds the jack.
 Without systemd\-resolved, names stay with the machine's own name server.
 .TP
 .B keep_jack

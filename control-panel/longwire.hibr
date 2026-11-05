@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.45
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.46
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.45}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.46}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -365,8 +365,10 @@ fn longwire_rows(int w) {
 			if [ "${LWP_PF[$p.everything]-}" = yes ]; then
 				[ -n "${LWP_PF[$p.gateway]-}" ] || { lwp_row "$w" "$n" action "Through" "${LWP_PF[$p.exit_through]:-the member that shares its internet}" exitthrough; n=$((n + 1)); }	# docs/adr/0056
 				v="${LWP_PF[$p.dns]:-this machine's own (names are not private)}"
-				lwp_row "$w" "$n" action "Name servers" "${v//,/, }" dns; n=$((n + 1))	# docs/adr/0047
+			else
+				v="${LWP_PF[$p.dns]:-this machine's own}"
 			fi
+			lwp_row "$w" "$n" action "Name servers" "${v//,/, }" dns; n=$((n + 1))	# docs/adr/0047, 0059: with everything, or servers the line reaches
 			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Share this machine's internet"; CP[$w][$n]["wtype"]=bool	# docs/adr/0056
 			CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.exit]-}" = yes ] && CP[$w][$n]["val"]=on
 			CP[$w][$n]["key"]=shareexit; n=$((n + 1))
@@ -916,7 +918,7 @@ fn lwp_turnon(int w) {
 	fi
 	[[ $iface =~ ^lw[0-9]{1,2}$ ]] || { ev=no; sh=no; }
 	ns=
-	[ "$ev" = yes ] && ns=${LWP_PF[$p.dns]-}
+	ns=${LWP_PF[$p.dns]-}			# with everything, or to servers the line reaches (docs/adr/0059)
 	if [ "$attach" = jack ] && { [ ! -d "/sys/class/net/$iface" ] || { [ -n "$addr" ] && ! lwp_hasaddr "$iface" "$addr"; } || ! lwp_hasroutes "$iface" "$gw" "$rts" || ! lwp_haseverything "$iface" "$gw" "$ev" || ! lwp_hasdns "$iface" "$ns" || ! lwp_hasshare "$iface" "$sh"; }; then
 		LWP_BUSY=1
 		[ -n "$rts" ] || [ "$ev" = yes ] || gw=
