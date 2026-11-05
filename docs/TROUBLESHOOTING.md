@@ -61,7 +61,7 @@ and `longwire show` say why as far as the node can tell (below, `⚠ no answer f
 
 **Control Panel says "Could not make the site node" (splice), or `longwire: the site helper is not installed`**
 A splice profile makes this machine a site node: a service, `longwire@CARD`, written and started by `/usr/lib/longwire/site` after your administrator password. The helper says why it refused:
-`there is no network card called …` (check **Interface**: a real card, not `lo` or a jack), `option '…' is not one a site node takes` or `that token has a character a service file cannot carry` (the token or name has a
+`there is no network card called …` (check **Interface**: a network device that exists, not `lo` or a jack, and a name that starts with a letter or digit), `option '…' is not one a site node takes` or `that token has a character a service file cannot carry` (the token or name has a
 mark a service file cannot hold: a name is letters, digits and `. _ -`), or `its control socket did not appear` (`systemctl status longwire@CARD` and `journalctl -u longwire@CARD`). Without `pkexec` or the helper, do it by
 hand: `longwire setup splice CARD`. Not having ACL tools means the pane cannot reach the service until you join the group `longwire` and log in again.
 

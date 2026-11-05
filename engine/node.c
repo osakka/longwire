@@ -358,6 +358,22 @@ int lw_node_serve(lw_node *n)
 	signal(SIGTERM, on_term);
 	signal(SIGINT, on_term);
 	signal(SIGPIPE, SIG_IGN);
+	{					/* everything the loop needs is open: close the files and system calls it can reach, for good (docs/adr/0062). A worker that cannot be confined does not run. */
+		char e2[300] = "";
+
+		if (lw_sandbox(n, e2, sizeof e2)) {
+			char path[320];
+			FILE *ef;
+
+			snprintf(path, sizeof path, "%s/worker.err", n->cfg.state_dir);
+			if ((ef = fopen(path, "w"))) {
+				fprintf(ef, "%s\n", e2);
+				fclose(ef);
+			}
+			free(pf);
+			return -1;
+		}
+	}
 	while (!n->stop && !g_stop) {
 		pf[0].fd = n->udp;
 		pf[1].fd = n->port_fd;

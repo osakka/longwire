@@ -109,6 +109,9 @@ void lw_hex(char *out, const uint8_t *in, size_t n);
 lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn);
 int  lw_node_serve(lw_node *n);
 void lw_node_release(lw_node *n);	/* close fds in a process that won't serve */
+/* After the node is open and its capabilities are gone, in the worker: confine the files it can reach (Landlock) and the system calls it can make
+ * (seccomp), for the rest of its life (docs/adr/0062). What a kernel cannot do it says in the status; 0 ok, -1 with err set: do not run. */
+int  lw_sandbox(lw_node *n, char *err, size_t errn);
 /* Clear every capability set (effective, permitted, inheritable, ambient). */
 int  lw_caps_drop(void);
 

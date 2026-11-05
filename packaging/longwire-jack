@@ -82,7 +82,7 @@ fi
 tap=${1:-lw0}
 uid=${PKEXEC_UID:-${2:-}}
 
-[[ $tap =~ ^lw[0-9]{1,2}$ ]] || fail "a jack is called lw0 to lw99, not '$tap'"
+[[ $tap =~ ^lw(0|[1-9][0-9]?)$ ]] || fail "a jack is called lw0 to lw99 (no leading zero: lw07 and lw7 would share one table), not '$tap'"
 [[ $uid =~ ^[0-9]+$ ]] || fail "no user to give it to (pass a uid, or run it through pkexec)"
 [ "$uid" -ne 0 ] || fail "a jack owned by root would need a node that runs as root"
 
@@ -232,7 +232,7 @@ if [ -n "$share" ]; then		# checked before anything changes: the way out, and th
 	while read -r line; do
 		[[ $line =~ \ dev\ ([A-Za-z0-9._@-]{1,15})(\ |$) ]] || continue
 		odev=${M[1]}			# kept now: the next match replaces M
-		[[ $odev =~ ^lw[0-9]{1,2}$ ]] && { odev=; continue; }
+		[[ $odev =~ ^lw(0|[1-9][0-9]?)$ ]] && { odev=; continue; }
 		break
 	done <<< "$out"
 	[ -n "$odev" ] || fail "this machine has no default route of its own to share" 3
@@ -304,6 +304,11 @@ if [ -n "$share" ]; then
 		read -r was < "$proc/ipv4/conf/$odev/forwarding"
 		printf '%s %s\n' "$odev" "${was:-0}" > "$sharef" || exit 1
 	fi
+	read -r dev0 was0 < "$sharef"
+	wan_drop=
+	# Turning forwarding on for the way out lets whoever is on its far side route through this machine to its other networks. If it was off before, that is put back
+	# in the table: nothing that arrives from the way out is forwarded anywhere but to the line, as it was not forwarded anywhere before (docs/adr/0063).
+	[ "$was0" = 0 ] && wan_drop="iifname \"$odev\" oifname != \"$tap\" drop"
 	nft -f - <<NFT || fail "nft refused the table that shares this machine's internet" 3
 table ip $nftt
 delete table ip $nftt
@@ -312,6 +317,7 @@ table ip $nftt {
 		type filter hook forward priority filter; policy accept;
 		iifname "$tap" oifname "$odev" ip saddr $lnet accept
 		iifname "$odev" oifname "$tap" ct state established,related accept
+		$wan_drop
 		iifname "$tap" drop
 		oifname "$tap" drop
 	}
@@ -365,7 +371,18 @@ if [ -n "$dhcp" ]; then
 		local me
 		[ -x "$real" ] || fail "the DHCP client's script $real is not there" 3
 		me=$HIBR			# the hibr this was started under, not whichever comes first on PATH
-		printf '#!%s\nunset new_routers new_domain_name_servers new_domain_search new_domain_name new_ntp_servers new_static_routes new_classless_static_routes router dns domain search ntpsrv staticroutes\nexec %s "$@"\n' "$me" "$real" > "$hook" || exit 1
+		# The vendor script runs from an ALLOWLIST environment (docs/adr/0063): everything a DHCP server can send is in the environment of the client's script, and a
+		# list of what to remove is always one name short (option 121, classless routes, reached the vendor's exit hooks and installed a default route). Only what
+		# the client itself says (reason, interface) and the address and network route the lease makes get through, and those only as an address.
+		cat > "$hook" <<'HK' || exit 1
+#!@ME@
+addr() { case $1 in "" | *[!0-9.]*) ;; *) printf '%s' "$1" ;; esac; }
+exec env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin reason="$reason" interface="$interface" medium="$medium" pid="$pid" \
+	new_ip_address="$(addr "$new_ip_address")" new_subnet_mask="$(addr "$new_subnet_mask")" new_broadcast_address="$(addr "$new_broadcast_address")" \
+	old_ip_address="$(addr "$old_ip_address")" ip="$(addr "$ip")" subnet="$(addr "$subnet")" broadcast="$(addr "$broadcast")" \
+	@REAL@ "$@"
+HK
+		sed -i -e "s|@ME@|$me|" -e "s|@REAL@|$real|" "$hook" || exit 1
 		chmod 755 "$hook"
 	}
 
@@ -382,7 +399,8 @@ if [ -n "$dhcp" ]; then
 		client=dhclient
 	elif command -v dhcpcd > /dev/null; then
 		dhcpcd -k "$tap" > /dev/null 2>&1
-		dhcpcd -b -G -C resolv.conf -C ntp.conf "$tap" || exit 1
+		dhcpcd -b -G -C resolv.conf -C ntp.conf -O routers -O classless_static_routes -O ms_classless_static_routes -O static_routes -O domain_name_servers -O domain_name \
+			-O domain_search -O ntp_servers -O host_name -O interface_mtu "$tap" || exit 1		# what a server sends that could reach the machine is neither asked for nor believed
 		client=dhcpcd
 	elif command -v udhcpc > /dev/null; then
 		real=${LONGWIRE_DHCP_SCRIPT:-}

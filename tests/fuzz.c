@@ -370,7 +370,7 @@ static size_t gen_node_payload(lw_node *n, uint8_t msg, uint8_t *o)
 		}
 		return rn(5) ? k : rn(k + 1);
 	}
-	case M_LINE: case M_MEMBER: case M_EVICT: case M_LINEKEY: case M_LINEHELLO: case M_RELAY_REQ: case M_RELAY_OK: case M_RELAY_NO: case M_BYE:
+	case M_LINE: case M_MEMBER: case M_EVICT: case M_LINEKEY: case M_LINEHELLO: case M_RELAY_REQ: case M_RELAY_OK: case M_RELAY_NO: case M_BYE: case M_EXIT: case M_SAS:
 		k = rn(3) ? (msg == M_LINE ? 8 + 32 + ADMIT_LEN + 1 + rn(5) * MEMBER_LEN : msg == M_RELAY_OK ? 36 + LW_BUNDLE : rn(200)) : rn(1500);
 		if (msg == M_LINE && rn(2) == 0)
 			k = 8 + 32 + ADMIT_LEN + 1 + (rn(40)) * MEMBER_LEN;	/* a member count far past 16 */
@@ -389,7 +389,7 @@ static const uint8_t board_msgs[] = { M_REGISTER, M_REGISTER, M_HEARTBEAT, M_DIA
 				      M_NUMBER, M_RING, M_GO, M_FOUND, M_REFUSED, M_LINE, M_BYE };
 static const uint8_t node_msgs[] = { M_NUMBER, M_NUMBER, M_HBACK, M_RING, M_RING, M_GO, M_GO, M_REJECTED, M_FOUND, M_FOUND,
 				     M_REFUSED, M_LINEHELLO, M_LINE, M_LINE, M_MEMBER, M_EVICT, M_LINEKEY, M_RELAY_REQ, M_RELAY_OK,
-				     M_RELAY_NO, M_BYE };
+				     M_RELAY_NO, M_BYE, M_EXIT, M_EXIT, M_SAS, M_SAS };
 
 static void gen_frame(uint8_t *f, size_t *len)
 {

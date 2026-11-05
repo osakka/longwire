@@ -12,6 +12,7 @@
 #include "pmp.c"
 #include "port.c"
 #include "caps.c"
+#include "sandbox.c"
 #include "ctl.c"
 #include "call.c"
 #include "spray.c"

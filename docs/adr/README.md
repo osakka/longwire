@@ -70,6 +70,8 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0059](0059-name-servers-without-everything.md) | Name servers through the line without everything | accepted; built in 0.5.46 |
 | [0060](0060-the-pane-shows-the-password-setting-and-never-writes-it.md) | The pane shows whose password a permission asks, and never writes it | accepted; built in 0.5.47 |
 | [0061](0061-a-changed-road-is-found-at-once-and-a-lost-one-is-waited-out-quietly.md) | A changed road is found at once, and a lost one is waited out quietly | accepted; built in 0.5.48 |
+| [0062](0062-the-node-can-make-only-the-system-calls-it-needs.md) | The node can make only the system calls it needs | accepted; built in 0.5.49 |
+| [0063](0063-inputs-are-bounded-by-the-way-they-are-written.md) | Inputs are bounded by the way the code is written | accepted; built in 0.5.49 |
 
 ---
 

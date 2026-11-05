@@ -125,11 +125,33 @@ void ctl_subs_reap(lw_node *n)
 	}
 }
 
+int lw_fit(int would, size_t cap)
+{
+	if (would < 0)
+		return 0;
+	return cap && (size_t)would >= cap ? (int)cap - 1 : would;
+}
+
+int lw_app(char *o, size_t cap, int len, const char *fmt, ...)
+{
+	va_list ap;
+	int r;
+
+	if (len < 0)
+		len = 0;
+	if ((size_t)len >= cap)
+		return cap ? (int)cap - 1 : 0;		/* full: nothing more is written, and the offset never leaves the buffer */
+	va_start(ap, fmt);
+	r = vsnprintf(o + len, cap - (size_t)len, fmt, ap);
+	va_end(ap);
+	return len + lw_fit(r, cap - (size_t)len);
+}
+
 void ctl_accept(lw_node *n)
 {
 	struct ucred cr;
 	socklen_t cl = sizeof cr;
-	char line[400], out[8192];
+	char line[400], out[32768];	/* the worst status: 32 peers, 32 calls and a line of 16 (tests/status.c) */
 	struct pollfd pf;
 	int c = accept4(n->ctl_fd, 0, 0, SOCK_CLOEXEC), len, i;
 	ssize_t r;
@@ -164,14 +186,14 @@ void ctl_accept(lw_node *n)
 		n->subs[i] = c;
 		n->subs_owner[i] = mine;
 		len = snprintf(out, sizeof out, "{\"event\":\"watching\",\"role\":\"%s\"}\n", n->role ? "switchboard" : "node");
-		(void)!write(c, out, (size_t)len);
+		(void)!write(c, out, (size_t)lw_fit(len, sizeof out));	/* never more than the buffer holds */
 		if (!n->role && (len = node_replay(n, out, sizeof out)) > 0)
-			(void)!write(c, out, (size_t)len);
+			(void)!write(c, out, (size_t)lw_fit(len, sizeof out));	/* never more than the buffer holds */
 		return;				/* the connection stays open */
 	}
 	if (n->cfg.ctl_group && cr.uid != geteuid() && cr.uid != 0 && (!strcmp(line, "stop") || !strncmp(line, "reply ", 6) || !strncmp(line, "unban ", 6))) {	/* the group runs the node; the service's owner stops it and decides its policy */
 		len = snprintf(out, sizeof out, "{\"error\":\"only the user this runs as may do that (systemctl stops a service)\"}\n");
-		(void)!write(c, out, (size_t)len);
+		(void)!write(c, out, (size_t)lw_fit(len, sizeof out));	/* never more than the buffer holds */
 		close(c);
 		return;
 	}
@@ -182,7 +204,7 @@ void ctl_accept(lw_node *n)
 		len = snprintf(out, sizeof out, "{\"node\":\"stopping\"}\n");
 	} else
 		len = n->role ? board_cmd(n, line, out, sizeof out) : node_cmd(n, line, out, sizeof out);
-	(void)!write(c, out, (size_t)len);
+	(void)!write(c, out, (size_t)lw_fit(len, sizeof out));	/* never more than the buffer holds */
 	close(c);
 }
 

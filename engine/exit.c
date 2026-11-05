@@ -150,7 +150,7 @@ int exit_value(lw_node *n, char *o, size_t cap)
 		fmt_number(f, n->peers[n->exit_pi].number);
 	if (n->cfg.exit_through[0])
 		fmt_number(w, n->cfg.exit_through);
-	return snprintf(o, cap, "{\"share\":%s,\"use\":%s,\"wanted\":\"%s\",\"using\":\"%s\",\"offers\":%d,\"sent\":%llu,\"dropped\":%llu}",
+	return LW_SN(o, cap, "{\"share\":%s,\"use\":%s,\"wanted\":\"%s\",\"using\":\"%s\",\"offers\":%d,\"sent\":%llu,\"dropped\":%llu}",
 			n->cfg.exit_share ? "true" : "false", n->cfg.use_exit ? "true" : "false", w, f, exit_offers(n),
 			(unsigned long long)n->exit_sent, (unsigned long long)n->exit_dropped);
 }

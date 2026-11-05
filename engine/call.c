@@ -1425,8 +1425,8 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 			size_t k;
 
 			snprintf(r, sizeof r, "%.*s", (int)(len > 70 ? 70 : len), (const char *)pl);
-			for (k = 0; r[k]; k++)		/* text from the switchboard: plain ASCII, then escaped, because it goes into JSON */
-				if ((unsigned char)r[k] > 0x7e)
+			for (k = 0; r[k]; k++)		/* text from the switchboard: printable ASCII and nothing else (no control character: it is shown on a terminal), then escaped, because it goes into JSON */
+				if ((unsigned char)r[k] < 0x20 || (unsigned char)r[k] > 0x7e)
 					r[k] = '?';
 			n->reg_refused = p->cur.born;	/* don't hammer: try again on the next session */
 			json_esc(n->reg_why, sizeof n->reg_why, r);
@@ -1932,20 +1932,20 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		size_t ql;
 
 		if (!s || !n->registered)
-			return snprintf(out, cap, "{\"error\":\"no dial tone: not registered with a switchboard\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"no dial tone: not registered with a switchboard\"}\n");
 		if (!(n->sb_caps & CAPS_DIRECTORY))
-			return snprintf(out, cap, "{\"error\":\"this switchboard has no directory\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"this switchboard has no directory\"}\n");
 		if (dial && n->look.active && n->now - n->look.t < 5.0)
-			return snprintf(out, cap, "{\"error\":\"already looking an address up\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"already looking an address up\"}\n");
 		if (!lw_address_parse(q, b + 1)) {
 			b[0] = 0;
 			ql = 32;
 		} else if (dial) {
-			return snprintf(out, cap, "{\"error\":\"not a full address (lw1 and 52 characters)\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"not a full address (lw1 and 52 characters)\"}\n");
 		} else {
 			ql = strlen(q);
 			if (ql < 3 || ql > LW_NAME_MAX || !name_ok((const uint8_t *)q, ql))
-				return snprintf(out, cap, "{\"error\":\"a name to look for is 3 to %d characters\"}\n", LW_NAME_MAX);
+				return LW_SN(out, cap, "{\"error\":\"a name to look for is 3 to %d characters\"}\n", LW_NAME_MAX);
 			b[0] = 1;
 			memcpy(b + 1, q, ql);
 		}
@@ -1956,17 +1956,17 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			memcpy(n->look.key, b + 1, 32);
 		}
 		ctl_msg_send(n, s, M_LOOKUP, b, 1 + ql);
-		return snprintf(out, cap, "{\"%s\":\"asked\"}\n", dial ? "call" : "lookup");
+		return LW_SN(out, cap, "{\"%s\":\"asked\"}\n", dial ? "call" : "lookup");
 	}
 	if (!strncmp(line, "dial ", 5)) {
 		char num[NUMLEN + 1], f[16], err[160];
 
 		if (parse_full(n, line + 5, num, err, sizeof err))
-			return snprintf(out, cap, "{\"error\":\"%s\"}\n", err);
+			return LW_SN(out, cap, "{\"error\":\"%s\"}\n", err);
 		if (call_dial(n, num, 0, err, sizeof err))
-			return snprintf(out, cap, "{\"error\":\"%s\"}\n", err);
+			return LW_SN(out, cap, "{\"error\":\"%s\"}\n", err);
 		fmt_number(f, num);
-		return snprintf(out, cap, "{\"call\":\"dialing\",\"number\":\"%s\"}\n", f);
+		return LW_SN(out, cap, "{\"call\":\"dialing\",\"number\":\"%s\"}\n", f);
 	}
 	if (!strncmp(line, "pickup", 6) || !strncmp(line, "reject", 6)) {
 		int accept = line[0] == 'p';
@@ -1974,11 +1974,11 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		lw_call *c = ringing_for(n, line[6] == ' ' ? line + 7 : "", &why);
 
 		if (!c || !s)
-			return snprintf(out, cap, "{\"error\":\"%s\"}\n", c ? "no switchboard" : why);
+			return LW_SN(out, cap, "{\"error\":\"%s\"}\n", c ? "no switchboard" : why);
 		send_answer(n, c, accept ? V_ACCEPT : V_REJECT);
 		if (!accept)
 			call_end(c);
-		return snprintf(out, cap, "{\"call\":\"%s\"}\n", accept ? "answered" : "rejected");
+		return LW_SN(out, cap, "{\"call\":\"%s\"}\n", accept ? "answered" : "rejected");
 	}
 	if (!strncmp(line, "who ", 4)) {		/* everything this node knows about a number: nothing is asked of the switchboard */
 		char num[NUMLEN + 1], f[16], addr[60], kh[65], ph[120] = "";
@@ -1989,7 +1989,7 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		int i, pinned = 0, len;
 
 		if (parse_full(n, line + 4, num, perr, sizeof perr))
-			return snprintf(out, cap, "{\"error\":\"%s\"}\n", perr);
+			return LW_SN(out, cap, "{\"error\":\"%s\"}\n", perr);
 		fmt_number(f, num);
 		if (!strcmp(num, n->number))
 			kid = n->id.key_id;
@@ -2005,14 +2005,14 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			if (!strcmp(n->line.m[i].number, num))
 				kid = n->line.m[i].key_id;
 		if (!kid)
-			return snprintf(out, cap, "{\"error\":\"%s is not known here: nothing has been called, pinned or listed on your line\"}\n", f);
+			return LW_SN(out, cap, "{\"error\":\"%s is not known here: nothing has been called, pinned or listed on your line\"}\n", f);
 		if (n->line.have)
 			m = line_member(n, kid);
 		lw_address(addr, kid);
 		lw_hex(kh, kid, 32);
 		if (p && p->cur.valid && p->sas.mode == 1)	/* the committed phrase: its words once the reveal is in, nothing before */
 			snprintf(ph, sizeof ph, "%s", p->sas.state == 1 ? p->sas.words : "");
-		len = snprintf(out, cap, "{\"number\":\"%s\",\"you\":%s,\"key_id\":\"%s\",\"address\":\"%s\",\"pinned\":%s,\"line_member\":%s,"
+		len = LW_SN(out, cap, "{\"number\":\"%s\",\"you\":%s,\"key_id\":\"%s\",\"address\":\"%s\",\"pinned\":%s,\"line_member\":%s,"
 			"\"connected\":%s,\"path\":\"%s\",\"phrase\":\"%s\"}\n", f, kid == n->id.key_id ? "true" : "false", kh, addr,
 			pinned ? "true" : "false", m ? "true" : "false", p && p->cur.valid ? "true" : "false",
 			p && p->cur.valid ? (p->relayed ? "relay" : "direct") : "", ph);
@@ -2022,18 +2022,18 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		char num[NUMLEN + 1], f[16], perr[160];
 
 		if (parse_full(n, line + 6, num, perr, sizeof perr))
-			return snprintf(out, cap, "{\"error\":\"%s\"}\n", perr);
+			return LW_SN(out, cap, "{\"error\":\"%s\"}\n", perr);
 		fmt_number(f, num);
 		if (!pin_remove(n, num))
-			return snprintf(out, cap, "{\"error\":\"%s was not pinned\"}\n", f);
-		return snprintf(out, cap, "{\"unpinned\":\"%s\"}\n", f);
+			return LW_SN(out, cap, "{\"error\":\"%s was not pinned\"}\n", f);
+		return LW_SN(out, cap, "{\"unpinned\":\"%s\"}\n", f);
 	}
 	if (!strncmp(line, "hangup", 6)) {
 		char num[NUMLEN + 1] = "", perr[160];
 		int i, any = 0, leave;
 
 		if (line[6] == ' ' && parse_full(n, line + 7, num, perr, sizeof perr))
-			return snprintf(out, cap, "{\"error\":\"%s\"}\n", perr);
+			return LW_SN(out, cap, "{\"error\":\"%s\"}\n", perr);
 		leave = !num[0] && n->line.have;		/* no number: hang up on everyone, and leave the line */
 		for (i = 0; i < n->ncalls; i++) {
 			lw_call *c = &n->calls[i];
@@ -2059,10 +2059,10 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		if (leave)
 			line_leave(n);
 		if (!any)
-			return snprintf(out, cap, "{\"error\":\"no call\"}\n");
-		return snprintf(out, cap, "{\"call\":\"hung up\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"no call\"}\n");
+		return LW_SN(out, cap, "{\"call\":\"hung up\"}\n");
 	}
-	return snprintf(out, cap, "{\"error\":\"unknown request\"}\n");
+	return LW_SN(out, cap, "{\"error\":\"unknown request\"}\n");
 }
 
 /* Registration usually completes within milliseconds of the worker starting, before a script has subscribed
@@ -2075,9 +2075,9 @@ int node_replay(lw_node *n, char *o, size_t cap)
 	if (n->registered) {
 		fmt_number(f, n->number);
 		full_number(n, n->number, fl, sizeof fl);
-		len = snprintf(o, cap, "{\"event\":\"registered\",\"number\":\"%s\",\"full\":\"%s\"}\n", f, fl);
+		len = LW_SN(o, cap, "{\"event\":\"registered\",\"number\":\"%s\",\"full\":\"%s\"}\n", f, fl);
 	} else if (n->reg_why[0])
-		len = snprintf(o, cap, "{\"event\":\"register-refused\",\"reason\":\"%s\"}\n", n->reg_why);
+		len = LW_SN(o, cap, "{\"event\":\"register-refused\",\"reason\":\"%s\"}\n", n->reg_why);
 	return len + line_replay(n, o + len, cap - (size_t)len);
 }
 
@@ -2118,7 +2118,7 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		snprintf(mapped, sizeof mapped, "%u.%u.%u.%u:%u", n->pmp.ip[0], n->pmp.ip[1], n->pmp.ip[2], n->pmp.ip[3], n->pmp.port);
 	if (n->have_refl)
 		snprintf(refl, sizeof refl, "%u.%u.%u.%u:%u", n->refl.ip[0], n->refl.ip[1], n->refl.ip[2], n->refl.ip[3], n->refl.port);
-	len = snprintf(o, cap,
+	len = LW_SN(o, cap,
 		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"mapped\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
 		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"cand_skipped\":%llu,\"version\":\"%s\",\"underlay\":\"%s\",\"underlay_state\":\"%s\",\"tied\":\"%s\",\"sb_quiet\":%d,\"sb_host\":\"%s\",\"jack_nets\":%d,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
@@ -2156,7 +2156,7 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 			p->exit_seen > 0 && n->now - p->exit_seen <= EXIT_STALE ? "true" : "false");
 		any = 1;
 	}
-	len += snprintf(o + len, cap - (size_t)len, "],\"calls\":[");
+	len = lw_app(o, cap, len, "],\"calls\":[");
 	any = 0;
 	for (i = 0; i < n->ncalls && len < (int)cap - 400; i++) {
 		static const char *const SN[] = { "idle", "dialing", "ringing", "punching", "connecting", "up" };
@@ -2168,20 +2168,22 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		fmt_number(f, k->number);
 		lw_hex(hx, k->id, 8);
 		json_esc(cn, sizeof cn, k->name);
-		len += snprintf(o + len, cap - (size_t)len, "%s{\"call\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"we_called\":%s,\"mesh\":%s,\"name\":\"%s\"}",
+		len = lw_app(o, cap, len, "%s{\"call\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"we_called\":%s,\"mesh\":%s,\"name\":\"%s\"}",
 				any ? "," : "", hx, f, SN[k->state], k->we_caller ? "true" : "false", k->auto_ ? "true" : "false", cn);
 		any = 1;
 	}
-	len += snprintf(o + len, cap - (size_t)len, "],\"road\":");
+	len = lw_app(o, cap, len, "],\"sandbox\":");
+	len += sandbox_value(n, o + len, cap - (size_t)len);
+	len = lw_app(o, cap, len, ",\"road\":");
 	len += road_value(n, o + len, cap - (size_t)len);
-	len += snprintf(o + len, cap - (size_t)len, ",\"exit\":");
+	len = lw_app(o, cap, len, ",\"exit\":");
 	len += exit_value(n, o + len, cap - (size_t)len);
-	len += snprintf(o + len, cap - (size_t)len, ",\"line\":");
+	len = lw_app(o, cap, len, ",\"line\":");
 	{
 		int l = line_value(n, o + len, cap - (size_t)len);
 
 		len += l;
 	}
-	len += snprintf(o + len, cap - (size_t)len, "}\n");
+	len = lw_app(o, cap, len, "}\n");
 	return len;
 }

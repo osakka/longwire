@@ -1247,19 +1247,19 @@ static int nodes_json(lw_node *n, int from, char *out, size_t cap)
 
 	if (from < 0)
 		from = 0;
-	len = snprintf(out, cap, "{\"total\":%d,\"nodes\":[", b->n);
+	len = LW_SN(out, cap, "{\"total\":%d,\"nodes\":[", b->n);
 	for (i = from; i < b->n && any < NODEPAGE && len < (int)cap - 200; i++) {
 		const reg *r = &b->regs[i];
 		char f[16], nm[2 * LW_NAME_MAX + 8];
 
 		fmt_number(f, r->number);
 		json_esc(nm, sizeof nm, r->name);
-		len += snprintf(out + len, cap - (size_t)len, "%s{\"number\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"online\":%s,\"age\":%d}",
+		len = lw_app(out, cap, len, "%s{\"number\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"online\":%s,\"age\":%d}",
 				any ? "," : "", f, nm, r->listed ? "true" : "false", online(n, r) ? "true" : "false", (int)(time(0) - r->wall));
 		any++;
 		last = i + 1;
 	}
-	return len + snprintf(out + len, cap - (size_t)len, "],\"next\":%d}\n", any ? last : from);
+	return lw_app(out, cap, len, "],\"next\":%d}\n", any ? last : from);
 }
 
 int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
@@ -1277,12 +1277,12 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		int lifted;
 
 		if (sscanf(line + 6, "%79s", a) != 1)
-			return snprintf(out, cap, "{\"error\":\"unban wants a key id (eight digits or more of it) or all\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"unban wants a key id (eight digits or more of it) or all\"}\n");
 		lifted = ban_clear(n, a);
-		return snprintf(out, cap, "{\"lifted\":%d}\n", lifted);
+		return LW_SN(out, cap, "{\"lifted\":%d}\n", lifted);
 	}
 	if (sscanf(line, "reply %d %15s %79[^\n]", &id, verdict, arg) < 2)
-		return snprintf(out, cap, "{\"error\":\"unknown request\"}\n");
+		return LW_SN(out, cap, "{\"error\":\"unknown request\"}\n");
 	for (i = 0; i < MAXPEND; i++) {
 		pend *q = &b->pend[i];
 
@@ -1293,7 +1293,7 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			lw_peer *p = peer_by_key(n, q->key);
 
 			if (!p || !p->cur.valid)
-				return snprintf(out, cap, "{\"error\":\"the switchboard has gone\"}\n");
+				return LW_SN(out, cap, "{\"error\":\"the switchboard has gone\"}\n");
 			if (!strcmp(verdict, "accept"))
 				send_code(n, p, code_issue(b, q->key));
 			else
@@ -1302,7 +1302,7 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			lw_peer *p = peer_by_key(n, q->key);
 
 			if (!p || !p->cur.valid)
-				return snprintf(out, cap, "{\"error\":\"the node has gone\"}\n");
+				return LW_SN(out, cap, "{\"error\":\"the node has gone\"}\n");
 			if (!strcmp(verdict, "accept")) {	/* the outcome, so that the script spends a token only on a registration that happened */
 				const char *why = do_register(n, p, arg[0] ? arg : 0, q->name, q->listed);
 				const reg *r = why ? 0 : reg_by_key(b, q->key);
@@ -1311,16 +1311,16 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 				if (r)
 					fmt_number(f, r->number);
 				json_esc(we, sizeof we, why ? why : "");
-				return snprintf(out, cap, why ? "{\"refused\":\"%s\"}\n" : "{\"registered\":\"%s\"}\n", why ? we : f);
+				return LW_SN(out, cap, why ? "{\"refused\":\"%s\"}\n" : "{\"registered\":\"%s\"}\n", why ? we : f);
 			}
 			refuse(n, p, arg[0] ? arg : "registration refused");
 		} else if (!strcmp(verdict, "accept"))
 			route_dial(n, q->key, q->callee, q->cc, q->ncc, q->strict, q->admit, q->alen);
 		else
 			rejected(n, q->key, 0, R_POLICY, num_of(b, q->callee));
-		return snprintf(out, cap, "{\"ok\":true}\n");
+		return LW_SN(out, cap, "{\"ok\":true}\n");
 	}
-	return snprintf(out, cap, "{\"error\":\"no such pending request (timed out?)\"}\n");
+	return LW_SN(out, cap, "{\"error\":\"no such pending request (timed out?)\"}\n");
 }
 
 int board_status_json(lw_node *n, char *o, size_t cap)
@@ -1336,7 +1336,7 @@ int board_status_json(lw_node *n, char *o, size_t cap)
 		calls += b->calls[i].used;
 	lw_hex(kid, n->id.key_id, 32);
 	lw_address(addr, n->id.key_id);
-	return snprintf(o, cap,
+	return LW_SN(o, cap,
 		"{\"node\":\"switchboard\",\"key_id\":\"%s\",\"address\":\"%s\",\"uptime\":%d,\"numbers\":%d,\"online\":%d,"
 		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu,\"code\":\"%s\",\"code_refused\":\"%s\",\"codes_issued\":%d,"
 		"\"max_nodes\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"cookies_got\":%llu,\"strikes_given\":%llu,\"bans_issued\":%llu,\"net_bans_issued\":%llu,\"ban_refused\":%llu,"

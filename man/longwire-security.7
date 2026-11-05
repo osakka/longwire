@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SECURITY 7 "November 2026" "longwire 0.5.48" "longwire manual"
+.TH LONGWIRE-SECURITY 7 "November 2026" "longwire 0.5.49" "longwire manual"
 .SH NAME
 longwire-security \- what longwire protects, what it does not, and how far it has been checked
 .SH DESCRIPTION
@@ -77,6 +77,16 @@ The engine is written in C.
 Real routers, the wide\-area internet, everything through the line with real traffic, a real exit on the internet, a laptop moving between networks, a real systemd\-resolved, a real DHCP lease, the helpers under a real
 .BR pkexec ,
 the services under a live systemd and a clean install from the packages have not been tried by the author.
+.SH "WHAT THE NODE CAN DO"
+The node runs as the user, holds no capability and cannot gain one.
+Since 0.5.49, once it has opened everything its loop needs, a seccomp filter limits it to the system calls that loop makes:
+it cannot start a program, make a process, trace another, mount, make memory executable, open a raw socket or lift the filter, and the first such call ends it.
+It has no switch; the status (\fBsandbox\fR), \fBlongwire show\fR and the Control Panel report what is in force, asked of the kernel.
+A kernel without seccomp runs without it and says so.
+Confining the files the node can reach (Landlock) is not built, so a bug turned into code could still read and write what its user can.
+.PP
+The input boundaries were read by an independent reviewer in 0.5.48; what was found, what was fixed and what is open is in
+.IR /usr/share/doc/longwire/SECURITY.md .
 .SH "PRIVILEGED HELPERS"
 Two root helpers run through
 .BR pkexec ,
@@ -97,7 +107,7 @@ that lets only the line's network out, masqueraded, lets only the answers back i
 What it changed is written in
 .I /run/longwire/share\-lwN
 and undone exactly when sharing stops or the jack is removed.
-Every value is checked before anything changes.
+Every value is checked before anything changes, and the vendor\(aqs DHCP script runs from an allowlist environment, so what a DHCP server sends (routers, classless routes, name servers, a host name) never reaches it.
 .I /usr/lib/longwire/site
 writes a site node's options, letting through only
 .BR \-\-switchboard ,

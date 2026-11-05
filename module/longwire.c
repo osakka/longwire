@@ -24,7 +24,7 @@
 #include "../engine/lw.h"
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.48"
+#define LW_VERSION "0.5.49"
 #endif
 
 static void default_sock(char *out, size_t n)
@@ -550,8 +550,7 @@ static int do_start(sh *s, int ac, char **av, int role)
 		dup2(fd, 1);
 		dup2(fd, 2);
 		hibr_title2("lw-worker", role ? "longwire switchboard worker" : "longwire worker");
-		lw_node_serve(n);
-		_exit(0);
+		_exit(lw_node_serve(n) ? 1 : 0);
 	}
 	lw_node_release(n);			/* the parent keeps no descriptors */
 	{

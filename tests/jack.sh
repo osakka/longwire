@@ -58,9 +58,10 @@ echo "$1 \$*" >> "\$LWJ_LOG"
 CL
 	chmod +x "$T/bin/$1"
 }
-cat > "$T/real-script" <<'RS'
+cat > "$T/real-script" <<RS
 #!/bin/sh
-echo "REAL ip=${new_ip_address:-} routers=${new_routers:-} dns=${new_domain_name_servers:-} router=${router:-} dnsu=${dns:-} args=$*" >> "$LWJ_LOG"
+# the hook clears the environment, so the stub writes where it was told when it was made
+echo "REAL ip=\${new_ip_address:-} routers=\${new_routers:-} dns=\${new_domain_name_servers:-} router=\${router:-} dnsu=\${dns:-} rfc=\${new_rfc3442_classless_static_routes:-} host=\${new_host_name:-} mtu=\${new_interface_mtu:-} other=\${evil:-} reason=\${reason:-} args=\$*" >> "$T/log"
 RS
 chmod +x "$T/real-script"
 export LONGWIRE_DHCP_SCRIPT=$T/real-script
@@ -73,12 +74,12 @@ run --dhcp lw7 1000
 sleep 0.2
 kill -0 $oldpid 2> /dev/null && { bad "the client from before is still there"; kill $oldpid; } || ok "and the client of ours from before is stopped, so there is only one"
 : > "$LWJ_LOG"
-new_routers=9.9.9.9 new_domain_name_servers=8.8.8.8 router=9.9.9.9 dns=8.8.8.8 new_ip_address=10.1.1.5 "$RUN/dhcp-hook-lw7" BOUND
-[ "$(head -n 1 "$RUN/dhcp-hook-lw7")" = "#!$HIBR" ] && grep -q "REAL ip=10.1.1.5 routers= dns= router= dnsu= args=BOUND" "$LWJ_LOG" && ok "the hook (a hibr script, run directly through its shebang) keeps the address and takes out the default route and the name servers before the system script runs" || bad "hook: $(cat "$LWJ_LOG")"
+new_routers=9.9.9.9 new_domain_name_servers=8.8.8.8 router=9.9.9.9 dns=8.8.8.8 new_ip_address=10.1.1.5 new_rfc3442_classless_static_routes="0 10 9 9 9" new_host_name=pwned new_interface_mtu=68 evil=1 reason=BOUND "$RUN/dhcp-hook-lw7" BOUND
+[ "$(head -n 1 "$RUN/dhcp-hook-lw7")" = "#!$HIBR" ] && grep -q "REAL ip=10.1.1.5 routers= dns= router= dnsu= rfc= host= mtu= other= reason=BOUND args=BOUND" "$LWJ_LOG" && ok "the hook (a hibr script, run directly through its shebang) runs the system script from an allowlist environment: the address comes through, and the routers, name servers, classless routes (option 121), host name, MTU and anything else a DHCP server can send do not (docs/adr/0063)" || bad "hook: $(cat "$LWJ_LOG")"
 rm -f "$T/bin/dhclient"
 mkclient dhcpcd
 run --dhcp lw7 1000
-grep -q "dhcpcd -b -G -C resolv.conf -C ntp.conf lw7" "$LWJ_LOG" && ok "without dhclient, dhcpcd: in the background, no gateway, no resolv.conf or ntp.conf" || bad "dhcpcd: rc=$rc $(cat "$LWJ_LOG")"
+grep -q "dhcpcd -b -G -C resolv.conf -C ntp.conf -O routers -O classless_static_routes -O ms_classless_static_routes -O static_routes -O domain_name_servers .* lw7" "$LWJ_LOG" && ok "without dhclient, dhcpcd: in the background, no gateway, no resolv.conf or ntp.conf, and neither the routers, the classless routes (option 121), the name servers nor anything else that could reach the machine is asked for or believed" || bad "dhcpcd: rc=$rc $(cat "$LWJ_LOG")"
 rm -f "$T/bin/dhcpcd"
 mkclient udhcpc
 run --dhcp lw7 1000

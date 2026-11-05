@@ -3,7 +3,27 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
-## 0.5.48
+## 0.5.49
+
+**The node is closed to what it does not need, and an independent read of every input boundary is answered** ([ADR 0062](docs/adr/0062-the-node-can-make-only-the-system-calls-it-needs.md),
+[ADR 0063](docs/adr/0063-inputs-are-bounded-by-the-way-they-are-written.md)). The reviewer was given the code, not the author's conclusions. Each fix below has a test that fails without it.
+
+- **A sandbox.** After the node has opened everything it needs and dropped its capabilities, a seccomp filter limits it to the system calls its loop makes: it cannot start a program, make a
+  process, trace, mount, make memory executable, open a raw socket or lift the filter (the first such call ends it). It is not an option and has no switch; the status, `longwire show` and
+  the pane (*Containment*) report what is in force, asked of the kernel. Confining the files it can reach (Landlock) is not built: this machine's kernel has none, so it could not be tried.
+- **The status could be written past its buffer** by a node with 13 or more peers (a member can add members): every JSON writer is now bounded, the buffer holds the worst case (32 peers, 32 calls,
+  a line of 16: under 18 KB of 32 KB), and the control socket never writes more than it holds. A test under the bounds checker fails on the old engine.
+- **A DHCP server on the line could install a default route** through the vendor's script (option 121 reached its exit hook): the script now runs from an allowlist environment, and dhcpcd is told
+  not to ask for or believe routes, name servers, host name or MTU. No list of what to remove.
+- **A member could put the site's other box in standby** with a valid probe over the line: the site boxes' own EtherType is dropped from the line. **A member could take a local host's address**
+  by claiming it: a host that spoke in the last 10 s keeps it. **An eviction dated years ahead** is refused. **A switchboard's refusal text** shows no control character. **As root, the launcher**
+  uses only the machine's copy of the script. **`lw07` and `lw7`** can no longer share a table, and the site helper refuses `.` and `..`. **Forwarding for the exit's way out** no longer opens
+  it to whoever is on its far side.
+- The pane has a *Containment* section; none of it is a control. The setting is not offered because containment that can be turned off is not containment.
+- Not done, and written in SECURITY: line member records are claims from whichever member sent them (a forged number can win the exit's choice); admits never expire and revocations are a bounded list;
+  a handshake's time is not checked against the clock; HELLO answers 125 times what it is asked; Landlock.
+
+## 0.5.48 (never published on its own: folded into 0.5.49)
 
 **A changed network is found again in seconds, and a lost one costs nothing** ([ADR 0061](docs/adr/0061-a-changed-road-is-found-at-once-and-a-lost-one-is-waited-out-quietly.md)).
 Before, a node that moved to another network or lost its network learned it only when its sessions died of silence (three keepalives, 76 s by default), and only noticed it

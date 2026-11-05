@@ -13,6 +13,8 @@
 #include "int.h"
 #include "../vendor/monocypher/monocypher.h"
 
+#define EVICT_SKEW 86400		/* how far ahead of this clock an eviction may be dated: clocks differ, a day is far more than they do */
+
 static void put64(uint8_t *p, uint64_t v)
 {
 	int i;
@@ -636,6 +638,8 @@ static void handle_evict(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 		return;
 	if (!(ev = mem_find(n, p->key_id)))
 		return;
+	if (get64(pl + 40) > (uint64_t)time(0) + EVICT_SKEW)
+		return;				/* an eviction dated far ahead would bar the key for as long as that date: the time is the signer's own word (docs/adr/0063) */
 	memcpy(msg, pl, 48);
 	memcpy(msg + 48, "evict", 5);
 	if (n->line.managed) {			/* only the operator's word, and any member may carry it */
@@ -724,23 +728,23 @@ int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 		char num[NUMLEN + 1] = "";
 
 		if (!n->line.have || !n->line.managed)
-			return snprintf(out, cap, "{\"error\":\"this node is not on a line with an operator\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"this node is not on a line with an operator\"}\n");
 		if (strlen(cmd + 7) != EVICT_LEN * 2 || unhexn(cmd + 7, b, EVICT_LEN))
-			return snprintf(out, cap, "{\"error\":\"that is not an eviction\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"that is not an eviction\"}\n");
 		memcpy(msg, b, 48);
 		memcpy(msg + 48, "evict", 5);
 		if (memcmp(b, n->line.id, 8) || memcmp(b + 48, n->line.authority, 32) ||
 		    !lw_verify(n->line.authority, msg, sizeof msg, b + 80))
-			return snprintf(out, cap, "{\"error\":\"that eviction is not signed by this line's operator\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"that eviction is not signed by this line's operator\"}\n");
 		store_revoke(n, b);
 		if (!memcmp(b + 8, n->id.key_id, 32)) {
 			apply_evict(n, b + 8, get64(b + 40));	/* it is about us */
-			return snprintf(out, cap, "{\"revoked\":\"you\"}\n");
+			return LW_SN(out, cap, "{\"revoked\":\"you\"}\n");
 		}
 		if ((m = mem_find(n, b + 8)))
 			snprintf(num, sizeof num, "%s", m->number);
 		evict_now(n, b + 8, get64(b + 40), b, num);
-		return snprintf(out, cap, "{\"revoked\":\"%s\"}\n", num[0] ? "member" : "not a member");
+		return LW_SN(out, cap, "{\"revoked\":\"%s\"}\n", num[0] ? "member" : "not a member");
 	}
 	if (!strncmp(cmd, "evict ", 6)) {
 		char num[NUMLEN + 1], f[16];
@@ -751,19 +755,19 @@ int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 		int i;
 
 		if (parse_full(n, cmd + 6, num, perr, sizeof perr))
-			return snprintf(out, cap, "{\"error\":\"%s\"}\n", perr);
+			return LW_SN(out, cap, "{\"error\":\"%s\"}\n", perr);
 		if (!n->line.have)
-			return snprintf(out, cap, "{\"error\":\"you are not on a line\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"you are not on a line\"}\n");
 		if (n->line.managed)
-			return snprintf(out, cap, "{\"error\":\"this line has an operator: only the operator evicts (longwire revoke)\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"this line has an operator: only the operator evicts (longwire revoke)\"}\n");
 		for (i = 0; i < n->line.nm; i++)
 			if (!strcmp(n->line.m[i].number, num))
 				m = &n->line.m[i];
 		fmt_number(f, num);
 		if (!m)
-			return snprintf(out, cap, "{\"error\":\"%s is not on this line\"}\n", f);
+			return LW_SN(out, cap, "{\"error\":\"%s is not on this line\"}\n", f);
 		if (!memcmp(m->key_id, n->id.key_id, 32))
-			return snprintf(out, cap, "{\"error\":\"that is you: use hangup to leave\"}\n");
+			return LW_SN(out, cap, "{\"error\":\"that is you: use hangup to leave\"}\n");
 		memcpy(kid, m->key_id, 32);
 		memcpy(b, n->line.id, 8);
 		memcpy(b + 8, kid, 32);
@@ -773,7 +777,7 @@ int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 		memcpy(sigmsg + 48, "evict", 5);
 		lw_sign(&n->id, sigmsg, sizeof sigmsg, b + 80);
 		evict_now(n, kid, t, b, num);
-		return snprintf(out, cap, "{\"evicted\":\"%s\"}\n", f);
+		return LW_SN(out, cap, "{\"evicted\":\"%s\"}\n", f);
 	}
 	if (!strcmp(cmd, "peers"))
 		return line_status_json(n, out, cap);
@@ -848,14 +852,14 @@ int line_value(lw_node *n, char *o, size_t cap)
 	int len, i, up = 0;
 
 	if (!n->line.have)
-		return snprintf(o, cap, "null");
+		return LW_SN(o, cap, "null");
 	lw_hex(hx, n->line.id, 8);
 	{
 		char ah[65] = "";
 
 		if (n->line.managed)
 			lw_hex(ah, n->line.authority, 32);
-		len = snprintf(o, cap, "{\"id\":\"%.6s\",\"id_full\":\"%s\",\"managed\":%s,\"authority\":\"%s\",\"founder\":%s,\"members\":[",
+		len = LW_SN(o, cap, "{\"id\":\"%.6s\",\"id_full\":\"%s\",\"managed\":%s,\"authority\":\"%s\",\"founder\":%s,\"members\":[",
 			       hx, hx, n->line.managed ? "true" : "false", ah, memcmp(n->line.founder, n->id.key_id, 32) ? "false" : "true");
 	}
 	for (i = 0; i < n->line.nm && len < (int)cap - 200; i++) {
@@ -866,19 +870,19 @@ int line_value(lw_node *n, char *o, size_t cap)
 		up += ok;
 		fmt_number(f, m->number);
 		lw_hex(kh, m->key_id, 32);
-		len += snprintf(o + len, cap - (size_t)len, "%s{\"number\":\"%s\",\"key_id\":\"%s\",\"state\":\"%s\"}",
+		len = lw_app(o, cap, len, "%s{\"number\":\"%s\",\"key_id\":\"%s\",\"state\":\"%s\"}",
 				i ? "," : "", f, kh, me ? "you" : ok ? "up" : "down");
 	}
-	len += snprintf(o + len, cap - (size_t)len, "],\"up\":%d,\"partial\":%s}", up, up < n->line.nm ? "true" : "false");
+	len = lw_app(o, cap, len, "],\"up\":%d,\"partial\":%s}", up, up < n->line.nm ? "true" : "false");
 	return len;
 }
 
 int line_status_json(lw_node *n, char *o, size_t cap)
 {
-	int len = snprintf(o, cap, "{\"line\":");
+	int len = LW_SN(o, cap, "{\"line\":");
 
 	len += line_value(n, o + len, cap - (size_t)len);
-	return len + snprintf(o + len, cap - (size_t)len, "}\n");
+	return lw_app(o, cap, len, "}\n");
 }
 
 /* What a new event subscriber missed about the line. */
@@ -889,5 +893,5 @@ int line_replay(lw_node *n, char *o, size_t cap)
 	if (!n->line.have)
 		return 0;
 	lw_hex(hx, n->line.id, 8);
-	return snprintf(o, cap, "{\"event\":\"line-joined\",\"line\":\"%.6s\",\"members\":%d}\n", hx, n->line.nm);
+	return LW_SN(o, cap, "{\"event\":\"line-joined\",\"line\":\"%.6s\",\"members\":%d}\n", hx, n->line.nm);
 }

@@ -135,6 +135,10 @@ def main():
     check(udp_ask(I, "192.168.152.10", 7777) is None, "nothing from the internet gets in to the line through the exit")
     fw = nsh(X, "cat /proc/sys/net/ipv4/conf/eth9/forwarding /proc/sys/net/ipv4/conf/lan0/forwarding", out=True).split()
     check(fw == ["1", "0"], f"forwarding is on for the jack and the way out only: eth9 {fw[0]}, lan0 {fw[1]}")
+    nsh(I, "ip route add 10.50.0.0/24 via 10.9.0.2")				# a neighbour on the way out's far side, who would route through the exit to its other network
+    subprocess.run(["nsenter", "-t", str(X.pid), "-n", "sh", "-c", "echo 1 > /proc/sys/net/ipv4/conf/lan0/forwarding"], check=True)	# (the answers could come back only if the exit forwarded for its LAN too)
+    check(udp_ask(I, "10.50.0.9", 7778) is None, "and whoever is on the way out's far side cannot route through the exit to its other networks: forwarding was off before sharing, and the table puts that back (docs/adr/0063)")
+    subprocess.run(["nsenter", "-t", str(X.pid), "-n", "sh", "-c", "echo 0 > /proc/sys/net/ipv4/conf/lan0/forwarding"], check=True)
     rc, out = helper(X, "X", "--address", "192.168.152.1/24", "--share")
     check(rc == 0 and udp_ask(CL, "203.0.113.9") == "10.9.0.2", "run again, the same table: still shared")
     rc, out = helper(X, "X", "--address", "192.168.152.1/24")

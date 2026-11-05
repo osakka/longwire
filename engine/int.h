@@ -283,6 +283,7 @@ struct lw_node {
 	double   jnet_at;
 	uint64_t road_fp, road_changes;	/* the road under the node (road.c, docs/adr/0061): a fingerprint of it, and how often it changed */
 	double   road_t, road_changed_at;
+	int      sbx_seccomp, sbx_caps, sbx_done;	/* the sandbox (sandbox.c, docs/adr/0062): what is in force, set once when the worker starts */
 	int      road_seen, road_had, road_down;	/* looked at once; had a default route; has none now: quiet until one is back */
 	char     jnet_dev[32];
 	int      udp2;			/* a switchboard's echo port (echo_port_of(udp_port)): answers ECHO, so a node can tell its NAT's mapping type */
@@ -532,6 +533,12 @@ int  line_presented(lw_node *n, const char *number, uint8_t out[ADMIT_LEN]);	/* 
 void line_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len);
 void line_call_up(lw_node *n, lw_peer *p);
 void line_timers(lw_node *n);
+/* Writers of JSON into a buffer that cannot run past it (docs/adr/0063): snprintf returns what it WOULD have written, and an offset or a size made from that is how a
+ * buffer is overrun. lw_app appends and returns the new length, never more than cap - 1; LW_SN is snprintf with the same promise. */
+int  lw_fit(int would, size_t cap);
+int  lw_app(char *o, size_t cap, int len, const char *fmt, ...);
+#define LW_SN(o, cap, ...) lw_fit(snprintf((o), (cap), __VA_ARGS__), (cap))
+int  sandbox_value(lw_node *n, char *o, size_t cap);
 void road_timers(lw_node *n);
 int  road_value(lw_node *n, char *o, size_t cap);
 void exit_msg(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len);

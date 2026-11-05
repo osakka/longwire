@@ -326,7 +326,7 @@ int ban_json(lw_node *n, char *o, size_t cap)
 	struct banset *b = n->bn;
 	int i, len, any = 0;
 
-	len = snprintf(o, cap, "{\"strikes\":%d,\"window\":%d,\"ban_for\":%d,\"ban_max\":%d,\"net_keys\":%d,\"net_for\":%d,\"ceiling\":%d,\"struck\":%llu,\"issued\":%llu,\"net_issued\":%llu,\"refused\":%llu,\"suppressed\":%llu,\"bans\":[",
+	len = LW_SN(o, cap, "{\"strikes\":%d,\"window\":%d,\"ban_for\":%d,\"ban_max\":%d,\"net_keys\":%d,\"net_for\":%d,\"ceiling\":%d,\"struck\":%llu,\"issued\":%llu,\"net_issued\":%llu,\"refused\":%llu,\"suppressed\":%llu,\"bans\":[",
 		n->cfg.strikes, n->cfg.strike_window, n->cfg.ban_for, n->cfg.ban_max, n->cfg.net_keys, n->cfg.net_for, n->cfg.ban_ceiling,
 		(unsigned long long)n->strikes_given, (unsigned long long)n->bans_issued, (unsigned long long)n->net_bans_issued,
 		(unsigned long long)n->bans_refused, (unsigned long long)n->bans_suppressed);
@@ -336,22 +336,22 @@ int ban_json(lw_node *n, char *o, size_t cap)
 		if (!b->e[i].used || b->e[i].until <= n->now)
 			continue;
 		lw_hex(kh, b->e[i].kid, 32);
-		len += snprintf(o + len, cap - (size_t)len, "%s{\"key_id\":\"%s\",\"seconds\":%d,\"level\":%d}", any ? "," : "", kh, (int)(b->e[i].until - n->now), b->e[i].level);
+		len = lw_app(o, cap, len, "%s{\"key_id\":\"%s\",\"seconds\":%d,\"level\":%d}", any ? "," : "", kh, (int)(b->e[i].until - n->now), b->e[i].level);
 		any = 1;
 	}
-	len += snprintf(o + len, cap - (size_t)len, "],\"nets\":[");
+	len = lw_app(o, cap, len, "],\"nets\":[");
 	any = 0;
 	for (i = 0; b && i < NET_SLOTS && len < (int)cap - 120; i++) {
 		if (!b->nt[i].used || b->nt[i].until <= n->now)
 			continue;
 		if (b->nt[i].fam == 4)
-			len += snprintf(o + len, cap - (size_t)len, "%s{\"net\":\"%u.%u.%u.0/24\",\"seconds\":%d}", any ? "," : "", b->nt[i].net[0], b->nt[i].net[1], b->nt[i].net[2], (int)(b->nt[i].until - n->now));
+			len = lw_app(o, cap, len, "%s{\"net\":\"%u.%u.%u.0/24\",\"seconds\":%d}", any ? "," : "", b->nt[i].net[0], b->nt[i].net[1], b->nt[i].net[2], (int)(b->nt[i].until - n->now));
 		else
-			len += snprintf(o + len, cap - (size_t)len, "%s{\"net\":\"%02x%02x:%02x%02x:%02x%02x:%02x%02x::/64\",\"seconds\":%d}", any ? "," : "",
+			len = lw_app(o, cap, len, "%s{\"net\":\"%02x%02x:%02x%02x:%02x%02x:%02x%02x::/64\",\"seconds\":%d}", any ? "," : "",
 				b->nt[i].net[0], b->nt[i].net[1], b->nt[i].net[2], b->nt[i].net[3], b->nt[i].net[4], b->nt[i].net[5], b->nt[i].net[6], b->nt[i].net[7], (int)(b->nt[i].until - n->now));
 		any = 1;
 	}
-	len += snprintf(o + len, cap - (size_t)len, "]}\n");
+	len = lw_app(o, cap, len, "]}\n");
 	return len;
 }
 

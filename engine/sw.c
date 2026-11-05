@@ -9,6 +9,7 @@
 
 #define MAC_AGE 300.0
 #define MAC_PROBES 8
+#define MAC_STEAL_GUARD 10.0		/* seconds a locally learned address is held against a peer's frame that claims it */
 #define ARP_AGE 120.0
 #define FLOOD_RATE 1000.0		/* flooded frames a second sent to one peer ... */
 #define FLOOD_BURST 200.0		/* ... after a burst of this many */
@@ -58,6 +59,9 @@ static void learn(lw_node *n, const uint8_t *mac, int port)
 
 	if (mac[0] & 1)				/* a group address is never a source */
 		return;
+	if (port >= 0 && (e = mac_find(n, mac, 0)) && e->port == -1 && n->now - e->seen < MAC_STEAL_GUARD)
+		return;				/* a host on our own LAN that spoke a moment ago keeps its address: a member cannot pull its traffic out over the line by saying it is
+						 * that host (docs/adr/0063). A host that really moved stops speaking here, and the entry then moves; one that speaks here takes it back at once. */
 	if ((e = mac_find(n, mac, 1))) {
 		e->port = (int16_t)port;
 		e->seen = n->now;
@@ -687,6 +691,11 @@ void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len)
 	mac_ent *e;
 
 	if (len < 14) {
+		n->drop_garbage++;
+		return;
+	}
+	if (f[12] == 0x88 && f[13] == 0xb5) {	/* the boxes of a site talk to each other on their own segment (site.c) and never over the line: a member that holds the line key can
+						 * make a valid probe, and a frame like that from the line would put the site's other box in standby (docs/adr/0063) */
 		n->drop_garbage++;
 		return;
 	}

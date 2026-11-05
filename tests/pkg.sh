@@ -80,6 +80,14 @@ out=$(HOME="$T/home3" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(di
 out=$(HOME="$T/home" XDG_CONFIG_HOME="$T/none" XDG_DATA_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire-switchboard" 2>&1); rc=$?
 [ $rc -eq 127 ] && echo "$out" | grep -q "catalogue install cli/longwire-switchboard"; check $? "with no script it says how to get it, and exits 127"
 
+# --- as root, a script in a user's folder is not used: the user can change it, and it would run as root (docs/adr/0063)
+if unshare -Ur true 2> /dev/null; then
+	out=$(unshare -Ur env HOME="$T/home" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" LONGWIRE_SCRIPTS="$T/home/.local/share/hibr/cli" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire" up --now 2>&1); rc=$?
+	[ $rc -eq 127 ] && echo "$out" | grep -q "not installed"; check $? "as root, the launcher does not run a script from the user's folder, nor one named by LONGWIRE_SCRIPTS: $out"
+else
+	echo "skip: no user namespaces to be root in"
+fi
+
 # --- the real thing, end to end: the launcher, the real script, the module from the package
 out=$(HOME="$T/home2" XDG_CONFIG_HOME="$T/none" LONGWIRE_SCRIPTS="$PWD/scripts" LONGWIRE_MOD="$T/deb/usr/lib/hibr/longwire.so" \
 	PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire" id 2>&1)

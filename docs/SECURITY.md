@@ -87,7 +87,7 @@ That is the honest sentence behind the word.
 ## What has been done to check it
 
 - **A test suite that builds real networks.** It runs the actual scripts over unprivileged network namespaces with simulated
-  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (943 checks in the run for 0.5.47).
+  NATs, carrying real ping, ARP, TCP and broadcasts between LANs (999 checks in the run for 0.5.49).
 - **An attack on the switchboard,** the one component built to face the public. Before it was released, three readers went through every parser a stranger's bytes can
   reach. It found real flaws, three of them proven by tests that failed on the old code: strangers able to fill the switchboard's
   places for good, a registration token able to write into the policy script's event, and a switchboard able to connect a call nobody
@@ -97,6 +97,15 @@ That is the honest sentence behind the word.
 - **A cross-check of the crypto.** X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519, as TCC builds them, give the same answers as
   independent implementations on 2,100 random cases.
 
+- **An independent read of every input boundary (0.5.48).** A reviewer was given the code, not the author's conclusions, and read the engine, the switchboard, the control socket and the
+  root helpers. It reported 11 findings. Fixed in 0.5.49, each with a test that fails without the fix ([ADR 0063](adr/0063-inputs-are-bounded-by-the-way-they-are-written.md)): the status written past its buffer (a member could provoke it by
+  adding members); a DHCP server on the line installing a default route through the vendor's script (option 121); site probes accepted from the line; a local host's address stolen by a
+  peer; an eviction dated years ahead; terminal escapes in a switchboard's refusal; the launcher running a user's script as root; `lw07` and `lw7` sharing a table; the site helper accepting
+  `.` and `..`; forwarding opened to the exit's far side. Also built: the node is closed to the system calls it needs ([ADR 0062](adr/0062-the-node-can-make-only-the-system-calls-it-needs.md)), tested by trying a dozen things it must not be able to do.
+  Open, and the next round: line member records are claims from whichever member sent them (a forged number can win the exit's choice; a forged signing key can lock out a later member);
+  admits never expire and an operator's revocations are a bounded list; a handshake's time is not checked against the clock; HELLO answers 125 times what it is asked.
+- **Not claimed:** the reviewer read the code and ran nothing, so each fix is tested here and the reviewer's thresholds were not measured; the vendored crypto was not read by it.
+
 ## What has not been done, and what that means for you
 
 | Not done | Consequence |
@@ -105,7 +114,7 @@ That is the honest sentence behind the word.
 | **The handshake has no formal proof** (no Tamarin or ProVerif model) | The pieces are standard; the way they are combined is new, in the family of PQ-WireGuard and Rosenpass. A subtle flaw in the combination is possible. |
 | **ML-KEM is not cross-checked** | There is no second implementation on the machine to compare against. It is the vendored reference code, and two nodes built from it agree with each other. |
 | **Constant-time behaviour is unchecked** | The libraries are written to avoid timing leaks, but nobody has measured the code as TCC compiles it. |
-| **The engine is written in C** | Memory-safety bugs are possible in any C code. The fuzzer and the bounds checker lower that risk; they do not remove it. The node runs unprivileged, which limits the damage. |
+| **The engine is written in C** | Memory-safety bugs are possible in any C code. The fuzzer and the bounds checker lower that risk; they do not remove it. The node runs unprivileged, cannot gain a capability, and since 0.5.49 can make only the system calls its loop needs, so a bug turned into code cannot start a program, make a process or make memory executable. It can still read and write what its user can: confining the files it can reach (Landlock) *(planned: M8)*: the kernel of the machine this was written on has none, so it could not be tried. |
 | **Real-world conditions are mostly untested** | The tests simulate NATs, and stand-ins play `ip`, `systemctl`, `resolvectl` and the DHCP clients. Not tried by the author: real routers, the wide-area internet, a real tap device, everything through the line with real traffic to the internet, a real exit on the internet (sharing is tested on the engine and in network namespaces on the real kernel), a laptop really moving between networks, a real systemd-resolved, a real DHCP lease, the helpers under a real `pkexec`, the services under a live systemd, a long real attack on a switchboard's bans, and a clean install from the packages. |
 
 These gaps are tracked in [THREAT-MODEL](THREAT-MODEL.md) and the [ROADMAP](ROADMAP.md) (M8 is the verification milestone).

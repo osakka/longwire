@@ -20,7 +20,7 @@ fn fail(msg, int code = 2) {
 
 # A card name this helper may touch: letters, digits and . _ -, at most 15, and not the loopback or one of our own jacks.
 fn card_ok(nic) {
-	[[ $nic =~ ^[A-Za-z0-9_.-]{1,15}$ ]] || return 1
+	[[ $nic =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,14}$ ]] || return 1		# not "." or "..": a path made from it must stay inside its folder
 	[ "$nic" != lo ] || return 1
 	[[ $nic =~ ^lw[0-9] ]] && return 1
 	return 0

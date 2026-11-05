@@ -152,6 +152,24 @@ dump 1
         rows, log, r = drive(envB, body)
         net = [x for x in rows if x[1] == "Network"]
         check(bool(net) == want and (not want or "waiting quietly" in net[0][2]), f"the pane says there is no network only while there is none ({state}): {net}")
+    # what the node says it is confined by: shown as it says, never assumed, and never offered as a switch (docs/adr/0062)
+    for sbx, want in (('{"installed":true,"seccomp":true,"no_new_privs":true,"capabilities":false,"uid":1000}', ("system calls limited", "none, and it cannot gain any")),
+                      ('{"installed":true,"seccomp":false,"no_new_privs":true,"capabilities":false,"uid":1000}', ("NOT limited", "none, and it cannot gain any")),
+                      ('{"installed":true,"seccomp":true,"no_new_privs":true,"capabilities":true,"uid":0}', ("system calls limited", "HELD")),
+                      ('null', ("unknown", None))):
+        body = r'''
+fn lwp_poll() { return 0; }
+LWP_UP=1
+json parse LWP_S '{"full":"+0 111-111-111","name":"","switchboard":"dial tone","nat":"easy","calls":[],"peers":[],"line":null,"road":{"state":"up"},"sandbox":SBX,"exit":{"share":false,"use":false}}'
+dump 1
+'''.replace("SBX", sbx)
+        rows, log, r = drive(envB, body)
+        lab = {x[1].strip(): x for x in rows if x[0] == "action"}
+        c1 = lab.get("Containment", [0, 0, ""])[2]
+        c2 = lab.get("Privileges", [0, 0, ""])[2]
+        check(c1.startswith(want[0]) and (want[1] is None and "Privileges" not in lab or want[1] is not None and want[1] in c2),
+              f"the pane shows what the node says it is confined by ({sbx[:60]}...): {c1!r} / {c2!r}")
+        check(all(x[3] == "none" for x in rows if x[1].strip() in ("Containment", "Privileges", "Files it can reach")), "and none of those rows is a control: there is no way to turn it off from here")
     # throughput: totals from the node's counters, rates from two reads of them
     body = r'''
 DRV_MS=1000

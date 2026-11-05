@@ -350,8 +350,20 @@ lw_peer *peer_by_key(lw_node *n, const uint8_t key_id[32])
 	return 0;
 }
 
+/* Does a call that is still going hold this peer? A call keeps its peer by slot number, so a slot recycled under it would be another key's: the call would then
+ * pin its number to that key (docs/adr/0063). */
+static int peer_called(const lw_node *n, int idx)
+{
+	int i;
+
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state != CALL_IDLE && n->calls[i].peer == idx)
+			return 1;
+	return 0;
+}
+
 /* A free slot; when the table is full, the stalest peer with no session is
- * recycled (never one that is up, never our switchboard). */
+ * recycled (never one that is up, never one a call is waiting on, never our switchboard). */
 static lw_peer *peer_slot(lw_node *n)
 {
 	lw_peer *best = 0, *anon = 0;
@@ -362,7 +374,7 @@ static lw_peer *peer_slot(lw_node *n)
 
 		if (!p->used)
 			return p;
-		if (!p->cur.valid && !p->next.valid && !p->hs.active && !p->is_sb && !p->dial &&
+		if (!p->cur.valid && !p->next.valid && !p->hs.active && !p->is_sb && !p->dial && !peer_called(n, i) &&
 		    (!best || p->touched < best->touched))
 			best = p;
 		/* A switchboard's table can be held by strangers who shake hands and then say nothing. A session that has

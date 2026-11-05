@@ -110,6 +110,6 @@ void road_timers(lw_node *n)
 /* For the status: what the node knows of its road. */
 int road_value(lw_node *n, char *o, size_t cap)
 {
-	return snprintf(o, cap, "{\"state\":\"%s\",\"changes\":%llu,\"changed\":%d,\"sent\":%llu}", n->road_down ? "down" : "up", (unsigned long long)n->road_changes,
+	return LW_SN(o, cap, "{\"state\":\"%s\",\"changes\":%llu,\"changed\":%d,\"sent\":%llu}", n->road_down ? "down" : "up", (unsigned long long)n->road_changes,
 			n->road_changes ? (int)(n->now - n->road_changed_at) : -1, (unsigned long long)n->tx_pkts);
 }

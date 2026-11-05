@@ -30,6 +30,9 @@ for pid in $(pgrep -x lw-worker); do
   nnp=$(awk '/NoNewPrivs/ {print $2}' /proc/$pid/status)
   [ "$cap" = "0000000000000000 " ] && [ "$nnp" = 1 ] && echo "ok   worker $pid: every capability set empty, no_new_privs=1" \
     || { echo "FAIL worker $pid caps=[$cap] nnp=$nnp"; exit 1; }
+  sec=$(awk '/^Seccomp:/ {print $2}' /proc/$pid/status)	# the kernel's own word, not the node's: 2 is a filter (docs/adr/0062)
+  [ -z "$sec" ] || [ "$sec" = 2 ] && echo "ok   worker $pid: the kernel says a system call filter is on it (Seccomp: ${sec:-not in this kernel})" \
+    || { echo "FAIL worker $pid has no system call filter: Seccomp: $sec"; exit 1; }
 done
 
 # one node per control socket: a second start must refuse, not replace it

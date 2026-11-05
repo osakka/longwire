@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.48
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.49
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.48}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.49}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -579,6 +579,14 @@ cmd_show() {
 			if verify_has "$num" "$k"; then echo "                 safety phrase: $phr   (verified)"; else echo "                 safety phrase: $phr   (not verified: longwire verify $num WORDS)"; fi
 		fi
 	done
+	t := json get S .sandbox.installed
+	if [ "$t" = true ]; then			# what the node itself says it is confined by (docs/adr/0062)
+		local sec cap
+		sec := json get S .sandbox.seccomp
+		cap := json get S .sandbox.capabilities
+		if [ "$sec" = true ]; then echo "   contained     system calls limited to what it needs; $([ "$cap" = true ] && echo "A CAPABILITY IS HELD" || echo "no capabilities, and it cannot gain any"); files it can reach are not confined yet"
+		else lw_out "   ⚠  contained     NOT: this kernel has no seccomp, so the node can make any system call its user can"; fi
+	fi
 	t := json get S .road.state
 	[ "$t" = down ] && lw_out "   ⚠  no network under the line: it waits quietly and reconnects the moment one is back"
 	t := json get S .exit.share
@@ -728,7 +736,7 @@ jack_has_routes() {
 # (docs/adr/0045)? Asked without privilege too.
 jack_has_everything() {
 	local tap=$1 via=$2 want=$3 table rule
-	[[ $tap =~ ^lw[0-9]{1,2}$ ]] || return 0		# only lw0 to lw99 is ever a jack with a table
+	[[ $tap =~ ^lw(0|[1-9][0-9]?)$ ]] || return 0		# only lw0 to lw99 is ever a jack with a table
 	table=$(( 7700 + ${tap#lw} ))
 	rule=$(PATH=$PATH:/usr/sbin:/sbin ip -4 rule show pref 7701 2> /dev/null)
 	if [ "$want" != yes ]; then
@@ -1066,11 +1074,11 @@ cmd_up() {
 		[ "${args[$k]}" = --everything ] && ev=1
 		{ [ "${args[$k]}" = --use-exit ] || [ "${args[$k]}" = --exit-through ]; } && ux=1
 	done
-	if [ $ev = 0 ] && [[ $jk =~ ^lw[0-9]{1,2}$ ]] && PATH=$PATH:/usr/sbin:/sbin ip -4 rule show pref 7701 2> /dev/null | grep -qw "lookup $(( 7700 + ${jk#lw} ))"; then
+	if [ $ev = 0 ] && [[ $jk =~ ^lw(0|[1-9][0-9]?)$ ]] && PATH=$PATH:/usr/sbin:/sbin ip -4 rule show pref 7701 2> /dev/null | grep -qw "lookup $(( 7700 + ${jk#lw} ))"; then
 		args+=(--everything)
 		say "·  everything goes through $jk: the node keeps its own traffic off it"
 	fi
-	if [ $ux = 0 ] && [[ $jk =~ ^lw[0-9]{1,2}$ ]] && PATH=$PATH:/usr/sbin:/sbin ip -4 route show table "$(( 7700 + ${jk#lw} ))" 2> /dev/null | grep -q "^default via 169\.254\.77\.1 "; then
+	if [ $ux = 0 ] && [[ $jk =~ ^lw(0|[1-9][0-9]?)$ ]] && PATH=$PATH:/usr/sbin:/sbin ip -4 route show table "$(( 7700 + ${jk#lw} ))" 2> /dev/null | grep -q "^default via 169\.254\.77\.1 "; then
 		args+=(--use-exit)		# the jack's table goes to the exit gateway: the node hands it to the member that shares (docs/adr/0056)
 	fi
 	[ -n "$answer" ] || answer=ask

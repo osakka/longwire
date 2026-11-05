@@ -13,15 +13,16 @@
 name=${0##*/}
 want=$name.hibr
 
+# As root (sudo, please, pkexec) only the machine's own copy is used: a user's folder is the user's to change, and a script found there would run as root.
 fn find_script() {
-	local d f
-	for d in "${LONGWIRE_SCRIPTS:-}" \
-		 "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/cli" \
-		 "${HIBR_SYSDIR:-/var/lib/hibr}/cli" \
-		 "${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps" \
-		 "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/apps" \
-		 "${HIBR_SYSDIR:-/var/lib/hibr}/apps" \
-		 /usr/share/hibr/apps; do
+	local d f dirs=()
+	if [ "$(id -u)" = 0 ]; then
+		dirs=("${HIBR_SYSDIR:-/var/lib/hibr}/cli" "${HIBR_SYSDIR:-/var/lib/hibr}/apps" /usr/share/hibr/apps)
+	else
+		dirs=("${LONGWIRE_SCRIPTS:-}" "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/cli" "${HIBR_SYSDIR:-/var/lib/hibr}/cli" "${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps" \
+		      "${XDG_DATA_HOME:-$HOME/.local/share}/hibr/apps" "${HIBR_SYSDIR:-/var/lib/hibr}/apps" /usr/share/hibr/apps)
+	fi
+	for d in "${dirs[@]}"; do
 		[ -n "$d" ] || continue
 		for f in "$d/$want" "$d"/*/"$want"; do		# the catalogue may file an app in a submenu folder
 			[ -f "$f" ] && { ret "$f"; return 0; }
