@@ -11,6 +11,8 @@ connecting prompts is a polkit setting kept by Administrative Access, and nothin
 allowed*; its row opens Administrative Access, the one place to change it. Longwire never writes it. To connect and disconnect with no prompt: choose no password for your
 *No Password, Just Me* (hibr 0.99.444 or newer; its `ACTION user NAME -` line is read too) there, for both permissions. Tested in `tests/pane.sh`.
 
+*Published:* the catalogue (`hibr-apps` `8ee00a8`) and the packages (`hibr-apt` `5231d9e`, `hibr-rpm` `e822517`, `hibr-arch` `012fea3`). `make check` passed (943 checks).
+
 ## 0.5.46
 
 **Name servers work with routes, not only with Send everything** ([ADR 0059](docs/adr/0059-name-servers-without-everything.md)). The `dns` in a profile was set on the
