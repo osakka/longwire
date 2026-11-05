@@ -72,6 +72,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0061](0061-a-changed-road-is-found-at-once-and-a-lost-one-is-waited-out-quietly.md) | A changed road is found at once, and a lost one is waited out quietly | accepted; built in 0.5.48 |
 | [0062](0062-the-node-can-make-only-the-system-calls-it-needs.md) | The node can make only the system calls it needs | accepted; built in 0.5.49 |
 | [0063](0063-inputs-are-bounded-by-the-way-they-are-written.md) | Inputs are bounded by the way the code is written | accepted; built in 0.5.49 |
+| [0064](0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md) | A member's record is a claim, and the way out is never "the lowest number" | accepted; built in 0.5.50 |
 
 ---
 

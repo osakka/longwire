@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "November 2026" "longwire 0.5.49" "longwire manual"
+.TH LONGWIRE 1 "November 2026" "longwire 0.5.50" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -420,7 +420,7 @@ and by itself when the jack's table goes to that gateway.
 .TP
 .BI \-\-exit\-through " NUMBER"
 The member to go out through when more than one shares; it must offer, or nothing goes out.
-Without it: the only one, or the lowest number.
+Without it: the only one; with several sharing, none is used.
 Implies
 .BR \-\-use\-exit .
 .TP

@@ -443,8 +443,9 @@ static int cands_get(lw_node *n, const uint8_t *p, size_t len, lw_cand *c, int *
 
 void hello_request(lw_node *n, lw_peer *p)
 {
-	uint8_t b[10];
+	uint8_t b[2 + LW_BUNDLE];			/* as long as the answer: a request sent from a forged source address makes no one send more than was sent to them */
 
+	memset(b, 0, sizeof b);
 	b[0] = T_HELLO;
 	b[1] = 0;
 	memcpy(b + 2, p->key_id, 8);
@@ -477,7 +478,7 @@ void hello_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockad
 
 	if (len < 2)
 		return;
-	if (pkt[1] == 0 && len == 10) {			/* somebody wants our bundle */
+	if (pkt[1] == 0 && len == 2 + LW_BUNDLE) {	/* somebody wants our bundle (a request is as long as the answer: nothing is amplified) */
 		uint8_t b[2 + LW_BUNDLE];
 
 		n->hello_tokens += (n->now - n->hello_t) * 20.0;	/* 20/s, burst 20, for everyone */
@@ -599,7 +600,7 @@ static int pin_home(const lw_node *n, int i)
 	return !memcmp(n->pins[i].sb, h, 32);
 }
 
-static int pin_check(lw_node *n, const char *num, const uint8_t kid[32])
+int pin_check(lw_node *n, const char *num, const uint8_t kid[32])
 {
 	int i;
 
@@ -1800,6 +1801,13 @@ void node_timers(lw_node *n)
 				const uint8_t *pk = pe->key_id;
 
 				fmt_number(f, c->number);
+				if (c->auto_ && line_number_is(n, c->number, pk) < 0) {	/* a mesh call went to the number a member's record gave, and a key that is not that member's answered: the record
+											 * was somebody's claim (docs/adr/0064). Nothing is pinned to it and the line is not told. */
+					ev_emit(n, "{\"event\":\"member-mismatch\",\"number\":\"%s\"}", f);
+					peer_drop(n, pe);
+					call_end(c);
+					break;
+				}
 				addr_str(&pe->ep, ep, sizeof ep);
 				pin_add(n, c->number, pk);		/* the session is proven; the number now belongs to this key */
 				c->state = CALL_UP;

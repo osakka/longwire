@@ -17,7 +17,7 @@ want to use. The owner asked for it to be automatic, and simple: no DHCP server 
    the default route at 169.254.77.1, with the MAC 02:6c:77:65:78:74 fixed beside it by the jack helper (`ip neigh ... nud permanent`): no ARP is ever asked or believed. The switch hands
    every frame for that MAC to the chosen exit's session, with the exit's own MAC put in, and to nobody else; with no exit it drops the frame and counts it (never floods it). So the
    gateway is a member's key: another member cannot become it by claiming an address, and it works through a relay as any member's traffic does.
-3. **Which exit.** The one named (`exit_through = NUMBER`, `--exit-through`), if it offers; else the only one; else the lowest number. The node says which in an `exit` event (`number`,
+3. **Which exit.** The one named (`exit_through = NUMBER`, `--exit-through`), if it offers; else the only one; else none *(changed in 0.5.50, [ADR 0064](0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md): it was the lowest number, which any member can make)*. The node says which in an `exit` event (`number`,
    `wanted`, `offers`) whenever that changes, and in the status (`exit`: `share`, `use`, `wanted`, `using`, `offers`, `sent`, `dropped`; each peer's `exit`). No exit: nothing goes out
    through the line, and every surface says so; turning longwire off puts the machine back on its own road, as before.
 4. **The exit's side is its kernel's**, set up by the jack helper with `--share` (one password): forwarding on for the jack and for the device the machine's own default route leaves by,

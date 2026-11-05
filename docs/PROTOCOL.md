@@ -279,7 +279,7 @@ commitment but no reveal within 20 s ends the call, and so does one given a reve
 **The exit.** A node started with `--exit` sends `EXIT` inside each session with a current member of its line as soon as the session is up, and again every 10 s; it is never sent to a
 switchboard. A receiver believes it only from a current member of its own line, and only a MAC that is unicast, not zero and not the exit gateway's own; it holds that member as an exit
 while the session is up and the last `EXIT` is no more than 35 s old. A node started with `--use-exit` picks one: the number given with `--exit-through` if that member offers, else the
-lowest number that offers (so the only one, when there is one). On the frames from its own port, the switch looks for the destination MAC `02:6c:77:65:78:74` (the exit gateway, which no
+only one that offers (several and none named: none, because any member can offer itself; the named one must also have its number pinned to its key here). On the frames from its own port, the switch looks for the destination MAC `02:6c:77:65:78:74` (the exit gateway, which no
 machine has: the jack helper fixes it beside 169.254.77.1, and nothing answers ARP for it) before its MAC table: such a frame goes to the chosen exit's session alone, with the exit's MAC
 put in as the destination, and with no exit it is dropped and counted (`dropped` in the status), never flooded. Every change of exit is told in an `exit` event
 ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)).

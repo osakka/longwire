@@ -64,6 +64,16 @@ def main():
     check(until(lambda: peer(C.status(), num["D"]) and peer(C.status(), num["D"])["state"] == "up", 30) is not None,
           "D joins the line through X and the mesh connects it to C")
 
+    kid = bytes.fromhex(X.status()["key_id"])[:8]
+    probe = ("import socket,sys\nu=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);u.settimeout(1.5)\n"
+             "u.sendto(bytes([8,0])+bytes.fromhex(sys.argv[1])+bytes(int(sys.argv[2])-10),('127.0.0.1',4001))\n"
+             "try: print(len(u.recvfrom(4096)[0]))\nexcept socket.timeout: print(0)\n")
+    def hello(size):                                         # sent from inside the nodes' namespace
+        r = subprocess.run(["nsenter", "-t", str(ns.pid), "-n", "python3", "-I", "-c", probe, kid.hex(), str(size)], capture_output=True, text=True)
+        return int(r.stdout.strip() or -1)
+    short, big = hello(10), (1251, hello(1251))                  # 2 + the bundle (1249) is the size of the answer
+    check(short == 0 and big and big[0] == big[1], f"a short HELLO request is not answered, a full-size one gets an answer no longer than itself ({big}) (docs/adr/0064)")
+
     ev = C.w.wait("exit", 20, pred=lambda e: e["number"] == num["X"])
     check(ev is not None and ev["offers"] == 1, f"C hears that X shares its internet, and uses it: {ev}")
     st = C.status()
@@ -101,7 +111,8 @@ def main():
     Y.cmd("dial", num["X"])
     low = min(num["X"], num["Y"])
     check(until(lambda: C.status()["exit"]["offers"] == 2, 30) is not None, "C hears that Y shares its internet too")
-    check(C.status()["exit"]["using"] == low, f"with two exits and none asked for, C uses the lower number ({low})")
+    check(C.status()["exit"]["using"] == "" and C.status()["exit"]["offers"] == 2,
+          "with two members sharing and none named, C uses none: any member can offer itself, so there is no silent choice (docs/adr/0064)")
     E = node("E", 4005, "--exit-through", num["Y"])
     num["E"] = until(lambda: E.status()["number"], 20)
     E.cmd("dial", num["X"])

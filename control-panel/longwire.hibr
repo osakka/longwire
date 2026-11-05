@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.49
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.50
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.49}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.50}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -316,7 +316,7 @@ fn lwp_row(int w, int n, kind, text, val, key) {
 }
 
 fn longwire_rows(int w) {
-	local n=0 i cnt num name state p we call phr k nm sw nat full path age yn pol rx tx rr tr rb tb tk nodename note v xu xn xs
+	local n=0 i cnt num name state p we call phr k nm sw nat full path age yn pol rx tx rr tr rb tb tk nodename note v xu xn xs xo
 
 	if ! need longwire 2> /dev/null; then
 		cp_absent "$w" "the longwire module"
@@ -444,6 +444,8 @@ fn longwire_rows(int w) {
 	xs := lwp_get .exit.share
 	if [ "$xu" = true ]; then			# docs/adr/0056
 		xn := lwp_get .exit.using
+		xo := lwp_get .exit.offers
+		if [ -z "$xn" ] && [ "${xo:-0}" -gt 1 ] 2> /dev/null; then xn="none: $xo members share, name one in Through (any member can offer itself)"; fi
 		lwp_row "$w" "$n" action "Way out" "${xn:-none: no member shares its internet now, so nothing goes out}" none; n=$((n + 1))
 	fi
 	[ "$xs" = true ] && { lwp_row "$w" "$n" action "Sharing" "this machine's internet, with the line" none; n=$((n + 1)); }

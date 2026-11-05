@@ -36,7 +36,7 @@ being remembered instead of on a shape that cannot go wrong. Each of these is a 
 
 ## Consequences
 
-What is not done here, and is in the next round: line member records are claims from whichever member sent them (their numbers, and the signing key they carry, are not tied to the key id, so a
+What is not done here (the member records and HELLO were done in 0.5.50, [ADR 0064](0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md)); the round's list was: line member records are claims from whichever member sent them (their numbers, and the signing key they carry, are not tied to the key id, so a
 forged low number wins the exit's choice and a forged key can lock out a later member); admits never expire and an operator's revocations are a bounded list; a handshake's time is not checked against
 the clock; HELLO answers 125 times what it is asked. These are written in [SECURITY](../SECURITY.md#what-has-not-been-done-and-what-that-means-for-you). Tested: `tests/status.sh` (the worst status under TCC's bounds
 checker, and the same test fails on the 0.5.48 engine), `tests/switch.sh` (site frames, address theft, eviction times, refusal text), `tests/jack.sh` (the hook with option 121 and others, the jack

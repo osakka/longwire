@@ -96,7 +96,7 @@ send everything through the line ([ADR 0056](adr/0056-a-member-can-share-its-int
   fixed or `dhcp`), then turn on. `longwire show` says `everything  through the line (lw0)` and `way out  447-120-933, which shares its internet`. Set **Name servers** to any resolver, like
   `1.1.1.1`, or up to three (`longwire profile set home dns=1.1.1.1,9.9.9.9`): it is asked through the line and goes out by the exit, so the network you sit on does not see what you look up (with systemd-resolved).
 
-When more than one member shares, the lowest number is used, or the one in **Through** (`exit_through=NUMBER`). The machine that shares sees everything the others send outside the line, as their
+When more than one member shares, name the one to use in **Through** (`exit_through=NUMBER`); with none named, none is used, because any member can offer itself. The machine that shares sees everything the others send outside the line, as their
 internet provider would, and its address is what the internet sees: share only from a machine the line trusts that much. If no member shares, nothing goes out (it does not leak to the network you
 sit on), and `longwire show` warns `way out: no member of the line shares its internet now`. Your own network (the printer) stays yours, and the moment longwire is off or stops, everything goes the
 usual way again.

@@ -94,6 +94,8 @@ int main(int argc, char **argv)
 		n->peers[2].used = 1;
 		n->peers[2].cur.valid = 1;
 		memcpy(n->peers[2].key_id, m.key_id, 32);
+		memcpy(n->peers[2].bundle, m.bundle, LW_BUNDLE);		/* the session's own bundle is what the eviction is checked against */
+		n->peers[2].have_bundle = 1;
 		mem_add(n, "111111111", m.key_id, m.bundle + ED_OFF, 0, v1);
 		mem_add(n, "222222222", v1, v1, 0, v1);
 		mem_add(n, "333333333", v2, v2, 0, v2);
@@ -147,6 +149,85 @@ int main(int argc, char **argv)
 		got = peer_add(n, bundle);
 		check(got && got != &n->peers[0], "a call is waiting on the stalest peer: another is recycled, not that one (the call would otherwise pin its number to a stranger's key)");
 		n->calls[0].state = CALL_IDLE;
+	}
+
+	/* member records are claims (docs/adr/0064): the key a record carries is the bundle's when we hold the bundle, and a number is only ever one key's */
+	{
+		uint8_t true_ed[32], forged[32], kid_a[32], kid_b[32], sb[32], bundle[LW_BUNDLE];
+		lw_peer *pa;
+		lw_member *m;
+		int k;
+
+		for (k = 0; k < n->maxpeers; k++)
+			memset(&n->peers[k], 0, sizeof n->peers[k]);
+		memset(true_ed, 0x11, 32);
+		memset(forged, 0x66, 32);
+		memset(sb, 0x33, 32);
+		lw_rand(kid_a, 32);
+		lw_rand(kid_b, 32);
+		memset(bundle, 0, sizeof bundle);
+		bundle[0] = 0x01;
+		memcpy(bundle + ED_OFF, true_ed, 32);
+		n->line.nm = 0;
+		pa = &n->peers[2];
+		pa->used = 1;
+		pa->have_bundle = 1;
+		memcpy(pa->key_id, kid_a, 32);
+		memcpy(pa->bundle, bundle, sizeof bundle);
+		snprintf(pa->number, sizeof pa->number, "11-11");
+
+		m = mem_add(n, "11-11", kid_a, forged, 0, sb);
+		check(m && !memcmp(m->ed_pub, true_ed, 32), "a record that carries another key than the bundle we hold has the bundle's key, not the record's");
+		m = mem_add(n, "22-22", kid_b, forged, 0, sb);
+		check(m && !memcmp(m->ed_pub, forged, 32), "a record of a member we hold no bundle of keeps what it says, until we do");
+		memcpy(m->key_id, kid_b, 32);
+		memcpy(mem_find(n, kid_a)->ed_pub, forged, 32);
+		n->line.have = 1;
+		line_call_up(n, pa);
+		check(!memcmp(mem_find(n, kid_a)->ed_pub, true_ed, 32), "a session coming up writes the member's own key over what any record said");
+
+		check(line_number_is(n, "11-11", kid_a) == 1 && line_number_is(n, "11-11", kid_b) == -1 && line_number_is(n, "99-99", kid_a) == 0,
+		      "a number is the member's key (1), another key's (-1), or nobody's (0)");
+	}
+
+	/* the exit: never "the lowest number" (any member can offer itself); the one named, if pinned to its key; or the only one */
+	{
+		uint8_t ka[32], kb[32], sbk[32];
+		lw_peer *pa = &n->peers[2], *pb = &n->peers[3];
+
+		lw_rand(ka, 32);
+		lw_rand(kb, 32);
+		memset(pa, 0, sizeof *pa);
+		memset(pb, 0, sizeof *pb);
+		pa->used = pb->used = 1;
+		pa->cur.valid = pb->cur.valid = 1;
+		pa->exit_seen = pb->exit_seen = n->now;
+		memcpy(pa->key_id, ka, 32);
+		memcpy(pb->key_id, kb, 32);
+		snprintf(pa->number, sizeof pa->number, "10-00");	/* the lowest: what an attacker would take */
+		snprintf(pb->number, sizeof pb->number, "20-00");
+		n->line.nm = 0;
+		mem_add(n, "10-00", ka, ka, 0, ka);
+		mem_add(n, "20-00", kb, kb, 0, kb);
+		n->cfg.exit_through[0] = 0;
+		check(exit_pick(n) == -1, "two members offer and none is named: none is used (the lowest number is whoever made one)");
+		pa->exit_seen = 0;
+		check(exit_pick(n) == 3, "one member offers and none is named: that one");
+		pa->exit_seen = n->now;
+		snprintf(n->cfg.exit_through, sizeof n->cfg.exit_through, "20-00");
+		check(exit_pick(n) == -1, "a member is named, offers, but its number is not pinned to its key here: none");
+		home_kid(n, sbk);
+		n->npins = 1;
+		n->cappins = 1;
+		n->pins = calloc(1, sizeof *n->pins);
+		snprintf(n->pins[0].number, sizeof n->pins[0].number, "20-00");
+		memcpy(n->pins[0].key_id, ka, 32);			/* pinned to another member's key */
+		memcpy(n->pins[0].sb, sbk, 32);
+		check(exit_pick(n) == -1, "a member is named, but its number is pinned to a different key: none");
+		memcpy(n->pins[0].key_id, kb, 32);
+		check(exit_pick(n) == 3, "a member is named, offers, and its number is pinned to its key: that one");
+		n->npins = 0;
+		n->cfg.exit_through[0] = 0;
 	}
 
 	printf(bad ? "FAILED\n" : "all switch checks passed\n");

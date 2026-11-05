@@ -508,6 +508,8 @@ void sas_timers(lw_node *n);
 void call_peer_up(lw_node *n, lw_peer *p, int dialer);	/* a call came up: the line handshake starts */
 int  call_for_number(lw_node *n, const char *num9);	/* is there a call (any state) with this number */
 const uint8_t *peer_ed_pub(const lw_peer *p);
+int  line_number_is(lw_node *n, const char *number, const uint8_t kid[32]);
+int  pin_check(lw_node *n, const char *num, const uint8_t kid[32]);
 lw_peer *peer_by_number(lw_node *n, const char *num9);
 int  node_status_json(lw_node *n, char *o, size_t cap);
 int  node_replay(lw_node *n, char *o, size_t cap);	/* what a new event subscriber missed: our registration state */

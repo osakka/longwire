@@ -3,6 +3,18 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.50
+
+**A member's record is a claim, and the way out is never "the lowest number"** ([ADR 0064](docs/adr/0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md)),
+the first half of what the 0.5.48 read left open. Each fix has a test that fails without it.
+
+- **A signing key we hold the bundle of is the bundle's.** A record made by another member can no longer put its own key in place of a member's (which could lock out a later member or make a forged
+  eviction count); evictions are checked against the session's bundle.
+- **A number is one key's.** A mesh call answered under a number by another key than its record's is dropped (`member-mismatch`).
+- **The exit is not chosen by number order** (any member can offer itself with a low number). The one named in Through, if its number is pinned to its key here, or the only one that offers; with
+  several and none named, none is used and the pane says why. *Behaviour change.*
+- **HELLO answers no more than it is sent**: a request is as long as the bundle it asks for, a short one is unanswered.
+
 ## 0.5.49
 
 **The node is closed to what it does not need, and an independent read of every input boundary is answered** ([ADR 0062](docs/adr/0062-the-node-can-make-only-the-system-calls-it-needs.md),

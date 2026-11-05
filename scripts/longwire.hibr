@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.49
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.50
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.49}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.50}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -157,8 +157,10 @@ announce() {
 	hangup)           say "·  ${e[number]} hung up (${e[by]})" ;;
 	dhcp-conflict)    say "⚠  two DHCP servers answer on this line (${e[servers]}): clients may get clashing leases" ;;
 	key-changed)      say "⚠  KEY CHANGED for ${e[number]}: ${e[action]}" ;;
+	member-mismatch)  say "⚠  the line lists ${e[number]}, but another key answered it: the call was dropped" ;;
 	exit)             if [ -n "${e[number]}" ]; then say "✓  everything goes out through ${e[number]}, which shares its internet"
 	                  elif [ -n "${e[wanted]}" ]; then say "⚠  ${e[wanted]} is not sharing its internet now: nothing goes out through the line until it does (longwire off puts everything back on this machine's own road)"
+	                  elif [ "${e[offers]:-0}" -gt 1 ] 2> /dev/null; then say "⚠  ${e[offers]} members share their internet and none is named: nothing goes out through the line until you name one (longwire profile set NAME exit_through=NUMBER), because any member can offer itself"
 	                  else say "⚠  no member of the line shares its internet now: nothing goes out through the line until one does (longwire off puts everything back on this machine's own road)"; fi ;;
 	esac
 }

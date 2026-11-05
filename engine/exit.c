@@ -50,10 +50,12 @@ void exit_msg(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	p->exit_seen = n->now;
 }
 
-/* The member to use: the one asked for, if it offers; else the lowest number that offers. -1: none. */
+/* The member to use. The one asked for, if it offers and the number is one this node has itself pinned to that key (a number in a member's record is that member's word,
+ * and a member can write another's); else the only one that offers. Several offer and none is asked for: none, and the node says so, because any member can offer itself
+ * and "the lowest" would be the one an attacker makes (docs/adr/0064). -1: none. */
 static int exit_pick(lw_node *n)
 {
-	int i, best = -1;
+	int i, best = -1, cnt = 0;
 
 	for (i = 0; i < n->maxpeers; i++) {
 		lw_peer *p = &n->peers[i];
@@ -61,14 +63,14 @@ static int exit_pick(lw_node *n)
 		if (!is_exit(n, p))
 			continue;
 		if (n->cfg.exit_through[0]) {
-			if (!strcmp(p->number, n->cfg.exit_through))
+			if (!strcmp(p->number, n->cfg.exit_through) && pin_check(n, p->number, p->key_id) == 1)
 				return i;
 			continue;
 		}
-		if (best < 0 || strcmp(p->number, n->peers[best].number) < 0)
-			best = i;
+		best = i;
+		cnt++;
 	}
-	return best;
+	return n->cfg.exit_through[0] ? -1 : cnt == 1 ? best : -1;
 }
 
 static int exit_offers(lw_node *n)
@@ -145,9 +147,10 @@ int exit_frame(lw_node *n, uint8_t *f, size_t len)
 int exit_value(lw_node *n, char *o, size_t cap)
 {
 	char f[16] = "", w[16] = "";
+	int pi = n->cfg.use_exit ? exit_pick(n) : -1;			/* asked afresh: what the status says is what the rule says now, not what the last tick chose */
 
-	if (n->cfg.use_exit && n->exit_pi >= 0 && is_exit(n, &n->peers[n->exit_pi]))
-		fmt_number(f, n->peers[n->exit_pi].number);
+	if (pi >= 0)
+		fmt_number(f, n->peers[pi].number);
 	if (n->cfg.exit_through[0])
 		fmt_number(w, n->cfg.exit_through);
 	return LW_SN(o, cap, "{\"share\":%s,\"use\":%s,\"wanted\":\"%s\",\"using\":\"%s\",\"offers\":%d,\"sent\":%llu,\"dropped\":%llu}",

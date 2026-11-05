@@ -52,6 +52,10 @@ static lw_member *mem_find(lw_node *n, const uint8_t kid[32])
 static lw_member *mem_add(lw_node *n, const char *number, const uint8_t kid[32], const uint8_t ed[32], int role, const uint8_t sb[32])
 {
 	lw_member *m = mem_find(n, kid);
+	const lw_peer *q = peer_by_key(n, kid);
+
+	if (q && q->have_bundle)
+		ed = peer_ed_pub(q);			/* a key we hold the bundle of is the bundle's, not what a member's record says it is (docs/adr/0064) */
 
 	if (!m) {
 		if (n->line.nm >= LINE_MAX)
@@ -478,9 +482,25 @@ static void decide(lw_node *n, lw_peer *p)
 	}
 }
 
+/* Does this number belong to this key, as far as the line's records say? 1 yes, -1 the record for that number is another key's, 0 no record. A member's record is its
+ * sender's word; what a mesh call reached is the key that answered (docs/adr/0064). */
+int line_number_is(lw_node *n, const char *number, const uint8_t kid[32])
+{
+	int i;
+
+	for (i = 0; i < n->line.nm; i++)
+		if (!strcmp(n->line.m[i].number, number))
+			return memcmp(n->line.m[i].key_id, kid, 32) ? -1 : 1;
+	return 0;
+}
+
 void line_call_up(lw_node *n, lw_peer *p)
 {
 	uint8_t b[9];
+	lw_member *rec = n->line.have && p->have_bundle ? mem_find(n, p->key_id) : 0;
+
+	if (rec)
+		memcpy(rec->ed_pub, peer_ed_pub(p), 32);	/* the record of a member we are in touch with takes the key from its own bundle: a record made by another member cannot lock it out later (docs/adr/0064) */
 
 	p->rev_next = n->now + 2.0;		/* a new session: tell it what the operator revoked, once it is listening */
 	if (!n->registered || p->lh_sent)
@@ -646,7 +666,7 @@ static void handle_evict(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 		if (memcmp(pl + 48, n->line.authority, 32) || !lw_verify(n->line.authority, msg, sizeof msg, pl + 80))
 			return;
 		store_revoke(n, pl);
-	} else if (memcmp(pl + 48, p->key_id, 32) || !lw_verify(ev->ed_pub, msg, sizeof msg, pl + 80))	/* from a member, in person */
+	} else if (memcmp(pl + 48, p->key_id, 32) || !lw_verify(peer_ed_pub(p), msg, sizeof msg, pl + 80))	/* from a member, in person: checked against the key in the bundle of the session it came on */
 		return;
 	apply_evict(n, pl + 8, get64(pl + 40));
 }
