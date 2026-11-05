@@ -11,6 +11,8 @@ had no effect on names. Now `dns` applies either way; without everything each se
 jack` and Turn on say before any password and the root helper refuses otherwise. The pane's *Name servers* row is always there for a jack, and `longwire show` names
 the servers in use. Tested in `tests/jack.sh` and `tests/pane.sh`.
 
+*Published:* the catalogue (`hibr-apps` `caa6577`) and the packages (`hibr-apt` `70901c3`, `hibr-rpm` `48dea45`, `hibr-arch` `c4b11ae`). `make check` passed (936 checks).
+
 ## 0.5.45
 
 **Connecting and disconnecting can need no password, without that also letting anyone reroute the machine** ([ADR 0058](docs/adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)).
