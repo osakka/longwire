@@ -225,19 +225,19 @@ int main(int argc, char **argv)
 		n->roamed = 0;
 		check(pipe(pr) == 0, "(a stand-in jack)");
 		n->port_fd = pr[0];
-		jnets_refresh(n);
+		n->now += 2.0; road_timers(n);		/* the road is watched by its own timer now (docs/adr/0061) */
 		check(!n->roamed && n->port_fd == pr[0], "the same road: the jack is kept");
 		f = fopen(rf, "w");
 		fprintf(f, "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\nwlan9\t00000000\t0109000A\t0003\t0\t0\t0\t00000000\t0\t0\t0\n");
 		fclose(f);
-		jnets_refresh(n);
+		n->now += 2.0; road_timers(n);
 		check(n->roamed && n->port_fd == -1, "a new road (eth9 to wlan9): the jack is let go at once, so the kernel's safety net puts the machine on its own road");
 		n->roamed = 0;
 		n->port_fd = -1;
 		f = fopen(rf, "w");
 		fprintf(f, "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n");
 		fclose(f);
-		jnets_refresh(n);
+		n->now += 2.0; road_timers(n);
 		check(n->roamed, "no road at all: the same");
 		close(pr[1]);
 		n->tie[0] = 0;
