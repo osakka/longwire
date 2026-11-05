@@ -78,7 +78,7 @@ def main():
     # --- one host cannot drain a node's HELLO budget ------------------------------------
     kid8 = bytes.fromhex(B.status()["key_id"])[:8]
     us = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); us.bind(("192.0.2.1", 0)); us.settimeout(0.3)
-    for _ in range(60): us.sendto(b"\x08\x00" + kid8, ("192.0.2.10", 4002))
+    for _ in range(60): us.sendto((b"\x08\x00" + kid8).ljust(1251, b"\0"), ("192.0.2.10", 4002))   # as long as the answer (docs/adr/0064)
     got = 0
     try:
         while True: us.recv(2000); got += 1
