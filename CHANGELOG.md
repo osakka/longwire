@@ -23,6 +23,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 - Not done, and written in SECURITY: line member records are claims from whichever member sent them (a forged number can win the exit's choice); admits never expire and revocations are a bounded list;
   a handshake's time is not checked against the clock; HELLO answers 125 times what it is asked; Landlock.
 
+*Published:* the catalogue (`hibr-apps` `4650297`) and the packages (`hibr-apt` `28b8e34`, `hibr-rpm` `43b1467`, `hibr-arch` `a09cf55`). `make check` passed (999 checks).
+
 ## 0.5.48 (never published on its own: folded into 0.5.49)
 
 **A changed network is found again in seconds, and a lost one costs nothing** ([ADR 0061](docs/adr/0061-a-changed-road-is-found-at-once-and-a-lost-one-is-waited-out-quietly.md)).
