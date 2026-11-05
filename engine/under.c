@@ -145,7 +145,6 @@ void jnets_refresh(lw_node *n)
 	}
 	freeifaddrs(ifa);
 	jnets_routes(n);
-	road_check(n);
 }
 
 void jnets_fresh(lw_node *n)

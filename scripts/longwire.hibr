@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.47
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.48
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.47}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.48}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -136,6 +136,11 @@ announce() {
 	member-evicted)   say "·  ${e[number]} was evicted from the line" ;;
 	evicted)          say "⚠  you were evicted from line ${e[line]}" ;;
 	switchboard-silent) say "⚠  no answer from the switchboard at ${e[ep]} (UDP) for 15 s: $(sb_quiet_why "${e[host]}")" ;;
+	road-changed)     case ${e[road]} in
+	                  down) say "⚠  no network: waiting quietly, nothing is sent until one is back" ;;
+	                  back) say "·  the network is back: reconnecting at once" ;;
+	                  *)    say "·  the network changed: telling everyone from the new address, and reconnecting at once" ;;
+	                  esac ;;
 	roamed)           say "·  the road changed (${e[from]} to ${e[to]:-none}): everything goes the machine's own way for a moment, while the node starts again on the new road" ;;
 	line-partial)     say "⚠  the line is not a full mesh: ${e[up]} of ${e[members]} members reachable (frames between the others are not forwarded)" ;;
 	address-skipped)  say "⚠  not using ${e[address]}:${e[port]} to reach the other end: it is inside your jack's own network and there is no other road to it (docs/TROUBLESHOOTING.md)" ;;
@@ -574,6 +579,8 @@ cmd_show() {
 			if verify_has "$num" "$k"; then echo "                 safety phrase: $phr   (verified)"; else echo "                 safety phrase: $phr   (not verified: longwire verify $num WORDS)"; fi
 		fi
 	done
+	t := json get S .road.state
+	[ "$t" = down ] && lw_out "   ⚠  no network under the line: it waits quietly and reconnects the moment one is back"
 	t := json get S .exit.share
 	[ "$t" = true ] && echo "   sharing       this machine's internet with the line"
 	if [ -z "${S[tied]:-}" ] && [ "${S[port]%%:*}" = jack ] && command -v resolvectl > /dev/null; then	# names through the line without everything (docs/adr/0059)

@@ -141,6 +141,17 @@ def main():
     rows, log, r = drive(envB, 'longwire_do 1 dial 1; $DRV_THEN "000-000-001"; $DRV_THEN "  "')
     check(any(l.startswith("ASK Dial") for l in log) and any(l.startswith("NOTE high") for l in log), f"Dial asks for a number, and a bad one is reported rather than swallowed: {log} {r.stderr[-300:]}")
 
+    # no network under the line: a row says the node waits (docs/adr/0061)
+    for state, want in (("down", True), ("up", False)):
+        body = r'''
+fn lwp_poll() { return 0; }
+LWP_UP=1
+json parse LWP_S '{"full":"+0 111-111-111","name":"","switchboard":"dial tone","nat":"easy","calls":[],"peers":[],"line":null,"road":{"state":"STATE","changes":1,"changed":3,"sent":9},"exit":{"share":false,"use":false}}'
+dump 1
+'''.replace("STATE", state)
+        rows, log, r = drive(envB, body)
+        net = [x for x in rows if x[1] == "Network"]
+        check(bool(net) == want and (not want or "waiting quietly" in net[0][2]), f"the pane says there is no network only while there is none ({state}): {net}")
     # throughput: totals from the node's counters, rates from two reads of them
     body = r'''
 DRV_MS=1000

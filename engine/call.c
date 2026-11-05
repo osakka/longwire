@@ -884,7 +884,8 @@ int call_dial(lw_node *n, const char *num, int auto_, char *err, size_t errn)
 	c->we_caller = 1;
 	c->auto_ = auto_;
 	memcpy(c->number, num, NUMLEN + 1);
-	c->deadline = n->now + 65.0;			/* outlast the callee's 60 s of ringing */
+	c->deadline = n->now + (auto_ ? MESH_RING : 65.0);	/* outlast the callee's 60 s of ringing; a mesh call is answered by the node itself, at once, or not at all */
+	c->sb_born = s->cur.born;
 	memcpy(b, num, NUMLEN);
 	nc = gather(n, cc, MAXCANDS);
 	o = NUMLEN + (size_t)cands_put(n, b + NUMLEN, cc, nc);
@@ -1731,6 +1732,7 @@ void node_timers(lw_node *n)
 {
 	int i;
 
+	road_timers(n);
 	registration_timers(n);
 	sb_quiet_timers(n);
 	sas_timers(n);
@@ -1745,6 +1747,16 @@ void node_timers(lw_node *n)
 
 		switch (c->state) {
 		case CALL_OUT:
+			if (!sbp(n) || sbp(n)->cur.born != c->sb_born) {	/* the switchboard session it was made on is gone: nobody will answer it, and waiting out 65 s would
+										 * hold the line back from dialling again (docs/adr/0061) */
+				char f[16];
+
+				fmt_number(f, c->number);
+				if (!c->auto_)
+					ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"the switchboard was lost while dialing\"}", f);
+				call_end(c);
+				break;
+			}
 			if (n->now > c->deadline) {
 				char f[16];
 
@@ -2160,7 +2172,9 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 				any ? "," : "", hx, f, SN[k->state], k->we_caller ? "true" : "false", k->auto_ ? "true" : "false", cn);
 		any = 1;
 	}
-	len += snprintf(o + len, cap - (size_t)len, "],\"exit\":");
+	len += snprintf(o + len, cap - (size_t)len, "],\"road\":");
+	len += road_value(n, o + len, cap - (size_t)len);
+	len += snprintf(o + len, cap - (size_t)len, ",\"exit\":");
 	len += exit_value(n, o + len, cap - (size_t)len);
 	len += snprintf(o + len, cap - (size_t)len, ",\"line\":");
 	{

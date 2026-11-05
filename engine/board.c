@@ -836,7 +836,7 @@ static void route_dial(lw_node *n, const uint8_t caller_key[32], const uint8_t c
 	c->ncc = ncc;
 	c->strict = strict;
 	observed(cp, &c->cc[c->ncc++]);			/* what we see is the best candidate there is */
-	c->deadline = n->now + 65.0;
+	c->deadline = n->now + (alen ? MESH_RING : 65.0);	/* a caller that presents an admit is a member: the callee node answers it itself, at once, or is not there (docs/adr/0061) */
 	memcpy(m, c->id, 8);
 	memcpy(m + 8, cr->number, NUMLEN);
 	memcpy(m + 8 + NUMLEN, cr->bundle, LW_BUNDLE);

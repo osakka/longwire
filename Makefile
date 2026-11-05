@@ -54,6 +54,7 @@ check: all lint
 	sh tests/tunnel.sh
 	sh tests/exit.sh
 	sh tests/exitnet.sh
+	sh tests/road.sh
 	sh tests/events.sh
 	sh tests/doctor.sh
 	sh tests/site.sh

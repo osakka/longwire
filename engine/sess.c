@@ -296,10 +296,16 @@ void sess_timers(lw_node *n)
 		}
 		/* start or retry a handshake: dialers when there's no session, the
 		 * session's initiator when a rekey is due, the other side a bit later */
+		if (n->road_down && !c->valid)
+			continue;				/* no road: nothing is sent into the void, and nothing is retried until one is back (road.c) */
 		if (p->hs.active) {
 			if (n->now >= p->hs.next_retry) {
 				int t = p->hs.tries + 1;
-				double back = t < 4 ? (double)(1 << t) : 8.0;
+				uint8_t j;
+				double back = t < 4 ? (double)(1 << t) : t == 4 ? 16.0 : 30.0;	/* 2, 4, 8, 16, then every 30 s: a dead peer costs a handshake in half a minute */
+
+				lw_rand(&j, 1);
+				back *= 0.75 + (double)j / 512.0;			/* +-25 %: members that lost the same road do not retry in step (docs/adr/0061) */
 
 				hs_start(n, p);
 				p->hs.tries = t;

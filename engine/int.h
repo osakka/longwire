@@ -25,6 +25,7 @@
 #define LINE_MSS4 1340			/* TCP MSS on the line: a segment with 12 bytes of options is a 1406-byte frame, under FRAME_SINGLE */
 #define LINE_MSS6 1320
 #define SITE_MEMBERS 4
+#define MESH_RING 12.0			/* how long a mesh call (a member dialling a member) waits for an answer, at the caller and at the switchboard: no person is asked, so it is answered at once or not at all */
 #define MAXSUBS 8
 #define OFFERS 1024			/* bundles offered ahead of a handshake: hashed by key id, so a flood costs bandwidth, not a few packets */
 #define HS_SLOTS 512			/* handshake fragments being put together: hashed by source, for the same reason */
@@ -154,6 +155,7 @@ enum { CALL_IDLE, CALL_OUT, CALL_RINGING, CALL_PUNCH, CALL_SETUP, CALL_UP };
 typedef struct lw_call {
 	int      state, we_caller, peer;
 	int      auto_;			/* a mesh call to a fellow member: nobody is asked */
+	double   sb_born;		/* (a dial) the switchboard session it was made on: a call that waits for an answer lives and dies with it (docs/adr/0061) */
 	int      admitted;		/* (a ring) the caller held a valid admit */
 	char     name[LW_NAME_MAX + 1];	/* (a ring) the name the caller announced, if the switchboard carried one */
 	uint8_t  admit[ADMIT_LEN];	/* (a ring) what it presented, or (a dial) what we presented */
@@ -279,6 +281,9 @@ struct lw_node {
 	lw_jnet  jnet[LW_JNETS];	/* the networks connected to our jack */
 	int      njnet;
 	double   jnet_at;
+	uint64_t road_fp, road_changes;	/* the road under the node (road.c, docs/adr/0061): a fingerprint of it, and how often it changed */
+	double   road_t, road_changed_at;
+	int      road_seen, road_had, road_down;	/* looked at once; had a default route; has none now: quiet until one is back */
 	char     jnet_dev[32];
 	int      udp2;			/* a switchboard's echo port (echo_port_of(udp_port)): answers ECHO, so a node can tell its NAT's mapping type */
 	int      nat;			/* 0 not measured, 1 easy (same mapping toward both ports), 2 strict (a new mapping per destination) */
@@ -527,6 +532,8 @@ int  line_presented(lw_node *n, const char *number, uint8_t out[ADMIT_LEN]);	/* 
 void line_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len);
 void line_call_up(lw_node *n, lw_peer *p);
 void line_timers(lw_node *n);
+void road_timers(lw_node *n);
+int  road_value(lw_node *n, char *o, size_t cap);
 void exit_msg(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len);
 void exit_timers(lw_node *n);
 int  exit_frame(lw_node *n, uint8_t *f, size_t len);

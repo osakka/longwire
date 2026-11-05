@@ -3,6 +3,24 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.48
+
+**A changed network is found again in seconds, and a lost one costs nothing** ([ADR 0061](docs/adr/0061-a-changed-road-is-found-at-once-and-a-lost-one-is-waited-out-quietly.md)).
+Before, a node that moved to another network or lost its network learned it only when its sessions died of silence (three keepalives, 76 s by default), and only noticed it
+with everything through the line on and only while packets flowed; and after an outage every member retried in step.
+
+- **The node watches its network always**, once a second, with or without everything through the line. A change is said to everyone at once (the switchboard, every live session,
+  from the new address, so the far end follows it), and every handshake and redial that was backing off tries now. Measured on the real kernel in namespaces: an idle node that
+  changes address is reached again in about 1 s (it was up to three keepalives).
+- **No network, no noise**: when the network is gone (no default route and no address on a device that is up) the node sends nothing and retries nothing (1 datagram in
+  half a minute, where it was a handshake every few seconds), and reconnects the moment one is back: the line was back in 1.5 to 2.3 s in eight runs in a row.
+- **Retries are cheap and spread**: 2, 4, 8, 16 s, then every 30 s, each by 75 to 125 %, so members that lost the same network do not retry in step.
+- **A call that waits for the switchboard lives and dies with its session**, and a mesh call (a member dialling a member) waits 12 s, not 65: a member that dialled a node during
+  its outage was stuck "dialing" it for a minute after it was back (found by the network test, one run in four).
+- It is said: `road-changed` (`changed`, `down`, `back`) in the terminal, `road` in the status, a *Network* row in the pane while there is none, and `show`.
+- Not changed: a peer gone silent is still found after three keepalives; with everything through the line a lost network still lets the machine's own traffic out (a kill switch
+  is a separate decision). Tested in `tests/road.sh` (about four minutes).
+
 ## 0.5.47
 
 **The pane shows whose password connecting asks, and where to change it** ([ADR 0060](docs/adr/0060-the-pane-shows-the-password-setting-and-never-writes-it.md)). Whether

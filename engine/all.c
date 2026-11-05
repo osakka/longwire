@@ -16,6 +16,7 @@
 #include "call.c"
 #include "spray.c"
 #include "under.c"
+#include "road.c"
 #include "ban.c"
 #include "board.c"
 #include "node.c"

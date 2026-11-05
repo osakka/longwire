@@ -218,6 +218,15 @@ Two machines on the line are both handing out leases, and clients may get clashi
 **`⚠ the line is not a full mesh: 2 of 3 members reachable`**
 Two of your line's members cannot reach each other directly and no member can relay between them. Give the line a member with a public address.
 
+## After a network change
+
+**It took a minute to come back after I changed network.** Before 0.5.48 a node learned of a change only when its sessions died of silence (three keepalives, 76 s). Now it
+watches its network every second, tells everyone at once from the new address and retries at once ([ADR 0061](adr/0061-a-changed-road-is-found-at-once-and-a-lost-one-is-waited-out-quietly.md));
+`longwire watch` says *the network changed* when it does. Update the package (the engine), on both ends.
+
+**"no network: waiting quietly".** The machine has no default route and no address on a device that is up. Nothing is sent until one is back; then *the network is back:
+reconnecting at once*. A machine on a LAN with no default route has a network and is never quiet.
+
 ## The desktop
 
 **There is no Longwire in Control Panel.**

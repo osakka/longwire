@@ -229,7 +229,8 @@ engine/                      plain C99: never includes hibr.h, so the Android ap
   spray.c                    port spray: a strict NAT end opens many sockets, the easy end probes, the socket that is hit becomes that peer's
   pmp.c                      NAT-PMP: ask the home router to keep a port open, offered as a candidate
   ban.c                      strikes and bans on a switchboard: fixed tables, only for failures on an authenticated session, everything expires (ADR 0043)
-  under.c                    the road under the line: the jack's networks (connected, and routed through it: ADR 0037, 0044), the underlay socket tied to the real device, tying every socket with everything through the line (ADR 0045), and following the road once a second (ADR 0046)
+  road.c                     the road under the node, watched once a second always: a changed road is told to every peer at once, a lost one waited out quietly (ADR 0061)
+  under.c                    the road under the line: the jack's networks (connected, and routed through it: ADR 0037, 0044), the underlay socket tied to the real device, tying every socket with everything through the line (ADR 0045), and following the road for the jack's own socket (ADR 0046, now timed by road.c)
   port.c                     local ports: splice, jack, sock, none
   caps.c                     clears every capability set once the port is open
   ctl.c                      the control socket and the event stream
