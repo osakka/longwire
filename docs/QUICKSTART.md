@@ -15,7 +15,7 @@ they do the same thing and share one saved connection, so you can mix them.
   ("Run a switchboard", about five minutes on any small server). You will need three things from it:
   its address `HOST:6741`, its **key** (it prints `lw1…` when it starts), and, if you gave it tokens, **one token for each machine**.
 - **Your administrator password** on each machine, to make the network device. It is asked for through polkit (`pkexec`; you can tune it in Control Panel > Administrative Access) the first time, and again after a
-  restart, because the device does not survive one. Set *Set up the network device longwire uses on this computer* (`org.longwire.jack`) to no password there and turning on and off asks none;
+  restart, because the device does not survive one. Set *Set up the network device longwire uses on this computer* (`org.longwire.jack`) to *No Password, Just Me* (hibr 0.99.444 or newer; before that, no password for your own group), and the pane shows the current setting there and turning on and off asks none;
   sending everything through the line and sharing the internet are a second action, `org.longwire.everything`, which still asks
   ([ADR 0058](adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)).
 

@@ -17,7 +17,7 @@ commands, or start it in the background with `longwire on`. Ctrl-C stops the nod
 Making or changing the jack (an address, routes, everything through the line, sharing) is done by a root helper through polkit, which asks for a password
 first; nothing changes when it is refused. Whose password is asked, or none, is set in Control Panel > Administrative Access: *Set up the network device longwire uses
 on this computer (its address and routes)* (`org.longwire.jack`: the device, its address and routes, connect and disconnect), *Send all of this computer's traffic through longwire, or share its
-internet* (`org.longwire.everything`), and *Make this computer a longwire site node for a network card* (`org.longwire.site`). Set the first to no password to connect and disconnect,
+internet* (`org.longwire.everything`), and *Make this computer a longwire site node for a network card* (`org.longwire.site`). Set the first to *No Password, Just Me* (hibr 0.99.444 or newer; before that, no password for your own group), and the pane shows the current setting to connect and disconnect,
 routes or not, without being asked ([ADR 0058](adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)). It works without one once the jack is as the profile says,
 which is why a profile with no routes may turn on while one with routes asks. When your own password is right and still refused, polkit cannot check it:
 

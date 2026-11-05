@@ -25,6 +25,7 @@ fn dt_ptyjob(kind, tag, then, prompt, ...cmd) { printf 'PTYJOB %%s\n' "${cmd[*]}
 fn dt_jobfile(int n, which) { ret "/nonexistent/$n.$which"; }
 fn dt_joblast(int n) { ret ""; }
 declare -gA DTJ
+fn dt_panelpane(pane) { printf 'PANE %%s\n' "$pane" >> "$LOG"; }
 fn dt_droplist(...a) { printf 'DROP %%s\n' "${a[*]}" >> "$LOG"; }
 fn cp_save() { return 0; }
 fn cp_toggle(var) { return 0; }
@@ -315,6 +316,23 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     rows, log, r = drive(envF, 'lwp_pset gateway ""; lwp_pset routes ""; lwp_pset address ""; lwp_pset interface lw9')
     rows, log, r = drive(envF, 'lwp_pset attach splice; longwire_do 1 on 1')
     check(any(l == "PTYJOB longwire site lw9 home" for l in log), f"splice asks for a site node for the card, through the site helper (one password): {log}")
+    # whose password each permission asks, read from Administrative Access's own file and changed only there (docs/adr/0060)
+    mine = subprocess.run(["id", "-nG"], capture_output=True, text=True).stdout.split()[0]
+    me = subprocess.run(["id", "-un"], capture_output=True, text=True).stdout.strip()
+    acc = f"{T}/access"
+    for text, want_jack, want_all in (
+            ("", "an administrator's password", "an administrator's password"),
+            ("org.longwire.jack self - keep\norg.longwire.everything admin - -\n", "your own password", "an administrator's password"),
+            (f"org.longwire.jack group {mine} -\norg.longwire.everything group nobody-else -\n", f"none (group {mine})", "none for group nobody-else, which is not you"),
+            (f"org.longwire.jack user {me} -\norg.longwire.everything user somebody-else -\n", f"none (just you, {me})", "none for somebody-else, who is not you")):
+        open(acc, "w").write(text)
+        rows, log, r = drive(envF, f'LWP_ACCESS_FILE={acc}; lwp_pset attach jack; lwp_pset everything yes; lwp_pset gateway 127.0.0.254; dump 1; lwp_openaccess; longwire_do 1 access 1')
+        lab = {x[1]: x[2] for x in rows if x[0] == "action"}
+        check(lab.get("Password to connect") == want_jack and lab.get("Password for everything") == want_all,
+              f"the pane shows whose password each longwire permission asks, as Administrative Access has it: {lab.get('Password to connect')!r} / {lab.get('Password for everything')!r}")
+    check("PANE adminaccess" in log, "its row opens Administrative Access, the one place to change it: nothing is written here")
+    rows, log, r = drive(envF, f'LWP_ACCESS_FILE={acc}; lwp_pset attach jack; lwp_pset everything ""; lwp_pset gateway ""; dump 1')
+    check(not any(x[1] == "Password for everything" for x in rows), "the second permission's row is there only when everything or sharing is on")
     # the password dialog says whose password polkit asks for, as polkit names it, and fits its 54 columns
     os.makedirs(f"{T}/jobs", exist_ok=True)
     for who, want in (("Omar Sakka,,, (osakka)", "Password for Omar Sakka (osakka)"), ("root", "Root's password")):

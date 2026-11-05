@@ -131,7 +131,7 @@ longwire on
 from your session start-up. A node started this way keeps running after you log out of the terminal; `longwire off` stops it.
 
 The jack is made by a root helper through polkit, so the first `longwire on` after a restart asks for a password. To have it ask none, set
-*Set up the network device longwire uses on this computer (its address and routes)* (`org.longwire.jack`) to no password in Control Panel > Administrative
+*Set up the network device longwire uses on this computer (its address and routes)* (`org.longwire.jack`) to *No Password, Just Me* (hibr 0.99.444 or newer; before that, no password for your own group), and the pane shows the current setting in Control Panel > Administrative
 Access: turning on and off then needs none, routes or not and with `keep_jack = no`. Sending everything through the line and sharing this machine's internet are
 a second action, *Send all of this computer's traffic through longwire, or share its internet* (`org.longwire.everything`, the helper
 `/usr/lib/longwire/jack-everything`), which still asks unless it is allowed too ([ADR 0058](adr/0058-the-device-and-the-whole-machine-are-two-permissions.md)).

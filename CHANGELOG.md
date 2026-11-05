@@ -3,6 +3,14 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.47
+
+**The pane shows whose password connecting asks, and where to change it** ([ADR 0060](docs/adr/0060-the-pane-shows-the-password-setting-and-never-writes-it.md)). Whether
+connecting prompts is a polkit setting kept by Administrative Access, and nothing in longwire showed it. The pane now reads that setting (read-only) and shows
+*Password to connect* (and *Password for everything* when it applies): *an administrator's password*, *your own password*, *none (group G)* when you are in G, or *not
+allowed*; its row opens Administrative Access, the one place to change it. Longwire never writes it. To connect and disconnect with no prompt: choose no password for your
+*No Password, Just Me* (hibr 0.99.444 or newer; its `ACTION user NAME -` line is read too) there, for both permissions. Tested in `tests/pane.sh`.
+
 ## 0.5.46
 
 **Name servers work with routes, not only with Send everything** ([ADR 0059](docs/adr/0059-name-servers-without-everything.md)). The `dns` in a profile was set on the

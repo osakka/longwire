@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.46
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.47
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.46}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.47}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -356,6 +356,12 @@ fn longwire_rows(int w) {
 		lwp_row "$w" "$n" action "Interface" "${LWP_PF[$p.interface]:-lw0}" iface; n=$((n + 1))
 		[ "${LWP_PF[$p.attach]:-jack}" = jack ] && { lwp_row "$w" "$n" action "Address" "${LWP_PF[$p.address]:-none}" address; n=$((n + 1)); }
 		if [ "${LWP_PF[$p.attach]:-jack}" = jack ]; then	# networks beyond the line, through a router on it (docs/adr/0044)
+			v := lwp_access org.longwire.jack
+			lwp_row "$w" "$n" action "Password to connect" "$v" access; n=$((n + 1))		# read from Administrative Access, changed there (docs/adr/0060)
+			if [ "${LWP_PF[$p.everything]-}" = yes ] || [ "${LWP_PF[$p.exit]-}" = yes ]; then
+				v := lwp_access org.longwire.everything
+				lwp_row "$w" "$n" action "Password for everything" "$v" access; n=$((n + 1))
+			fi
 			lwp_row "$w" "$n" action "Gateway" "${LWP_PF[$p.gateway]:-none}" gateway; n=$((n + 1))
 			v="${LWP_PF[$p.routes]:-none}"
 			lwp_row "$w" "$n" action "Routes" "${v//,/, }" routes; n=$((n + 1))		# kept with commas, read with a space after each
@@ -698,6 +704,40 @@ fn lwp_pwcancel(int id) {
 	return 0
 }
 
+# Whose password an action asks, as hibr's Administrative Access has it: read from its settings file (the one source of truth, docs/adr/0060), never written
+# here. One line per action, "ACTION admin|self|group|never [GROUP|-] [keep|-]"; no line is the package's own default, an administrator's password.
+# "no password" only applies to a member of the group (or the one user), so it is checked against this account.
+fn lwp_access(action) {
+	local f=${LWP_ACCESS_FILE:-/var/lib/hibr/access} a ch grp keep mine g gl
+	local gs=()
+	[ -r "$f" ] || { ret "an administrator's password"; return 0; }
+	while read -r a ch grp keep; do
+		[ "$a" = "$action" ] || continue
+		case $ch in
+		admin) ret "an administrator's password" ;;
+		self) ret "your own password" ;;
+		never) ret "not allowed" ;;
+		user)			# "No Password, Just Me" (hibr 0.99.444): one person, not a group
+			g=$(id -un 2> /dev/null)
+			if [ "$g" = "$grp" ]; then ret "none (just you, $grp)"; else ret "none for $grp, who is not you"; fi ;;
+		group)
+			mine=
+			gl=$(id -nG 2> /dev/null)
+			read -r -a gs <<< "$gl"			# hibr splits words through arrays
+			for g in "${gs[@]}"; do [ "$g" = "$grp" ] && mine=1; done
+			if [ -n "$mine" ]; then ret "none (group $grp)"; else ret "none for group $grp, which is not you"; fi ;;
+		*) ret "$ch" ;;
+		esac
+		return 0
+	done < "$f"
+	ret "an administrator's password"
+}
+
+fn lwp_openaccess() {
+	command -v dt_panelpane > /dev/null && dt_panelpane adminaccess
+	return 0
+}
+
 # The jack was asked for and the job has ended: go on to turn the node on, or say why not.
 fn lwp_jackdone(int n, int st) {
 	local why=
@@ -1011,6 +1051,7 @@ fn longwire_do(int w, k, int dir) {
 	token) dt_ask "Token" "Token" "" lwp_settoken "your switchboard's invite; empty removes it" 1 ;;
 	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "jack: lw0 to lw99; splice: the network card" ;;
 	gateway) p := lwp_cur; dt_ask "Gateway" "Gateway" "${LWP_PF[$p.gateway]-}" lwp_setgateway "a router on the line; empty for none" ;;
+	access) lwp_openaccess ;;
 	dns) p := lwp_cur; dt_ask "Name server" "Address" "${LWP_PF[$p.dns]-}" lwp_setdns "up to 3, like 1.1.1.1 9.9.9.9; empty: your own" ;;
 	exitthrough) p := lwp_cur; dt_ask "Through" "Number" "${LWP_PF[$p.exit_through]-}" lwp_setexitthrough "a member's number; empty: the only one" ;;
 	routes) p := lwp_cur; dt_ask "Routes" "Networks" "${LWP_PF[$p.routes]-}" lwp_setroutes "like 192.168.150.0/24 10.20.0.0/16" ;;
