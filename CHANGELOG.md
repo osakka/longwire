@@ -17,6 +17,8 @@ A fresh reviewer read 0.5.51 and reported seven findings; each fix has a test.
 - **No new local socket once the node is up** (the way to a user's session bus is closed).
 - **A node keeps the admit it was given**: a `LINE` carrying a different one is not taken.
 
+Published: hibr-apps 779009d, hibr-apt f63bdeb, hibr-rpm cf521f5, hibr-arch e39b473.
+
 ## 0.5.51
 
 **An admit has an end, and a revocation does not outlive it** ([ADR 0065](docs/adr/0065-an-admit-has-an-end-and-a-revocation-does-not-outlive-it.md)), the second half of what the 0.5.48 read left open.
