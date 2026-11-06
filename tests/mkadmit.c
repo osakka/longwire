@@ -31,13 +31,16 @@ int main(int argc, char **argv)
 			return 2;
 		line[i] = (uint8_t)v;
 	}
-	memcpy(a, line, 8);
-	memcpy(a + 8, kid, 32);
-	a[40] = 0;
-	lw_operator_pub(&op, a + 41);
+	uint8_t m[8 + ADM_SIGNED];
+
+	memcpy(a, kid, 32);
+	a[32] = 0;
+	lw_operator_pub(&op, a + ADM_BY);
 	put64(a + ADM_ISSUED, when(argv[4]));
 	put64(a + ADM_EXPIRES, when(argv[5]));
-	lw_sign(&op, a, ADM_SIGNED, a + ADM_SIGNED);
+	memcpy(m, line, 8);
+	memcpy(m + 8, a, ADM_SIGNED);
+	lw_sign(&op, m, sizeof m, a + ADM_SIGNED);
 	lw_hex(hex, a, ADMIT_LEN);
 	printf("%s\n", hex);
 	return 0;

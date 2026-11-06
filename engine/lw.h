@@ -57,7 +57,7 @@ typedef struct lw_cfg {
 	char state_dir[256];		/* pins ("known"), switchboard registry */
 	uint8_t authority[32];		/* found a line managed by this operator key (all zero: an ordinary line) */
 	int  has_authority;
-	uint8_t admit[153];		/* an operator-signed admit to present before this node is on any line */
+	uint8_t admit[145];		/* an operator-signed admit to present before this node is on any line */
 	int  has_admit;
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	char underlay[32];		/* the network device to reach the world by when the jack has the other end's network ("": the default route's) */
@@ -93,7 +93,7 @@ typedef struct lw_node lw_node;
 /* base32 of a key id: the "full number" (lw1...), docs/CRYPTO.md §2 */
 void lw_address(char out[60], const uint8_t key_id[32]);
 void lw_nth_code(unsigned long k, char out[10]);			/* the k-th assigned switchboard code of the plan (ADR 0024) */
-void lw_operator_admit(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], unsigned days, uint8_t out[153]);	/* good for `days` (docs/adr/0065) */
+void lw_operator_admit(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], unsigned days, uint8_t out[145]);	/* good for `days` (docs/adr/0065) */
 void lw_operator_roll(const lw_id *op, const uint8_t line_id[8], uint8_t out[112]);
 void lw_operator_evict(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], uint8_t out[144]);
 void lw_operator_pub(const lw_id *op, uint8_t out[32]);

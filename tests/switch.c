@@ -254,8 +254,8 @@ int main(int argc, char **argv)
 		n->line.managed = n->line.have = 1;
 		lw_rand(kid, 32);
 
-#define MKADMIT(signer, issued, expires) do { memcpy(a, ids, 8); memcpy(a + 8, kid, 32); a[40] = 0; memcpy(a + 41, (signer)->bundle + ED_OFF, 32); \
-	put64(a + ADM_ISSUED, (issued)); put64(a + ADM_EXPIRES, (expires)); lw_sign((signer), a, ADM_SIGNED, a + ADM_SIGNED); } while (0)
+#define MKADMIT(signer, issued, expires) do { uint8_t mm_[8 + ADM_SIGNED]; memcpy(a, kid, 32); a[32] = 0; memcpy(a + ADM_BY, (signer)->bundle + ED_OFF, 32); \
+	put64(a + ADM_ISSUED, (issued)); put64(a + ADM_EXPIRES, (expires)); memcpy(mm_, ids, 8); memcpy(mm_ + 8, a, ADM_SIGNED); lw_sign((signer), mm_, sizeof mm_, a + ADM_SIGNED); } while (0)
 		MKADMIT(&op, now - day, now + 30 * day);
 		check(admit_verify(n, a, kid), "an operator's admit that has not ended is good");
 		MKADMIT(&op, now - 40 * day, now - 10 * day);
@@ -283,10 +283,9 @@ int main(int argc, char **argv)
 		{
 			uint8_t fa[ADMIT_LEN];
 
-			memcpy(fa, ids, 8);
-			memcpy(fa + 8, n->id.key_id, 32);
-			fa[40] = 0;
-			memcpy(fa + 41, n->id.key_id, 32);
+			memcpy(fa, n->id.key_id, 32);
+			fa[32] = 0;
+			memcpy(fa + ADM_BY, n->id.key_id, 32);
 			put64(fa + ADM_ISSUED, now - 800 * day);
 			put64(fa + ADM_EXPIRES, now - 400 * day);
 			check(admit_in_time(n, fa), "the founder's own admit is held to no end");
@@ -319,18 +318,12 @@ int main(int argc, char **argv)
 		/* our own */
 		MKADMIT(&op, now - 40 * day, now - 10 * day);
 		memcpy(n->line.admit, a, ADMIT_LEN);
-		memcpy(a + 8, n->id.key_id, 32);
-		memcpy(n->line.admit + 8, n->id.key_id, 32);
-		lw_sign(&op, n->line.admit, ADM_SIGNED, n->line.admit + ADM_SIGNED);
+		memcpy(kid, n->id.key_id, 32);					/* the same admit, for this node: re-made with the key swapped in */
+		MKADMIT(&op, now - 40 * day, now - 10 * day);
+		memcpy(n->line.admit, a, ADMIT_LEN);
 		memcpy(n->line.founder, kid, 32);			/* not the founder */
 		check(admit_own_check(n) == 1 && n->line.dormant, "our own admit has ended: the node goes quiet");
-		memcpy(a, ids, 8);
-		memcpy(a + 8, n->id.key_id, 32);
-		a[40] = 0;
-		memcpy(a + 41, op.bundle + ED_OFF, 32);
-		put64(a + ADM_ISSUED, now - day);
-		put64(a + ADM_EXPIRES, now + 10 * day);
-		lw_sign(&op, a, ADM_SIGNED, a + ADM_SIGNED);
+		MKADMIT(&op, now - day, now + 10 * day);
 		{
 			char cmd[ADMIT_LEN * 2 + 20], out[300];
 

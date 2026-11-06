@@ -68,10 +68,11 @@
 #define LW_NAME_MAX   32
 #define CAPS_CALLERID 1		/* NUMBER's flags: what this switchboard offers */
 #define CAPS_DIRECTORY 2
-#define ADMIT_LEN 153		/* line_id 8, key_id 32, role 1, admitted_by 32, issued 8, expires 8, sig 64 (docs/adr/0065) */
-#define ADM_ISSUED 73		/* where an admit says when it was made, and */
-#define ADM_EXPIRES 81		/* when it ends; the signature (at ADM_SIGNED) is over what comes before it */
-#define ADM_SIGNED 89
+#define ADMIT_LEN 145		/* key_id 32, role 1, admitted_by 32, issued 8, expires 8, sig 64: the line is not on the wire, it is under the signature (docs/adr/0065) */
+#define ADM_BY 33		/* where an admit names who made it, */
+#define ADM_ISSUED 65		/* when it was made, and */
+#define ADM_EXPIRES 73		/* when it ends; the signature (at ADM_SIGNED) is over the line id and the 81 bytes before it */
+#define ADM_SIGNED 81
 #define ADMIT_MAX_LIFE (400ull * 86400)	/* an admit that lasts longer than this after it was made is not an admit */
 #define ADMIT_DEFAULT_DAYS 90
 #define ROLL_LEN 112		/* line_id 8, time 8, signer 32, sig 64 over line_id, time and "roll": no admit made before the time is good */

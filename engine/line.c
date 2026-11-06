@@ -160,19 +160,28 @@ static void record_eviction(lw_node *n, const uint8_t kid[32], uint64_t t)
 
 /* ---- admits ------------------------------------------------------------------- */
 
-/* line_id 8 | key_id 32 | role 1 | admitted_by 32 | issued 8 | expires 8 | sig 64: signed by admitted_by over the 89 bytes before it. A member's admit (a line
- * without an operator) and the founder's own carry the longest end there is and it is not held to: only an operator's admits end (docs/adr/0065). */
+/* key_id 32 | role 1 | admitted_by 32 | issued 8 | expires 8 | sig 64: signed by admitted_by over the line id and the 81 bytes before the signature. The line id is under the signature
+ * and not on the wire: an admit is checked by a node that holds the line, with its line id, so one made for another line does not verify, and it is 8 bytes the RING need not carry
+ * (it is a datagram of about 1500 bytes already: the caller's whole bundle rides in it). A member's admit (a line without an operator) and the founder's own carry the longest
+ * end there is and it is not held to: only an operator's admits end (docs/adr/0065). */
+static void admit_msg(const uint8_t line_id[8], const uint8_t *a, uint8_t m[8 + ADM_SIGNED])
+{
+	memcpy(m, line_id, 8);
+	memcpy(m + 8, a, ADM_SIGNED);
+}
+
 static void admit_make(lw_node *n, const uint8_t kid[32], int role, uint8_t out[ADMIT_LEN])
 {
 	uint64_t t = (uint64_t)time(0);
+	uint8_t m[8 + ADM_SIGNED];
 
-	memcpy(out, n->line.id, 8);
-	memcpy(out + 8, kid, 32);
-	out[40] = (uint8_t)role;
-	memcpy(out + 41, n->id.key_id, 32);
+	memcpy(out, kid, 32);
+	out[32] = (uint8_t)role;
+	memcpy(out + ADM_BY, n->id.key_id, 32);
 	put64(out + ADM_ISSUED, t);
 	put64(out + ADM_EXPIRES, t + ADMIT_MAX_LIFE);
-	lw_sign(&n->id, out, ADM_SIGNED, out + ADM_SIGNED);
+	admit_msg(n->line.id, out, m);
+	lw_sign(&n->id, m, sizeof m, out + ADM_SIGNED);
 }
 
 /* The operator signs on a machine that runs no node: the same bytes as a member's admit or eviction, with the
@@ -185,16 +194,17 @@ void lw_operator_pub(const lw_id *op, uint8_t out[32])
 void lw_operator_admit(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], unsigned days, uint8_t out[ADMIT_LEN])
 {
 	uint64_t t = (uint64_t)time(0);
+	uint8_t m[8 + ADM_SIGNED];
 
 	if (days < 1 || days > ADMIT_MAX_LIFE / 86400)
 		days = ADMIT_DEFAULT_DAYS;
-	memcpy(out, line_id, 8);
-	memcpy(out + 8, kid, 32);
-	out[40] = 0;
-	lw_operator_pub(op, out + 41);
+	memcpy(out, kid, 32);
+	out[32] = 0;
+	lw_operator_pub(op, out + ADM_BY);
 	put64(out + ADM_ISSUED, t);
 	put64(out + ADM_EXPIRES, t + (uint64_t)days * 86400);
-	lw_sign(op, out, ADM_SIGNED, out + ADM_SIGNED);
+	admit_msg(line_id, out, m);
+	lw_sign(op, m, sizeof m, out + ADM_SIGNED);
 }
 
 /* "Nothing made before now is good": line_id 8 | time 8 | signer 32 | sig 64 over line_id, time and "roll". */
@@ -226,7 +236,7 @@ void lw_operator_evict(const lw_id *op, const uint8_t line_id[8], const uint8_t 
 /* The founder's own admit is the root of the line: it is held to no end and to no roll. */
 static int admit_founders(lw_node *n, const uint8_t *a)
 {
-	return !memcmp(a + 41, a + 8, 32) && !memcmp(a + 41, n->line.founder, 32);
+	return !memcmp(a + ADM_BY, a, 32) && !memcmp(a + ADM_BY, n->line.founder, 32);
 }
 
 /* An admit says when it was made and when it ends, and the end is at most ADMIT_MAX_LIFE after the start. On a line with an operator it is held to its end, to the
@@ -246,21 +256,23 @@ static int admit_in_time(lw_node *n, const uint8_t *a)
 static int admit_verify(lw_node *n, const uint8_t *a, const uint8_t kid[32])
 {
 	const lw_member *by;
+	uint8_t m[8 + ADM_SIGNED];
 
-	if (!n->line.have || memcmp(a, n->line.id, 8) || memcmp(a + 8, kid, 32) || !admit_in_time(n, a))
+	if (!n->line.have || memcmp(a, kid, 32) || !admit_in_time(n, a))
 		return 0;
-	if (n->line.managed && !memcmp(a + 41, n->line.authority, 32)) {	/* the operator's word: no member needed */
-		if (!lw_verify(n->line.authority, a, ADM_SIGNED, a + ADM_SIGNED))
+	admit_msg(n->line.id, a, m);			/* the line is ours: an admit made for another does not verify */
+	if (n->line.managed && !memcmp(a + ADM_BY, n->line.authority, 32)) {	/* the operator's word: no member needed */
+		if (!lw_verify(n->line.authority, m, sizeof m, a + ADM_SIGNED))
 			return 0;
 		return get64(a + ADM_ISSUED) > evicted_at(n, kid);
 	}
-	if (n->line.managed && (memcmp(a + 41, n->line.founder, 32) || memcmp(a + 41, a + 8, 32)))	/* a managed line takes the operator's, and its founder's own: no member's word for another */
+	if (n->line.managed && (memcmp(a + ADM_BY, n->line.founder, 32) || memcmp(a + ADM_BY, a, 32)))	/* a managed line takes the operator's, and its founder's own: no member's word for another */
 		return 0;
-	if (!(by = mem_find(n, a + 41)))		/* the signer must be a member we have on record, connected or not */
+	if (!(by = mem_find(n, a + ADM_BY)))		/* the signer must be a member we have on record, connected or not */
 		return 0;
-	if (!memcmp(a + 41, a + 8, 32) && memcmp(a + 41, n->line.founder, 32))
+	if (!memcmp(a + ADM_BY, a, 32) && memcmp(a + ADM_BY, n->line.founder, 32))
 		return 0;				/* a self-admit is good only for the founder */
-	if (!lw_verify(by->ed_pub, a, ADM_SIGNED, a + ADM_SIGNED))
+	if (!lw_verify(by->ed_pub, m, sizeof m, a + ADM_SIGNED))
 		return 0;
 	if (get64(a + ADM_ISSUED) <= evicted_at(n, kid))	/* an admit older than the eviction cannot bring it back */
 		return 0;
@@ -636,7 +648,7 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 		return;
 	if (n->line.have)			/* already on a line: this is either ours again or a stranger's */
 		return;
-	if (n->cfg.has_admit && memcmp(pl + 72, n->cfg.admit + 41, 32))	/* given an operator's admit: that operator's line, and no other */
+	if (n->cfg.has_admit && memcmp(pl + 72, n->cfg.admit + ADM_BY, 32))	/* given an operator's admit: that operator's line, and no other */
 		return;
 	home_kid(n, hk);
 	memset(&n->line, 0, sizeof n->line);

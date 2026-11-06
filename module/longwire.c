@@ -159,8 +159,8 @@ static int unhex(const char *h, uint8_t *out, size_t n)
 static int do_operator(sh *s, int ac, char **av)
 {
 	lw_id *op = calloc(1, sizeof *op);
-	uint8_t line[8], kid[32], blob[153], pub[32];
-	char hex[2 * 153 + 1];
+	uint8_t line[8], kid[32], blob[145], pub[32];
+	char hex[2 * 145 + 1];
 	int rc = HIBR_FAIL, ad = !strcmp(av[2], "admit"), rl = !strcmp(av[2], "roll");
 	unsigned days = 0;
 
@@ -185,7 +185,7 @@ static int do_operator(sh *s, int ac, char **av)
 		}
 		if (ad) {
 			lw_operator_admit(op, line, kid, days, blob);
-			lw_hex(hex, blob, 153);
+			lw_hex(hex, blob, 145);
 		} else {
 			lw_operator_evict(op, line, kid, blob);
 			lw_hex(hex, blob, 144);
@@ -432,7 +432,7 @@ static int do_start(sh *s, int ac, char **av, int role)
 			c->has_authority = 1;
 		} else if (!strcmp(a, "--admit") && !role) {
 			if (strlen(v) != 2 * sizeof c->admit || unhex(v, c->admit, sizeof c->admit)) {
-				hibr_fail(s, "lw start: --admit wants an admit from the operator (306 hex digits)");
+				hibr_fail(s, "lw start: --admit wants an admit from the operator (290 hex digits)");
 				goto out;
 			}
 			c->has_admit = 1;

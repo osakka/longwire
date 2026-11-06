@@ -55,7 +55,7 @@ def main():
     ka, kb = key_of("A"), key_of("B")
     # --- the real tool: days, and its limits ---------------------------------------------------
     rc, out = helper.cmd("operator", "admit", op, lid, ka, "90")
-    check(rc == 0 and len(out) == 153 * 2, "the operator's tool makes an admit for a number of days")
+    check(rc == 0 and len(out) == 145 * 2, "the operator's tool makes an admit for a number of days")
     rc, out = helper.cmd("operator", "admit", op, lid, ka, "401")
     check(rc != 0, "...and not one for more than 400 days")
     rc, out = helper.cmd("operator", "admit", op, lid, ka, "0")

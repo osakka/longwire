@@ -19,8 +19,9 @@ trust all of us", there is nobody to renew anything, and an expiry would only lo
 
 ## Decision
 
-1. **An operator's admit carries its end.** The admit grows from 145 to 153 bytes: `line_id 8 | key_id 32 | role 1 | signer 32 | issued 8 | expires 8 | sig 64`, the signature over the 89 bytes
-   before it. No older layout is read (no legacy). `expires` must be after `issued` and no more than **`ADMIT_MAX_LIFE` = 400 days** after it: a longer one is not an admit. The operator's
+1. **An operator's admit carries its end.** The admit stays 145 bytes: `key_id 32 | role 1 | signer 32 | issued 8 | expires 8 | sig 64`, the signature over the line id and the 81 bytes before it. The
+   line id is under the signature and no longer on the wire: the node that checks an admit holds the line, an admit made for another line does not verify, and it pays for the 8 bytes of `expires`
+   (a RING carries the caller's whole bundle and was already a datagram of about 1500 bytes: 8 more made the test network's links drop it). No older layout is read (no legacy). `expires` must be after `issued` and no more than **`ADMIT_MAX_LIFE` = 400 days** after it: a longer one is not an admit. The operator's
    tool takes `--days N` (default 90, at most 400) and prints the date.
 2. **A node holds a member to the admit it showed.** Members show their admit to each other (`ADMIT`, inside the session) when a session comes up and when it is renewed; a node holds
    each to the end of what it showed, checked every second against its own clock. A member whose admit has ended, or was made before a roll, or was never shown within 20 s of the session
