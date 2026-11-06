@@ -104,7 +104,8 @@ def main():
     check(rc == 0, f"the founder carries it: {out}")
     check(A.w.wait("admit-ended", 20, after=mka) is not None and B.w.wait("admit-ended", 20, after=mkb) is not None,
           "A and B, whose admits were made before the roll, are told theirs ended")
-    check(until(lambda: len(F.status()["line"]["members"]) == 1, 20) is not None, "the founder (whose own admit is the root) holds the line alone")
+    check(until(lambda: len(F.status()["line"]["members"]) == 1, 20) is not None,
+          f"the founder (whose own admit is the root) holds the line alone: {[(m['number'][-3:], m['state']) for m in F.status()['line']['members']]}")
     rc, out = A.cmd("renew", admit(ka, "-5", "+" + str(3 * 86400)))
     check(rc != 0, "an admit made before the roll is not taken")
     rc, out = A.cmd("renew", admit(ka, "+0", "+" + str(3 * 86400)))

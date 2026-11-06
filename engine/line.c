@@ -859,6 +859,8 @@ static void handle_admit(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	peer_note_admit(n, p, pl);
 }
 
+static void admit_sweep(lw_node *n);
+
 static int roll_ok(lw_node *n, const uint8_t *r)
 {
 	uint8_t msg[8 + 8 + 4];
@@ -884,6 +886,9 @@ static int roll_apply(lw_node *n, const uint8_t *r)
 	for (i = 0; i < n->maxpeers; i++)
 		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid)
 			ctl_msg_send(n, &n->peers[i], M_ROLL, r, ROLL_LEN);
+	for (i = 0; i < n->line.nm; i++)		/* a member we hold no session with is called at once: one whose admit the roll voided shows it, and is off the line, now and not after a back-off */
+		n->line.m[i].tries = 0, n->line.m[i].next_try = 0;
+	admit_sweep(n);				/* after the roll is passed on, and at once, while the sessions are still up: a member that went quiet first would stay on our list, called in vain */
 	line_save(n);
 	ev_emit(n, "{\"event\":\"line-rolled\"}");
 	return 1;
