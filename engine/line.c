@@ -525,7 +525,10 @@ static void admit_peer(lw_node *n, lw_peer *p)
 	if (n->line.managed) {			/* the operator decides: we only check what the caller brought */
 		if (!line_presented(n, p->number, admit) || !admit_verify(n, admit, p->key_id)) {
 			send_bye(n, p, 0);
-			ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"this line is managed: ask its operator for an admit (or a new one, if yours has ended)\"}");
+			if (evicted_at(n, p->key_id))
+				ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"that node was evicted from the line (the operator's new admit brings it back)\"}");
+			else
+				ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"this line is managed: ask its operator for an admit (or a new one, if yours has ended)\"}");
 			return;
 		}
 		peer_note_admit(n, p, admit);
