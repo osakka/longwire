@@ -16,6 +16,10 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 - **`longwire operator roll FILE LINEID`** and **`longwire roll ROLL`**: no admit made before the roll is good any more, and every older eviction can go. The tool for a full list.
 - The founder's own admit (the root of a line) and the admits of lines without an operator are held to no end.
 
+**Update the switchboard first:** since 0.5.50 a node will not get a bundle from a switchboard older than 0.5.50 (its HELLO request is padded; ADR 0064), so a node on 0.5.50 or later has no dial tone against one on 0.5.49 or older.
+
+Published: hibr-apps f1c9a24, hibr-apt 08b04d0, hibr-rpm 80c3891, hibr-arch 1a06af3.
+
 ## 0.5.50
 
 **A member's record is a claim, and the way out is never "the lowest number"** ([ADR 0064](docs/adr/0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md)),
