@@ -33,6 +33,9 @@ for pid in $(pgrep -x lw-worker); do
   sec=$(awk '/^Seccomp:/ {print $2}' /proc/$pid/status)	# the kernel's own word, not the node's: 2 is a filter (docs/adr/0062)
   [ -z "$sec" ] || [ "$sec" = 2 ] && echo "ok   worker $pid: the kernel says a system call filter is on it (Seccomp: ${sec:-not in this kernel})" \
     || { echo "FAIL worker $pid has no system call filter: Seccomp: $sec"; exit 1; }
+  # a worker holds none of its starter's descriptors: a pipe left open in it would keep a caller's $(...) from ever seeing the end of its output
+  [ "$(ls -l /proc/$pid/fd 2> /dev/null | grep -c 'pipe:')" = 0 ] && echo "ok   worker $pid: holds no pipe from whoever started it" \
+    || { echo "FAIL worker $pid holds a pipe it inherited"; exit 1; }
 done
 
 # one node per control socket: a second start must refuse, not replace it
