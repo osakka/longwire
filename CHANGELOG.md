@@ -12,6 +12,8 @@ gaps in the admit gate on lines with an operator:
 - **A revoked founder stays revoked after a roll**: the revocation of the founder is kept for good (a member that missed it could take the founder back once a roll made it too old to keep).
 - **A line key from a member that has not shown its admit is not taken.**
 
+Published: hibr-apps e2d9ed8, hibr-apt 41de460, hibr-rpm 52b8857, hibr-arch 144c8ba.
+
 ## 0.5.54
 
 **A RING with an admit is sent in two parts to a node that says it can take two** ([ADR 0068](docs/adr/0068-a-ring-with-an-admit-is-sent-in-two-to-a-node-that-says-it-can-take-two.md)). A RING for a
