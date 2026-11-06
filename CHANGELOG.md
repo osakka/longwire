@@ -8,6 +8,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 **A member's record is a claim, and the way out is never "the lowest number"** ([ADR 0064](docs/adr/0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md)),
 the first half of what the 0.5.48 read left open. Each fix has a test that fails without it.
 
+Published: hibr-apps 3e91df6, hibr-apt 0630067, hibr-rpm d8ee8b5, hibr-arch b9748e4.
+
 - **A signing key we hold the bundle of is the bundle's.** A record made by another member can no longer put its own key in place of a member's (which could lock out a later member or make a forged
   eviction count); evictions are checked against the session's bundle.
 - **A number is one key's.** A mesh call answered under a number by another key than its record's is dropped (`member-mismatch`).
