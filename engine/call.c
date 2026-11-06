@@ -1645,7 +1645,7 @@ void registration_timers(lw_node *n)
 		int need = n->registered ? n->reg_born != s->cur.born : n->reg_refused != s->cur.born;
 
 		if (need && n->now >= n->next_reg) {
-			uint8_t b[1 + 64 + 2 + LW_NAME_MAX + 2 + 2];
+			uint8_t b[1 + 64 + 2 + LW_NAME_MAX + 2 + 2 + 2];
 			size_t tl = strlen(n->cfg.token), o = 1 + tl;
 
 			b[0] = (uint8_t)tl;
@@ -1656,6 +1656,8 @@ void registration_timers(lw_node *n)
 				o += (size_t)tlv_put(b + o, TAG_NAME, n->cfg.name, strlen(n->cfg.name));
 			if (n->cfg.listed)
 				o += (size_t)tlv_put(b + o, TAG_LISTED, 0, 0);
+			if (!n->role)				/* a node tells its switchboard that it can take a control message in two parts: then a RING with an admit need not be a datagram of 1500 bytes */
+				o += (size_t)tlv_put(b + o, TAG_CTLFRAG, 0, 0);
 			ctl_msg_send(n, s, M_REGISTER, b, o);
 			n->next_reg = n->now + 6.0;		/* past the switchboard's one registration in five seconds */
 		} else if (n->registered && !n->role && n->now >= n->next_hb) {

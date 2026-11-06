@@ -20,9 +20,8 @@ founder lists 14, and the last three list none) could not join. Ethernet frames 
 
 ## Not done
 
-- A `RING` with an admit is about 1.44 to 1.5 KB and still goes whole, as before: it is a datagram of 1.47 to 1.5 KB, which a 1500-byte path carries as two IP fragments and a path that drops
-  fragments does not. Splitting it would mean an old node (which has no way to put two parts back together) loses every line call through an updated switchboard, so it waits for a way for a node
-  to say it can *(planned: M8)*.
+- A `RING` with an admit is about 1.44 to 1.5 KB and still goes whole in this release: see [ADR 0068](0068-a-ring-with-an-admit-is-sent-in-two-to-a-node-that-says-it-can-take-two.md), which splits it
+  for the nodes that say they can take two parts.
 
 ## Tests
 

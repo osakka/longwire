@@ -37,7 +37,7 @@ The reviewer found seven things, each confirmed by reading the path end to end o
 - Confining which files the node can reach (Landlock) is still *(planned: M8)*; a compromised node can still write what its user can.
 - With dhcpcd the lease's own mask and address are its server's word (decision 2).
 - On a line without an operator one member can still evict every other (that line's trust is "all of us trust all of us", [0022](0022-lines-form-by-vouching.md)).
-- A RING message to a line member is about 1.45 to 1.5 KB (the caller's whole bundle rides in it) and can cross the 1472 bytes of one datagram on a 1500-byte path; splitting large control messages is *(planned: M8)*.
+- A RING message to a line member is about 1.45 to 1.5 KB (the caller's whole bundle rides in it) and can cross the 1472 bytes of one datagram on a 1500-byte path. Done in 0.5.53 and 0.5.54: [ADR 0067](0067-a-control-message-too-big-for-one-session-message-is-sent-in-two.md), [ADR 0068](0068-a-ring-with-an-admit-is-sent-in-two-to-a-node-that-says-it-can-take-two.md).
 
 ## Tests
 

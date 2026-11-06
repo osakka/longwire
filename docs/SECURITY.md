@@ -109,8 +109,7 @@ That is the honest sentence behind the word.
 - **A second independent read, of 0.5.51 (0.5.52).** A fresh reviewer, given the code and not the conclusions, reported seven findings, all fixed in 0.5.52 ([ADR 0066](adr/0066-a-member-shows-its-admit-before-anything-it-sends-counts.md)):
   a member without a good admit got into the line in repeating 20-second windows; a DHCP server on the line could take half of the machine's traffic with a mask of 128.0.0.0 (or a public address);
   a full revocation list cut off members already on the line; an old eviction, said again, put a re-admitted key off the line; a clock set forward forgot every eviction; the sandbox let a node reach
-  the session bus; a switchboard could swap a renewed node's admit for an older one. Not done: confining the files a node can reach *(planned: M8)*; dhcpcd applies the lease itself; splitting a RING
-  that crosses one datagram on a 1500-byte path *(planned: M8)*.
+  the session bus; a switchboard could swap a renewed node's admit for an older one. Not done: confining the files a node can reach *(planned: M8)*; dhcpcd applies the lease itself. A RING that crossed one datagram on a 1500-byte path is sent in two parts to the nodes that say they can take them (0.5.54, [ADR 0068](adr/0068-a-ring-with-an-admit-is-sent-in-two-to-a-node-that-says-it-can-take-two.md)).
 - **Not claimed:** the reviewer read the code and ran nothing, so each fix is tested here and the reviewer's thresholds were not measured; the vendored crypto was not read by it.
 
 ## What has not been done, and what that means for you

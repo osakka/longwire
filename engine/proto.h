@@ -66,6 +66,7 @@
 #define TAG_NAME   2
 #define TAG_LISTED 3
 #define TAG_SWITCHBOARD 4	/* REGISTER: the registrant is a switchboard asking the registry for its code */
+#define TAG_CTLFRAG 6		/* REGISTER: this node puts a control message sent in two parts back together, so the switchboard may send it one (docs/adr/0068) */
 #define TAG_CODE   5		/* NUMBER: the code the registry assigned to the switchboard, as ASCII digits */
 #define LW_NAME_MAX   32
 #define CAPS_CALLERID 1		/* NUMBER's flags: what this switchboard offers */

@@ -955,6 +955,7 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 				nm_[nl] = 0;
 			}
 			listed_ = tlv_find(pl + 1 + pl[0], len - 1 - pl[0], TAG_LISTED, &ll) && !n->cfg.no_directory;
+			p->cfrag = tlv_find(pl + 1 + pl[0], len - 1 - pl[0], TAG_CTLFRAG, &ll) != 0;
 		}
 		if ((why_ = name_apply(b, p->key_id, nm_, listed_, r != 0))) {
 			refuse(n, p, why_);
@@ -1340,11 +1341,11 @@ int board_status_json(lw_node *n, char *o, size_t cap)
 		"{\"node\":\"switchboard\",\"key_id\":\"%s\",\"address\":\"%s\",\"uptime\":%d,\"numbers\":%d,\"online\":%d,"
 		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu,\"code\":\"%s\",\"code_refused\":\"%s\",\"codes_issued\":%d,"
 		"\"max_nodes\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"cookies_got\":%llu,\"strikes_given\":%llu,\"bans_issued\":%llu,\"net_bans_issued\":%llu,\"ban_refused\":%llu,"
-		"\"rx_pkts\":%llu,\"rx_bytes\":%llu,\"tx_pkts\":%llu,\"tx_bytes\":%llu,\"rings\":%llu,\"put_through\":%llu,\"ended\":%llu,\"registrations\":%llu,\"bans_active\":%d,\"echo_shed\":%llu}\n",
+		"\"rx_pkts\":%llu,\"rx_bytes\":%llu,\"tx_pkts\":%llu,\"tx_bytes\":%llu,\"rings\":%llu,\"put_through\":%llu,\"ended\":%llu,\"registrations\":%llu,\"bans_active\":%d,\"echo_shed\":%llu,\"ctl_split\":%llu}\n",
 		kid, addr, (int)(n->now - n->started), b->n, online_n, calls,
 		n->cfg.policy_script ? "script" : "open", (unsigned long long)n->drop_garbage, n->home_code, n->reg_why, b->ncodes, n->maxpeers,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->cookies_got,
 		(unsigned long long)n->strikes_given, (unsigned long long)n->bans_issued, (unsigned long long)n->net_bans_issued, (unsigned long long)n->bans_refused,
 		(unsigned long long)n->rx_pkts, (unsigned long long)n->rx_bytes_all, (unsigned long long)n->tx_pkts, (unsigned long long)n->tx_bytes_all,
-		(unsigned long long)n->sb_rings, (unsigned long long)n->sb_through, (unsigned long long)n->sb_ended, (unsigned long long)n->sb_regs, ban_count(n), (unsigned long long)n->echo_shed);
+		(unsigned long long)n->sb_rings, (unsigned long long)n->sb_through, (unsigned long long)n->sb_ended, (unsigned long long)n->sb_regs, ban_count(n), (unsigned long long)n->echo_shed, (unsigned long long)n->ctl_split);
 }

@@ -518,11 +518,38 @@ int main(int argc, char **argv)
 		memcpy(f + 5, m + h, total - h);
 		sw_fragment(n, 6, f, 5 + total - h, 1);
 		check(!pq->lh_got, "a frame's half and a control message's half do not join");
-		put16(f, 79); f[2] = 0; put16(f + 3, 3 + 1500);	/* a message that fits in one is never sent in two: not accepted */
-		sw_fragment(n, 6, f, 5 + (3 + 1500 + 1) / 2, 1);
+		put16(f, 79); f[2] = 0; put16(f + 3, 3 + 1400);	/* a message that fits in one datagram is never sent in two: not accepted */
+		sw_fragment(n, 6, f, 5 + (3 + 1400 + 1) / 2, 1);
 		f[2] = 1;
-		sw_fragment(n, 6, f, 5 + (3 + 1500) - (3 + 1500 + 1) / 2, 1);
+		sw_fragment(n, 6, f, 5 + (3 + 1400) - (3 + 1400 + 1) / 2, 1);
 		check(!pq->lh_got, "a message that would have fitted whole is not accepted in two parts");
+
+		/* what is sent in two: a RING-sized message (1450 bytes) whole to a node that has not said it can take two parts, in two to one that has; one too big for one session message in two to anyone */
+		{
+			uint8_t big[1700];
+			uint64_t was;
+			struct sockaddr_in *ep = (struct sockaddr_in *)&pq->ep;
+
+			memset(big, 0x33, sizeof big);
+			memset(pq, 0, sizeof *pq);
+			pq->used = 1;
+			pq->cur.valid = 1;
+			pq->cur.born = n->now;			/* a session that is not past its limit */
+			memset(ep, 0, sizeof *ep);
+			ep->sin_family = AF_INET;
+			ep->sin_port = htons(9);
+			ep->sin_addr.s_addr = htonl(0x7f000001);
+			pq->eplen = sizeof *ep;
+			was = n->ctl_split;
+			ctl_msg_send(n, pq, M_LINEHELLO, big, 1450);
+			check(n->ctl_split == was, "a message of 1450 bytes goes whole to a peer that has not said it takes two parts (as every release has sent it)");
+			pq->cfrag = 1;
+			ctl_msg_send(n, pq, M_LINEHELLO, big, 1450);
+			check(n->ctl_split == was + 1, "...and in two to one that has");
+			pq->cfrag = 0;
+			ctl_msg_send(n, pq, M_LINEHELLO, big, 1700);
+			check(n->ctl_split == was + 2, "one too big for any session message is sent in two to anyone");
+		}
 	}
 
 	printf(bad ? "FAILED\n" : "all switch checks passed\n");

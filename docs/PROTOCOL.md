@@ -216,7 +216,7 @@ The full design is a ladder, each rung tried when the one before fails:
 
 **Optional parts.** `DIAL`, `RING`, `REGISTER` and `NUMBER` end with optional parts, each `tag:1 ‖ len:1 ‖ bytes`, read to the end of
 the message and skipped if the tag is unknown: tag 1 is a line admit (145 bytes), 2 a name (at most 32 bytes of UTF-8, no
-control characters), 3 "listed" (no bytes), 4 "this registrant is a switchboard" (`REGISTER`, no bytes) and 5 the registry's code for it (`NUMBER`, ASCII digits). The switchboard adds the caller's name to `RING` itself, from what the caller
+control characters), 3 "listed" (no bytes), 4 "this registrant is a switchboard" (`REGISTER`, no bytes) 5 the registry's code for it (`NUMBER`, ASCII digits) and 6 "this node puts a control message sent in two parts back together" (`REGISTER`, no bytes: a switchboard then splits a message of more than 1428 bytes to it, [ADR 0068](adr/0068-a-ring-with-an-admit-is-sent-in-two-to-a-node-that-says-it-can-take-two.md)). The switchboard adds the caller's name to `RING` itself, from what the caller
 registered, if it carries names.
 
 ## 5. Relay *(built, M3 stage 2)*

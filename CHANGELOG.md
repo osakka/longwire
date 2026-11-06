@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.54
+
+**A RING with an admit is sent in two parts to a node that says it can take two** ([ADR 0068](docs/adr/0068-a-ring-with-an-admit-is-sent-in-two-to-a-node-that-says-it-can-take-two.md)). A RING for a
+call between line members was a datagram of 1.47 to 1.5 KB, which a 1500-byte path carries as two IP fragments and a path that drops fragments does not carry. A node now says in its `REGISTER` that it
+can put two parts back together, and its switchboard splits to it from 1428 bytes; a node that has not been updated says nothing and gets the datagram it always got, so there is no order in which
+nodes and switchboards must be updated.
+
 ## 0.5.53
 
 **A line of 12 to 16 members works** ([ADR 0067](docs/adr/0067-a-control-message-too-big-for-one-session-message-is-sent-in-two.md)). The line message that tells a newcomer who is on the line was never sent

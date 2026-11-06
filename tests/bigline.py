@@ -54,6 +54,8 @@ def main():
         check(ok is not None, f"and every one of them lists all {N}: " + str([len(x.status()["line"]["members"]) if x.status()["line"] else 0 for x in nodes]))
         sp = F.status()
         check(sp.get("ctl_split", 0) >= 1, f"the founder sent a line message in two parts ({sp.get('ctl_split')})")
+        ss = sb.status()
+        check(ss.get("ctl_split", 0) >= 1, f"and the switchboard sent rings that carry an admit in two parts, as the nodes said it may ({ss.get('ctl_split')}) (docs/adr/0068)")
     L.finish("bigline")
 
 

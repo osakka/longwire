@@ -604,7 +604,7 @@ void sw_fragment(lw_node *n, int pi, const uint8_t *b, size_t len, int ctl)
 	part = b[2];
 	total = get16(b + 3);
 	h = (total + 1) / 2;
-	if (part > 1 || total <= (ctl ? FRAME_MAX : FRAME_SINGLE) || total > (ctl ? CTL_BUFMAX : FRAME_MAX) || len - 5 != (part ? total - h : h))
+	if (part > 1 || total <= FRAME_SINGLE || total > (ctl ? CTL_BUFMAX : FRAME_MAX) || len - 5 != (part ? total - h : h))
 		return;				/* not what we send */
 	if (!p->fr && !(p->fr = calloc(1, sizeof *p->fr)))
 		return;

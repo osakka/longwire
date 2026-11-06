@@ -109,6 +109,7 @@ typedef struct lw_peer {
 	int      direct_tries;
 	uint8_t  via_kid[32];		/* the relay's key id: its peer slot may have been reused */
 	double   probe_next, lost_t;
+	int      cfrag;			/* a switchboard's view of this node: it takes a control message in two parts (it said so when it registered) */
 	uint64_t admit_until;		/* when the admit this member showed ends (0: it does not), and when it was made */
 	uint64_t admit_issued;
 	double   admit_tx;		/* when our own admit was last said to it while we wait for its */

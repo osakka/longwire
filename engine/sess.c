@@ -340,7 +340,8 @@ int ctl_msg_send(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *payload, si
 	put16(b + 1, (unsigned)len);
 	if (len)
 		memcpy(b + 3, payload, len);
-	if (3 + len > FRAME_MAX) {		/* more than one session message holds: two, as a frame is (docs/adr/0067). Only what could not be sent at all before is split: a message that fits is sent whole, as every release has */
+	if (3 + len > (p->cfrag ? FRAME_SINGLE : FRAME_MAX)) {	/* more than one datagram holds: two, as a frame is (docs/adr/0067). What a node has said it can put back together is split from 1428 bytes (a RING with an admit
+									 * is 1.44 to 1.5 KB: docs/adr/0068); to any other only what could not be sent at all before is split, and a message that fits is sent whole, as every release has */
 		uint8_t f[5 + CTL_BUFMAX / 2 + 2];
 		size_t total = 3 + len, h = (total + 1) / 2;
 
