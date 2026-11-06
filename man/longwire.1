@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "November 2026" "longwire 0.5.50" "longwire manual"
+.TH LONGWIRE 1 "November 2026" "longwire 0.5.51" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -170,14 +170,26 @@ Keep it offline.
 .BI "operator authority" " file"
 Show an operator key's public key.
 .TP
-.BI "operator admit" " file lineid node"
+.BI "operator admit" " file lineid node " [ days ]
 Sign an admit for a node (its
 .B lw1...
 address or key id) on the line
-.IR lineid .
+.IR lineid ,
+good for
+.I days
+(1 to 400, default 90). An operator's admit has an end; the node is warned 14, 3 and 1 day before, and is off the line when it comes.
 .TP
 .BI "operator evict" " file lineid node"
 Sign an eviction.
+.TP
+.BI "operator roll" " file lineid"
+Sign a roll: no admit made before now is good any more, and every eviction older than it can be forgotten. For a line that holds as many evictions as it can, or when every key so far is suspect.
+.TP
+.BI roll " roll"
+Carry the operator's signed roll (hex, or a file) to the line.
+.TP
+.BI renew " admit"
+Give the running node a renewed admit (hex, or a file) from its operator, before the old one ends or after.
 .SS Saved connections
 .TP
 .B profile list

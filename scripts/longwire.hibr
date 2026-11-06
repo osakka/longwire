@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.50
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.51
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.50}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.51}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -60,7 +60,11 @@ usage: longwire <command>
   key export | import                         the identity as 33 words, and back (import reads them on stdin)
   revoke EVICTION                             carry the operator's signed eviction (hex, or a file) to the line
   operator new|authority FILE                 an operator's key: make one; show its public key
-  operator admit|evict FILE LINEID NODE       sign an admit or an eviction for NODE (lw1... or key id) on that line
+  operator admit FILE LINEID NODE [DAYS]      sign an admit for NODE (lw1... or key id) on that line, good for DAYS (1-400, default 90)
+  operator evict FILE LINEID NODE             sign an eviction of NODE
+  operator roll FILE LINEID                   sign a roll: no admit made before now is good any more
+  roll ROLL                                   carry the operator's signed roll to the line (hex, or a file)
+  renew ADMIT                                 give the running node its renewed admit (hex, or a file) before the old one ends
   id | address | bundle                       your key id, full address (lw1...), public bundle
 
 A profile is a saved connection (~/.config/longwire/profiles, readable by you only: it holds the token). `longwire up` with no
@@ -133,6 +137,12 @@ announce() {
 	line-joined)      say "·  on line ${e[line]} with ${e[members]} members" ;;
 	member-joined)    say "·  ${e[number]} joined the line" ;;
 	member-left)      say "·  ${e[number]} left the line" ;;
+	member-expired)   say "·  ${e[number]}'s admit has ended: it is off the line until its operator gives it a new one" ;;
+	admit-expiring)   say "⚠  your admit to the line ends in ${e[days]} day(s): ask the operator for a new one, then: longwire renew ADMIT" ;;
+	admit-ended)      say "✗  your admit to the line has ended: you are off the line until the operator gives you a new one (longwire renew ADMIT)" ;;
+	admit-renewed)    say "✓  your admit was renewed" ;;
+	line-rolled)      say "·  the operator rolled the line: admits made before it are void" ;;
+	revocations-full) say "⚠  this line holds as many revocations as it can: no one new can join until the operator rolls it (longwire operator roll)" ;;
 	member-evicted)   say "·  ${e[number]} was evicted from the line" ;;
 	evicted)          say "⚠  you were evicted from line ${e[line]}" ;;
 	switchboard-silent) say "⚠  no answer from the switchboard at ${e[ep]} (UDP) for 15 s: $(sb_quiet_why "${e[host]}")" ;;
@@ -1292,12 +1302,16 @@ key)
 	*) echo "usage: longwire key export | import   (import reads the words on standard input)" >&2; exit 2 ;;
 	esac ;;
 revoke)  [ $# -eq 1 ] || { usage >&2; exit 2; }; ev=$1; [ -r "$ev" ] && read -r ev < "$1"; run lw revoke "$ev" ;;
+roll)    [ $# -eq 1 ] || { usage >&2; exit 2; }; ev=$1; [ -r "$ev" ] && read -r ev < "$1"; run lw roll "$ev" ;;
+renew)   [ $# -eq 1 ] || { usage >&2; exit 2; }; ev=$1; [ -r "$ev" ] && read -r ev < "$1"; run lw admit "$ev" ;;
 operator)
 	op=${2:-}
 	case "${1:-}" in
 	new)       [ $# -eq 2 ] || { usage >&2; exit 2; }; run lw key new "$op" > /dev/null; run lw key authority "$op" ;;
 	authority) [ $# -eq 2 ] || { usage >&2; exit 2; }; run lw key authority "$op" ;;
-	admit|evict) [ $# -eq 4 ] || { usage >&2; exit 2; }; run lw key "$1" "$op" "$3" "$4" ;;
+	admit) [ $# -eq 4 ] || [ $# -eq 5 ] || { usage >&2; exit 2; }; run lw key admit "$op" "$3" "$4" ${5:+"$5"} ;;
+	evict) [ $# -eq 4 ] || { usage >&2; exit 2; }; run lw key evict "$op" "$3" "$4" ;;
+	roll)  [ $# -eq 3 ] || { usage >&2; exit 2; }; run lw key roll "$op" "$3" ;;
 	*) usage >&2; exit 2 ;;
 	esac ;;
 bundle)  run lw key new "$LW_SEED" > /dev/null; run lw key bundle "$LW_SEED" ;;

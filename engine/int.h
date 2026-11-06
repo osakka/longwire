@@ -109,6 +109,9 @@ typedef struct lw_peer {
 	int      direct_tries;
 	uint8_t  via_kid[32];		/* the relay's key id: its peer slot may have been reused */
 	double   probe_next, lost_t;
+	uint64_t admit_until;		/* when the admit this member showed ends (0: it does not), and when it was made */
+	uint64_t admit_issued;
+	double   admit_by;		/* the time by which it must have shown one, on a line with an operator (0: not waiting) */
 	double   rev_next;		/* when to tell this peer again what the operator has revoked (0: not on the line) */
 	int      lh_sent, lh_got, lh_has, linked;	/* the line handshake with this peer */
 	uint8_t  lh_id[8];
@@ -195,12 +198,17 @@ typedef struct lw_line {
 	double   key_t;			/* when the key last changed: the grace window for the old one */
 	uint8_t  authority[32];		/* the operator's public key; all zero on a line members run among themselves */
 	int      managed;
-	uint8_t  rev[32][EVICT_LEN];	/* the operator's evictions, as signed */
+	uint8_t  rev[REV_MAX][EVICT_LEN];	/* the operator's evictions, as signed; each is kept while it can still matter (docs/adr/0065) */
 	int      nrev;
+	uint8_t  roll[ROLL_LEN];	/* the operator's latest roll, as signed (all zero: none) */
+	uint64_t roll_t;		/* its time: no admit made before it is good */
+	int      dormant;		/* our own admit has ended: no sessions, no calls, until a renewed one comes */
+	double   chk;			/* the last time the admits were looked at */
+	int      warned;		/* how many of the warnings that our own admit is ending have been given */
 	uint8_t  admit[ADMIT_LEN];	/* this node's own */
 	lw_member m[LINE_MAX];
 	int      nm;
-	lw_evict ev[32];
+	lw_evict ev[REV_MAX];
 	int      nev;
 	double   joined, tick;
 	int      said_partial, said_complete;
@@ -529,6 +537,7 @@ void mint_number(char out[NUMLEN + 1]);
 void line_init(lw_node *n);
 int  line_have(const lw_node *n);
 int  line_admit_for(lw_node *n, uint8_t out[ADMIT_LEN]);	/* our own admit, to present when dialing; 0 if none */
+int  line_revs_full(lw_node *n);			/* as many revocations held as there is room for: no admit is taken */
 int  line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32]);
 int  line_evicted(lw_node *n, const uint8_t kid[32]);
 int  line_presented(lw_node *n, const char *number, uint8_t out[ADMIT_LEN]);	/* the admit that number's call carried */

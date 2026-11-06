@@ -103,7 +103,9 @@ That is the honest sentence behind the word.
   peer; an eviction dated years ahead; terminal escapes in a switchboard's refusal; the launcher running a user's script as root; `lw07` and `lw7` sharing a table; the site helper accepting
   `.` and `..`; forwarding opened to the exit's far side. Also built: the node is closed to the system calls it needs ([ADR 0062](adr/0062-the-node-can-make-only-the-system-calls-it-needs.md)), tested by trying a dozen things it must not be able to do.
   Fixed in 0.5.50 ([ADR 0064](adr/0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md)): a member's record no longer decides a signing key we hold the bundle of, nor a number's key, and the way out is never chosen by number order; HELLO answers no more than it is sent.
-  Open, with a design written ([ADR 0065](adr/0065-an-admit-has-an-end-and-a-revocation-does-not-outlive-it.md) *(planned: M8)*): admits never expire and an operator's revocations are a bounded list; a handshake's time is not checked against the clock (kept monotonic-only, like WireGuard's); the control socket's mode is set after it is made, in the owner's folder.
+  Fixed in 0.5.51 ([ADR 0065](adr/0065-an-admit-has-an-end-and-a-revocation-does-not-outlive-it.md)): an operator's admit has an end (90 days by default, at most 400) and a member is held to it; an operator's revocations
+  are kept exactly as long as they can matter, never dropped to make room, and a full list refuses new admits and says so; the operator's roll voids every admit made before it.
+  Open: a handshake's time is not checked against the clock (kept monotonic-only, like WireGuard's); the clock now matters for admit ends (assumed within a day of true time; a comparison of peers' clocks is *(planned: M8)*); the control socket's mode is set after it is made, in the owner's folder.
 - **Not claimed:** the reviewer read the code and ran nothing, so each fix is tested here and the reviewer's thresholds were not measured; the vendored crypto was not read by it.
 
 ## What has not been done, and what that means for you

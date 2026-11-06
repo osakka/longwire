@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.50
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.51
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.50}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.51}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -516,6 +516,16 @@ fn longwire_rows(int w) {
 		id := lwp_get .line.id
 		mg := lwp_get .line.managed false
 		lwp_row "$w" "$n" action "Line $id" "$([ "$mg" = true ] && echo 'managed by an operator' || echo 'members vouch for members')" none; n=$((n + 1))
+		if [ "$mg" = true ]; then
+			local ad ae rf
+			ad := lwp_get .line.admit_days -1
+			ae := lwp_get .line.admit_ended false
+			rf := lwp_get .line.revocations_full false
+			if [ "$ae" = true ]; then lwp_row "$w" "$n" action "Your admit" "has ended: ask the operator for a new one, then: longwire renew" none; n=$((n + 1))
+			elif [ "${ad:--1}" -ge 0 ] 2> /dev/null; then lwp_row "$w" "$n" action "Your admit" "ends in $ad day(s)" none; n=$((n + 1))
+			fi
+			if [ "$rf" = true ]; then lwp_row "$w" "$n" action "Revocations" "full: no one new can join until the operator rolls the line" none; n=$((n + 1)); fi
+		fi
 		cnt := json len LWP_S .line.members
 		for ((i = 0; i < ${cnt:-0}; i++)); do
 			num := lwp_get ".line.members[$i].number"

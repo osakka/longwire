@@ -25,6 +25,8 @@
 #define M_BYE      0x08		/* leave(1) */
 #define M_SAS      0x0b		/* the committed safety phrase (docs/adr/0040), inside the session: kind(1) then 0 commit(32) from the caller, 1 nonce(16) from the callee, 2 reveal(16) from the caller, 3 acknowledged */
 #define M_RELAY_NO  0x0a	/* peer_key_id(32) */
+#define M_ADMIT     0x0d	/* admit: this member's admit, said when a session comes up and when it is renewed (docs/adr/0065) */
+#define M_ROLL      0x0e	/* the operator's roll: no admit made before its time is good (docs/adr/0065) */
 #define M_EXIT      0x0c	/* mac(6): this member shares its internet, through the machine with this MAC (docs/adr/0056); said every 10 s */
 /* node <-> switchboard */
 #define M_REGISTER 0x20		/* token_len(1) token */
@@ -66,7 +68,14 @@
 #define LW_NAME_MAX   32
 #define CAPS_CALLERID 1		/* NUMBER's flags: what this switchboard offers */
 #define CAPS_DIRECTORY 2
-#define ADMIT_LEN 145		/* line_id 8, key_id 32, role 1, admitted_by 32, time 8, sig 64 */
+#define ADMIT_LEN 153		/* line_id 8, key_id 32, role 1, admitted_by 32, issued 8, expires 8, sig 64 (docs/adr/0065) */
+#define ADM_ISSUED 73		/* where an admit says when it was made, and */
+#define ADM_EXPIRES 81		/* when it ends; the signature (at ADM_SIGNED) is over what comes before it */
+#define ADM_SIGNED 89
+#define ADMIT_MAX_LIFE (400ull * 86400)	/* an admit that lasts longer than this after it was made is not an admit */
+#define ADMIT_DEFAULT_DAYS 90
+#define ROLL_LEN 112		/* line_id 8, time 8, signer 32, sig 64 over line_id, time and "roll": no admit made before the time is good */
+#define REV_MAX 256		/* evictions a node holds that can still matter; a node holding this many takes no new admit */
 #define LINE_MAX 16
 #define EVICT_LEN 144		/* line_id 8, key_id 32, time 8, signer 32, sig 64 */
 #define MEMBER_LEN 106		/* number 9, key_id 32, ed_pub 32, role 1, home switchboard key id 32 */

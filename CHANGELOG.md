@@ -3,6 +3,19 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.51
+
+**An admit has an end, and a revocation does not outlive it** ([ADR 0065](docs/adr/0065-an-admit-has-an-end-and-a-revocation-does-not-outlive-it.md)), the second half of what the 0.5.48 read left open.
+*Behaviour change: every operator's admit made before 0.5.51 is void (the layout changed, and no older one is read): sign new ones once.*
+
+- **An operator's admit ends**: `longwire operator admit FILE LINEID NODE [DAYS]` (1 to 400, default 90). A member is held to the end of the admit it showed; one that has ended, or
+  was never shown within 20 s of the session, is off the line (`member-expired`). A node is told at 14, 3 and 1 day before its own admit ends (`admit-expiring`, the pane, the status),
+  and when it has ended it is quiet (`admit-ended`) until `longwire renew ADMIT` gives it a new one.
+- **Revocations are kept exactly as long as they can matter**, never dropped to make room (it was the oldest of 32, which let that key's old admit back). The list is 256; a full one
+  refuses new admits and says so (`revocations-full`, the status, the pane).
+- **`longwire operator roll FILE LINEID`** and **`longwire roll ROLL`**: no admit made before the roll is good any more, and every older eviction can go. The tool for a full list.
+- The founder's own admit (the root of a line) and the admits of lines without an operator are held to no end.
+
 ## 0.5.50
 
 **A member's record is a claim, and the way out is never "the lowest number"** ([ADR 0064](docs/adr/0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md)),

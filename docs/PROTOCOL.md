@@ -214,7 +214,7 @@ The full design is a ladder, each rung tried when the one before fails:
   itself ends the relay on that side, and the other side follows on seeing it. Session keys don't change when the path does.
 
 **Optional parts.** `DIAL`, `RING`, `REGISTER` and `NUMBER` end with optional parts, each `tag:1 ‖ len:1 ‖ bytes`, read to the end of
-the message and skipped if the tag is unknown: tag 1 is a line admit (145 bytes), 2 a name (at most 32 bytes of UTF-8, no
+the message and skipped if the tag is unknown: tag 1 is a line admit (153 bytes), 2 a name (at most 32 bytes of UTF-8, no
 control characters), 3 "listed" (no bytes), 4 "this registrant is a switchboard" (`REGISTER`, no bytes) and 5 the registry's code for it (`NUMBER`, ASCII digits). The switchboard adds the caller's name to `RING` itself, from what the caller
 registered, if it carries names.
 
@@ -268,6 +268,8 @@ A `CTL` message is `msg:1 ‖ len:2 ‖ payload` inside a session. The messages 
 | `0x0a` | `RELAY_NO` | `key_id:32`: this node will not relay to that member (§5) |
 | `0x0b` | `SAS` | `kind:1` then: kind 0 `commit:32` (the committing end), kind 1 `nonce:16` (the other end), kind 2 `reveal:16` (committing), kind 3 nothing (the other: acknowledged). The committed safety phrase ([CRYPTO §4.1](CRYPTO.md#41-the-safety-phrase), [ADR 0040](adr/0040-the-safety-phrase-is-committed-before-it-is-shown.md)) |
 | `0x0c` | `EXIT` | `mac:6`: this member shares its internet, through the machine with this MAC (its jack's own, or the one given with `--exit-mac`) ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)) |
+| `0x0d` | `ADMIT` | the sender's own admit (153 bytes), said when a session comes up on a line with an operator and when it is renewed. The receiver holds the member to its end and to the roll; one that is not good takes the member off the line, and a member that shows none within 20 s of the session loses the session |
+| `0x0e` | `ROLL` | `line_id:8 ‖ time:8 ‖ operator:32 ‖ sig:64` (signature over line_id, time and `roll`): no admit made before `time` is good, and every eviction older than it can be dropped. Passed on to every linked member and said again with the evictions |
 
 **The safety phrase exchange.** It belongs to a peer's session, not to a call: every peer reached through the switchboard (direct, relayed or mesh) starts it once,
 when its session is up, whatever calls led there ([ADR 0057](adr/0057-the-safety-phrase-belongs-to-the-session.md)). The end with the **lower key id commits**: both ends know both key ids, so they agree whichever end dialled
@@ -294,10 +296,10 @@ given. Lines persist in `~/.longwire/lines`: the line id, founder, line key (sea
 admit, the members, and the evictions. A node is on at most one line; at most 16 nodes are on one.
 
 **Admits.** An admit is the proof that a member vouched for a node:
-`line_id:8 ‖ key_id:32 ‖ role:1 ‖ admitted_by:32 ‖ time:8 ‖ sig:64` (145 bytes), the signature being Ed25519 by
-`admitted_by` over the 81 bytes before it. It is valid for a node that holds the line if the `line_id` matches, the
+`line_id:8 ‖ key_id:32 ‖ role:1 ‖ admitted_by:32 ‖ issued:8 ‖ expires:8 ‖ sig:64` (153 bytes), the signature being Ed25519 by
+`admitted_by` over the 89 bytes before it. `expires` is after `issued` and at most 400 days after it, or it is not an admit. It is valid for a node that holds the line if the `line_id` matches, the
 `admitted_by` key is in the *persisted* member list (not merely connected right now), the signature verifies against
-the key stored for that member, and the `time` is later than any eviction recorded for that `key_id`. The **founder**
+the key stored for that member, and `issued` is later than any eviction recorded for that `key_id`. On a line with an operator an admit is also held to its end (`expires` is in the future), to not being made more than a day in the future, and to the operator's last roll (`issued` is not before the roll's time); the founder's own admit is held to none of these. On a line without an operator only the shape is checked ([ADR 0065](adr/0065-an-admit-has-an-end-and-a-revocation-does-not-outlive-it.md)). The **founder**
 admits itself (`admitted_by` = `key_id` = the founder), and members accept a self-admit only for the recorded founder, so
 every member holds an admit, the first included. An admit rides in the `DIAL` and `RING` messages as an optional
 part (tag 1, length 145, then the admit; absent when there is none); the switchboard passes it through without looking at it.

@@ -13,6 +13,7 @@
 #include "int.h"
 #include "../vendor/monocypher/monocypher.h"
 
+typedef char cfg_admit_is_an_admit[sizeof(((lw_cfg *)0)->admit) == ADMIT_LEN ? 1 : -1];	/* lw.h spells the size out: the two must agree */
 #define EVICT_SKEW 86400		/* how far ahead of this clock an eviction may be dated: clocks differ, a day is far more than they do */
 
 static void put64(uint8_t *p, uint64_t v)
@@ -98,6 +99,44 @@ int line_evicted(lw_node *n, const uint8_t kid[32])
 	return n->line.have && evicted_at(n, kid) != 0;
 }
 
+/* An eviction matters until the latest admit that could have been made for the key has ended (ADMIT_MAX_LIFE after the eviction, and the skew the clocks may have),
+ * or until a roll newer than it has made every older admit void. Before that it is never dropped, and never to make room (docs/adr/0065). A line whose members
+ * run it among themselves has no ends to count on: nothing there is dropped. */
+static uint64_t ev_horizon(lw_node *n)
+{
+	uint64_t now = (uint64_t)time(0), h = n->line.roll_t;
+
+	if (n->line.managed && now > ADMIT_MAX_LIFE + EVICT_SKEW && now - ADMIT_MAX_LIFE - EVICT_SKEW > h)
+		h = now - ADMIT_MAX_LIFE - EVICT_SKEW;
+	return h;
+}
+
+static void revs_prune(lw_node *n)
+{
+	uint64_t h = ev_horizon(n);
+	int i, j;
+
+	if (!h)
+		return;
+	for (i = j = 0; i < n->line.nrev; i++)
+		if (get64(n->line.rev[i] + 40) >= h) {
+			if (i != j)
+				memcpy(n->line.rev[j], n->line.rev[i], EVICT_LEN);
+			j++;
+		}
+	n->line.nrev = j;
+	for (i = j = 0; i < n->line.nev; i++)
+		if (n->line.ev[i].time >= h)
+			n->line.ev[j++] = n->line.ev[i];
+	n->line.nev = j;
+}
+
+/* Room for no more evictions: no new admit is taken from anyone until time or a roll makes room, and the status says so. */
+int line_revs_full(lw_node *n)
+{
+	return n->line.nrev >= REV_MAX || n->line.nev >= REV_MAX;
+}
+
 static void record_eviction(lw_node *n, const uint8_t kid[32], uint64_t t)
 {
 	int i;
@@ -108,27 +147,32 @@ static void record_eviction(lw_node *n, const uint8_t kid[32], uint64_t t)
 				n->line.ev[i].time = t;
 			return;
 		}
-	if (n->line.nev < 32)
-		i = n->line.nev++;
-	else {					/* full: the oldest goes, so a flood of evictions of no one pushes out only the oldest */
-		memmove(&n->line.ev[0], &n->line.ev[1], 31 * sizeof n->line.ev[0]);
-		i = 31;
+	if (t < ev_horizon(n))
+		return;				/* it cannot matter any more */
+	if (n->line.nev >= REV_MAX) {
+		ev_emit(n, "{\"event\":\"revocations-full\"}");
+		return;
 	}
+	i = n->line.nev++;
 	memcpy(n->line.ev[i].key_id, kid, 32);
 	n->line.ev[i].time = t;
 }
 
 /* ---- admits ------------------------------------------------------------------- */
 
-/* line_id 8 | key_id 32 | role 1 | admitted_by 32 | time 8 | sig 64: signed by admitted_by over the 81 bytes before it */
+/* line_id 8 | key_id 32 | role 1 | admitted_by 32 | issued 8 | expires 8 | sig 64: signed by admitted_by over the 89 bytes before it. A member's admit (a line
+ * without an operator) and the founder's own carry the longest end there is and it is not held to: only an operator's admits end (docs/adr/0065). */
 static void admit_make(lw_node *n, const uint8_t kid[32], int role, uint8_t out[ADMIT_LEN])
 {
+	uint64_t t = (uint64_t)time(0);
+
 	memcpy(out, n->line.id, 8);
 	memcpy(out + 8, kid, 32);
 	out[40] = (uint8_t)role;
 	memcpy(out + 41, n->id.key_id, 32);
-	put64(out + 73, (uint64_t)time(0));
-	lw_sign(&n->id, out, 81, out + 81);
+	put64(out + ADM_ISSUED, t);
+	put64(out + ADM_EXPIRES, t + ADMIT_MAX_LIFE);
+	lw_sign(&n->id, out, ADM_SIGNED, out + ADM_SIGNED);
 }
 
 /* The operator signs on a machine that runs no node: the same bytes as a member's admit or eviction, with the
@@ -138,14 +182,32 @@ void lw_operator_pub(const lw_id *op, uint8_t out[32])
 	memcpy(out, op->bundle + ED_OFF, 32);
 }
 
-void lw_operator_admit(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], uint8_t out[ADMIT_LEN])
+void lw_operator_admit(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], unsigned days, uint8_t out[ADMIT_LEN])
 {
+	uint64_t t = (uint64_t)time(0);
+
+	if (days < 1 || days > ADMIT_MAX_LIFE / 86400)
+		days = ADMIT_DEFAULT_DAYS;
 	memcpy(out, line_id, 8);
 	memcpy(out + 8, kid, 32);
 	out[40] = 0;
 	lw_operator_pub(op, out + 41);
-	put64(out + 73, (uint64_t)time(0));
-	lw_sign(op, out, 81, out + 81);
+	put64(out + ADM_ISSUED, t);
+	put64(out + ADM_EXPIRES, t + (uint64_t)days * 86400);
+	lw_sign(op, out, ADM_SIGNED, out + ADM_SIGNED);
+}
+
+/* "Nothing made before now is good": line_id 8 | time 8 | signer 32 | sig 64 over line_id, time and "roll". */
+void lw_operator_roll(const lw_id *op, const uint8_t line_id[8], uint8_t out[ROLL_LEN])
+{
+	uint8_t msg[8 + 8 + 4];
+
+	memcpy(out, line_id, 8);
+	put64(out + 8, (uint64_t)time(0));
+	lw_operator_pub(op, out + 16);
+	memcpy(msg, out, 16);
+	memcpy(msg + 16, "roll", 4);
+	lw_sign(op, msg, sizeof msg, out + 48);
 }
 
 void lw_operator_evict(const lw_id *op, const uint8_t line_id[8], const uint8_t kid[32], uint8_t out[EVICT_LEN])
@@ -161,17 +223,36 @@ void lw_operator_evict(const lw_id *op, const uint8_t line_id[8], const uint8_t 
 	lw_sign(op, msg, sizeof msg, out + 80);
 }
 
+/* The founder's own admit is the root of the line: it is held to no end and to no roll. */
+static int admit_founders(lw_node *n, const uint8_t *a)
+{
+	return !memcmp(a + 41, a + 8, 32) && !memcmp(a + 41, n->line.founder, 32);
+}
+
+/* An admit says when it was made and when it ends, and the end is at most ADMIT_MAX_LIFE after the start. On a line with an operator it is held to its end, to the
+ * operator's last roll, and to not being made in the future (an operator's clock far ahead would make it last longer): docs/adr/0065. */
+static int admit_in_time(lw_node *n, const uint8_t *a)
+{
+	uint64_t i = get64(a + ADM_ISSUED), e = get64(a + ADM_EXPIRES), now = (uint64_t)time(0);
+
+	if (e <= i || e - i > ADMIT_MAX_LIFE)
+		return 0;
+	if (!n->line.managed || admit_founders(n, a))
+		return 1;
+	return now < e && i <= now + EVICT_SKEW && i >= n->line.roll_t;
+}
+
 /* Is `a` a valid admit, for the node with key id `kid`, to the line this node holds? */
 static int admit_verify(lw_node *n, const uint8_t *a, const uint8_t kid[32])
 {
 	const lw_member *by;
 
-	if (!n->line.have || memcmp(a, n->line.id, 8) || memcmp(a + 8, kid, 32))
+	if (!n->line.have || memcmp(a, n->line.id, 8) || memcmp(a + 8, kid, 32) || !admit_in_time(n, a))
 		return 0;
 	if (n->line.managed && !memcmp(a + 41, n->line.authority, 32)) {	/* the operator's word: no member needed */
-		if (!lw_verify(n->line.authority, a, 81, a + 81))
+		if (!lw_verify(n->line.authority, a, ADM_SIGNED, a + ADM_SIGNED))
 			return 0;
-		return get64(a + 73) > evicted_at(n, kid);
+		return get64(a + ADM_ISSUED) > evicted_at(n, kid);
 	}
 	if (n->line.managed && (memcmp(a + 41, n->line.founder, 32) || memcmp(a + 41, a + 8, 32)))	/* a managed line takes the operator's, and its founder's own: no member's word for another */
 		return 0;
@@ -179,16 +260,16 @@ static int admit_verify(lw_node *n, const uint8_t *a, const uint8_t kid[32])
 		return 0;
 	if (!memcmp(a + 41, a + 8, 32) && memcmp(a + 41, n->line.founder, 32))
 		return 0;				/* a self-admit is good only for the founder */
-	if (!lw_verify(by->ed_pub, a, 81, a + 81))
+	if (!lw_verify(by->ed_pub, a, ADM_SIGNED, a + ADM_SIGNED))
 		return 0;
-	if (get64(a + 73) <= evicted_at(n, kid))	/* an admit older than the eviction cannot bring it back */
+	if (get64(a + ADM_ISSUED) <= evicted_at(n, kid))	/* an admit older than the eviction cannot bring it back */
 		return 0;
 	return 1;
 }
 
 int line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32])
 {
-	return admit && admit_verify(n, admit, caller_kid);
+	return admit && !line_revs_full(n) && admit_verify(n, admit, caller_kid);
 }
 
 int line_admit_for(lw_node *n, uint8_t out[ADMIT_LEN])
@@ -251,6 +332,12 @@ static void line_save(lw_node *n)
 			lw_hex(rh, n->line.rev[i], EVICT_LEN);
 			fprintf(f, "revoke %s\n", rh);
 		}
+		if (n->line.roll_t) {
+			char rh[ROLL_LEN * 2 + 1];
+
+			lw_hex(rh, n->line.roll, ROLL_LEN);
+			fprintf(f, "roll %s\n", rh);
+		}
 	}
 	for (i = 0; i < n->line.nm; i++) {
 		lw_hex(kh, n->line.m[i].key_id, 32);
@@ -284,7 +371,7 @@ static void line_load(lw_node *n)
 	char path[320], l[1024], a[400], b[200], c[200], sbh[200];
 	uint8_t blob[24 + 32 + 16], sk[32];
 	FILE *f;
-	int have_key = 0, d, got;
+	int have_key = 0, have_admit = 0, d, got;
 	unsigned long long t;
 
 	path_of(n, path, sizeof path);
@@ -299,14 +386,18 @@ static void line_load(lw_node *n)
 		else if (sscanf(l, "authority %199s", a) == 1 && strlen(a) == 64) {
 			unhexn(a, n->line.authority, 32);
 			n->line.managed = 1;
-		} else if (sscanf(l, "revoke %399s", a) == 1 && strlen(a) == EVICT_LEN * 2 && n->line.nrev < 32)
+		} else if (sscanf(l, "revoke %399s", a) == 1 && strlen(a) == EVICT_LEN * 2 && n->line.nrev < REV_MAX)
 			unhexn(a, n->line.rev[n->line.nrev++], EVICT_LEN);
+		else if (sscanf(l, "roll %399s", a) == 1 && strlen(a) == ROLL_LEN * 2 && !unhexn(a, n->line.roll, ROLL_LEN))
+			n->line.roll_t = get64(n->line.roll + 8);
 		else if (sscanf(l, "key %399s", a) == 1 && strlen(a) == sizeof blob * 2 && !unhexn(a, blob, sizeof blob)) {
 			crypto_blake2b_keyed(sk, 32, n->id.seed, 32, (const uint8_t *)"longwire lines v1", 17);
 			have_key = !crypto_aead_unlock(n->line.key, blob + 24 + 32, sk, blob, 0, 0, blob + 24, 32);
 			crypto_wipe(sk, 32);
-		} else if (sscanf(l, "admit %399s", a) == 1 && strlen(a) == ADMIT_LEN * 2)
+		} else if (sscanf(l, "admit %399s", a) == 1 && strlen(a) == ADMIT_LEN * 2) {
 			unhexn(a, n->line.admit, ADMIT_LEN);
+			have_admit = 1;			/* a file from before admits had an end holds one the size of the old layout: not read (no legacy) */
+		}
 		else if ((got = sscanf(l, "member %9s %199s %199s %d %199s", a, b, c, &d, sbh)) >= 4 && strlen(b) == 64 && strlen(c) == 64 &&
 			 strlen(a) == NUMLEN && num_wire_ok((const uint8_t *)a) && n->line.nm < LINE_MAX) {
 			lw_member *m = &n->line.m[n->line.nm++];
@@ -320,13 +411,13 @@ static void line_load(lw_node *n)
 				unhexn(sbh, m->sb, 32);
 			else
 				home_kid(n, m->sb);		/* saved before members named their switchboard */
-		} else if (sscanf(l, "evict %199s %llu", a, &t) == 2 && strlen(a) == 64 && n->line.nev < 32) {
+		} else if (sscanf(l, "evict %199s %llu", a, &t) == 2 && strlen(a) == 64 && n->line.nev < REV_MAX) {
 			unhexn(a, n->line.ev[n->line.nev].key_id, 32);
 			n->line.ev[n->line.nev++].time = t;
 		}
 	}
 	fclose(f);
-	if (have_key && n->line.nm > 0) {
+	if (have_key && have_admit && n->line.nm > 0) {
 		n->line.have = 1;
 		n->line.joined = n->now;
 	} else
@@ -379,6 +470,14 @@ static void member_json(lw_node *n, const char *event, const char *number)
 	ev_emit(n, "{\"event\":\"%s\",\"number\":\"%s\"}", event, f);
 }
 
+/* What a peer's admit says about how long it stays: held until then (docs/adr/0065). The founder's own admit has no end. */
+static void peer_note_admit(lw_node *n, lw_peer *p, const uint8_t *a)
+{
+	p->admit_by = 0;
+	p->admit_until = admit_founders(n, a) ? 0 : get64(a + ADM_EXPIRES);
+	p->admit_issued = get64(a + ADM_ISSUED);
+}
+
 /* Vouch for the node at the other end of `p`: record it, admit it, tell it the line, tell the members. */
 static void admit_peer(lw_node *n, lw_peer *p)
 {
@@ -394,12 +493,18 @@ static void admit_peer(lw_node *n, lw_peer *p)
 		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"that node was evicted from the line\"}");
 		return;
 	}
+	if (line_revs_full(n)) {		/* no room to remember one more revocation: no one more comes in (docs/adr/0065) */
+		send_bye(n, p, 0);
+		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"this line holds as many revocations as it can: its operator must roll it\"}");
+		return;
+	}
 	if (n->line.managed) {			/* the operator decides: we only check what the caller brought */
 		if (!line_presented(n, p->number, admit) || !admit_verify(n, admit, p->key_id)) {
 			send_bye(n, p, 0);
-			ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"this line is managed: ask its operator for an admit\"}");
+			ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"this line is managed: ask its operator for an admit (or a new one, if yours has ended)\"}");
 			return;
 		}
+		peer_note_admit(n, p, admit);
 	}
 	home_kid(n, hk);
 	if (!mem_add(n, p->number, p->key_id, peer_ed_pub(p), 0, hk)) {
@@ -503,6 +608,11 @@ void line_call_up(lw_node *n, lw_peer *p)
 		memcpy(rec->ed_pub, peer_ed_pub(p), 32);	/* the record of a member we are in touch with takes the key from its own bundle: a record made by another member cannot lock it out later (docs/adr/0064) */
 
 	p->rev_next = n->now + 2.0;		/* a new session: tell it what the operator revoked, once it is listening */
+	if (n->line.have && n->line.managed && rec) {	/* and show it our admit, and wait for its: a member we cannot see the end of is not one we hold (docs/adr/0065) */
+		ctl_msg_send(n, p, M_ADMIT, n->line.admit, ADMIT_LEN);
+		p->admit_until = p->admit_issued = 0;
+		p->admit_by = n->now + 20.0;
+	}
 	if (!n->registered || p->lh_sent)
 		return;
 	b[0] = (uint8_t)n->line.have;
@@ -556,6 +666,8 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	}
 	n->line.joined = n->now;
 	p->linked = 1;
+	if (n->line.managed)
+		ctl_msg_send(n, p, M_ADMIT, n->line.admit, ADMIT_LEN);	/* the member we joined through learns when ours ends */
 	line_save(n);
 	site_derive(n);
 	{
@@ -575,7 +687,7 @@ static void handle_member(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 		return;
 	memcpy(num, pl, NUMLEN);
 	num[NUMLEN] = 0;
-	if (!admit_verify(n, pl + MEMBER_LEN, pl + 9))	/* the newcomer must carry a member's signature */
+	if (line_revs_full(n) || !admit_verify(n, pl + MEMBER_LEN, pl + 9))	/* the newcomer must carry a member's signature, and there must be room to remember its revocation */
 		return;
 	home_kid(n, hk);
 	if (memcmp(pl + 74, hk, 32) || mem_find(n, pl + 9) || !mem_add(n, num, pl + 9, pl + 41, pl[73], pl + 74))
@@ -640,13 +752,13 @@ static void store_revoke(lw_node *n, const uint8_t *b)
 	for (i = 0; i < n->line.nrev; i++)
 		if (!memcmp(n->line.rev[i], b, 48))
 			return;
-	if (n->line.nrev < 32)
-		i = n->line.nrev++;
-	else {
-		memmove(&n->line.rev[0], &n->line.rev[1], 31 * sizeof n->line.rev[0]);
-		i = 31;
+	if (get64(b + 40) < ev_horizon(n))
+		return;				/* it cannot matter any more */
+	if (n->line.nrev >= REV_MAX) {
+		ev_emit(n, "{\"event\":\"revocations-full\"}");
+		return;			/* never the oldest dropped to make room: a dropped eviction lets its key's old admit back */
 	}
-	memcpy(n->line.rev[i], b, EVICT_LEN);
+	memcpy(n->line.rev[n->line.nrev++], b, EVICT_LEN);
 }
 
 static void handle_evict(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
@@ -669,6 +781,63 @@ static void handle_evict(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	} else if (memcmp(pl + 48, p->key_id, 32) || !lw_verify(peer_ed_pub(p), msg, sizeof msg, pl + 80))	/* from a member, in person: checked against the key in the bundle of the session it came on */
 		return;
 	apply_evict(n, pl + 8, get64(pl + 40));
+}
+
+/* A member left the line because its admit ended (or never was good): forget it, end its sessions, say so. */
+static void member_expire(lw_node *n, lw_peer *p)
+{
+	lw_member *m = mem_find(n, p->key_id);
+	char num[NUMLEN + 1] = "";
+
+	if (m)
+		snprintf(num, sizeof num, "%s", m->number);
+	mem_remove(n, p->key_id);
+	call_drop_peer(n, p, "its admit has ended");
+	line_save(n);
+	if (num[0])
+		member_json(n, "member-expired", num);
+}
+
+/* A member shows its admit: it is held to it. One that is not good (ended, rolled, made for another key) is a member no longer. */
+static void handle_admit(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
+{
+	if (len != ADMIT_LEN || !n->line.have || !n->line.managed || !mem_find(n, p->key_id))
+		return;
+	if (!admit_verify(n, pl, p->key_id)) {
+		member_expire(n, p);
+		return;
+	}
+	peer_note_admit(n, p, pl);
+}
+
+static int roll_ok(lw_node *n, const uint8_t *r)
+{
+	uint8_t msg[8 + 8 + 4];
+
+	if (!n->line.have || !n->line.managed || memcmp(r, n->line.id, 8) || memcmp(r + 16, n->line.authority, 32))
+		return 0;
+	memcpy(msg, r, 16);
+	memcpy(msg + 16, "roll", 4);
+	return lw_verify(n->line.authority, msg, sizeof msg, r + 48);
+}
+
+/* The operator's roll: no admit made before its time is good, so every eviction older than it is covered and can go. Passed on to every member we are linked to. */
+static int roll_apply(lw_node *n, const uint8_t *r)
+{
+	uint64_t t = get64(r + 8);
+	int i;
+
+	if (!roll_ok(n, r) || t <= n->line.roll_t || t > (uint64_t)time(0) + EVICT_SKEW)
+		return 0;
+	memcpy(n->line.roll, r, ROLL_LEN);
+	n->line.roll_t = t;
+	revs_prune(n);
+	for (i = 0; i < n->maxpeers; i++)
+		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid)
+			ctl_msg_send(n, &n->peers[i], M_ROLL, r, ROLL_LEN);
+	line_save(n);
+	ev_emit(n, "{\"event\":\"line-rolled\"}");
+	return 1;
 }
 
 static void handle_linekey(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
@@ -702,6 +871,13 @@ void line_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 		return;
 	case M_EVICT:
 		handle_evict(n, p, pl, len);
+		return;
+	case M_ADMIT:
+		handle_admit(n, p, pl, len);
+		return;
+	case M_ROLL:
+		if (len == ROLL_LEN && mem_find(n, p->key_id))
+			roll_apply(n, pl);
 		return;
 	case M_LINEKEY:
 		handle_linekey(n, p, pl, len);
@@ -742,6 +918,39 @@ static void evict_now(lw_node *n, const uint8_t kid[32], uint64_t t, const uint8
 
 int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 {
+	if (!strncmp(cmd, "admit ", 6)) {		/* a renewed admit from the operator, for this node */
+		uint8_t a[ADMIT_LEN];
+		int i;
+
+		if (!n->line.have || !n->line.managed)
+			return LW_SN(out, cap, "{\"error\":\"this node is not on a line with an operator\"}\n");
+		if (strlen(cmd + 6) != ADMIT_LEN * 2 || unhexn(cmd + 6, a, ADMIT_LEN))
+			return LW_SN(out, cap, "{\"error\":\"that is not an admit\"}\n");
+		if (!admit_verify(n, a, n->id.key_id))
+			return LW_SN(out, cap, "{\"error\":\"that admit is not good for this node on this line: it is for another key or line, has ended, or was made before the operator's last roll\"}\n");
+		memcpy(n->line.admit, a, ADMIT_LEN);
+		n->line.warned = 0;
+		n->line.dormant = 0;
+		for (i = 0; i < n->maxpeers; i++)		/* the members we are linked to hold us to the new end */
+			if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid)
+				ctl_msg_send(n, &n->peers[i], M_ADMIT, a, ADMIT_LEN);
+		line_save(n);
+		ev_emit(n, "{\"event\":\"admit-renewed\",\"expires\":%llu}", (unsigned long long)get64(a + ADM_EXPIRES));
+		return LW_SN(out, cap, "{\"admit\":\"renewed\",\"expires\":%llu}\n", (unsigned long long)get64(a + ADM_EXPIRES));
+	}
+	if (!strncmp(cmd, "roll ", 5)) {		/* the operator's signed roll, carried by this member */
+		uint8_t r[ROLL_LEN];
+
+		if (!n->line.have || !n->line.managed)
+			return LW_SN(out, cap, "{\"error\":\"this node is not on a line with an operator\"}\n");
+		if (strlen(cmd + 5) != ROLL_LEN * 2 || unhexn(cmd + 5, r, ROLL_LEN))
+			return LW_SN(out, cap, "{\"error\":\"that is not a roll\"}\n");
+		if (!roll_ok(n, r))
+			return LW_SN(out, cap, "{\"error\":\"that roll is not signed by this line's operator\"}\n");
+		if (!roll_apply(n, r))
+			return LW_SN(out, cap, "{\"error\":\"that roll is not newer than the one this node holds\"}\n");
+		return LW_SN(out, cap, "{\"rolled\":true}\n");
+	}
 	if (!strncmp(cmd, "revoke ", 7)) {		/* the operator's signed eviction, carried by this member */
 		uint8_t b[EVICT_LEN], msg[53];
 		const lw_member *m;
@@ -806,13 +1015,69 @@ int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 
 /* ---- the mesh maintainer and status --------------------------------------------- */
 
+/* Our own admit on a line with an operator: say when it is ending (14, 3 and 1 days before), and go quiet when it has ended or a roll has voided it: every session ends and
+ * none is made until a renewed admit comes (`longwire renew`). 1 if quiet. */
+static int admit_own_check(lw_node *n)
+{
+	const uint8_t *a = n->line.admit;
+	uint64_t now = (uint64_t)time(0), e = get64(a + ADM_EXPIRES), d;
+	int lvl;
+
+	if (admit_founders(n, a))
+		return 0;
+	if (now >= e || get64(a + ADM_ISSUED) < n->line.roll_t) {
+		if (!n->line.dormant) {
+			n->line.dormant = 1;
+			ev_emit(n, "{\"event\":\"admit-ended\"}");
+			call_drop_all(n, "your admit has ended");
+		}
+		return 1;
+	}
+	n->line.dormant = 0;
+	d = (e - now + 86399) / 86400;
+	lvl = d <= 1 ? 3 : d <= 3 ? 2 : d <= 14 ? 1 : 0;
+	if (lvl > n->line.warned) {
+		n->line.warned = lvl;
+		ev_emit(n, "{\"event\":\"admit-expiring\",\"days\":%llu}", (unsigned long long)d);
+	}
+	return 0;
+}
+
+/* The members we hold sessions with are held to the admit they showed: one that has ended, was rolled, or was never shown in time is a member no longer. */
+static void admit_sweep(lw_node *n)
+{
+	uint64_t now = (uint64_t)time(0);
+	int i;
+
+	for (i = 0; i < n->maxpeers; i++) {
+		lw_peer *q = &n->peers[i];
+
+		if (!q->used || q->is_sb || !q->cur.valid || !mem_find(n, q->key_id) || !memcmp(q->key_id, n->id.key_id, 32))
+			continue;
+		if (q->admit_by && n->now > q->admit_by) {
+			q->admit_by = 0;
+			call_drop_peer(n, q, "it showed no admit");	/* the session ends; it is a member still, and is called again */
+		} else if (q->admit_until && (now >= q->admit_until || q->admit_issued < n->line.roll_t))
+			member_expire(n, q);
+	}
+}
+
 void line_timers(lw_node *n)
 {
 	int i, up = 0, need = 0;
 
 	if (!n->line.have && n->cfg.has_authority && n->registered && n->number[0])
 		found(n);			/* a managed line exists from the start: the operator needs its id to sign for */
-	if (n->line.have && n->line.managed && n->line.nrev)
+	if (n->line.have && n->line.managed && n->now - n->line.chk >= 1.0) {
+		n->line.chk = n->now;
+		revs_prune(n);
+		if (admit_own_check(n))		/* our own admit ended */
+			return;
+		admit_sweep(n);
+	}
+	if (n->line.dormant)
+		return;
+	if (n->line.have && n->line.managed && (n->line.nrev || n->line.roll_t))
 		for (i = 0; i < n->maxpeers; i++) {	/* tell whoever links to us what the operator has revoked */
 			lw_peer *q = &n->peers[i];
 			int k;
@@ -821,6 +1086,8 @@ void line_timers(lw_node *n)
 				continue;
 			for (k = 0; k < n->line.nrev; k++)	/* datagrams are not acknowledged: say it again now and then */
 				ctl_msg_send(n, q, M_EVICT, n->line.rev[k], EVICT_LEN);
+			if (n->line.roll_t)
+				ctl_msg_send(n, q, M_ROLL, n->line.roll, ROLL_LEN);
 			q->rev_next = n->now + 30.0;
 		}
 	if (!n->line.have || !n->registered || n->now - n->line.tick < 1.0)
@@ -893,7 +1160,11 @@ int line_value(lw_node *n, char *o, size_t cap)
 		len = lw_app(o, cap, len, "%s{\"number\":\"%s\",\"key_id\":\"%s\",\"state\":\"%s\"}",
 				i ? "," : "", f, kh, me ? "you" : ok ? "up" : "down");
 	}
-	len = lw_app(o, cap, len, "],\"up\":%d,\"partial\":%s}", up, up < n->line.nm ? "true" : "false");
+	len = lw_app(o, cap, len, "],\"up\":%d,\"partial\":%s,\"admit_expires\":%llu,\"admit_days\":%lld,\"admit_ended\":%s,\"revocations\":%d,\"revocations_full\":%s,\"rolled\":%llu}", up, up < n->line.nm ? "true" : "false",
+			(unsigned long long)(n->line.managed && !admit_founders(n, n->line.admit) ? get64(n->line.admit + ADM_EXPIRES) : 0),
+			n->line.managed && !admit_founders(n, n->line.admit) ? ((long long)get64(n->line.admit + ADM_EXPIRES) - (long long)time(0) + 86399) / 86400 : -1LL,
+			n->line.dormant ? "true" : "false",
+			n->line.nrev > n->line.nev ? n->line.nrev : n->line.nev, line_revs_full(n) ? "true" : "false", (unsigned long long)n->line.roll_t);
 	return len;
 }
 

@@ -230,6 +230,173 @@ int main(int argc, char **argv)
 		n->cfg.exit_through[0] = 0;
 	}
 
+	/* an admit has an end, and a revocation does not outlive it (docs/adr/0065) */
+	{
+		lw_id op, other;
+		uint8_t a[ADMIT_LEN], kid[32], ids[8], r[ROLL_LEN];
+		uint64_t now = (uint64_t)time(0), day = 86400;
+		lw_peer *pq = &n->peers[4];
+		int k;
+
+		memset(&op, 0, sizeof op);
+		lw_rand(op.seed, 32);
+		lw_id_derive(&op);
+		memset(&other, 0, sizeof other);
+		lw_rand(other.seed, 32);
+		lw_id_derive(&other);
+		for (k = 0; k < n->maxpeers; k++)
+			memset(&n->peers[k], 0, sizeof n->peers[k]);
+		memset(&n->line, 0, sizeof n->line);
+		lw_rand(ids, 8);
+		memcpy(n->line.id, ids, 8);
+		memcpy(n->line.authority, op.bundle + ED_OFF, 32);
+		memcpy(n->line.founder, n->id.key_id, 32);
+		n->line.managed = n->line.have = 1;
+		lw_rand(kid, 32);
+
+#define MKADMIT(signer, issued, expires) do { memcpy(a, ids, 8); memcpy(a + 8, kid, 32); a[40] = 0; memcpy(a + 41, (signer)->bundle + ED_OFF, 32); \
+	put64(a + ADM_ISSUED, (issued)); put64(a + ADM_EXPIRES, (expires)); lw_sign((signer), a, ADM_SIGNED, a + ADM_SIGNED); } while (0)
+		MKADMIT(&op, now - day, now + 30 * day);
+		check(admit_verify(n, a, kid), "an operator's admit that has not ended is good");
+		MKADMIT(&op, now - 40 * day, now - 10 * day);
+		check(!admit_verify(n, a, kid), "one that has ended is not");
+		MKADMIT(&op, now - day, now + 401 * day);
+		check(!admit_verify(n, a, kid), "one that lasts longer than 400 days is not an admit");
+		MKADMIT(&op, now + 3 * day, now + 30 * day);
+		check(!admit_verify(n, a, kid), "one made days in the future is not (an operator's clock far ahead would make it last)");
+		MKADMIT(&op, now - day, now - day);
+		check(!admit_verify(n, a, kid), "one that ends when it begins is not");
+		MKADMIT(&other, now - day, now + 30 * day);
+		check(!admit_verify(n, a, kid), "one signed by some other key is not");
+		MKADMIT(&op, now - 5 * day, now + 30 * day);
+		lw_operator_roll(&op, ids, r);
+		check(roll_apply(n, r), "the operator's roll is taken");
+		check(!admit_verify(n, a, kid), "an admit made before the roll is no longer good");
+		MKADMIT(&op, now + 1, now + 30 * day);
+		check(admit_verify(n, a, kid), "one made after it is");
+		check(!roll_apply(n, r), "the same roll again is not news");
+		r[50] ^= 1;
+		check(!roll_ok(n, r), "a roll that is not signed by the operator is refused");
+		n->line.roll_t = 0;
+
+		/* the founder's own admit is the root: no end holds it */
+		{
+			uint8_t fa[ADMIT_LEN];
+
+			memcpy(fa, ids, 8);
+			memcpy(fa + 8, n->id.key_id, 32);
+			fa[40] = 0;
+			memcpy(fa + 41, n->id.key_id, 32);
+			put64(fa + ADM_ISSUED, now - 800 * day);
+			put64(fa + ADM_EXPIRES, now - 400 * day);
+			check(admit_in_time(n, fa), "the founder's own admit is held to no end");
+		}
+
+		/* what a member showed is what it is held to */
+		memcpy(pq->key_id, kid, 32);
+		pq->used = pq->cur.valid = 1;
+		n->now = 5000.0;
+		mem_add(n, "444444444", kid, kid, 0, kid);
+		MKADMIT(&op, now - day, now + 30 * day);
+		handle_admit(n, pq, a, ADMIT_LEN);
+		check(pq->admit_until == now + 30 * day && mem_find(n, kid), "a member's good admit is noted: it is held until then");
+		pq->admit_until = now - 1;
+		admit_sweep(n);
+		check(!mem_find(n, kid), "past that, it is a member no longer");
+		mem_add(n, "444444444", kid, kid, 0, kid);
+		pq->used = pq->cur.valid = 1;
+		memcpy(pq->key_id, kid, 32);
+		MKADMIT(&op, now - 40 * day, now - 10 * day);
+		handle_admit(n, pq, a, ADMIT_LEN);
+		check(!mem_find(n, kid), "an ended admit shown by a member takes it off the line at once");
+		mem_add(n, "444444444", kid, kid, 0, kid);
+		pq->used = pq->cur.valid = 1;
+		memcpy(pq->key_id, kid, 32);
+		pq->admit_by = n->now - 1;
+		admit_sweep(n);
+		check(!pq->used || pq->admit_by == 0, "a member that shows no admit in time loses its session");
+
+		/* our own */
+		MKADMIT(&op, now - 40 * day, now - 10 * day);
+		memcpy(n->line.admit, a, ADMIT_LEN);
+		memcpy(a + 8, n->id.key_id, 32);
+		memcpy(n->line.admit + 8, n->id.key_id, 32);
+		lw_sign(&op, n->line.admit, ADM_SIGNED, n->line.admit + ADM_SIGNED);
+		memcpy(n->line.founder, kid, 32);			/* not the founder */
+		check(admit_own_check(n) == 1 && n->line.dormant, "our own admit has ended: the node goes quiet");
+		memcpy(a, ids, 8);
+		memcpy(a + 8, n->id.key_id, 32);
+		a[40] = 0;
+		memcpy(a + 41, op.bundle + ED_OFF, 32);
+		put64(a + ADM_ISSUED, now - day);
+		put64(a + ADM_EXPIRES, now + 10 * day);
+		lw_sign(&op, a, ADM_SIGNED, a + ADM_SIGNED);
+		{
+			char cmd[ADMIT_LEN * 2 + 20], out[300];
+
+			memcpy(cmd, "admit ", 6);
+			lw_hex(cmd + 6, a, ADMIT_LEN);
+			check(line_cmd(n, cmd, out, sizeof out) > 0 && strstr(out, "renewed") && !n->line.dormant, "a renewed admit is taken and the node is back");
+		}
+		check(admit_own_check(n) == 0 && n->line.warned == 1, "ten days left: the warning for 14 days is given (and that for 3 is not yet)");
+	}
+
+	/* revocations are kept while they can matter and never dropped to make room */
+	{
+		lw_id op;
+		uint8_t ev[EVICT_LEN], kid[32], first[32], msg[8 + 32 + 8 + 5];
+		uint64_t now = (uint64_t)time(0), day = 86400;
+		int k;
+
+		memset(&op, 0, sizeof op);
+		lw_rand(op.seed, 32);
+		lw_id_derive(&op);
+		memset(&n->line, 0, sizeof n->line);
+		lw_rand(n->line.id, 8);
+		memcpy(n->line.authority, op.bundle + ED_OFF, 32);
+		n->line.managed = n->line.have = 1;
+		for (k = 0; k < REV_MAX + 3; k++) {
+			lw_rand(kid, 32);
+			memcpy(ev, n->line.id, 8);
+			memcpy(ev + 8, kid, 32);
+			put64(ev + 40, now - 1);
+			memcpy(ev + 48, op.bundle + ED_OFF, 32);
+			memcpy(msg, ev, 48);
+			memcpy(msg + 48, "evict", 5);
+			lw_sign(&op, msg, sizeof msg, ev + 80);
+			store_revoke(n, ev);
+			record_eviction(n, kid, now - 1);
+			if (k == 0)
+				memcpy(first, kid, 32);		/* the first, to look for later */
+		}
+		check(n->line.nrev == REV_MAX && n->line.nev == REV_MAX && line_revs_full(n), "256 evictions that can still matter are held, and not one more");
+		check(evicted_at(n, first) != 0, "the first of them is still there: none was dropped to make room");
+		{
+			uint8_t anyadmit[ADMIT_LEN];
+
+			memset(anyadmit, 0, sizeof anyadmit);
+			check(!line_admit_ok(n, anyadmit, kid), "a full list takes no new admit");
+		}
+		for (k = 0; k < n->line.nrev; k++)
+			put64(n->line.rev[k] + 40, now - 450 * day);
+		for (k = 0; k < n->line.nev; k++)
+			n->line.ev[k].time = now - 450 * day;
+		revs_prune(n);
+		check(n->line.nrev == 0 && n->line.nev == 0 && !line_revs_full(n), "past the longest an admit can last, they go, and there is room again");
+		{
+			uint8_t r[ROLL_LEN];
+
+			store_revoke(n, ev);
+			put64(ev + 40, now - 2 * day);
+			lw_operator_roll(&op, n->line.id, r);
+			memcpy(n->line.rev[0], ev, EVICT_LEN);
+			n->line.nrev = 1;
+			n->line.ev[0].time = now - 2 * day;
+			n->line.nev = 1;
+			check(roll_apply(n, r) && n->line.nrev == 0 && n->line.nev == 0, "a roll covers every eviction older than it, and they go");
+		}
+	}
+
 	printf(bad ? "FAILED\n" : "all switch checks passed\n");
 	return bad;
 }

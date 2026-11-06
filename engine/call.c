@@ -1628,7 +1628,7 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 		exit_msg(n, p, pl, len);
 		return;
 	}
-	if (msg >= M_LINEHELLO && msg <= M_LINEKEY && msg != M_RELAY_REQ && msg != M_RELAY_OK)
+	if ((msg >= M_LINEHELLO && msg <= M_LINEKEY && msg != M_RELAY_REQ && msg != M_RELAY_OK) || msg == M_ADMIT || msg == M_ROLL)
 		line_msg(n, p, msg, pl, len);
 	else if (msg == M_RELAY_REQ || msg == M_RELAY_OK || msg == M_RELAY_NO)
 		relay_msg(n, p, msg, pl, len);
