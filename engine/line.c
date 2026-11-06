@@ -886,8 +886,21 @@ static int roll_apply(lw_node *n, const uint8_t *r)
 	for (i = 0; i < n->maxpeers; i++)
 		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid)
 			ctl_msg_send(n, &n->peers[i], M_ROLL, r, ROLL_LEN);
-	for (i = 0; i < n->line.nm; i++)		/* a member we hold no session with is called at once: one whose admit the roll voided shows it, and is off the line, now and not after a back-off */
-		n->line.m[i].tries = 0, n->line.m[i].next_try = 0;
+	for (i = n->line.nm - 1; i >= 0; i--) {		/* a roll voids every admit made before it: a member we cannot show holds a newer one is off the line, and returns by showing it */
+		lw_member *m = &n->line.m[i];
+		const lw_peer *q = peer_by_key(n, m->key_id);
+		char num[NUMLEN + 1];
+
+		if (!memcmp(m->key_id, n->id.key_id, 32) || !memcmp(m->key_id, n->line.founder, 32))
+			continue;
+		if (q && q->cur.valid && (q->admit_by || q->admit_issued >= t))
+			continue;		/* it is in session and shows (or is about to show) an admit: the sweep judges it */
+		snprintf(num, sizeof num, "%s", m->number);
+		if (q)
+			call_drop_peer(n, (lw_peer *)q, "its admit was voided by a roll");
+		mem_remove(n, m->key_id);
+		member_json(n, "member-expired", num);
+	}
 	admit_sweep(n);				/* after the roll is passed on, and at once, while the sessions are still up: a member that went quiet first would stay on our list, called in vain */
 	line_save(n);
 	ev_emit(n, "{\"event\":\"line-rolled\"}");

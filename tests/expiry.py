@@ -98,13 +98,16 @@ def main():
     # --- the roll: nothing made before it is good ----------------------------------------------
     roll = helper.cmd("operator", "roll", op, lid)[1]
     check(len(roll) == 112 * 2, "the operator signs a roll")
-    mka, mkb = A.w.mark(), B.w.mark()
+    mka, mkb, mkf0 = A.w.mark(), B.w.mark(), F.w.mark()
     time.sleep(1.2)
     rc, out = F.cmd("roll", roll)
     check(rc == 0, f"the founder carries it: {out}")
     check(A.w.wait("admit-ended", 20, after=mka) is not None and B.w.wait("admit-ended", 20, after=mkb) is not None,
           "A and B, whose admits were made before the roll, are told theirs ended")
-    check(until(lambda: len(F.status()["line"]["members"]) == 1, 20) is not None,
+    if until(lambda: len(F.status()["line"]["members"]) == 1, 20) is None:
+        print("DEBUG founder events since the roll:", [(e["event"], e.get("number", "")[-3:]) for e in F.w.events[mkf0:]], flush=True)
+        print("DEBUG founder peers:", [(q["number"][-3:], q["state"], q["path"]) for q in F.status()["peers"]], flush=True)
+    check(until(lambda: len(F.status()["line"]["members"]) == 1, 1) is not None,
           f"the founder (whose own admit is the root) holds the line alone: {[(m['number'][-3:], m['state']) for m in F.status()['line']['members']]}")
     rc, out = A.cmd("renew", admit(ka, "-5", "+" + str(3 * 86400)))
     check(rc != 0, "an admit made before the roll is not taken")
