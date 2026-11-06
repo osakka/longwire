@@ -35,8 +35,13 @@ def get(ns, dst):
     return nsh(ns, f"ip route get {dst}", out=True).splitlines()[0]
 
 
-def udp_ask(ns, dst, port=7777, timeout=2.0):
-    """From inside ns, send one datagram and return the answer (the address the far end saw), or None."""
+def udp_ask(ns, dst, port=7777, timeout=2.0, tries=1):
+    """From inside ns, send one datagram and return the answer (the address the far end saw), or None. A datagram is not delivered twice or at all by promise:
+    a test that expects an answer may ask a few times (the first one can wait on a neighbour that is still being found); one that expects none asks once."""
+    for _ in range(tries - 1):
+        got = udp_ask(ns, dst, port, timeout)
+        if got:
+            return got
     code = f"""
 import socket
 s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.settimeout({timeout})
@@ -124,7 +129,7 @@ def main():
     check(udp_ask(CL, "203.0.113.9") is None, "before sharing, the exit does not forward the line's traffic")
     rc, out = helper(X, "X", "--address", "192.168.152.1/24", "--share")
     check(rc == 0 and "sharing this machine's internet through eth9" in out, f"the helper shares the exit's internet through its way out: {out}")
-    seen = udp_ask(CL, "203.0.113.9")
+    seen = udp_ask(CL, "203.0.113.9", tries=4)
     if seen != "10.9.0.2":				# say where it stopped
         env = dict(os.environ, PATH=PATH)
         for c in (["nft", "list", "ruleset"], ["ip", "neigh"], ["ip", "route"], ["cat", "/proc/sys/net/ipv4/conf/lw0/forwarding"]):
@@ -140,7 +145,7 @@ def main():
     check(udp_ask(I, "10.50.0.9", 7778) is None, "and whoever is on the way out's far side cannot route through the exit to its other networks: forwarding was off before sharing, and the table puts that back (docs/adr/0063)")
     subprocess.run(["nsenter", "-t", str(X.pid), "-n", "sh", "-c", "echo 0 > /proc/sys/net/ipv4/conf/lan0/forwarding"], check=True)
     rc, out = helper(X, "X", "--address", "192.168.152.1/24", "--share")
-    check(rc == 0 and udp_ask(CL, "203.0.113.9") == "10.9.0.2", "run again, the same table: still shared")
+    check(rc == 0 and udp_ask(CL, "203.0.113.9", tries=4) == "10.9.0.2", "run again, the same table: still shared")
     rc, out = helper(X, "X", "--address", "192.168.152.1/24")
     tables = subprocess.run(["nsenter", "-t", str(X.pid), "-n", "nft", "list", "tables"], env=dict(os.environ, PATH=PATH), capture_output=True, text=True).stdout
     fw = nsh(X, "cat /proc/sys/net/ipv4/conf/eth9/forwarding", out=True)
