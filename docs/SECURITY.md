@@ -106,6 +106,11 @@ That is the honest sentence behind the word.
   Fixed in 0.5.51 ([ADR 0065](adr/0065-an-admit-has-an-end-and-a-revocation-does-not-outlive-it.md)): an operator's admit has an end (90 days by default, at most 400) and a member is held to it; an operator's revocations
   are kept exactly as long as they can matter, never dropped to make room, and a full list refuses new admits and says so; the operator's roll voids every admit made before it.
   Open: a handshake's time is not checked against the clock (kept monotonic-only, like WireGuard's); the clock now matters for admit ends (assumed within a day of true time; a comparison of peers' clocks is *(planned: M8)*); the control socket's mode is set after it is made, in the owner's folder.
+- **A second independent read, of 0.5.51 (0.5.52).** A fresh reviewer, given the code and not the conclusions, reported seven findings, all fixed in 0.5.52 ([ADR 0066](adr/0066-a-member-shows-its-admit-before-anything-it-sends-counts.md)):
+  a member without a good admit got into the line in repeating 20-second windows; a DHCP server on the line could take half of the machine's traffic with a mask of 128.0.0.0 (or a public address);
+  a full revocation list cut off members already on the line; an old eviction, said again, put a re-admitted key off the line; a clock set forward forgot every eviction; the sandbox let a node reach
+  the session bus; a switchboard could swap a renewed node's admit for an older one. Not done: confining the files a node can reach *(planned: M8)*; dhcpcd applies the lease itself; splitting a RING
+  that crosses one datagram on a 1500-byte path *(planned: M8)*.
 - **Not claimed:** the reviewer read the code and ran nothing, so each fix is tested here and the reviewer's thresholds were not measured; the vendored crypto was not read by it.
 
 ## What has not been done, and what that means for you

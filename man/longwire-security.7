@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SECURITY 7 "November 2026" "longwire 0.5.51" "longwire manual"
+.TH LONGWIRE-SECURITY 7 "November 2026" "longwire 0.5.52" "longwire manual"
 .SH NAME
 longwire-security \- what longwire protects, what it does not, and how far it has been checked
 .SH DESCRIPTION
@@ -80,7 +80,7 @@ the services under a live systemd and a clean install from the packages have not
 .SH "WHAT THE NODE CAN DO"
 The node runs as the user, holds no capability and cannot gain one.
 Since 0.5.49, once it has opened everything its loop needs, a seccomp filter limits it to the system calls that loop makes:
-it cannot start a program, make a process, trace another, mount, make memory executable, open a raw socket or lift the filter, and the first such call ends it.
+it cannot start a program, make a process, trace another, mount, make memory executable, open a raw socket, open a new local socket (the way a session bus is reached) or lift the filter, and the first such call ends it.
 It has no switch; the status (\fBsandbox\fR), \fBlongwire show\fR and the Control Panel report what is in force, asked of the kernel.
 A kernel without seccomp runs without it and says so.
 Confining the files the node can reach (Landlock) is not built, so a bug turned into code could still read and write what its user can.

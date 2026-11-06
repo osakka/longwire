@@ -74,6 +74,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0063](0063-inputs-are-bounded-by-the-way-they-are-written.md) | Inputs are bounded by the way the code is written | accepted; built in 0.5.49 |
 | [0064](0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md) | A member's record is a claim, and the way out is never "the lowest number" | accepted; built in 0.5.50 |
 | [0065](0065-an-admit-has-an-end-and-a-revocation-does-not-outlive-it.md) | An admit has an end, and a revocation does not outlive it | accepted; built in 0.5.51 |
+| [0066](0066-a-member-shows-its-admit-before-anything-it-sends-counts.md) | A member shows its admit before anything it sends counts | accepted; built in 0.5.52 |
 
 ---
 

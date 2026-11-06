@@ -14,7 +14,7 @@ files in its state folder.
 1. **A seccomp allowlist, installed once the loop is set up** (`engine/sandbox.c`, called from `lw_node_serve` after everything the loop needs is open). Anything not on the list ends the
    process (`SECCOMP_RET_KILL_PROCESS`); `no_new_privs` is set, so it cannot be lifted. A worker that cannot be confined does not run (`worker.err` in its state folder says why).
 2. **By construction, not by list alone:** no `execve`, `fork`, `clone`, `ptrace`, `mount`, `unshare`, `bpf`, `memfd_create`; `mmap` and `mprotect` never with the exec bit, so no memory
-   is made executable; `socket` only for UNIX, IPv4, IPv6 and netlink; `ioctl` only to read an interface's hardware address and set non-blocking; `fcntl` only the five commands it uses;
+   is made executable; `socket` only for IPv4, IPv6 and netlink (UNIX was allowed until 0.5.52, [ADR 0066](0066-a-member-shows-its-admit-before-anything-it-sends-counts.md)); `ioctl` only to read an interface's hardware address and set non-blocking; `fcntl` only the five commands it uses;
    `prctl` only to ask what it is.
 3. **The status says what is in force**, asked of the kernel: `sandbox` (`seccomp`, `no_new_privs`, `capabilities` held, `uid`, `installed`). A kernel without seccomp runs without it and
    the status says so; nothing claims what is not there. It is for x86-64 and arm64; elsewhere nothing is installed and the status says that.

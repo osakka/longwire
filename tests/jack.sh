@@ -61,7 +61,7 @@ CL
 cat > "$T/real-script" <<RS
 #!/bin/sh
 # the hook clears the environment, so the stub writes where it was told when it was made
-echo "REAL ip=\${new_ip_address:-} routers=\${new_routers:-} dns=\${new_domain_name_servers:-} router=\${router:-} dnsu=\${dns:-} rfc=\${new_rfc3442_classless_static_routes:-} host=\${new_host_name:-} mtu=\${new_interface_mtu:-} other=\${evil:-} reason=\${reason:-} args=\$*" >> "$T/log"
+echo "REAL ip=\${new_ip_address:-} routers=\${new_routers:-} dns=\${new_domain_name_servers:-} router=\${router:-} dnsu=\${dns:-} rfc=\${new_rfc3442_classless_static_routes:-} host=\${new_host_name:-} mtu=\${new_interface_mtu:-} other=\${evil:-} mask=\${new_subnet_mask:-} reason=\${reason:-} args=\$*" >> "$T/log"
 RS
 chmod +x "$T/real-script"
 export LONGWIRE_DHCP_SCRIPT=$T/real-script
@@ -75,7 +75,17 @@ sleep 0.2
 kill -0 $oldpid 2> /dev/null && { bad "the client from before is still there"; kill $oldpid; } || ok "and the client of ours from before is stopped, so there is only one"
 : > "$LWJ_LOG"
 new_routers=9.9.9.9 new_domain_name_servers=8.8.8.8 router=9.9.9.9 dns=8.8.8.8 new_ip_address=10.1.1.5 new_rfc3442_classless_static_routes="0 10 9 9 9" new_host_name=pwned new_interface_mtu=68 evil=1 reason=BOUND "$RUN/dhcp-hook-lw7" BOUND
-[ "$(head -n 1 "$RUN/dhcp-hook-lw7")" = "#!$HIBR" ] && grep -q "REAL ip=10.1.1.5 routers= dns= router= dnsu= rfc= host= mtu= other= reason=BOUND args=BOUND" "$LWJ_LOG" && ok "the hook (a hibr script, run directly through its shebang) runs the system script from an allowlist environment: the address comes through, and the routers, name servers, classless routes (option 121), host name, MTU and anything else a DHCP server can send do not (docs/adr/0063)" || bad "hook: $(cat "$LWJ_LOG")"
+[ "$(head -n 1 "$RUN/dhcp-hook-lw7")" = "#!$HIBR" ] && grep -q "REAL ip=10.1.1.5 routers= dns= router= dnsu= rfc= host= mtu= other= mask= reason=BOUND args=BOUND" "$LWJ_LOG" && ok "the hook (a hibr script, run directly through its shebang) runs the system script from an allowlist environment: the address comes through, and the routers, name servers, classless routes (option 121), host name, MTU and anything else a DHCP server can send do not (docs/adr/0063)" || bad "hook: $(cat "$LWJ_LOG")"
+# the lease is the server's word about the line's own network, and no wider than a private network of 8 to 30 bits (docs/adr/0066)
+hook_sees() { : > "$LWJ_LOG"; new_ip_address=$1 new_subnet_mask=$2 reason=BOUND "$RUN/dhcp-hook-lw7" BOUND; sed -n 's/.*REAL ip=\([^ ]*\) .* mask=\([^ ]*\) reason.*/\1 \2/p' "$LWJ_LOG"; }
+[ "$(hook_sees 192.168.7.9 255.255.255.0)" = "192.168.7.9 255.255.255.0" ] && ok "an ordinary lease (192.168.7.9, 255.255.255.0) comes through" || bad "ordinary lease: $(hook_sees 192.168.7.9 255.255.255.0)"
+[ "$(hook_sees 10.0.0.5 128.0.0.0)" = "10.0.0.5 " ] && ok "a mask of 128.0.0.0 (a route over half the internet) is dropped" || bad "mask 128.0.0.0: $(hook_sees 10.0.0.5 128.0.0.0)"
+[ "$(hook_sees 10.0.0.5 0.0.0.0)" = "10.0.0.5 " ] && ok "a mask of 0.0.0.0 is dropped" || bad "mask 0.0.0.0"
+[ "$(hook_sees 10.0.0.5 255.0.255.0)" = "10.0.0.5 " ] && ok "a mask that is not contiguous is dropped" || bad "mask 255.0.255.0"
+[ "$(hook_sees 10.0.0.5 255.255.255.255)" = "10.0.0.5 " ] && ok "a mask of 32 bits is dropped" || bad "mask /32"
+[ "$(hook_sees 8.8.8.8 255.255.255.0)" = " 255.255.255.0" ] && ok "an address in a public range (8.8.8.8) is dropped: the server cannot make the machine's traffic for it go out on the line" || bad "public address: $(hook_sees 8.8.8.8 255.255.255.0)"
+[ "$(hook_sees 100.64.3.4 255.255.0.0)" = "100.64.3.4 255.255.0.0" ] && [ "$(hook_sees 172.16.0.2 255.255.0.0)" = "172.16.0.2 255.255.0.0" ] && [ "$(hook_sees 169.254.1.2 255.255.0.0)" = "169.254.1.2 255.255.0.0" ] && ok "the shared range, 172.16/12 and link-local are private ranges too" || bad "private ranges"
+[ "$(hook_sees 172.32.0.2 255.255.0.0)" = " 255.255.0.0" ] && [ "$(hook_sees 100.128.0.2 255.255.0.0)" = " 255.255.0.0" ] && ok "and the ranges next to them are not" || bad "range edges"
 rm -f "$T/bin/dhclient"
 mkclient dhcpcd
 run --dhcp lw7 1000

@@ -377,9 +377,13 @@ if [ -n "$dhcp" ]; then
 		cat > "$hook" <<'HK' || exit 1
 #!@ME@
 addr() { case $1 in "" | *[!0-9.]*) ;; *) printf '%s' "$1" ;; esac; }
+# The lease is a network the server decides: an address of a private range (RFC 1918, shared 100.64/10, link-local) and a mask of 8 to 30 bits, nothing wider. A mask of 128.0.0.0 would
+# put a route over half the internet on the line, and an address of 8.8.8.0 over a public one: the server could then answer for the machine's traffic (docs/adr/0066).
+priv() { case $1 in 10.* | 192.168.* | 172.1[6-9].* | 172.2[0-9].* | 172.3[01].* | 100.6[4-9].* | 100.[7-9][0-9].* | 100.1[01][0-9].* | 100.12[0-7].* | 169.254.*) addr "$1" ;; esac; }
+mask() { case $1 in 255.0.0.0 | 255.128.0.0 | 255.192.0.0 | 255.224.0.0 | 255.240.0.0 | 255.248.0.0 | 255.252.0.0 | 255.254.0.0 | 255.255.0.0 | 255.255.128.0 | 255.255.192.0 | 255.255.224.0 | 255.255.240.0 | 255.255.248.0 | 255.255.252.0 | 255.255.254.0 | 255.255.255.0 | 255.255.255.128 | 255.255.255.192 | 255.255.255.224 | 255.255.255.240 | 255.255.255.248 | 255.255.255.252) printf '%s' "$1" ;; esac; }
 exec env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin reason="$reason" interface="$interface" medium="$medium" pid="$pid" \
-	new_ip_address="$(addr "$new_ip_address")" new_subnet_mask="$(addr "$new_subnet_mask")" new_broadcast_address="$(addr "$new_broadcast_address")" \
-	old_ip_address="$(addr "$old_ip_address")" ip="$(addr "$ip")" subnet="$(addr "$subnet")" broadcast="$(addr "$broadcast")" \
+	new_ip_address="$(priv "$new_ip_address")" new_subnet_mask="$(mask "$new_subnet_mask")" new_broadcast_address="$(priv "$new_broadcast_address")" \
+	old_ip_address="$(priv "$old_ip_address")" ip="$(priv "$ip")" subnet="$(mask "$subnet")" broadcast="$(priv "$broadcast")" \
 	@REAL@ "$@"
 HK
 		sed -i -e "s|@ME@|$me|" -e "s|@REAL@|$real|" "$hook" || exit 1

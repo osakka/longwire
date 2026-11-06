@@ -7,6 +7,10 @@
 
 static int bad;
 
+/* an operator's admit for `kid` in the array `a` of the caller; the line id is `ids` */
+#define MKADMIT_FOR(signer, kid_, issued, expires) do { uint8_t mm_[8 + ADM_SIGNED]; memcpy(a, (kid_), 32); a[32] = 0; memcpy(a + ADM_BY, (signer)->bundle + ED_OFF, 32); \
+	put64(a + ADM_ISSUED, (issued)); put64(a + ADM_EXPIRES, (expires)); memcpy(mm_, ids, 8); memcpy(mm_ + 8, a, ADM_SIGNED); lw_sign((signer), mm_, sizeof mm_, a + ADM_SIGNED); } while (0)
+
 static void check(int ok, const char *what)
 {
 	printf("%s %s\n", ok ? "ok  " : "FAIL", what);
@@ -313,7 +317,7 @@ int main(int argc, char **argv)
 		memcpy(pq->key_id, kid, 32);
 		pq->admit_by = n->now - 1;
 		admit_sweep(n);
-		check(!pq->used || pq->admit_by == 0, "a member that shows no admit in time loses its session");
+		check(!mem_find(n, kid), "a member that shows no admit in time is off the line (it is not called again to try once more)");
 
 		/* our own */
 		MKADMIT(&op, now - 40 * day, now - 10 * day);
@@ -388,6 +392,97 @@ int main(int argc, char **argv)
 			n->line.nev = 1;
 			check(roll_apply(n, r) && n->line.nrev == 0 && n->line.nev == 0, "a roll covers every eviction older than it, and they go");
 		}
+	}
+
+
+	/* a replayed eviction, a full list, evictions of strangers, a clock that jumps, an admit that is swapped (docs/adr/0066) */
+	{
+		lw_id op, m;
+		uint8_t ev[EVICT_LEN], msg[8 + 32 + 8 + 5], kid[32], v[32], ids[8], a[ADMIT_LEN];
+		uint64_t now = (uint64_t)time(0), day = 86400;
+		lw_peer *pq = &n->peers[5];
+		int k, nev;
+
+		memset(&op, 0, sizeof op);
+		lw_rand(op.seed, 32);
+		lw_id_derive(&op);
+		memset(&m, 0, sizeof m);
+		lw_rand(m.seed, 32);
+		lw_id_derive(&m);
+		for (k = 0; k < n->maxpeers; k++)
+			memset(&n->peers[k], 0, sizeof n->peers[k]);
+		memset(&n->line, 0, sizeof n->line);
+		lw_rand(ids, 8);
+		memcpy(n->line.id, ids, 8);
+		memcpy(n->line.authority, op.bundle + ED_OFF, 32);
+		n->line.managed = n->line.have = 1;
+		lw_rand(kid, 32);
+		lw_rand(v, 32);
+		memcpy(pq->key_id, kid, 32);
+		pq->used = pq->cur.valid = 1;
+		mem_add(n, "555555555", kid, kid, 0, kid);
+
+		/* the operator evicted K a week ago and gave it a new admit two days ago: the old eviction, said again, does not put it off */
+		pq->admit_issued = now - 2 * day;
+		check(!evict_matters(n, kid, now - 7 * day), "an eviction older than the admit its key now holds does not bar it");
+		check(evict_matters(n, kid, now - 1 * day), "one newer than that admit does");
+		check(!evict_matters(n, v, now - 450 * day), "one too old to matter is not kept");
+		memcpy(v, n->id.key_id, 32);
+		MKADMIT_FOR(&op, v, now - 2 * day, now + 30 * day);
+		memcpy(n->line.admit, a, ADMIT_LEN);
+		check(!evict_matters(n, n->id.key_id, now - 7 * day) && evict_matters(n, n->id.key_id, now - 1 * day), "and the same for this node itself: an old eviction does not make it leave the line");
+		check(line_evicted(n, kid) == 0, "on a line with an operator a key is in or out by the admit it shows, not by the eviction it once had");
+
+		/* a full list still lets the members already on the line call each other; it is only a newcomer that is refused */
+		{
+			uint8_t k2[32];
+
+			for (k = 0; k < REV_MAX; k++) {
+				lw_rand(k2, 32);
+				record_eviction(n, k2, now - 1);
+			}
+			check(line_revs_full(n), "256 evictions: the list is full");
+			memcpy(pq->key_id, kid, 32);
+			MKADMIT_FOR(&op, kid, now - day, now + 30 * day);
+			check(line_admit_ok(n, a, kid), "a member with an admit that holds is still admitted by a node whose list is full");
+		}
+
+		/* members evict members: on a line without an operator an eviction of a key that is not on it is not recorded */
+		memset(&n->line, 0, sizeof n->line);
+		memcpy(n->line.id, ids, 8);
+		n->line.have = 1;
+		memcpy(pq->key_id, m.key_id, 32);
+		memcpy(pq->bundle, m.bundle, LW_BUNDLE);
+		pq->have_bundle = 1;
+		mem_add(n, "666666666", m.key_id, m.bundle + ED_OFF, 0, v);
+		lw_rand(kid, 32);
+		memcpy(ev, ids, 8);
+		memcpy(ev + 8, kid, 32);
+		put64(ev + 40, now);
+		memcpy(ev + 48, m.key_id, 32);
+		memcpy(msg, ev, 48);
+		memcpy(msg + 48, "evict", 5);
+		lw_sign(&m, msg, sizeof msg, ev + 80);
+		nev = n->line.nev;
+		handle_evict(n, pq, ev, EVICT_LEN);
+		check(n->line.nev == nev, "a member's eviction of a key that is not on the line records nothing");
+
+		/* a clock that jumps a year forward does not make the node forget its evictions */
+		memset(&n->line, 0, sizeof n->line);
+		memcpy(n->line.id, ids, 8);
+		memcpy(n->line.authority, op.bundle + ED_OFF, 32);
+		n->line.managed = n->line.have = 1;
+		n->line.wall_off = (double)time(0) - n->now - 400.0 * 86400.0;	/* what the clock said when the node began: a year ago */
+		n->line.ev[0].time = now - 1;
+		lw_rand(n->line.ev[0].key_id, 32);
+		n->line.nev = 1;
+		n->line.roll_t = now - 2;
+		revs_prune(n);
+		check(n->line.nev == 1, "a wall clock that has jumped by more than a day since the node began: nothing is pruned");
+		n->line.wall_off = (double)time(0) - n->now;
+		n->line.ev[0].time = now - 5;
+		revs_prune(n);
+		check(n->line.nev == 0, "a clock that has not jumped: pruned as before");
 	}
 
 	printf(bad ? "FAILED\n" : "all switch checks passed\n");

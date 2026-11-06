@@ -42,7 +42,7 @@ static int in_child(attempt f, const char *dir)
 
 static int a_sockets(const char *d)
 {
-	int s = socket(AF_INET, SOCK_DGRAM, 0), t = socket(AF_INET6, SOCK_DGRAM, 0), u = socket(AF_UNIX, SOCK_DGRAM, 0);
+	int s = socket(AF_INET, SOCK_DGRAM, 0), t = socket(AF_INET6, SOCK_DGRAM, 0);
 	struct sockaddr_in a;
 	socklen_t al = sizeof a;
 
@@ -50,7 +50,7 @@ static int a_sockets(const char *d)
 	memset(&a, 0, sizeof a);
 	a.sin_family = AF_INET;
 	a.sin_addr.s_addr = htonl(0x7f000001);
-	return s >= 0 && u >= 0 && t >= -1 && bind(s, (struct sockaddr *)&a, sizeof a) == 0 && getsockname(s, (struct sockaddr *)&a, &al) == 0 &&
+	return s >= 0 && t >= -1 && bind(s, (struct sockaddr *)&a, sizeof a) == 0 && getsockname(s, (struct sockaddr *)&a, &al) == 0 &&
 	       sendto(s, "x", 1, 0, (struct sockaddr *)&a, sizeof a) == 1;
 }
 
@@ -97,6 +97,7 @@ static int a_mprotx(const char *d)
 	return p != MAP_FAILED && mprotect(p, 4096, PROT_READ | PROT_EXEC) == 0;
 }
 static int a_packet(const char *d) { (void)d; return socket(AF_PACKET, SOCK_RAW, 0) >= 0; }
+static int a_unix(const char *d) { (void)d; return socket(AF_UNIX, SOCK_STREAM, 0) >= 0; }
 static int a_ptrace(const char *d) { (void)d; return ptrace(PTRACE_TRACEME, 0, 0, 0) == 0; }
 static int a_mount(const char *d) { (void)d; return syscall(SYS_mount, "none", "/tmp", "tmpfs", 0, 0) == 0; }
 static int a_unshare(const char *d) { (void)d; return syscall(SYS_unshare, 0x40000000) == 0; }
@@ -113,7 +114,7 @@ int main(int argc, char **argv)
 	char err[200];
 	static const struct { const char *what; attempt f; } forbidden[] = {
 		{ "starting a program (execve)", a_exec }, { "making a process (fork)", a_fork }, { "making memory executable (mmap with the exec bit)", a_mmapx },
-		{ "making memory executable (mprotect with the exec bit)", a_mprotx }, { "a raw packet socket", a_packet }, { "tracing (ptrace)", a_ptrace }, { "mounting", a_mount },
+		{ "making memory executable (mprotect with the exec bit)", a_mprotx }, { "a raw packet socket", a_packet }, { "a new local socket (how a session bus is reached)", a_unix }, { "tracing (ptrace)", a_ptrace }, { "mounting", a_mount },
 		{ "a new namespace (unshare)", a_unshare }, { "a file with no name (memfd_create)", a_memfd }, { "changing user (setuid)", a_setuid }, { "chroot", a_chdirroot },
 		{ "loading a program into the kernel (bpf)", a_bpf }, { "taking the filter off (prctl)", a_seccomp_off }, { "signalling another process (kill)", a_kill },
 	};

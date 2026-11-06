@@ -94,9 +94,10 @@ static uint64_t evicted_at(lw_node *n, const uint8_t kid[32])
 	return t;
 }
 
+/* Put off the line for good. On a line with an operator an eviction bars the admits made before it and nothing else: whether a key is in is decided by the admit it shows. */
 int line_evicted(lw_node *n, const uint8_t kid[32])
 {
-	return n->line.have && evicted_at(n, kid) != 0;
+	return n->line.have && !n->line.managed && evicted_at(n, kid) != 0;
 }
 
 /* An eviction matters until the latest admit that could have been made for the key has ended (ADMIT_MAX_LIFE after the eviction, and the skew the clocks may have),
@@ -111,12 +112,23 @@ static uint64_t ev_horizon(lw_node *n)
 	return h;
 }
 
+/* The wall clock is not the node's own: a jump of more than the skew since this node started (a time server that lies, a clock set by hand) makes the pruning wait, because
+ * a clock moved forward a year would otherwise forget every eviction at once, and the loss is saved (docs/adr/0066). Restarted, a node takes the clock it finds. */
+static int clock_jumped(lw_node *n)
+{
+	double off = (double)time(0) - n->now;
+
+	if (n->line.wall_off == 0.0)
+		n->line.wall_off = off;
+	return off - n->line.wall_off > (double)EVICT_SKEW || n->line.wall_off - off > (double)EVICT_SKEW;
+}
+
 static void revs_prune(lw_node *n)
 {
 	uint64_t h = ev_horizon(n);
 	int i, j;
 
-	if (!h)
+	if (!h || clock_jumped(n))
 		return;
 	for (i = j = 0; i < n->line.nrev; i++)
 		if (get64(n->line.rev[i] + 40) >= h) {
@@ -281,7 +293,7 @@ static int admit_verify(lw_node *n, const uint8_t *a, const uint8_t kid[32])
 
 int line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32])
 {
-	return admit && !line_revs_full(n) && admit_verify(n, admit, caller_kid);
+	return admit && admit_verify(n, admit, caller_kid);
 }
 
 int line_admit_for(lw_node *n, uint8_t out[ADMIT_LEN])
@@ -624,6 +636,7 @@ void line_call_up(lw_node *n, lw_peer *p)
 		ctl_msg_send(n, p, M_ADMIT, n->line.admit, ADMIT_LEN);
 		p->admit_until = p->admit_issued = 0;
 		p->admit_by = n->now + 20.0;
+		p->admit_tx = n->now;
 	}
 	if (!n->registered || p->lh_sent)
 		return;
@@ -649,6 +662,8 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	if (n->line.have)			/* already on a line: this is either ours again or a stranger's */
 		return;
 	if (n->cfg.has_admit && memcmp(pl + 72, n->cfg.admit + ADM_BY, 32))	/* given an operator's admit: that operator's line, and no other */
+		return;
+	if (n->cfg.has_admit && memcmp(pl + 104, n->cfg.admit, ADMIT_LEN))	/* the admit we were given is the one we hold, not one that came back by way of a switchboard */
 		return;
 	home_kid(n, hk);
 	memset(&n->line, 0, sizeof n->line);
@@ -773,6 +788,21 @@ static void store_revoke(lw_node *n, const uint8_t *b)
 	memcpy(n->line.rev[n->line.nrev++], b, EVICT_LEN);
 }
 
+/* Does this eviction still bar its key? Not one that cannot matter any more, and not one older than the admit the key now holds: the operator evicted it and later signed it
+ * a new admit, and a copy of the old eviction, said again by any member, must not put it off the line a second time (docs/adr/0066). */
+static int evict_matters(lw_node *n, const uint8_t kid[32], uint64_t t)
+{
+	const lw_peer *q;
+
+	if (t < ev_horizon(n))
+		return 0;
+	if (n->line.managed && !memcmp(kid, n->id.key_id, 32))
+		return !(get64(n->line.admit + ADM_ISSUED) > t && !admit_founders(n, n->line.admit));
+	if (n->line.managed && (q = peer_by_key(n, kid)) && q->cur.valid && q->admit_issued > t)
+		return 0;
+	return 1;
+}
+
 static void handle_evict(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 {
 	uint8_t msg[8 + 32 + 8 + 5];
@@ -789,9 +819,13 @@ static void handle_evict(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	if (n->line.managed) {			/* only the operator's word, and any member may carry it */
 		if (memcmp(pl + 48, n->line.authority, 32) || !lw_verify(n->line.authority, msg, sizeof msg, pl + 80))
 			return;
+		if (!evict_matters(n, pl + 8, get64(pl + 40)))
+			return;
 		store_revoke(n, pl);
 	} else if (memcmp(pl + 48, p->key_id, 32) || !lw_verify(peer_ed_pub(p), msg, sizeof msg, pl + 80))	/* from a member, in person: checked against the key in the bundle of the session it came on */
 		return;
+	else if (!mem_find(n, pl + 8))
+		return;				/* a member evicts members: an eviction of a key that is not on the line would only fill the table (docs/adr/0066) */
 	apply_evict(n, pl + 8, get64(pl + 40));
 }
 
@@ -977,6 +1011,8 @@ int line_cmd(lw_node *n, const char *cmd, char *out, size_t cap)
 		if (memcmp(b, n->line.id, 8) || memcmp(b + 48, n->line.authority, 32) ||
 		    !lw_verify(n->line.authority, msg, sizeof msg, b + 80))
 			return LW_SN(out, cap, "{\"error\":\"that eviction is not signed by this line's operator\"}\n");
+		if (!evict_matters(n, b + 8, get64(b + 40)))
+			return LW_SN(out, cap, "{\"error\":\"that eviction is older than the admit that node now holds, or too old to matter\"}\n");
 		store_revoke(n, b);
 		if (!memcmp(b + 8, n->id.key_id, 32)) {
 			apply_evict(n, b + 8, get64(b + 40));	/* it is about us */
@@ -1066,9 +1102,11 @@ static void admit_sweep(lw_node *n)
 
 		if (!q->used || q->is_sb || !q->cur.valid || !mem_find(n, q->key_id) || !memcmp(q->key_id, n->id.key_id, 32))
 			continue;
-		if (q->admit_by && n->now > q->admit_by) {
-			q->admit_by = 0;
-			call_drop_peer(n, q, "it showed no admit");	/* the session ends; it is a member still, and is called again */
+		if (q->admit_by && n->now > q->admit_by)
+			member_expire(n, q);			/* it showed none in time: it is not a member (docs/adr/0066) */
+		else if (q->admit_by && n->now - q->admit_tx >= 4.0) {
+			q->admit_tx = n->now;			/* datagrams are not acknowledged: ours is said again while theirs is awaited */
+			ctl_msg_send(n, q, M_ADMIT, n->line.admit, ADMIT_LEN);
 		} else if (q->admit_until && (now >= q->admit_until || q->admit_issued < n->line.roll_t))
 			member_expire(n, q);
 	}

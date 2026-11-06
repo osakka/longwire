@@ -111,7 +111,7 @@ static void sbx_noexec(int nr, int arg)
 
 static int sbx_seccomp(char *err, size_t errn)
 {
-	static const unsigned fam[] = { 1, 2, 10, 16 };			/* AF_UNIX, AF_INET, AF_INET6, AF_NETLINK (the list of addresses) */
+	static const unsigned fam[] = { 2, 10, 16 };				/* AF_INET, AF_INET6, AF_NETLINK (the list of addresses). No AF_UNIX: the control and port sockets are made before this, and a new one is how a user's session bus is reached (docs/adr/0066) */
 	static const unsigned ioc[] = { 0x8927, 0x5421 };		/* SIOCGIFHWADDR, FIONBIO */
 	static const unsigned fcn[] = { 1, 2, 3, 4, 1030 };		/* F_GETFD F_SETFD F_GETFL F_SETFL F_DUPFD_CLOEXEC */
 	static const unsigned prc[] = { 21, 39 };			/* PR_GET_SECCOMP, PR_GET_NO_NEW_PRIVS: the node can ask what it is */
@@ -123,7 +123,7 @@ static int sbx_seccomp(char *err, size_t errn)
 	sbx_emit(SBX_JEQ_K, 1, 0, SBX_ARCH);
 	sbx_emit(SBX_RET_K, 0, 0, SBX_KILL);
 	sbx_emit(SBX_LD_W_ABS, 0, 0, 0);					/* seccomp_data.nr */
-	sbx_arg_in(SYS_socket, 0, fam, 4);
+	sbx_arg_in(SYS_socket, 0, fam, 3);
 	sbx_arg_in(SYS_ioctl, 1, ioc, 2);
 	sbx_arg_in(SYS_fcntl, 1, fcn, 5);
 	sbx_arg_in(SYS_prctl, 0, prc, 2);

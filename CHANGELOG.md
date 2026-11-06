@@ -3,6 +3,20 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.52
+
+**A member shows its admit before anything it sends counts, and a second independent read is answered** ([ADR 0066](docs/adr/0066-a-member-shows-its-admit-before-anything-it-sends-counts.md)).
+A fresh reviewer read 0.5.51 and reported seven findings; each fix has a test.
+
+- **A member without a good admit is off the line**, not disconnected and called again: until its admit is shown and holds, nothing it sends counts (no frame, no relay, no exit), and after 20 s it is removed.
+  Before, a copied key with an ended admit got the line in repeating windows.
+- **A DHCP lease must be a private address with a mask of 8 to 30 bits.** A mask of 128.0.0.0, or an address like 8.8.8.8, let a DHCP server on the line capture the machine's traffic.
+- **A full revocation list refuses newcomers only**, and a member's eviction of a key that is not on the line is not recorded.
+- **An old eviction does not put a re-admitted key off the line** again, and on a line with an operator a key is in or out by the admit it shows.
+- **A clock that jumps forward stops the pruning of evictions** instead of forgetting them all.
+- **No new local socket once the node is up** (the way to a user's session bus is closed).
+- **A node keeps the admit it was given**: a `LINE` carrying a different one is not taken.
+
 ## 0.5.51
 
 **An admit has an end, and a revocation does not outlive it** ([ADR 0065](docs/adr/0065-an-admit-has-an-end-and-a-revocation-does-not-outlive-it.md)), the second half of what the 0.5.48 read left open.

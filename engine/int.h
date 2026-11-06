@@ -111,6 +111,7 @@ typedef struct lw_peer {
 	double   probe_next, lost_t;
 	uint64_t admit_until;		/* when the admit this member showed ends (0: it does not), and when it was made */
 	uint64_t admit_issued;
+	double   admit_tx;		/* when our own admit was last said to it while we wait for its */
 	double   admit_by;		/* the time by which it must have shown one, on a line with an operator (0: not waiting) */
 	double   rev_next;		/* when to tell this peer again what the operator has revoked (0: not on the line) */
 	int      lh_sent, lh_got, lh_has, linked;	/* the line handshake with this peer */
@@ -203,6 +204,7 @@ typedef struct lw_line {
 	uint8_t  roll[ROLL_LEN];	/* the operator's latest roll, as signed (all zero: none) */
 	uint64_t roll_t;		/* its time: no admit made before it is good */
 	int      dormant;		/* our own admit has ended: no sessions, no calls, until a renewed one comes */
+	double   wall_off;		/* wall clock minus the node's own clock, when first looked at */
 	double   chk;			/* the last time the admits were looked at */
 	int      warned;		/* how many of the warnings that our own admit is ending have been given */
 	uint8_t  admit[ADMIT_LEN];	/* this node's own */

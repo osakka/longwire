@@ -1624,8 +1624,9 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 		sas_input(n, p, pl, len);
 		return;
 	}
+	if (p->admit_by && msg != M_ADMIT && msg != M_LINEHELLO && msg != M_LINE && msg != M_EVICT && msg != M_ROLL && msg != M_BYE && msg != M_LINEKEY && msg != M_SAS)
+		return;					/* a member that has not shown an admit does not relay, share or answer for anyone (docs/adr/0066) */
 	if (msg == M_EXIT) {
-		exit_msg(n, p, pl, len);
 		return;
 	}
 	if ((msg >= M_LINEHELLO && msg <= M_LINEKEY && msg != M_RELAY_REQ && msg != M_RELAY_OK) || msg == M_ADMIT || msg == M_ROLL)
