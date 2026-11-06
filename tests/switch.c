@@ -485,6 +485,46 @@ int main(int argc, char **argv)
 		check(n->line.nev == 0, "a clock that has not jumped: pruned as before");
 	}
 
+
+	/* a control message too big for one session message is sent in two parts and handled as if it had come whole (docs/adr/0067) */
+	{
+		uint8_t m[3 + 1700], f[5 + 900];
+		unsigned total = 3 + 1700, h = (total + 1) / 2;
+		lw_peer *pq = &n->peers[6];
+		int k;
+
+		for (k = 0; k < n->maxpeers; k++)
+			memset(&n->peers[k], 0, sizeof n->peers[k]);
+		pq->used = 1;
+		memset(m, 0xab, sizeof m);
+		m[0] = M_LINEHELLO;
+		put16(m + 1, 1700);
+		m[3] = 1;					/* has_line */
+		memset(m + 4, 0x5c, 8);				/* the line id */
+		n->now = 6000.0;
+		put16(f, 77); f[2] = 1; put16(f + 3, total);	/* the second part first */
+		memcpy(f + 5, m + h, total - h);
+		sw_fragment(n, 6, f, 5 + total - h, 1);
+		check(!pq->lh_got, "half of a control message is not handled");
+		f[2] = 0;
+		memcpy(f + 5, m, h);
+		sw_fragment(n, 6, f, 5 + h, 1);
+		check(pq->lh_got == 1 && pq->lh_has == 1 && pq->lh_id[0] == 0x5c, "both halves, in either order, are handled as one message");
+		pq->lh_got = 0;
+		put16(f, 78); f[2] = 0; put16(f + 3, total);	/* a frame's fragment is not a control message's: the same id and size, the other kind */
+		memcpy(f + 5, m, h);
+		sw_fragment(n, 6, f, 5 + h, 0);
+		f[2] = 1;
+		memcpy(f + 5, m + h, total - h);
+		sw_fragment(n, 6, f, 5 + total - h, 1);
+		check(!pq->lh_got, "a frame's half and a control message's half do not join");
+		put16(f, 79); f[2] = 0; put16(f + 3, 3 + 1500);	/* a message that fits in one is never sent in two: not accepted */
+		sw_fragment(n, 6, f, 5 + (3 + 1500 + 1) / 2, 1);
+		f[2] = 1;
+		sw_fragment(n, 6, f, 5 + (3 + 1500) - (3 + 1500 + 1) / 2, 1);
+		check(!pq->lh_got, "a message that would have fitted whole is not accepted in two parts");
+	}
+
 	printf(bad ? "FAILED\n" : "all switch checks passed\n");
 	return bad;
 }

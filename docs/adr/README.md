@@ -75,6 +75,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0064](0064-a-members-record-is-a-claim-and-the-way-out-is-never-the-lowest-number.md) | A member's record is a claim, and the way out is never "the lowest number" | accepted; built in 0.5.50 |
 | [0065](0065-an-admit-has-an-end-and-a-revocation-does-not-outlive-it.md) | An admit has an end, and a revocation does not outlive it | accepted; built in 0.5.51 |
 | [0066](0066-a-member-shows-its-admit-before-anything-it-sends-counts.md) | A member shows its admit before anything it sends counts | accepted; built in 0.5.52 |
+| [0067](0067-a-control-message-too-big-for-one-session-message-is-sent-in-two.md) | A control message too big for one session message is sent in two | accepted; built in 0.5.53 |
 
 ---
 

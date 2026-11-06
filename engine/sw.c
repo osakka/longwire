@@ -592,19 +592,19 @@ static int flood_ok(lw_node *n, lw_peer *p)
 }
 
 /* A piece of a split frame; delivers when both halves are in. */
-void sw_fragment(lw_node *n, int pi, const uint8_t *b, size_t len)
+void sw_fragment(lw_node *n, int pi, const uint8_t *b, size_t len, int ctl)
 {
 	lw_peer *p = &n->peers[pi];
 	unsigned id, part, total, h;
 	int i, slot = -1;
 
-	if (len < 6 || len > 5 + FRAME_MAX)
+	if (len < 6 || len > 5 + (ctl ? CTL_BUFMAX : FRAME_MAX))
 		return;
 	id = get16(b);
 	part = b[2];
 	total = get16(b + 3);
 	h = (total + 1) / 2;
-	if (part > 1 || total <= FRAME_SINGLE || total > FRAME_MAX || len - 5 != (part ? total - h : h))
+	if (part > 1 || total <= (ctl ? FRAME_MAX : FRAME_SINGLE) || total > (ctl ? CTL_BUFMAX : FRAME_MAX) || len - 5 != (part ? total - h : h))
 		return;				/* not what we send */
 	if (!p->fr && !(p->fr = calloc(1, sizeof *p->fr)))
 		return;
@@ -626,15 +626,22 @@ void sw_fragment(lw_node *n, int pi, const uint8_t *b, size_t len)
 	if (!p->fr->s[slot].used || p->fr->s[slot].id != id) {
 		memset(&p->fr->s[slot], 0, sizeof p->fr->s[slot]);
 		p->fr->s[slot].used = 1;
+		p->fr->s[slot].ctl = ctl;
 		p->fr->s[slot].id = (uint16_t)id;
 		p->fr->s[slot].total = (int)total;
 		p->fr->s[slot].t = n->now;
 	}
-	if (p->fr->s[slot].total != (int)total)
+	if (p->fr->s[slot].total != (int)total || p->fr->s[slot].ctl != ctl)
 		return;
 	memcpy(p->fr->s[slot].buf + (part ? h : 0), b + 5, len - 5);
 	p->fr->s[slot].got |= 1 << part;
-	if (p->fr->s[slot].got == 3) {
+	if (p->fr->s[slot].got == 3 && ctl) {		/* a control message, put back together: handled as if it had come whole */
+		uint8_t *m = p->fr->s[slot].buf;
+
+		p->fr->s[slot].used = 0;
+		if (total >= 3 && (size_t)get16(m + 1) + 3 == total)
+			node_msg(n, p, m[0], m + 3, total - 3);
+	} else if (p->fr->s[slot].got == 3) {
 		p->fr->s[slot].used = 0;
 		n->frames_joined++;
 		p->rx_frames++;

@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.53
+
+**A line of 12 to 16 members works** ([ADR 0067](docs/adr/0067-a-control-message-too-big-for-one-session-message-is-sent-in-two.md)). The line message that tells a newcomer who is on the line was never sent
+once the line had 12 members (it is more than one session message holds, and nothing said so): the 12th, 13th and 14th member were listed by the founder and held no line. A control message that
+does not fit one session message is now sent in two parts, as a frame is, and put back together; one that fits is sent whole, as before. `tests/bigline.sh` makes a line of 14 (it fails on 0.5.52).
+
 ## 0.5.52
 
 **A member shows its admit before anything it sends counts, and a second independent read is answered** ([ADR 0066](docs/adr/0066-a-member-shows-its-admit-before-anything-it-sends-counts.md)).

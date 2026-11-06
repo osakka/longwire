@@ -222,12 +222,14 @@ void sess_input(lw_node *n, const uint8_t *pkt, size_t len, const struct sockadd
 			else
 				node_msg(n, p, plain[1], plain + 4, l);
 		}
+	} else if (plain[0] == K_CFRAG && !n->role) {	/* a control message in two parts (a switchboard sends these, and takes none: what a node says to it is small) */
+		sw_fragment(n, (int)(p - n->peers), plain + 1, pl - 1, 1);
 	} else if (n->role && !p->is_sb) {		/* a switchboard has no LAN: frames from a stranger's session go nowhere */
 		;
 	} else if (p->admit_by) {			/* on a line with an operator: nothing from a member passes until it has shown an admit that holds (docs/adr/0066) */
 		;
 	} else if (plain[0] == K_FRAG && !p->is_sb) {
-		sw_fragment(n, (int)(p - n->peers), plain + 1, pl - 1);
+		sw_fragment(n, (int)(p - n->peers), plain + 1, pl - 1, 0);
 	} else if (plain[0] == K_FRAME && !p->is_sb) {
 		p->rx_frames++;
 		p->rx_bytes += pl - 1;
@@ -338,6 +340,21 @@ int ctl_msg_send(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *payload, si
 	put16(b + 1, (unsigned)len);
 	if (len)
 		memcpy(b + 3, payload, len);
+	if (3 + len > FRAME_MAX) {		/* more than one session message holds: two, as a frame is (docs/adr/0067). Only what could not be sent at all before is split: a message that fits is sent whole, as every release has */
+		uint8_t f[5 + CTL_BUFMAX / 2 + 2];
+		size_t total = 3 + len, h = (total + 1) / 2;
+
+		put16(f, n->frag_id++);
+		f[2] = 0;
+		put16(f + 3, (unsigned)total);
+		memcpy(f + 5, b, h);
+		if (sess_send(n, p, K_CFRAG, f, 5 + h))
+			return -1;
+		f[2] = 1;
+		memcpy(f + 5, b + h, total - h);
+		n->ctl_split++;
+		return sess_send(n, p, K_CFRAG, f, 5 + total - h);
+	}
 	/* kind byte is added by sess_send; the 4-byte header is kind|msg|len16 */
 	return sess_send(n, p, K_CTL, b, 3 + len);
 }

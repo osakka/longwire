@@ -63,7 +63,7 @@ typedef struct lw_hsi {			/* initiator's pending handshake */
 } lw_hsi;
 
 typedef struct frag {		/* frames being put back together, per peer */
-	struct { int used; uint16_t id; int total, got; double t; uint8_t buf[FRAME_MAX]; } s[4];
+	struct { int used, ctl; uint16_t id; int total, got; double t; uint8_t buf[CTL_BUFMAX]; } s[4];	/* a frame or a control message */
 } frag;
 
 typedef struct lw_sas {			/* the committed safety phrase of a peer's session (docs/adr/0040, 0057): one per peer, whatever calls led to it */
@@ -315,6 +315,7 @@ struct lw_node {
 	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize, cand_skipped;
 	double cand_skip_said;		/* when a skipped address was last announced */
 	uint16_t frag_id;
+	uint64_t ctl_split;		/* control messages sent in two parts */
 	struct { uint32_t ip; uint8_t mac[6]; double t; } arp[256];
 	struct { uint8_t ip[16]; uint8_t mac[6]; double t; } nd[256];	/* IPv6 neighbours learned from neighbour discovery */
 	int      splice;			/* the local port is a NIC on a LAN segment */
@@ -482,7 +483,7 @@ void l4_csum_fix(uint8_t *f, size_t len);
 unsigned lw_sum16(const uint8_t *p, size_t n, unsigned sum);
 int  sw_remote_macs(lw_node *n, uint8_t out[][6], int max);	/* MACs learned behind peers */
 void sw_gratuitous(lw_node *n);
-void sw_fragment(lw_node *n, int pi, const uint8_t *body, size_t len);
+void sw_fragment(lw_node *n, int pi, const uint8_t *body, size_t len, int ctl);	/* ctl: a control message in two parts, not a frame */
 
 /* port.c */
 int  port_open(lw_node *n, char *err, size_t errn);

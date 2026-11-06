@@ -60,6 +60,7 @@ Plaintext `kind` values:
 |---|---|
 | `0x00 FRAME` | one Ethernet frame, header included, without the FCS |
 | `0x01 FRAG` | `frame_id:2 ‖ part:1 (0 or 1) ‖ total_len:2 ‖ bytes` (big-endian). A frame over 1428 bytes is split across two datagrams ([ARCHITECTURE §6](ARCHITECTURE.md#6-packet-sizes)) |
+| `0x02 CFRAG` | the same layout, for a control message (`msg:1 ‖ len:2 ‖ payload`) of more than 1514 bytes, which one session message cannot hold: half in each part, put back together and handled as if it had come whole. Nodes send and take them (a switchboard sends them and takes none); a message that fits is sent whole ([ADR 0067](adr/0067-a-control-message-too-big-for-one-session-message-is-sent-in-two.md)) |
 | `0x02 KEEPALIVE` | empty |
 | `0x10 CTL` | one control message: `msg:1 ‖ len:2 (big-endian) ‖ payload` (§6) |
 

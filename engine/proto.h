@@ -12,7 +12,9 @@
 #define T_ECHO 0x07		/* request: 0x07 nonce(8) padding to 40 bytes; reply: 0x07 nonce(8) ip(4) port(2) */
 #define T_HELLO 0x08
 #define K_FRAG  0x01		/* a frame too big for one datagram: id(2) part(1) total(2) bytes */
+#define K_CFRAG 0x02		/* a control message too big for one datagram: id(2) part(1) total(2) bytes, the same two-part split as a frame (docs/adr/0067) */
 #define K_CTL   0x10
+#define CTL_BUFMAX (3 + 2048)	/* the largest control message: msg(1) len(2) and up to 2048 bytes */
 
 /* CTL messages between peers (inside a session) */
 #define M_LINEHELLO 0x01	/* has_line(1) line_id(8) */
