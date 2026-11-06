@@ -10,6 +10,8 @@ call between line members was a datagram of 1.47 to 1.5 KB, which a 1500-byte pa
 can put two parts back together, and its switchboard splits to it from 1428 bytes; a node that has not been updated says nothing and gets the datagram it always got, so there is no order in which
 nodes and switchboards must be updated.
 
+Published: hibr-apps 311bc89, hibr-apt 2bce561, hibr-rpm 520447f, hibr-arch 0f46dcc.
+
 ## 0.5.53
 
 **A line of 12 to 16 members works** ([ADR 0067](docs/adr/0067-a-control-message-too-big-for-one-session-message-is-sent-in-two.md)). The line message that tells a newcomer who is on the line was never sent
