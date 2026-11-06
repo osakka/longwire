@@ -112,6 +112,13 @@ static uint64_t ev_horizon(lw_node *n)
 	return h;
 }
 
+/* Too old to matter: not for the founder. Its own admit is held to no end and no roll, so a revocation of it is the only thing that keeps a revoked founder off the line (a member that
+ * missed it would otherwise take the founder back once a roll had made it too old to be kept): it is kept for good (docs/adr/0069). */
+static int ev_old(lw_node *n, const uint8_t kid[32], uint64_t t)
+{
+	return t < ev_horizon(n) && memcmp(kid, n->line.founder, 32);
+}
+
 /* The wall clock is not the node's own: a jump of more than the skew since this node started (a time server that lies, a clock set by hand) makes the pruning wait, because
  * a clock moved forward a year would otherwise forget every eviction at once, and the loss is saved (docs/adr/0066). Restarted, a node takes the clock it finds. */
 static int clock_jumped(lw_node *n)
@@ -131,14 +138,14 @@ static void revs_prune(lw_node *n)
 	if (!h || clock_jumped(n))
 		return;
 	for (i = j = 0; i < n->line.nrev; i++)
-		if (get64(n->line.rev[i] + 40) >= h) {
+		if (get64(n->line.rev[i] + 40) >= h || !ev_old(n, n->line.rev[i] + 8, get64(n->line.rev[i] + 40))) {
 			if (i != j)
 				memcpy(n->line.rev[j], n->line.rev[i], EVICT_LEN);
 			j++;
 		}
 	n->line.nrev = j;
 	for (i = j = 0; i < n->line.nev; i++)
-		if (n->line.ev[i].time >= h)
+		if (n->line.ev[i].time >= h || !ev_old(n, n->line.ev[i].key_id, n->line.ev[i].time))
 			n->line.ev[j++] = n->line.ev[i];
 	n->line.nev = j;
 }
@@ -159,7 +166,7 @@ static void record_eviction(lw_node *n, const uint8_t kid[32], uint64_t t)
 				n->line.ev[i].time = t;
 			return;
 		}
-	if (t < ev_horizon(n))
+	if (ev_old(n, kid, t))
 		return;				/* it cannot matter any more */
 	if (n->line.nev >= REV_MAX) {
 		ev_emit(n, "{\"event\":\"revocations-full\"}");
@@ -557,6 +564,8 @@ static void admit_peer(lw_node *n, lw_peer *p)
 		o += MEMBER_LEN;
 	}
 	ctl_msg_send(n, p, M_LINE, b, o);
+	if (n->line.managed)
+		ctl_msg_send(n, p, M_ADMIT, n->line.admit, ADMIT_LEN);	/* the newcomer holds us to our admit as well (docs/adr/0069) */
 	p->linked = 1;
 	memcpy(mb, p->number, NUMLEN);			/* the others learn of the newcomer, and hold its admit */
 	memcpy(mb + 9, p->key_id, 32);
@@ -696,8 +705,12 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	}
 	n->line.joined = n->now;
 	p->linked = 1;
-	if (n->line.managed)
-		ctl_msg_send(n, p, M_ADMIT, n->line.admit, ADMIT_LEN);	/* the member we joined through learns when ours ends */
+	if (n->line.managed) {
+		ctl_msg_send(n, p, M_ADMIT, n->line.admit, ADMIT_LEN);	/* the member we joined through learns when ours ends, and we wait for its: it is held to an admit like any member (docs/adr/0069) */
+		p->admit_until = p->admit_issued = 0;
+		p->admit_by = n->now + 20.0;
+		p->admit_tx = n->now;
+	}
 	line_save(n);
 	site_derive(n);
 	{
@@ -782,7 +795,7 @@ static void store_revoke(lw_node *n, const uint8_t *b)
 	for (i = 0; i < n->line.nrev; i++)
 		if (!memcmp(n->line.rev[i], b, 48))
 			return;
-	if (get64(b + 40) < ev_horizon(n))
+	if (ev_old(n, b + 8, get64(b + 40)))
 		return;				/* it cannot matter any more */
 	if (n->line.nrev >= REV_MAX) {
 		ev_emit(n, "{\"event\":\"revocations-full\"}");
@@ -797,7 +810,7 @@ static int evict_matters(lw_node *n, const uint8_t kid[32], uint64_t t)
 {
 	const lw_peer *q;
 
-	if (t < ev_horizon(n))
+	if (ev_old(n, kid, t))
 		return 0;
 	if (n->line.managed && !memcmp(kid, n->id.key_id, 32))
 		return !(get64(n->line.admit + ADM_ISSUED) > t && !admit_founders(n, n->line.admit));

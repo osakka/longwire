@@ -77,6 +77,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0066](0066-a-member-shows-its-admit-before-anything-it-sends-counts.md) | A member shows its admit before anything it sends counts | accepted; built in 0.5.52 |
 | [0067](0067-a-control-message-too-big-for-one-session-message-is-sent-in-two.md) | A control message too big for one session message is sent in two | accepted; built in 0.5.53 |
 | [0068](0068-a-ring-with-an-admit-is-sent-in-two-to-a-node-that-says-it-can-take-two.md) | A RING with an admit is sent in two to a node that says it can take two | accepted; built in 0.5.54 |
+| [0069](0069-the-member-a-newcomer-joined-through-is-held-to-an-admit-too.md) | The member a newcomer joined through is held to an admit too | accepted; built in 0.5.55 |
 
 ---
 

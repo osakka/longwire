@@ -552,6 +552,87 @@ int main(int argc, char **argv)
 		}
 	}
 
+
+	/* the third read: a newcomer holds the member it joined through to an admit; a line key waits for it; a revoked founder stays revoked past a roll (docs/adr/0069) */
+	{
+		lw_id op, hub;
+		uint8_t pl[104 + ADMIT_LEN + 1 + MEMBER_LEN], hk[32], ids[8], a[ADMIT_LEN], ev[EVICT_LEN], msg[8 + 32 + 8 + 5], kid[32];
+		uint64_t now = (uint64_t)time(0), day = 86400;
+		lw_peer *pq = &n->peers[3];
+		int k;
+
+		memset(&op, 0, sizeof op);
+		lw_rand(op.seed, 32);
+		lw_id_derive(&op);
+		memset(&hub, 0, sizeof hub);
+		lw_rand(hub.seed, 32);
+		lw_id_derive(&hub);
+		for (k = 0; k < n->maxpeers; k++)
+			memset(&n->peers[k], 0, sizeof n->peers[k]);
+		memset(&n->line, 0, sizeof n->line);
+		n->cfg.has_admit = 0;
+		snprintf(n->number, sizeof n->number, "777777777");
+		lw_rand(ids, 8);
+		home_kid(n, hk);
+		pq->used = pq->cur.valid = 1;
+		memcpy(pq->key_id, hub.key_id, 32);
+		memcpy(pq->bundle, hub.bundle, LW_BUNDLE);
+		pq->have_bundle = 1;
+		snprintf(pq->number, sizeof pq->number, "888888888");
+		/* the admit the operator gave this node, and an M_LINE from the hub that lists the hub */
+		memcpy(kid, n->id.key_id, 32);
+		MKADMIT_FOR(&op, kid, now - day, now + 30 * day);
+		memset(pl, 0, sizeof pl);
+		memcpy(pl, ids, 8);
+		memcpy(pl + 8, hub.key_id, 32);					/* the founder */
+		lw_rand(pl + 40, 32);						/* the line key */
+		memcpy(pl + 72, op.bundle + ED_OFF, 32);			/* the operator */
+		memcpy(pl + 104, a, ADMIT_LEN);
+		pl[104 + ADMIT_LEN] = 1;
+		memcpy(pl + 104 + ADMIT_LEN + 1, "888888888", NUMLEN);
+		memcpy(pl + 104 + ADMIT_LEN + 1 + 9, hub.key_id, 32);
+		memcpy(pl + 104 + ADMIT_LEN + 1 + 41, hub.bundle + ED_OFF, 32);
+		memcpy(pl + 104 + ADMIT_LEN + 1 + 74, hk, 32);
+		n->now = 7000.0;
+		handle_line(n, pq, pl, sizeof pl);
+		check(n->line.have && n->line.managed && pq->linked, "a newcomer joins the line the hub described");
+		check(pq->admit_by > n->now && pq->admit_until == 0, "...and waits for the hub's admit: it is held to one like any member");
+
+		/* a line key from a member that has not shown its admit is not taken */
+		{
+			uint8_t lk[40], was[32];
+
+			memcpy(was, n->line.key, 32);
+			memcpy(lk, ids, 8);
+			memset(lk + 8, 0x77, 32);
+			node_msg(n, pq, M_LINEKEY, lk, 40);
+			check(!memcmp(n->line.key, was, 32), "a line key from a member that has not shown an admit is not taken");
+			pq->admit_by = 0;
+			node_msg(n, pq, M_LINEKEY, lk, 40);
+			check(n->line.key[0] == 0x77 && memcmp(n->line.key, was, 32), "...and is, from one that has");
+		}
+
+		/* the operator revoked the founder, then rolled: the revocation of the founder is kept, any other that old is not */
+		memcpy(ev, ids, 8);
+		memcpy(ev + 8, hub.key_id, 32);
+		put64(ev + 40, now - 2 * day);
+		memcpy(ev + 48, op.bundle + ED_OFF, 32);
+		memcpy(msg, ev, 48);
+		memcpy(msg + 48, "evict", 5);
+		lw_sign(&op, msg, sizeof msg, ev + 80);
+		store_revoke(n, ev);
+		record_eviction(n, hub.key_id, now - 2 * day);
+		{
+			uint8_t r[ROLL_LEN];
+
+			lw_operator_roll(&op, ids, r);
+			check(roll_apply(n, r), "the operator's roll is taken");
+		}
+		check(n->line.nrev == 1 && evicted_at(n, hub.key_id) != 0, "the founder's revocation is still held after the roll made it too old to matter for anyone else");
+		revs_prune(n);
+		check(n->line.nrev == 1 && n->line.nev >= 1, "...and after another pruning");
+	}
+
 	printf(bad ? "FAILED\n" : "all switch checks passed\n");
 	return bad;
 }

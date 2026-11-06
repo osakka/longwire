@@ -3,6 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.55
+
+**A third independent read is answered** ([ADR 0069](docs/adr/0069-the-member-a-newcomer-joined-through-is-held-to-an-admit-too.md)). It found no memory-safety bug in the splitting of control messages, and three
+gaps in the admit gate on lines with an operator:
+
+- **The member a newcomer joined through is held to an admit too**: it shows its admit to the newcomer, and nothing it sends counts until it holds (a hub that was no longer a member could keep a newcomer on a line of its own).
+- **A revoked founder stays revoked after a roll**: the revocation of the founder is kept for good (a member that missed it could take the founder back once a roll made it too old to keep).
+- **A line key from a member that has not shown its admit is not taken.**
+
 ## 0.5.54
 
 **A RING with an admit is sent in two parts to a node that says it can take two** ([ADR 0068](docs/adr/0068-a-ring-with-an-admit-is-sent-in-two-to-a-node-that-says-it-can-take-two.md)). A RING for a
