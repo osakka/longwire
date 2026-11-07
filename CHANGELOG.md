@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 Blit 0.3.57's two-cell rotary telephone in each state (off, waiting, on, ringing), and the strip module is two cells wide. It reads `GL[phoneoffcw]` and the rest, which hibr's glyph table has to map; until it does, and
 in every other glyph set, the one-cell classic phone is drawn as before. Tested with stand-in glyph tables; not seen on a real desktop.
 
+Published: hibr-apps 65bda32, hibr-apt 4b74b6d, hibr-rpm 89641fd, hibr-arch 532c2db.
+
 ## 0.5.55
 
 **A third independent read is answered** ([ADR 0069](docs/adr/0069-the-member-a-newcomer-joined-through-is-held-to-an-admit-too.md)). It found no memory-safety bug in the splitting of control messages, and three
