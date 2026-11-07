@@ -41,21 +41,22 @@ fn dt_sep() { printf 'SEP\n' >> "$LOG"; }
 fn panel_goto(...a) { return 0; }
 fn dt_panelpane(p) { printf 'PANE %%s\n' "$p" >> "$LOG"; }
 fn dt_context_open(who, id, int r, int c) { printf 'CTX %%s %%s %%s\n' "$who" "$r" "$c" >> "$LOG"; }
-fn cs_module(...a) { return 0; }
+fn cs_module(...a) { echo "CSMOD ${a[*]}"; return 0; }
 fn console(...a) { printf 'CONSOLE %%s\n' "${a[*]}" >> "$LOG"; }
 fn cp_pane(...a) { return 0; }
 . %(pane)s
 . %(bar)s
+%(pre)s
 . %(strip)s
 : > "$LOG"
 %(body)s
 '''
 
 
-def drive(env, body):
+def drive(env, body, pre=""):
     log = f"{T}/bar.log"
     open(log, "w").close()
-    src = DRIVER % dict(log=log, pane=PANE, bar=BAR, strip=STRIP, mod=MOD, body=body)
+    src = DRIVER % dict(log=log, pane=PANE, bar=BAR, strip=STRIP, mod=MOD, body=body, pre=pre)
     e = dict(os.environ, **env, HIBR_MODPATH=os.path.dirname(MOD))
     e["PATH"] = f"{T}/bin:" + e["PATH"]
     r = subprocess.run([HIBR, "-c", src], env=e, capture_output=True, text=True, timeout=40)
@@ -131,6 +132,25 @@ def main():
     check("RING [\U00100032 111-222-333]" in r.stdout, f"a ring in the classic style, with no classic ring icon, is the classic filled one with the caller: {r.stdout.strip()}")
     log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + "lwstrip_draw 1 4")
     check(any(l.startswith("CONSOLE put 1 4 \U00100030") for l in log), f"the strip follows the style: {log}")
+
+    # the classic telephone in two cells, under Blit's glyphs (docs: Blit 0.3.57's phone-classic-wide-*, GL[phoneoffcw] and the rest)
+    wide = 'GL[phoneoffcw]=$\'\\U001002EC\\U001002ED\'; GL[phonewaitcw]=$\'\\U001002EE\\U001002EF\'; GL[phoneoncw]=$\'\\U001002F0\\U001002F1\'; GL[phoneringcw]=$\'\\U001002F2\\U001002F3\'; '
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + wide + "lwb_tick")
+    check("BARITEM lwb|\U001002EC\U001002ED" in log, f"Phone Style classic under Blit: the two-cell classic telephone (off) in the menu bar: {[l for l in log if l.startswith('BARITEM')]}")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + wide + 'LWB_ST=ring; LWB_RINGNUM=111-222-333; t := lwb_text; echo "RING [$t]"')
+    check("RING [\U001002F2\U001002F3 111-222-333]" in r.stdout, f"...and the two-cell ringing one with the caller: {r.stdout.strip()}")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + wide + 'LWB_ST=wait; t := lwb_text; echo "WAIT [$t]"')
+    check("WAIT [\U001002EE\U001002EF]" in r.stdout, f"...and the waiting one: {r.stdout.strip()}")
+    log, r = drive(dict(nobody, DT_LWSTYLE="modern"), base + classic + wide + "lwb_tick")
+    check("BARITEM lwb|\U00100020" in log, "Phone Style modern: the modern one-cell telephone, though the wide classic one is there")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + "lwb_tick")
+    check("BARITEM lwb|\U00100030" in log, "classic without the two-cell glyphs: the one-cell classic one, as before")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + wide + "lwstrip_draw 1 4")
+    check(any(l.startswith("CONSOLE put 1 4 \U001002EC\U001002ED") for l in log), f"the strip draws the two-cell one too: {log}")
+    log, r = drive(dict(nobody), "true", pre=wide)
+    check("CSMOD lwstrip Longwire 2" in r.stdout, f"the strip module is two cells wide where the glyph set has the two-cell telephone: {r.stdout.strip()}")
+    log, r = drive(dict(nobody), "true")
+    check("CSMOD lwstrip Longwire 1" in r.stdout, f"and one cell wide where it has not: {r.stdout.strip()}")
 
     # a profile exists: the menu offers Turn On
     envP = dict(nobody, HOME=f"{T}/withprofile", XDG_CONFIG_HOME=f"{T}/withprofile/cfg", LW_SOCK=f"{T}/none2.sock", LW_DIR=f"{T}/withprofile/lw",

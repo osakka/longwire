@@ -9,9 +9,12 @@
 
 strict
 
-app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.55
+app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.56
 # needs: control-panel/longwire
-command -v cs_module > /dev/null && cs_module lwstrip Longwire 1
+# One cell wide, two where the glyph set draws the classic telephone in two (Blit's): the module is the width of the widest picture it draws.
+lwstrip_w=1
+[ -n "${GL[phoneoffcw]-}" ] && lwstrip_w=2
+command -v cs_module > /dev/null && cs_module lwstrip Longwire "$lwstrip_w"
 
 # Wherever the pane is (the module reads the node through the pane's functions).
 fn lwstrip_shown() {

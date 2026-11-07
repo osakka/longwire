@@ -19,7 +19,7 @@
 
 strict
 
-app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.55
+app longwirebar "Longwire on the menu bar: on or off, your number, and a ring that interrupts" 0.5.56
 # needs: control-panel/longwire
 
 # The switch (Control Panel > Longwire > Longwire on the Menu Bar, and Menu Bar Items) lives with the pane; the bar reads it.
@@ -57,7 +57,7 @@ fn lwb_g(what) {
 }
 
 # A glyph set that draws the state in the telephone itself (Blit's colour icons: GL[phoneoff], GL[phonewait], GL[phoneon] and GL[phonering], and the classic rotary
-# phone as GL[phoneoffc], GL[phonewaitc], GL[phoneonc] and GL[phoneringc])
+# phone as GL[phoneoffc], GL[phonewaitc], GL[phoneonc] and GL[phoneringc], and in two cells as GL[phoneoffcw], GL[phonewaitcw], GL[phoneoncw] and GL[phoneringcw])
 # gives the bar one picture for the state; the ring falls back to the "on" one. Empty where the set has none, and the bar then builds the state
 # from a telephone and a mark.
 fn lwb_pick(sfx = "") {
@@ -68,12 +68,14 @@ fn lwb_pick(sfx = "") {
 }
 
 # The person's Phone Style picks between the modern handset and the classic rotary phone (names ending in c); a set that has the classic one only partly, or
-# not at all, gives the modern, and a set with neither gives the characters.
+# not at all, gives the modern, and a set with neither gives the characters. Under Blit's glyphs the classic phone is two cells wide (names ending in cw, two codepoints
+# in one string: Blit 0.3.57's phone-classic-wide-*, which hibr's glyph table maps); where the set has not got those, the one-cell classic one.
 fn lwb_icon() {
 	local g=
 
 	if [ "${DT_LWSTYLE-modern}" = classic ]; then
-		g := lwb_pick c
+		g := lwb_pick cw
+		[ -n "$g" ] || g := lwb_pick c
 	fi
 	[ -n "$g" ] || g := lwb_pick
 	ret "$g"

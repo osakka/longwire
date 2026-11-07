@@ -55,7 +55,7 @@ The page says **Longwire is off** and shows the connection. These rows are shown
 | **List in the directory** | on: others can find you by name on the switchboard. Off by default. |
 | **When a call rings** | how this machine answers: `ask`, `known`, `auto` or `never` (see below). |
 | **Longwire on the Menu Bar** | show or hide the telephone. |
-| **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. |
+| **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. Under Blit's glyphs the classic phone is two cells wide ([ADR 0070](adr/0070-the-classic-phone-is-two-cells-under-blits-glyphs.md)), and the strip module is two cells wide with it. |
 | **A service node runs here** | shown when a site service runs on this machine and you cannot reach it: join the group `longwire`, then log in again. |
 | **Turn on** | does everything: makes the network device if it is missing, and puts the address on it (that asks for your password), starts the node in the background, and tells you your number. |
 | **New profile…** / **Rename profile** / **Remove profile** | keep several connections (home, office, a friend's switchboard) and switch between them. |

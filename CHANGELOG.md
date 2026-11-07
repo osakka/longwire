@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.56
+
+**The classic phone is two cells under Blit's glyphs** ([ADR 0070](docs/adr/0070-the-classic-phone-is-two-cells-under-blits-glyphs.md)). With Phone Style: Classic the menu bar item and the Control Strip module draw
+Blit 0.3.57's two-cell rotary telephone in each state (off, waiting, on, ringing), and the strip module is two cells wide. It reads `GL[phoneoffcw]` and the rest, which hibr's glyph table has to map; until it does, and
+in every other glyph set, the one-cell classic phone is drawn as before. Tested with stand-in glyph tables; not seen on a real desktop.
+
 ## 0.5.55
 
 **A third independent read is answered** ([ADR 0069](docs/adr/0069-the-member-a-newcomer-joined-through-is-held-to-an-admit-too.md)). It found no memory-safety bug in the splitting of control messages, and three
