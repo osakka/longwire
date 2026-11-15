@@ -633,6 +633,73 @@ int main(int argc, char **argv)
 		check(n->line.nrev == 1 && n->line.nev >= 1, "...and after another pruning");
 	}
 
+
+	/* a switchboard never starts a handshake to a node; a registered node that was refused waits for its next session (docs/adr/0071) */
+	{
+		lw_id nid;
+		lw_peer *pq = &n->peers[2];
+		int k;
+
+		memset(&nid, 0, sizeof nid);
+		lw_rand(nid.seed, 32);
+		lw_id_derive(&nid);
+		for (k = 0; k < n->maxpeers; k++)
+			memset(&n->peers[k], 0, sizeof n->peers[k]);
+		n->now = 9000.0;
+		pq->used = pq->have_bundle = 1;
+		memcpy(pq->bundle, nid.bundle, LW_BUNDLE);
+		pq->x_pk = pq->bundle + 1;
+		pq->kem_pk = pq->bundle + 1 + 32;
+		memcpy(pq->key_id, nid.key_id, 32);
+		pq->cur.valid = 1;
+		pq->cur.born = n->now - 615.0;			/* past the 600 s the node rekeys at, and the slack: it has not (it is late, or its handshake was lost) */
+		pq->last_rx = pq->last_tx = n->now;		/* heard just now */
+		{
+			struct sockaddr_in *ep = (struct sockaddr_in *)&pq->ep;
+
+			memset(ep, 0, sizeof *ep);
+			ep->sin_family = AF_INET;
+			ep->sin_port = htons(9);
+			ep->sin_addr.s_addr = htonl(0x7f000001);
+			pq->eplen = sizeof *ep;
+		}
+		n->sb_rekey = n->rekey_after = 600;
+		n->keepalive = 25;
+		n->role = 1;
+		sess_timers(n);
+		check(!pq->hs.active, "a switchboard whose session with a node is past the rekey and still heard does not start a handshake of its own (it could never finish it)");
+		n->role = 0;
+		pq->dial = 0;
+		pq->cur.valid = 1;
+		pq->cur.born = n->now - 615.0;
+		sess_timers(n);
+		check(pq->hs.active, "(the same session on a node does: that is what the check above is not)");
+		n->role = 0;
+	}
+	{
+		lw_peer *sbp_;
+		int k;
+
+		for (k = 0; k < n->maxpeers; k++)
+			memset(&n->peers[k], 0, sizeof n->peers[k]);
+		sbp_ = &n->peers[1];
+		sbp_->used = sbp_->is_sb = sbp_->cur.valid = 1;
+		sbp_->cur.born = 8000.0;
+		n->now = 9000.0;
+		n->sb = 1;
+		n->registered = 1;
+		n->reg_born = 7000.0;				/* registered on an earlier session */
+		n->reg_refused = 8000.0;			/* and refused on this one */
+		n->next_reg = 0;
+		registration_timers(n);
+		check(n->next_reg == 0, "a node that was registered and refused on this session does not ask again until the next one");
+		n->reg_refused = 7000.0;
+		registration_timers(n);
+		check(n->next_reg > 0, "a registered node asks again on a new session that it has not been refused on");
+		n->sb = -1;
+		n->registered = 0;
+	}
+
 	printf(bad ? "FAILED\n" : "all switch checks passed\n");
 	return bad;
 }

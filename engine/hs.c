@@ -381,15 +381,19 @@ int hs_init_consume(lw_node *n, const uint8_t *m, size_t len, uint16_t hs_id, co
 	if (lw_open0(pl, k, m + 2352, 32, h))
 		return -1;
 	mix(h, m + 2352, 32);
-	if (memcmp(pl, p->last_tai, 12) <= 0)			/* replayed INIT */
+	if (memcmp(pl, p->last_tai, 12) <= 0) {			/* replayed INIT (or a clock that was set back: counted, so it can be told apart) */
+		n->hs_replay++;
 		return -1;
+	}
 	/* Both ends started a handshake at the same moment. If each finished its own, each would throw away the session it
 	 * made for the other's and they would disagree about which one is in use. One must stand: the one whose initiator has
 	 * the lower key id. The other end sees the same two key ids and agrees without a word. */
 	if (p->hs.active) {
-		if (memcmp(n->id.key_id, p->key_id, 32) < 0)
+		if (!n->role && memcmp(n->id.key_id, p->key_id, 32) < 0) {
+			n->hs_crossed++;
 			return 0;				/* ours stands: they will drop theirs when ours reaches them */
-		explicit_bzero(&p->hs, sizeof p->hs);	/* theirs stands: answer it, and forget ours */
+		}
+		explicit_bzero(&p->hs, sizeof p->hs);	/* theirs stands: answer it, and forget ours (a switchboard's always: it asks no node, so a handshake of its own is one that cannot end, docs/adr/0071) */
 	}
 	memcpy(p->last_tai, pl, 12);
 	their_idx = get24(pl + 12);

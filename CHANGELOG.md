@@ -3,6 +3,17 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.57
+
+**Nodes no longer lose their registration until the switchboard is restarted** ([ADR 0071](docs/adr/0071-a-switchboard-never-starts-a-handshake-to-a-node.md)). A switchboard whose session with a node was
+still valid ten seconds after the node should have rekeyed it (a lost handshake datagram, a laptop that slept, a roam) began a handshake of its own that it could never finish, and then ignored the node's own
+handshakes for good when its key id was the lower one: about half the nodes, always the same ones, until the service was restarted. **Update the switchboard** (the fault is in it; nodes are not changed in the
+part that matters).
+
+- **A switchboard never starts a handshake to a node, and always answers one.**
+- **A registered node that was refused waits for its next session** (it asked again every 6 s, 2 strikes each, which is a ban in half a minute and then up to a day).
+- **The status counts the silent drops**: `hs_replay` (a node whose clock was set back looks like this) and `hs_crossed`, on a node and on a switchboard.
+
 ## 0.5.56
 
 **The classic phone is two cells under Blit's glyphs** ([ADR 0070](docs/adr/0070-the-classic-phone-is-two-cells-under-blits-glyphs.md)). With Phone Style: Classic the menu bar item and the Control Strip module draw

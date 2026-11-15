@@ -59,6 +59,13 @@ Same causes. Run `longwire jack` in a terminal to see the full instructions. If 
 The node is running but the switchboard has not answered yet (slow, unreachable, or a firewall on UDP 6741). `longwire show` says **dial tone** when it has. If it never does, after 15 s the log
 and `longwire show` say why as far as the node can tell (below, `⚠ no answer from the switchboard`).
 
+**Nodes lose their dial tone, and only restarting the switchboard brings them back.**
+Before 0.5.57 a switchboard could start a handshake towards a node that it could never finish, and then ignore the node's own; it showed as the switchboard answering the host but never the node (`sb_quiet`
+rising, a `switchboard-silent` event). Update the **switchboard** to 0.5.57 or later ([ADR 0071](adr/0071-a-switchboard-never-starts-a-handshake-to-a-node.md)); a node's update is not what fixes it. If it
+happens again on a current switchboard, before restarting it read its status twice, a minute apart: `hs_replay` rising means a node whose clock was set back is being refused (compare `date -u` on both ends),
+`hs_crossed` above 0 should not happen on a switchboard, `bans_active` and `ban_refused` above 0 mean strikes (`longwire-switchboard bans list`), and `online` far below `numbers` with `drop_garbage` rising means
+nodes it cannot hear.
+
 **Control Panel says "Could not make the site node" (splice), or `longwire: the site helper is not installed`**
 A splice profile makes this machine a site node: a service, `longwire@CARD`, written and started by `/usr/lib/longwire/site` after your administrator password. The helper says why it refused:
 `there is no network card called …` (check **Interface**: a network device that exists, not `lo` or a jack, and a name that starts with a letter or digit), `option '…' is not one a site node takes` or `that token has a character a service file cannot carry` (the token or name has a

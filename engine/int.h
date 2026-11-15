@@ -248,6 +248,7 @@ struct lw_node {
 	uint64_t relay_fwd, relay_drop, relay_routes;
 	uint64_t rx_bytes_all, tx_pkts, tx_bytes_all;	/* every UDP packet in and out, for the switchboard's window (docs/adr/0049) */
 	uint64_t sb_rings, sb_through, sb_ended, sb_regs;	/* a switchboard's calls since it started */
+	uint64_t hs_replay, hs_crossed;		/* handshakes refused as replays (a node whose clock was set back looks like this), and our own that stood over a peer's */
 	uint64_t rx_pkts, drop_garbage, drop_noroute, flood, local_tx, local_rx;
 	double   now, started;
 	int      rekey_after, keepalive, mtu;

@@ -318,7 +318,7 @@ void sess_timers(lw_node *n)
 		} else if (!c->valid) {
 			if (p->dial && p->eplen && n->now - p->last_hs_try >= 1.0)
 				hs_start(n, p);
-		} else {
+		} else if (!n->role || p->is_sb) {	/* (never a switchboard towards a node: the node rekeys, and a handshake the switchboard cannot finish, since it takes answers from no one but its registry, stays open for good: docs/adr/0071) */
 			double slack = rekey_of(n, p) / 4.0 < 10.0 ? rekey_of(n, p) / 4.0 : 10.0;	/* well inside the hard limit, even at a short interval */
 			double due = c->we_init ? rekey_of(n, p) : rekey_of(n, p) + slack;
 
