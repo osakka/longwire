@@ -14,6 +14,8 @@ part that matters).
 - **A registered node that was refused waits for its next session** (it asked again every 6 s, 2 strikes each, which is a ban in half a minute and then up to a day).
 - **The status counts the silent drops**: `hs_replay` (a node whose clock was set back looks like this) and `hs_crossed`, on a node and on a switchboard.
 
+Published: hibr-apps 5600dc5, hibr-apt 8833120, hibr-rpm c28f226, hibr-arch 9b29d7d.
+
 ## 0.5.56
 
 **The classic phone is two cells under Blit's glyphs** ([ADR 0070](docs/adr/0070-the-classic-phone-is-two-cells-under-blits-glyphs.md)). With Phone Style: Classic the menu bar item and the Control Strip module draw
