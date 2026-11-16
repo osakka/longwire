@@ -26,17 +26,19 @@ fn dt_jobfile(int n, which) { ret "/nonexistent/$n.$which"; }
 fn dt_joblast(int n) { ret ""; }
 declare -gA DTJ
 fn dt_panelpane(pane) { printf 'PANE %%s\n' "$pane" >> "$LOG"; }
-fn dt_droplist(...a) { printf 'DROP %%s\n' "${a[*]}" >> "$LOG"; }
 fn cp_save() { return 0; }
 fn cp_toggle(var) { return 0; }
-fn cp_next(cur, int dir, ...rest) { local x p=; for x in "${rest[@]}"; do [ "$p" = "$cur" ] && [ -n "$p" ] && { ret "$x"; return 0; }; p=$x; done; ret "${rest[0]}"; }
+fn cp_choice(int w, int n, cur, set, ...vals) { local IFS=$'\x1f'; CP[$w][$n]["val"]=$cur; CP[$w][$n]["set"]=$set; CP[$w][$n]["choices"]="${vals[*]}"; }
 fn dt_job(kind, tag, then, ...cmd) { printf 'JOB %%s\n' "${cmd[*]}" >> "$LOG"; ret 1; }
 . %(pane)s
 fn dump(int w) {
 	local n i
 	n := longwire_rows "$w"
 	for ((i = 0; i < n; i++)); do
-		printf 'ROW %%s|%%s|%%s|%%s\n' "${CP[$w][$i]["kind"]}" "${CP[$w][$i]["text"]}" "${CP[$w][$i]["val"]}" "${CP[$w][$i]["key"]}"
+		local v=${CP[$w][$i]["val"]} f=${CP[$w][$i]["vname"]-}
+		[ -n "$f" ] && v := "$f" "$v"
+		printf 'ROW %%s|%%s|%%s|%%s\n' "${CP[$w][$i]["kind"]}" "${CP[$w][$i]["text"]}" "$v" "${CP[$w][$i]["key"]}"
+		[ -n "${CP[$w][$i]["choices"]-}" ] && printf 'CHOICES %%s|%%s|%%s\n' "${CP[$w][$i]["key"]}" "${CP[$w][$i]["set"]}" "${CP[$w][$i]["choices"]//$'\x1f'/,}"
 	done
 }
 %(body)s
@@ -63,6 +65,7 @@ def drive(env, body, ns=None):
             raise
     r = subprocess.CompletedProcess(cmd, proc.returncode, open(of).read(), open(ef).read())
     rows = [l[4:].split("|") for l in r.stdout.splitlines() if l.startswith("ROW ")]
+    drive.choices = {l[8:].split("|")[0]: l[8:].split("|")[1:] for l in r.stdout.splitlines() if l.startswith("CHOICES ")}
     return rows, open(log).read().splitlines(), r
 
 
@@ -134,7 +137,7 @@ def main():
           "...and the line lists its members, each of whom can be evicted (the line is not managed)")
 
     # policy and dial
-    rows, log, r = drive(envB, 'longwire_do 1 policy 1; dump 1')
+    rows, log, r = drive(envB, 'cp_set_lwpolicy "" known; dump 1')
     pol = open(B.home + "/lw/answer").read().strip()
     check(pol == "known" and any(k == "set" and key == "policy" and v == "known" for k, t, v, key in rows),
           f"changing the answer policy from ask writes the next one to the file the node reads, and the row shows it: {pol}")
@@ -228,7 +231,7 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     rows, log, r = drive(envT, 'dump 1 > /dev/null; dump 1')
     nr = [x for x in rows if x[0] == "set" and x[1] == "Node"]
     check(len(nr) == 1 and nr[0][2] == "this machine" and not any(x[1] == "Runs as" for x in rows), f"with two nodes the pane shows its own and has a Node row: {nr}")
-    rows, log, r = drive(envT, 'dump 1 > /dev/null; longwire_do 1 lwnode 1; LWP_T=-100; dump 1 > /dev/null; dump 1')
+    rows, log, r = drive(envT, 'dump 1 > /dev/null; cp_set_lwnode "" "${LWP_NODEA[1]}"; dump 1 > /dev/null; dump 1')
     nr = [x for x in rows if x[0] == "set" and x[1] == "Node"]
     check(len(nr) == 1 and nr[0][2] == "service svc" and any(x[1] == "Runs as" for x in rows), f"choosing the next node shows the service, read through its socket: {nr}")
     rows, log, r = drive(dict(envT, DT_LW_NODE=f"{T}/run/longwire/gone/ctl"), 'dump 1 > /dev/null; dump 1')
@@ -244,8 +247,8 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     check(not any(x[3] == "lwstyle" for x in rows), "with a glyph set that has no telephones there is no Phone Style row (no choice to make)")
     rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), "GL[phoneoff]=x; dump 1")
     check(any(x[3] == "lwstyle" and x[0] == "set" and x[1] == "Phone Style" and x[2] == "modern" for x in rows), f"with telephones in the glyph set there is one, at modern: {[x for x in rows if x[3] == 'lwstyle']}")
-    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), 'GL[phoneoff]=x; longwire_do 1 lwstyle 1; echo "STYLE $DT_LWSTYLE"; longwire_do 1 lwstyle 1; echo "STYLE $DT_LWSTYLE"')
-    check("STYLE classic" in r.stdout and r.stdout.strip().endswith("STYLE modern"), f"the row cycles modern, classic, modern: {r.stdout.strip()}")
+    rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock"), 'GL[phoneoff]=x; cp_set_lwstyle "" classic; echo "STYLE $DT_LWSTYLE"; cp_set_lwstyle "" modern; echo "STYLE $DT_LWSTYLE"')
+    check("STYLE classic" in r.stdout and r.stdout.strip().endswith("STYLE modern"), f"the style setter takes classic and modern: {r.stdout.strip()}")
 
     # turning on: refused without what it needs
     rows, log, r = drive(dict(HOME=f"{T}/nobody", LW_SOCK=f"{T}/none.sock", PATH="/usr/bin:/bin"), 'longwire_do 1 on 1')
@@ -379,8 +382,21 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     flat = {(x[0], x[1]): x[2:] for x in rows}
     check(flat.get(("set", "Profile"), [""])[0] == "work", f"a new profile becomes the one shown: {flat.get(('set', 'Profile'))}")
     check(any(x[0] == "action" and x[1] == "Rename profile work" for x in rows), f"there is a Rename profile row for the profile shown: {[x[:2] for x in rows if x[0] == 'action']}")
-    rows, log, r = drive(envF, 'longwire_do 1 profile 1; n := lwp_cur; echo "NOW $n"')
-    check("NOW work" in r.stdout, f"the profile row cycles from the default (home) to the other profile: {r.stdout.strip()[-30:]}")
+    rows, log, r = drive(envF, 'dump 1 > /dev/null; cp_set_lwprofile "" work; n := lwp_cur; echo "NOW $n"')
+    check("NOW work" in r.stdout, f"the profile setter moves from the default (home) to the other profile: {r.stdout.strip()[-30:]}")
+    # every dropdown row declares its list once (cp_choice): the host opens it on the value in force, ticks it, and steps the arrows through the same list; the pane has no list of its own
+    rows, log, r = drive(envF, 'GL[phoneoff]=x; dump 1')
+    ch = drive.choices
+    check(ch.get("profile", [""])[0] == "cp_set_lwprofile" and "home" in ch["profile"][1].split(",") and "work" in ch["profile"][1].split(","), f"the Profile row declares the profiles as its list: {ch.get('profile')}")
+    check(ch.get("attach") == ["cp_set_lwattach", "jack,splice"], f"the Attach row declares jack and splice: {ch.get('attach')}")
+    check(ch.get("ppolicy") == ["cp_set_lwppolicy", "ask,known,auto,never"], f"the answer policy row declares its four: {ch.get('ppolicy')}")
+    check(ch.get("lwstyle") == ["cp_set_lwstyle", "modern,classic"], f"the Phone Style row declares modern and classic: {ch.get('lwstyle')}")
+    rows, log, r = drive(envB, "dump 1")
+    check(drive.choices.get("policy") == ["cp_set_lwpolicy", "ask,known,auto,never"], f"the answer policy row of a running node declares its four: {drive.choices.get('policy')}")
+    rows, log, r = drive(envT, "dump 1")
+    check(drive.choices.get("lwnode", [""])[0] == "cp_set_lwnode" and len(drive.choices["lwnode"][1].split(",")) >= 2, f"the Node row declares the nodes that answer: {drive.choices.get('lwnode')}")
+    src = open(PANE).read()
+    check(not any(w in src for w in ("longwire_drop", "dt_droplist", "cp_next")), "the pane writes no list of its own for the click (longwire_drop, dt_droplist) or for the arrows (cp_next)")
     # Keep the jack when turned off: a row for jack profiles, yes by default; with no, turning off removes the jack through the helper (one more password)
     rows, log, r = drive(envF, 'lwp_pset keep_jack yes; dump 1')
     kr = [x for x in rows if x[1] == "Keep the jack when turned off"]

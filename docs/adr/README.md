@@ -80,6 +80,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0069](0069-the-member-a-newcomer-joined-through-is-held-to-an-admit-too.md) | The member a newcomer joined through is held to an admit too | accepted; built in 0.5.55 |
 | [0070](0070-the-classic-phone-is-two-cells-under-blits-glyphs.md) | The classic phone is two cells under Blit's glyphs | accepted; built in 0.5.56 |
 | [0071](0071-a-switchboard-never-starts-a-handshake-to-a-node.md) | A switchboard never starts a handshake to a node | accepted; built in 0.5.57 |
+| [0072](0072-every-dropdown-in-the-pane-is-one-declared-list.md) | Every dropdown in the pane is one declared list | accepted; built in 0.5.58 |
 
 ---
 

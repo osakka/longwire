@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.58
+
+**Every dropdown in the pane is one declared list** ([ADR 0072](docs/adr/0072-every-dropdown-in-the-pane-is-one-declared-list.md)), the owner's decision. The six dropdown rows (Profile, Attach, When a call rings, Phone Style, and the
+Node row) declare their list once with hibr 0.99.534's `cp_choice`: a click or enter opens it on the value in force, ticked, and the arrows step through the same list. The pane's own `longwire_drop`, its `dt_droplist`
+calls and the arrows' `cp_next` stepping are gone. **The pane needs hibr 0.99.534 or later.** Tested with stand-in panel functions; not seen on a real desktop.
+
 ## 0.5.57
 
 **Nodes no longer lose their registration until the switchboard is restarted** ([ADR 0071](docs/adr/0071-a-switchboard-never-starts-a-handshake-to-a-node.md)). A switchboard whose session with a node was

@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.57
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.58
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -34,7 +34,7 @@ LWP_ATTACHES=(jack splice)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.57}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.58}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -316,7 +316,7 @@ fn lwp_row(int w, int n, kind, text, val, key) {
 }
 
 fn longwire_rows(int w) {
-	local n=0 i cnt num name state p we call phr k nm sw nat full path age yn pol rx tx rr tr rb tb tk nodename note v xu xn xs xo
+	local n=0 i cnt num name state p we call phr k nm sw nat full path age yn pol rx tx rr tr rb tb tk note v xu xn xs xo
 
 	if ! need longwire 2> /dev/null; then
 		cp_absent "$w" "the longwire module"
@@ -341,7 +341,7 @@ fn longwire_rows(int w) {
 		p := lwp_cur
 		lwp_row "$w" "$n" head "Connection" "" none; n=$((n + 1))
 		if [ -n "$p" ]; then
-			lwp_row "$w" "$n" set "Profile" "$p" profile; n=$((n + 1))
+			lwp_row "$w" "$n" set "Profile" "$p" profile; cp_choice "$w" "$n" "$p" cp_set_lwprofile "${LWP_PNAMES[@]}"; n=$((n + 1))
 		else
 			lwp_row "$w" "$n" action "Profile" "none yet: fill in the rows below" none; n=$((n + 1))
 		fi
@@ -352,7 +352,7 @@ fn longwire_rows(int w) {
 			tk=none
 		fi
 		lwp_row "$w" "$n" action "Token" "$tk" token; n=$((n + 1))
-		lwp_row "$w" "$n" set "Attach" "${LWP_PF[$p.attach]:-jack}" attach; n=$((n + 1))
+		lwp_row "$w" "$n" set "Attach" "${LWP_PF[$p.attach]:-jack}" attach; cp_choice "$w" "$n" "${LWP_PF[$p.attach]:-jack}" cp_set_lwattach "${LWP_ATTACHES[@]}"; n=$((n + 1))
 		lwp_row "$w" "$n" action "Interface" "${LWP_PF[$p.interface]:-lw0}" iface; n=$((n + 1))
 		[ "${LWP_PF[$p.attach]:-jack}" = jack ] && { lwp_row "$w" "$n" action "Address" "${LWP_PF[$p.address]:-none}" address; n=$((n + 1)); }
 		if [ "${LWP_PF[$p.attach]:-jack}" = jack ]; then	# networks beyond the line, through a router on it (docs/adr/0044)
@@ -388,14 +388,14 @@ fn longwire_rows(int w) {
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="List in the directory"; CP[$w][$n]["wtype"]=bool
 		CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.listed]-}" = yes ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=listed; n=$((n + 1))
-		lwp_row "$w" "$n" set "When a call rings" "${LWP_PF[$p.answer]:-ask}" ppolicy; n=$((n + 1))
+		lwp_row "$w" "$n" set "When a call rings" "${LWP_PF[$p.answer]:-ask}" ppolicy; cp_choice "$w" "$n" "${LWP_PF[$p.answer]:-ask}" cp_set_lwppolicy "${LWP_POLICIES[@]}"; n=$((n + 1))
 		if dt_has lwb_tick; then
 			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Longwire on the Menu Bar"; CP[$w][$n]["wtype"]=bool
 			CP[$w][$n]["val"]=off; [ "$DT_LWBAR" = 1 ] && CP[$w][$n]["val"]=on
 			CP[$w][$n]["key"]=barswitch; n=$((n + 1))
 		fi
 		if [ -n "${GL[phoneoff]-}" ]; then
-			lwp_row "$w" "$n" set "Phone Style" "$DT_LWSTYLE" lwstyle; n=$((n + 1))
+			lwp_row "$w" "$n" set "Phone Style" "$DT_LWSTYLE" lwstyle; cp_choice "$w" "$n" "$DT_LWSTYLE" cp_set_lwstyle "${LWP_STYLES[@]}"; n=$((n + 1))
 		fi
 		if [ "$LWP_BUSY" = 1 ]; then
 			lwp_row "$w" "$n" action "Turning on${GL[ellipsis]}" "" none; n=$((n + 1))
@@ -415,7 +415,7 @@ fn longwire_rows(int w) {
 	nat := lwp_get .nat
 	lwp_row "$w" "$n" head "This node" "" none; n=$((n + 1))
 	case $LWP_NODES in			# more than one node answers here: choose which this pane shows
-	*" "*) nodename := lwp_nodename "${LWP_SOCK:--}"; lwp_row "$w" "$n" set "Node" "$nodename" lwnode; n=$((n + 1)) ;;
+	*" "*) lwp_row "$w" "$n" set "Node" "${LWP_SOCK:--}" lwnode; cp_choice "$w" "$n" "${LWP_SOCK:--}" cp_set_lwnode "${LWP_NODEA[@]}"; CP[$w][$n]["vname"]=lwp_nodename; n=$((n + 1)) ;;
 	esac
 	lwp_row "$w" "$n" action "Number" "${num:-waiting for the switchboard}" none; n=$((n + 1))
 	lwp_row "$w" "$n" action "Name" "${name:-none}" none; n=$((n + 1))
@@ -546,7 +546,7 @@ fn longwire_rows(int w) {
 		lwp_row "$w" "$n" action "When a call rings" "set by the service (/etc/longwire)" none; n=$((n + 1))
 	else
 		pol := lwp_policy
-		lwp_row "$w" "$n" set "When a call rings" "$pol" policy; n=$((n + 1))
+		lwp_row "$w" "$n" set "When a call rings" "$pol" policy; cp_choice "$w" "$n" "$pol" cp_set_lwpolicy "${LWP_POLICIES[@]}"; n=$((n + 1))
 	fi
 	if dt_has lwb_tick; then
 		CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Longwire on the Menu Bar"; CP[$w][$n]["wtype"]=bool
@@ -554,7 +554,7 @@ fn longwire_rows(int w) {
 		CP[$w][$n]["key"]=barswitch; n=$((n + 1))
 	fi
 	if [ -n "${GL[phoneoff]-}" ]; then
-		lwp_row "$w" "$n" set "Phone Style" "$DT_LWSTYLE" lwstyle; n=$((n + 1))
+		lwp_row "$w" "$n" set "Phone Style" "$DT_LWSTYLE" lwstyle; cp_choice "$w" "$n" "$DT_LWSTYLE" cp_set_lwstyle "${LWP_STYLES[@]}"; n=$((n + 1))
 	fi
 	ret "$n"
 }
@@ -618,6 +618,7 @@ fn lwp_setname(text, int? id = "") { lwp_pset name "$text"; return 0; }
 fn cp_set_lwpolicy(int? id = "", value = "") { lwp_setpolicy "$value"; }
 fn cp_set_lwppolicy(int? id = "", value = "") { lwp_pset answer "$value"; }
 fn cp_set_lwattach(int? id = "", value = "") { lwp_pset attach "$value"; }
+fn cp_set_lwnode(int? id = "", value = "") { DT_LW_NODE=$value; LWP_T=-100; cp_save; }
 fn cp_set_lwstyle(int? id = "", value = "") { DT_LWSTYLE=$value; dt_has lwb_refresh && lwb_refresh; cp_save; }
 fn cp_set_lwprofile(int? id = "", value = "") {
 	DT_LW_PROFILE=$value
@@ -1027,20 +1028,6 @@ fn longwire_do(int w, k, int dir) {
 	local v c rest p
 
 	case $k in
-	policy)
-		v := lwp_policy
-		v := cp_next "$v" "$dir" "${LWP_POLICIES[@]}"
-		lwp_setpolicy "$v" ;;
-	ppolicy)
-		p := lwp_cur
-		v=${LWP_PF[$p.answer]:-ask}
-		v := cp_next "$v" "$dir" "${LWP_POLICIES[@]}"
-		lwp_pset answer "$v" ;;
-	attach)
-		p := lwp_cur
-		v=${LWP_PF[$p.attach]:-jack}
-		v := cp_next "$v" "$dir" "${LWP_ATTACHES[@]}"
-		lwp_pset attach "$v" ;;
 	everything)
 		p := lwp_cur
 		if [ "${LWP_PF[$p.everything]-}" = yes ]; then
@@ -1073,10 +1060,6 @@ fn longwire_do(int w, k, int dir) {
 	listed)
 		p := lwp_cur
 		if [ "${LWP_PF[$p.listed]-}" = yes ]; then lwp_pset listed no; else lwp_pset listed yes; fi ;;
-	profile)
-		p := lwp_cur
-		v := cp_next "$p" "$dir" "${LWP_PNAMES[@]}"
-		cp_set_lwprofile "" "$v" ;;
 	sb) p := lwp_cur; dt_ask "Switchboard" "HOST:PORT/KEY" "${LWP_PF[$p.switchboard]-}" lwp_setsb "HOST:PORT/KEY, from your switchboard" ;;
 	token) dt_ask "Token" "Token" "" lwp_settoken "your switchboard's invite; empty removes it" 1 ;;
 	iface) p := lwp_cur; dt_ask "Interface" "Interface" "${LWP_PF[$p.interface]:-lw0}" lwp_setiface "jack: lw0 to lw99; splice: the network card" ;;
@@ -1099,14 +1082,7 @@ fn longwire_do(int w, k, int dir) {
 		LWP_PEND_ARG=${LWP_SOCK%/ctl}
 		LWP_PEND_ARG=${LWP_PEND_ARG##*/}
 		dt_confirm "Stop the site node on ${LWP_PEND_ARG}? It stays off." lwp_yes ;;
-	lwnode)
-		DT_LW_NODE := cp_next "${LWP_SOCK:--}" "$dir" "${LWP_NODEA[@]}"
-		LWP_T=-100
-		cp_save ;;
 	barswitch) cp_toggle DT_LWBAR; dt_has lwb_refresh && lwb_refresh ;;
-	lwstyle)
-		DT_LWSTYLE := cp_next "$DT_LWSTYLE" "$dir" "${LWP_STYLES[@]}"
-		dt_has lwb_refresh && lwb_refresh ;;
 	on) lwp_turnon "$w" ;;
 	stop) dt_confirm "Turn longwire off? Calls end." lwp_yes; LWP_PEND_KIND=stop ;;
 	dial) dt_ask "Dial" "Number" "" lwp_dialled "a number like 447-120-933, or +code number" ;;
@@ -1118,14 +1094,4 @@ fn longwire_do(int w, k, int dir) {
 	evict:*) lwp_ask evict "${k#evict:}" "Evict ${k#evict:}? Every member drops it and the line key changes." ;;
 	esac
 	cp_save
-}
-
-fn longwire_drop(int? w = "", int? r = "", int? c = "", k = "") {
-	case $k in
-	policy) dt_droplist "$w" "$r" "$c" cp_set_lwpolicy "${LWP_POLICIES[@]}" ;;
-	ppolicy) dt_droplist "$w" "$r" "$c" cp_set_lwppolicy "${LWP_POLICIES[@]}" ;;
-	attach) dt_droplist "$w" "$r" "$c" cp_set_lwattach "${LWP_ATTACHES[@]}" ;;
-	profile) dt_droplist "$w" "$r" "$c" cp_set_lwprofile "${LWP_PNAMES[@]}" ;;
-	lwstyle) dt_droplist "$w" "$r" "$c" cp_set_lwstyle "${LWP_STYLES[@]}" ;;
-	esac
 }
