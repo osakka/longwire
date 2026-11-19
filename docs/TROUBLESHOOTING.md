@@ -213,7 +213,7 @@ Everything through the line is put on only while no node holds the jack, so that
 A device of that name belongs to another user of this machine; longwire changes only your own. Choose another **Interface** (`lw1` …).
 
 **`longwire-jack: names still go to this machine's own name server: … needs systemd-resolved`**
-Without systemd-resolved, **Name servers** is not used; everything else goes through the line. `longwire show` says so on its `names` line.
+Without systemd-resolved, **Name servers** is not used; everything else goes through the line. `longwire show` says so on its `names` line, and the pane says it under the Name servers row (since 0.5.59). To have them used, install it (Debian and Ubuntu: `apt install systemd-resolved`, which also gives `resolvectl`; on Fedora and Arch it ships with systemd), start it, point `/etc/resolv.conf` at its stub (`ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf`; with NetworkManager, set `dns=systemd-resolved` in a file under `/etc/NetworkManager/conf.d/`), then turn longwire off and on ([ADR 0073](adr/0073-name-servers-say-so-when-they-cannot-be-asked.md)).
 
 **`· the road changed (wlan0 to none): …`**, then **`· waiting for a network`**
 With everything through the line, the machine changed network (or lost it). longwire let go at once, so the machine is on its own network, and starts again by itself when there is one

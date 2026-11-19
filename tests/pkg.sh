@@ -58,6 +58,11 @@ dpkg-deb -f "$DEB" Depends | grep -q "hibr (>= $hv)"; check $? "the deb depends 
 rpm -qp --requires "$RPM" 2> /dev/null | grep -q "hibr >= $hv"; check $? "the rpm requires it too"
 bsdtar -xOf "$ARC" .PKGINFO 2> /dev/null | grep -q "depend = hibr>=$hv"; check $? "and so does the pacman package"
 ! rpm -qp --provides "$RPM" 2> /dev/null | grep -q '\.so'; check $? "the rpm provides no library names (it is a module, not a library)"
+# systemd-resolved is suggested, not required: the name servers of a profile are asked through the line only with it, and installing it changes how the whole machine resolves names, which a package must not do on its own (docs/adr/0073)
+dpkg-deb -f "$DEB" Suggests | grep -q 'systemd-resolved'; check $? "the deb suggests systemd-resolved, for names through the line"
+! dpkg-deb -f "$DEB" Depends | grep -q 'systemd-resolved'; check $? "...and does not depend on it"
+rpm -qp --suggests "$RPM" 2> /dev/null | grep -q 'systemd-resolved'; check $? "the rpm suggests it too"
+! rpm -qp --requires "$RPM" 2> /dev/null | grep -q 'systemd-resolved'; check $? "...and does not require it"
 strings -a "$T/deb/usr/lib/hibr/longwire.so" | grep -qx "$VER"; check $? "the module carries the version $VER"
 
 # --- the module in the package loads and works

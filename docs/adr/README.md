@@ -81,6 +81,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0070](0070-the-classic-phone-is-two-cells-under-blits-glyphs.md) | The classic phone is two cells under Blit's glyphs | accepted; built in 0.5.56 |
 | [0071](0071-a-switchboard-never-starts-a-handshake-to-a-node.md) | A switchboard never starts a handshake to a node | accepted; built in 0.5.57 |
 | [0072](0072-every-dropdown-in-the-pane-is-one-declared-list.md) | Every dropdown in the pane is one declared list | accepted; built in 0.5.58 |
+| [0073](0073-name-servers-say-so-when-they-cannot-be-asked.md) | Name servers say so when they cannot be asked, and systemd-resolved is suggested | accepted; built in 0.5.59 |
 
 ---
 

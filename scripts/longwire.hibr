@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.58
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.59
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.58}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.59}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -603,11 +603,19 @@ cmd_show() {
 	[ "$t" = down ] && lw_out "   ⚠  no network under the line: it waits quietly and reconnects the moment one is back"
 	t := json get S .exit.share
 	[ "$t" = true ] && echo "   sharing       this machine's internet with the line"
-	if [ -z "${S[tied]:-}" ] && [ "${S[port]%%:*}" = jack ] && command -v resolvectl > /dev/null; then	# names through the line without everything (docs/adr/0059)
-		local nsd
-		nsd=$(resolvectl dns "${S[port]#*:}" 2> /dev/null)
-		nsd=${nsd#*:}
-		[ -z "${nsd// /}" ] || echo "   names         through the line, from${nsd}"
+	if [ -z "${S[tied]:-}" ] && [ "${S[port]%%:*}" = jack ]; then	# names through the line without everything (docs/adr/0059), and the plain word when they cannot be (docs/adr/0073)
+		local nsd dnsp=${PF[$PDEFAULT.dns]:-}
+		if command -v resolvectl > /dev/null; then
+			nsd=$(resolvectl dns "${S[port]#*:}" 2> /dev/null)
+			nsd=${nsd#*:}
+			if [ -n "${nsd// /}" ]; then
+				echo "   names         through the line, from${nsd}"
+			elif [ -n "$dnsp" ]; then
+				lw_out "   ⚠  names         the profile asks ${dnsp//,/, }, but they are not set on the jack: longwire off, then on"
+			fi
+		elif [ -n "$dnsp" ]; then
+			lw_out "   ⚠  names         the profile asks ${dnsp//,/, } through the line, but systemd-resolved is not installed: names go to this machine's own name server (install systemd-resolved)"
+		fi
 	fi
 	t := json get S .cand_skipped
 	[ "${t:-0}" -gt 0 ] && lw_out "   ⚠  ${t} address(es) of the other end are inside your jack's own network and could not be reached another way, so they are not used (longwire watch names them)"

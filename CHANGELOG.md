@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.59
+
+**Name servers say so when they cannot be asked** ([ADR 0073](docs/adr/0073-name-servers-say-so-when-they-cannot-be-asked.md)). On a machine without systemd-resolved a profile's name servers were set nowhere, and nothing said so
+where a person looks: `longwire show` mentioned names only with everything through the line, and the helper's line scrolled by. Now `longwire show` says, whenever the node holds a jack and the profile has name
+servers, whether names go through the line from them, or that they are not set on the jack (turn longwire off and on), or that systemd-resolved is not installed and names go to the machine's own server; and the pane
+says it on the row below Name servers. **The deb and the rpm suggest systemd-resolved** (they do not depend on it: installing it changes how the whole machine resolves names, and a package must not do that by itself).
+
 ## 0.5.58
 
 **Every dropdown in the pane is one declared list** ([ADR 0072](docs/adr/0072-every-dropdown-in-the-pane-is-one-declared-list.md)), the owner's decision. The six dropdown rows (Profile, Attach, When a call rings, Phone Style, and the
