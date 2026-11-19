@@ -501,6 +501,19 @@ static void mb_up(void *ctx, const uint8_t *p, size_t len)
 		(void)!write(n->port_fd, p, len);	/* a packet the tunnel will not take (it is full, or gone) is dropped like any other */
 }
 
+/* Is this address on the phone's own tunnel (the lease, or the made-up IPv6 address the app gives it so that IPv6 goes nowhere: fd6c:7700::/48)? It is no use to anyone as a place to reach the engine, and
+ * its appearing and going is not the road changing. */
+int leaf_owns(const lw_node *n, int fam, const uint8_t *ip)
+{
+	static const uint8_t ula[6] = { 0xfd, 0x6c, 0x77, 0x00, 0x00, 0x00 };
+
+	if (!n->leaf)
+		return 0;
+	if (fam == 6)
+		return !memcmp(ip, ula, 6);
+	return leaf_bound(n->leaf) && get32(ip) == n->leaf->ip;
+}
+
 int leaf_open(lw_node *n, char *err, size_t errn)
 {
 	n->leaf = calloc(1, sizeof *n->leaf);

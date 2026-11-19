@@ -353,7 +353,7 @@ static int gather(lw_node *n, lw_cand *out, int max)
 			const struct sockaddr_in6 *a6 = (const void *)i->ifa_addr;
 
 			if (IN6_IS_ADDR_LINKLOCAL(&a6->sin6_addr) || IN6_IS_ADDR_MULTICAST(&a6->sin6_addr) ||
-			    ((i->ifa_flags & IFF_LOOPBACK) && !n->cfg.cand_loopback))
+			    ((i->ifa_flags & IFF_LOOPBACK) && !n->cfg.cand_loopback) || leaf_owns(n, 6, (const uint8_t *)&a6->sin6_addr))
 				continue;
 			memset(&out[c], 0, sizeof out[c]);
 			memcpy(out[c].ip, &a6->sin6_addr, 16);
@@ -369,7 +369,7 @@ static int gather(lw_node *n, lw_cand *out, int max)
 			continue;
 		a = (const void *)i->ifa_addr;
 		ip = (const uint8_t *)&a->sin_addr;
-		if (ip[0] == 169 && ip[1] == 254)
+		if ((ip[0] == 169 && ip[1] == 254) || leaf_owns(n, 4, ip))
 			continue;
 		memset(&out[c], 0, sizeof out[c]);
 		memcpy(out[c].ip, ip, 4);

@@ -35,9 +35,12 @@ static uint64_t road_fp(lw_node *n, int *has_road)
 
 		if (!i->ifa_addr || !(i->ifa_flags & IFF_UP) || (i->ifa_flags & IFF_LOOPBACK) || !strcmp(i->ifa_name, n->cfg.port_arg))
 			continue;
-		if (i->ifa_addr->sa_family == AF_INET)
+		if (i->ifa_addr->sa_family == AF_INET) {
+			if (leaf_owns(n, 4, (const uint8_t *)&((const struct sockaddr_in *)i->ifa_addr)->sin_addr))	/* the phone's tunnel coming and going is not the road changing */
+				continue;
 			h = fp_mix(h, &((const struct sockaddr_in *)i->ifa_addr)->sin_addr, 4);
-		else if (i->ifa_addr->sa_family == AF_INET6 && !IN6_IS_ADDR_LINKLOCAL(&((const struct sockaddr_in6 *)i->ifa_addr)->sin6_addr))
+		} else if (i->ifa_addr->sa_family == AF_INET6 && !IN6_IS_ADDR_LINKLOCAL(&((const struct sockaddr_in6 *)i->ifa_addr)->sin6_addr) &&
+			   !leaf_owns(n, 6, (const uint8_t *)&((const struct sockaddr_in6 *)i->ifa_addr)->sin6_addr))
 			h = fp_mix(h, &((const struct sockaddr_in6 *)i->ifa_addr)->sin6_addr, 16);
 		else
 			continue;

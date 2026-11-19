@@ -520,6 +520,7 @@ void sw_gratuitous(lw_node *n);
 void sw_fragment(lw_node *n, int pi, const uint8_t *body, size_t len, int ctl);	/* ctl: a control message in two parts, not a frame */
 
 int  leaf_open(lw_node *n, char *err, size_t errn);
+int  leaf_owns(const lw_node *n, int fam, const uint8_t *ip);
 void leaf_attach(lw_node *n, int fd);
 void leaf_pump(lw_node *n);
 void leaf_line(lw_node *n, const uint8_t *f, size_t len);

@@ -310,6 +310,23 @@ int main(void)
 	leaf_tick(&m, 110, tx, 0);
 	check(!leaf_bound(&m), "a lease that runs out unrenewed takes the address away: it is not ours any more");
 
+	/* its own tunnel's addresses are no candidates and no road */
+	{
+		static lw_node nd;
+		uint8_t mine[4] = { 192, 168, 1, 50 }, other[4] = { 192, 168, 1, 51 }, ula[16] = { 0xfd, 0x6c, 0x77, 0 }, gua[16] = { 0x20, 0x01 };
+
+		leaf_init(&m, key, 0);
+		leaf_tick(&m, 0, tx, 0);
+		n = reply(f, &m, D_OFFER, ME, 0xffffff00u, GW, 3600, 1);
+		leaf_from_line(&m, 1, f, n, tx, 0, toos, 0);
+		n = reply(f, &m, D_ACK, ME, 0xffffff00u, GW, 3600, 1);
+		leaf_from_line(&m, 1, f, n, tx, 0, toos, 0);
+		nd.leaf = &m;
+		check(leaf_owns(&nd, 4, mine) && !leaf_owns(&nd, 4, other) && leaf_owns(&nd, 6, ula) && !leaf_owns(&nd, 6, gua), "the lease and the made-up IPv6 address are the tunnel's own; another address is not");
+		nd.leaf = 0;
+		check(!leaf_owns(&nd, 4, mine), "a node that is not a phone owns none");
+	}
+
 	/* what it is given on the line is hostile: a thousand frames of noise, and of nearly right ones, and it stands */
 	leaf_init(&m, key, 0);
 	leaf_tick(&m, 0, tx, 0);
