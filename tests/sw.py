@@ -35,6 +35,8 @@ fn dt_item(...a) { echo "ITEM $1|$2"; }
 fn dt_mark(...a) { echo "MARK $1|$2|$3"; }
 fn dt_dim(...a) { echo "DIM $1"; }
 fn dt_sep() { return 0; }
+fn dt_clipset(text, ...rest) { echo "CLIP $text"; }
+fn dt_save() { return 0; }
 fn dt_editmenu() { echo "MENU Edit"; }
 fn dt_jobdir() { DTJ_DIR=%(t)s/jobs; mkdir -p "$DTJ_DIR"; }
 declare -gA DTJ
@@ -116,6 +118,27 @@ def main():
     check(len(puts) > 8 and "Nodes (2)" in text and num["A"] in text and '"Alice"' in text and "online" in text and "Calls" in text,
           f"drawn into a recording, the window has its head, both nodes (the name in quotes) and the call board: {len(puts)} lines {r.stderr[-300:]}")
     open(f"{T}/draw.txt", "w").write(text)
+    # the head says what the switchboard is and how it is doing, and not a key cut short (docs/adr/0075)
+    head = next((l for l in puts if " 1 1 " in l and "Switchboard" in l), "")
+    check("Switchboard" in head and "script policy" in head and " up " in head and "lw1" not in text, f"the head names the switchboard, its policy and uptime, and shows no key cut short: {head!r}")
+    check(f"v{S.status().get('version', '?')}" in head, f"...and its version, which the switchboard's status now carries: {head!r} {S.status().get('version')}")
+    out, r = drive(S.sock, "switchboard_open 1; sw_scan 1 0; DT_SWCOMPACT=1; switchboard_draw 1 22 74 1 1")
+    ctext = "\n".join(l for l in out if l.startswith("PUT "))
+    check(len([l for l in out if l.startswith("PUT ")]) < len(puts) and "registered 2" in ctext and "bans 0" in ctext and "Nodes (2)" in ctext,
+          f"compact: fewer lines, the numbers on one and the nodes still there: {len([l for l in out if l.startswith('PUT ')])} against {len(puts)}")
+    out, r = drive(S.sock, "switchboard_open 1; sw_scan 1 0; DT_SWCOMPACT=0; switchboard_draw 1 12 74 1 1")
+    check("registered 2" in "\n".join(out) and len([l for l in out if l.startswith("PUT ")]) > 0, "a small window is compact whatever was asked")
+    out, r = drive(S.sock, 'switchboard_open 1; sw_scan 1 0; SW[1]["bans"]=2; SW[1]["replay"]=3; SW[1]["scant"]=99999999999999; switchboard_draw 1 22 74 1 1')
+    atext = "\n".join(l for l in out if l.startswith("PUT "))
+    check("2 banned" in atext and "3 handshake(s) refused as replays" in atext, f"what is wrong is said in a line: {[l for l in out if 'banned' in l][:1]} {r.stderr[-300:]}")
+    out, r = drive(S.sock, "switchboard_open 1; sw_scan 1 0; switchboard_draw 1 22 74 1 1")
+    check("banned" not in "\n".join(out) and "refused as replays" not in "\n".join(out), "and nothing is said when nothing is wrong")
+    out, r = drive(S.sock, "switchboard_open 1; sw_scan 1 0; switchboard_key 1 a")
+    check(f"CLIP {S.status()['address']}" in out, f"a copies the switchboard's whole address: {[l for l in out if l.startswith('CLIP')]}")
+    out, r = drive(S.sock, 'switchboard_open 1; switchboard_key 1 m; echo "C $DT_SWCOMPACT"; switchboard_key 1 m; echo "C $DT_SWCOMPACT"')
+    check([l for l in out if l.startswith("C ")] == ["C 1", "C 0"], f"m turns the compact head on and off: {[l for l in out if l.startswith('C ')]}")
+    out, r = drive(S.sock, "switchboard_menus")
+    check(any(l.startswith("MARK Compact|m|") for l in out), f"Compact is in the View menu, ticked when on: {[l for l in out if 'Compact' in l]}")
     st = S.status()
     check(st.get("rx_bytes", 0) > 0 and st.get("tx_bytes", 0) > 0 and st.get("rx_pkts", 0) > 0 and st.get("tx_pkts", 0) > 0 and st.get("registrations", 0) >= 2,
           f"the switchboard counts what comes in and goes out, and its registrations (docs/adr/0049): rx {st.get('rx_bytes')} tx {st.get('tx_bytes')} reg {st.get('registrations')}")

@@ -123,8 +123,10 @@ One glyph on the Control Strip, coloured by the theme: **dim** when off, the the
 
 ## The Switchboard window
 
-Only for someone who runs a switchboard. It is a live view of it: traffic **in and out** (rates and a sparkline each), how full it is (online, handshake load), the
-registrations, rings, calls put through and ended since it started, the **bans**, the nodes with the names they gave, and the calls being set up right now (who is ringing whom, for a few seconds).
+Only for someone who runs a switchboard. It is a live view of it: a heading that says what it is (its short code, how long it has been up, its policy and its version), traffic **in and out** (rates and a sparkline each), how full it is
+(online, handshake load), the registrations, rings, calls put through and ended since it started, the **bans**, the nodes with the names they gave, and the calls being set up right now (who is ringing whom, for a few seconds).
+A line of its own, in the warning colour, says what is wrong when anything is: bans in force, handshakes refused as replays (a node whose clock was set back), no short code. **Compact** (`m`) keeps the heading, the
+numbers on one line and the nodes, and leaves out the graphs; a small window is compact whatever was asked ([ADR 0075](adr/0075-the-switchboard-window-says-what-matters.md)).
 
 | Key | Menu | Does |
 |---|---|---|
@@ -133,12 +135,14 @@ registrations, rings, calls put through and ended since it started, the **bans**
 | `b` | View > Bans | the banned keys instead of the nodes: time left, which ban in a row |
 | `x` | Node > Lift Ban… | lift the ban chosen (asks first; the switchboard's owner only) |
 | `c` | Node > Copy Number, Edit > Copy | the chosen node's number (among the bans, the whole key) |
+| `a` | Node > Copy Switchboard Address | this switchboard's whole address, for a node's `--switchboard HOST:PORT/ADDRESS` |
+| `m` | View > Compact | the compact heading: the numbers on one line, no graphs (kept) |
 | `s` | File > Switchboard Socket… | which switchboard to watch, when it is not the usual one |
 | `t` | View > Tokens | the unspent tokens instead of the nodes ([ADR 0050](adr/0050-a-switchboards-tokens-are-made-in-its-window.md)); a service's are read when you press `r`, after a password (the dialog's title says whose, as polkit names the account) |
 | `n` / `x` / `c` / `r` | Tokens > New Token, Remove Token…, Copy Token, Read Again | make one (a note says it), remove one (asks first), copy one to hand to a machine, read the file again |
 | `T` | File > Tokens File… | which tokens file, when it is not the one the switchboard is found to use |
 
-It shows no node's address or key ([ADR 0049](adr/0049-the-switchboard-window-shows-traffic-and-names-every-key.md); only the switchboard's own address and code in its heading, and a banned key's first digits among the bans), keeps no
+It shows no node's address or key ([ADR 0049](adr/0049-the-switchboard-window-shows-traffic-and-names-every-key.md); the switchboard's own address is not in its heading, a key cut short being no use to anyone: `a` copies it whole; a banned key's first digits are among the bans), keeps no
 history, and decides nothing; the switchboard's script does that. It shows a switchboard you started yourself, or one an
 administrator runs as a service if you are in the group `longwire` (`please usermod -aG longwire YOURNAME`, then log in again).
 

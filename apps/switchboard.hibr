@@ -4,7 +4,9 @@
 # switchboard -- a window on a longwire switchboard you run: how many nodes are on it, which of them are online, and who
 # is ringing whom right now. It reads the switchboard's own worker through `lw`, once a second, and follows its event
 # stream for the calls. It watches; it does not decide anything (a ring and a registration are the script's to answer,
-# and the script has two seconds). It shows no address and no key: the worker does not give the registry any.
+# and the script has two seconds). The head says what this switchboard is and whether anything needs looking at (a key cut to 30 characters says neither):
+# its short code, how long it has been up, its policy and version, how full it is, and a line for what is wrong. Its full address, which a node's
+# `--switchboard HOST:PORT/ADDRESS` needs, is one key away (a, or Node > Copy Switchboard Address). `m` makes the head compact: no graphs, one line for the rest (docs/adr/0075).
 #
 # Traffic in and out, the calls since it started, and the bans are on its head; `/` searches the nodes by number or name, `o` shows only
 # those online, `b` turns the list into the bans (and `x` lifts one, for the switchboard's owner). Every key is in the menus (docs/adr/0049).
@@ -18,7 +20,7 @@
 
 strict
 
-app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.59
+app switchboard "Watch a longwire switchboard: who is on it and who is ringing whom" 0.5.60
 # modules: longwire
 command -v dt_app > /dev/null && dt_app switchboard "Switchboard" 24 76 once "☎"
 
@@ -33,6 +35,10 @@ command -v dt_keep > /dev/null && dt_keep DT_SW_SOCK
 # The switchboard's tokens file, if it is not where it would be looked for (docs/adr/0050).
 DT_SW_TOKENS="${DT_SW_TOKENS-}"
 command -v dt_keep > /dev/null && dt_keep DT_SW_TOKENS
+
+# The compact head: the numbers on a line and no graphs (the person's choice, kept).
+DT_SWCOMPACT="${DT_SWCOMPACT-0}"
+command -v dt_keep > /dev/null && dt_keep DT_SWCOMPACT
 
 SW_SCANMS=1000
 SW_HISTMAX=120
@@ -266,6 +272,16 @@ fn sw_feedopen(int id) {
 
 # --- one look at the switchboard, once a second ------------------------------------------------------------------------
 
+# What is wrong, in one line, or nothing: bans in force, handshakes refused as replays (a node whose clock was set back looks like this: docs/adr/0071), no short code.
+fn sw_alerts(int id) {
+	local out=
+
+	[ "${SW[$id]["bans"]:-0}" -gt 0 ] && out+="${SW[$id]["bans"]} banned (b)  "
+	[ "${SW[$id]["replay"]:-0}" -gt 0 ] && out+="${SW[$id]["replay"]} handshake(s) refused as replays: a node's clock was set back  "
+	[ -n "${SW[$id]["refused"]}" ] && out+="no short code: ${SW[$id]["refused"]}  "
+	ret "${out%  }"
+}
+
 fn sw_scan(int id, int now) {
 	local sock st pg cur total nx cnt i k v num nm lst on age
 
@@ -278,6 +294,8 @@ fn sw_scan(int id, int now) {
 	sw_set "$id" address .address
 	sw_set "$id" code .code
 	sw_set "$id" uptime .uptime 0
+	sw_set "$id" version .version
+	sw_set "$id" replay .hs_replay 0
 	sw_set "$id" numbers .numbers 0
 	sw_set "$id" online .online 0
 	sw_set "$id" ringing .calls_ringing 0
@@ -613,7 +631,7 @@ fn sw_drawcalls(int id, int r0, int rows, int w, int now) {
 }
 
 fn switchboard_draw(int id, int h, int w, int row, int col) {
-	local now sock i k num r r0 vis top sel n total on max bw filled bar nw name lamp line ago sp1 sp2 half fr rin rout srows q tf
+	local now sock i k num r r0 vis top sel n total on max bw filled bar nw name lamp line ago sp1 sp2 half fr rin rout srows q tf comp alerts
 	local -a idx
 
 	now := dt_ms
@@ -652,10 +670,11 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 
 	# --- the head: who it is, how full it is -----------------------------------------------------------------------
 	console pen "$DT_INK" "$DT_FACE" bold
-	line="${GL[circle]} ${SW[$id]["address"]:0:30}${GL[ellipsis]}"
-	[ -n "${SW[$id]["code"]}" ] && line+="  code +${SW[$id]["code"]}"
+	line="${GL[circle]} Switchboard"
+	[ -n "${SW[$id]["code"]}" ] && line+="  +${SW[$id]["code"]}"
 	ago := sw_ago "${SW[$id]["uptime"]}"
-	line+="  up $ago  policy ${SW[$id]["policy"]}"
+	line+="  up $ago  ${SW[$id]["policy"]} policy"
+	[ -n "${SW[$id]["version"]}" ] && line+="  v${SW[$id]["version"]}"
 	sw_put "$id" 1 1 "${line:0:$((w - 1))}"
 	on=${SW[$id]["online"]}
 	max=${SW[$id]["max"]}
@@ -675,44 +694,58 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 	console pen "$DT_INK" "$DT_FACE"
 	sw_put "$id" 2 $((17 + ${#max} + bw)) " ringing ${SW[$id]["ringing"]}"
 
-	# --- traffic in and out, then since it started ---------------------------------------------------------------
-	half=$(((w - 2) / 2))
-	rin := sw_rate "${SW[$id]["rin"]:-0}"
-	rout := sw_rate "${SW[$id]["rout"]:-0}"
-	console pen "$DT_DIM" "$DT_FACE"
-	sw_put "$id" 3 1 "in"
-	sw_put "$id" 3 $((half + 2)) "out"
-	console pen "$DT_INK" "$DT_FACE" bold
-	sw_put "$id" 3 4 "$rin"
-	sw_put "$id" 3 $((half + 6)) "$rout"
-	sp1 := sw_spark "${SW[$id]["hin"]}" "$half"
-	sp2 := sw_spark "${SW[$id]["hout"]}" $((w - 2 - half - 1))
-	console pen "$DT_INFO" "$DT_FACE"
-	sw_put "$id" 4 1 "$sp1"
-	console pen "$DT_GOOD" "$DT_FACE"
-	sw_put "$id" 4 $((half + 2)) "$sp2"
-	r=5
-	if [ "$h" -ge 22 ]; then			# online and the handshake load, where there is room
+	comp=${DT_SWCOMPACT-0}
+	[ "$h" -lt 16 ] && comp=1			# a small window is compact whatever was asked
+	if [ "$comp" = 1 ]; then			# the numbers on one line, and no graphs
+		rin := sw_rate "${SW[$id]["rin"]:-0}"
+		rout := sw_rate "${SW[$id]["rout"]:-0}"
+		line="in $rin  out $rout   registered ${SW[$id]["regs"]:-0}  rings ${SW[$id]["rings"]:-0}  through ${SW[$id]["through"]:-0}"
+		console pen "$DT_INK" "$DT_FACE"
+		sw_put "$id" 3 1 "${line:0:$((w - 12))}"
+		if [ "${SW[$id]["bans"]:-0}" -gt 0 ]; then console pen "$DT_WARN" "$DT_FACE" bold; else console pen "$DT_DIM" "$DT_FACE"; fi
+		sw_put "$id" 3 $((w - 10)) "bans ${SW[$id]["bans"]:-0}"
+		r=4
+	else
+		# --- traffic in and out, then since it started ---------------------------------------------------------------
+		half=$(((w - 2) / 2))
+		rin := sw_rate "${SW[$id]["rin"]:-0}"
+		rout := sw_rate "${SW[$id]["rout"]:-0}"
 		console pen "$DT_DIM" "$DT_FACE"
-		sw_put "$id" 5 1 "online"
-		sw_put "$id" 5 $((half + 2)) "handshake load"
-		sp1 := sw_spark "${SW[$id]["hon"]}" "$half"
-		sp2 := sw_spark "${SW[$id]["hhs"]}" $((w - 2 - half - 1))
+		sw_put "$id" 3 1 "in"
+		sw_put "$id" 3 $((half + 2)) "out"
+		console pen "$DT_INK" "$DT_FACE" bold
+		sw_put "$id" 3 4 "$rin"
+		sw_put "$id" 3 $((half + 6)) "$rout"
+		sp1 := sw_spark "${SW[$id]["hin"]}" "$half"
+		sp2 := sw_spark "${SW[$id]["hout"]}" $((w - 2 - half - 1))
+		console pen "$DT_INFO" "$DT_FACE"
+		sw_put "$id" 4 1 "$sp1"
 		console pen "$DT_GOOD" "$DT_FACE"
-		sw_put "$id" 6 1 "$sp1"
-		console pen "$DT_WARN" "$DT_FACE"
-		sw_put "$id" 6 $((half + 2)) "$sp2"
-		r=7
+		sw_put "$id" 4 $((half + 2)) "$sp2"
+		r=5
+		if [ "$h" -ge 22 ]; then			# online and the handshake load, where there is room
+			console pen "$DT_DIM" "$DT_FACE"
+			sw_put "$id" 5 1 "online"
+			sw_put "$id" 5 $((half + 2)) "handshake load"
+			sp1 := sw_spark "${SW[$id]["hon"]}" "$half"
+			sp2 := sw_spark "${SW[$id]["hhs"]}" $((w - 2 - half - 1))
+			console pen "$DT_GOOD" "$DT_FACE"
+			sw_put "$id" 6 1 "$sp1"
+			console pen "$DT_WARN" "$DT_FACE"
+			sw_put "$id" 6 $((half + 2)) "$sp2"
+			r=7
+		fi
+		line="registered ${SW[$id]["regs"]:-0}  rings ${SW[$id]["rings"]:-0}  through ${SW[$id]["through"]:-0}  ended ${SW[$id]["ended"]:-0}  struck ${SW[$id]["struck"]:-0}"
+		console pen "$DT_DIM" "$DT_FACE"
+		sw_put "$id" "$r" 1 "${line:0:$((w - 12))}"
+		if [ "${SW[$id]["bans"]:-0}" -gt 0 ]; then console pen "$DT_WARN" "$DT_FACE" bold; else console pen "$DT_DIM" "$DT_FACE"; fi
+		sw_put "$id" "$r" $((w - 10)) "bans ${SW[$id]["bans"]:-0}"
+		r=$((r + 1))
 	fi
-	line="registered ${SW[$id]["regs"]:-0}  rings ${SW[$id]["rings"]:-0}  through ${SW[$id]["through"]:-0}  ended ${SW[$id]["ended"]:-0}  struck ${SW[$id]["struck"]:-0}"
-	console pen "$DT_DIM" "$DT_FACE"
-	sw_put "$id" "$r" 1 "${line:0:$((w - 12))}"
-	if [ "${SW[$id]["bans"]:-0}" -gt 0 ]; then console pen "$DT_WARN" "$DT_FACE" bold; else console pen "$DT_DIM" "$DT_FACE"; fi
-	sw_put "$id" "$r" $((w - 10)) "bans ${SW[$id]["bans"]:-0}"
-	r=$((r + 1))
-	if [ -n "${SW[$id]["refused"]}" ]; then
-		console pen "$DT_WARN" "$DT_FACE"
-		sw_put "$id" "$r" 1 "no short code: ${SW[$id]["refused"]}"
+	alerts := sw_alerts "$id"			# what needs looking at, in words (and nothing when nothing does)
+	if [ -n "$alerts" ]; then
+		console pen "$DT_WARN" "$DT_FACE" bold
+		sw_put "$id" "$r" 1 "! ${alerts:0:$((w - 4))}"
 		r=$((r + 1))
 	fi
 	r0=$r
@@ -864,6 +897,10 @@ fn switchboard_key(int id, key) {
 	T) dt_ask "Tokens file" "File" "$DT_SW_TOKENS" swb_settokens "its --tokens file; empty to find it"; return 0 ;;
 	x | delete) if [ "${SW[$id]["view"]}" = tokens ]; then sw_tokdelask "$id"; else sw_liftask "$id"; fi; return 0 ;;
 	c) command -v dt_editdo > /dev/null && dt_editdo copy; return 0 ;;	# the desktop's own Copy, which asks switchboard_copy
+	m) [ "${DT_SWCOMPACT-0}" = 1 ] && DT_SWCOMPACT=0 || DT_SWCOMPACT=1; command -v dt_save > /dev/null && dt_save; return 0 ;;
+	a) [ -n "${SW[$id]["address"]}" ] || return 1
+	   command -v dt_clipset > /dev/null && dt_clipset "${SW[$id]["address"]}"
+	   dt_notep low "Copied this switchboard's address: a node reaches it as --switchboard HOST:PORT/ADDRESS"; return 0 ;;
 	s) dt_ask "Switchboard socket" "Socket" "$DT_SW_SOCK" swb_setsock "its control socket; empty for the usual"; return 0 ;;
 	*) return 1 ;;
 	esac
@@ -926,10 +963,12 @@ switchboard_menus() {
 	dt_mark "Online Only" o "$mo" switchboard_key "$id" o
 	dt_mark "Bans" b "$mb" switchboard_key "$id" b
 	dt_mark "Tokens" t "$mt" switchboard_key "$id" t
+	dt_mark "Compact" m "$([ "${DT_SWCOMPACT-0}" = 1 ] && echo 1 || echo 0)" switchboard_key "$id" m
 	dt_sep
 	dt_item "Search${GL[ellipsis]}" f switchboard_find "$id"
 	dt_menu "Node"
 	dt_item "Copy Number" c dt_editdo copy
+	dt_item "Copy Switchboard Address" a switchboard_key "$id" a
 	if [ "${SW[$id]["view"]}" = bans ]; then
 		dt_item "Lift Ban${GL[ellipsis]}" x switchboard_key "$id" x
 	else

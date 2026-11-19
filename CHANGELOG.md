@@ -3,6 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.60
+
+**The Switchboard window says what matters** ([ADR 0075](docs/adr/0075-the-switchboard-window-says-what-matters.md)), the owner's remarks: the heading was the switchboard's own key cut to 30 characters, which no one can read or use.
+It now names the switchboard, its short code, uptime, policy and **version** (the switchboard's status carries it); one line in the warning colour says what is wrong (bans in force, handshakes refused as replays: a node
+whose clock was set back; no short code) and nothing when nothing is; the whole address is one key away (`a`, Node > Copy Switchboard Address); and **Compact** (`m`, View > Compact, kept) leaves out the graphs.
+
+- **The engine is built for Android by TCC** (`android/build-native.sh`, [ADR 0074](docs/adr/0074-tcc-builds-the-engine-for-android.md)): an arm64 library, its crypto and unit tests correct under emulation; not run on a phone yet. The
+  two small changes in the engine (`getrandom` by system call below Android 9, `LINE_MAX`) do nothing elsewhere.
+
 ## 0.5.59
 
 **Name servers say so when they cannot be asked** ([ADR 0073](docs/adr/0073-name-servers-say-so-when-they-cannot-be-asked.md)). On a machine without systemd-resolved a profile's name servers were set nowhere, and nothing said so
