@@ -12,6 +12,8 @@ whose clock was set back; no short code) and nothing when nothing is; the whole 
 - **The engine is built for Android by TCC** (`android/build-native.sh`, [ADR 0074](docs/adr/0074-tcc-builds-the-engine-for-android.md)): an arm64 library, its crypto and unit tests correct under emulation; not run on a phone yet. The
   two small changes in the engine (`getrandom` by system call below Android 9, `LINE_MAX`) do nothing elsewhere.
 
+Published: hibr-apps 4d08dce, hibr-apt 06e48ab, hibr-rpm 822aa30, hibr-arch 9378922.
+
 ## 0.5.59
 
 **Name servers say so when they cannot be asked** ([ADR 0073](docs/adr/0073-name-servers-say-so-when-they-cannot-be-asked.md)). On a machine without systemd-resolved a profile's name servers were set nowhere, and nothing said so
