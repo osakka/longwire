@@ -10,6 +10,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 (`android/app/`, Java) builds the tunnel from the lease, dials home, and builds it again when the address moves. `sh android/build-apk.sh` builds the APK, signed only with the owner's key. **Built and tested on Linux
 (`tests/leaf.sh`, `tests/leafnet.sh`); not run on a phone.** IPv6, the one-session leaf role, the Keystore and a recovery phrase are planned (M6). Nothing changes for desktops and switchboards.
 
+Published: hibr-apps ac1fc97, hibr-apt 12769be, hibr-rpm 3c98445, hibr-arch 42b2e99.
+
 ## 0.5.60
 
 **The Switchboard window says what matters** ([ADR 0075](docs/adr/0075-the-switchboard-window-says-what-matters.md)), the owner's remarks: the heading was the switchboard's own key cut to 30 characters, which no one can read or use.
