@@ -10,6 +10,8 @@ where a person looks: `longwire show` mentioned names only with everything throu
 servers, whether names go through the line from them, or that they are not set on the jack (turn longwire off and on), or that systemd-resolved is not installed and names go to the machine's own server; and the pane
 says it on the row below Name servers. **The deb and the rpm suggest systemd-resolved** (they do not depend on it: installing it changes how the whole machine resolves names, and a package must not do that by itself).
 
+Published: hibr-apps 654c5d1, hibr-apt bb28bfd, hibr-rpm 95b5467, hibr-arch dc1a4ea.
+
 ## 0.5.58
 
 **Every dropdown in the pane is one declared list** ([ADR 0072](docs/adr/0072-every-dropdown-in-the-pane-is-one-declared-list.md)), the owner's decision. The six dropdown rows (Profile, Attach, When a call rings, Phone Style, and the
