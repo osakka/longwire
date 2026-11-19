@@ -237,6 +237,7 @@ typedef struct lw_leaf {
 	int      state, tries;
 	uint32_t xid, ip, mask, gw, server, dns[3];
 	int      ndns;
+	char     host[40];			/* the name it gives the DHCP server: a host name made from the phone's own name (leaf_hostname) */
 	uint32_t offer_ip, offer_server, lease, t1, t2;
 	char     domain[64];
 	int      mtu;			/* the far LAN's interface MTU (option 26), 0 if it said none */
@@ -250,6 +251,7 @@ typedef struct lw_leaf {
 	uint64_t os_in, os_out, drop_v6, drop_os, drop_line, arp_answered, dhcp_sent;
 } lw_leaf;
 void leaf_init(lw_leaf *m, const uint8_t key_id[32], double now);
+void leaf_hostname(lw_leaf *m, const char *name);
 void leaf_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx);
 void leaf_from_os(lw_leaf *m, double now, const uint8_t *pkt, size_t len, lw_mtx tx, void *ctx);
 void leaf_from_line(lw_leaf *m, double now, const uint8_t *f, size_t len, lw_mtx tx, void *ctx, lw_mup up, void *uctx);

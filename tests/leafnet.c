@@ -83,6 +83,7 @@ int main(int argc, char **argv)
 	}
 	c.embedded = 1;
 	c.answer = 1;
+	snprintf(c.name, sizeof c.name, "Test Phone");
 	c.no_nat_pmp = 1;
 	c.cand_loopback = 1;
 	c.mtu = 1400;

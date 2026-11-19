@@ -50,6 +50,32 @@ void leaf_init(lw_leaf *m, const uint8_t key_id[32], double now)
 	lw_rand(&m->xid, sizeof m->xid);
 	m->state = MB_INIT;
 	m->t_next = now;
+	snprintf(m->host, sizeof m->host, "longwire");
+}
+
+/* The name the DHCP server is told, so the router's list says whose phone this is: a host name is letters, digits and single hyphens, not at an end (RFC 1123), so the phone's name is made into one: lower case,
+ * anything else a hyphen, hyphens run together and trimmed, at most 32. A name with nothing of the kind in it (not Latin letters) leaves "longwire". */
+void leaf_hostname(lw_leaf *m, const char *name)
+{
+	char h[40];
+	size_t o = 0;
+
+	for (; name && *name && o < 32; name++) {
+		char c = *name;
+
+		if (c >= 'A' && c <= 'Z')
+			c = (char)(c + 32);
+		if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')))
+			c = '-';
+		if (c == '-' && (!o || h[o - 1] == '-'))
+			continue;
+		h[o++] = c;
+	}
+	while (o && h[o - 1] == '-')
+		o--;
+	h[o] = 0;
+	if (o)
+		snprintf(m->host, sizeof m->host, "%s", h);
 }
 
 /* ---- DHCPv4 ----------------------------------------------------------------------- */
@@ -94,7 +120,7 @@ static void dhcp_send(lw_leaf *m, int type, lw_mtx tx, void *ctx)
 		*o++ = 50; *o++ = 4; put32(o, m->offer_ip); o += 4;
 		*o++ = 54; *o++ = 4; put32(o, m->offer_server); o += 4;
 	}
-	*o++ = 12; *o++ = 8; memcpy(o, "longwire", 8); o += 8;
+	*o++ = 12; *o++ = (uint8_t)strlen(m->host); memcpy(o, m->host, strlen(m->host)); o += strlen(m->host);
 	*o++ = 55; *o++ = 6; *o++ = 1; *o++ = 3; *o++ = 6; *o++ = 15; *o++ = 26; *o++ = 51;	/* mask, router, dns, domain, MTU, lease */
 	*o++ = 255;
 	len = (size_t)(o - f);
@@ -522,6 +548,7 @@ int leaf_open(lw_node *n, char *err, size_t errn)
 		return -1;
 	}
 	leaf_init(n->leaf, n->id.key_id, n->now);
+	leaf_hostname(n->leaf, n->cfg.name);
 	n->port_fd = -1;			/* the OS tunnel is attached when the app has one (the address is not known until the line has answered) */
 	return 0;
 }

@@ -107,6 +107,11 @@ def main():
                     t = o[2] if o[:2] == b"\x35\x01" else 0
                     if t == 1:
                         seen["discover"] += 1
+                        k = 0
+                        while k < len(o) and o[k] != 255:
+                            if o[k] == 12:
+                                seen["host"] = o[k + 2:k + 2 + o[k + 1]].decode()
+                            k += 2 + o[k + 1] if o[k] else 1
                         lan.sendto(dhcp_reply(f, 2), f"{T}/Hport")
                     elif t == 3:
                         seen["request"] += 1
@@ -157,6 +162,7 @@ def main():
               f"the lease is the LAN's: {bound['ip']}/{bound['prefix']} via {bound['gateway']}, dns {bound['dns']}")
     # a UDP packet from the OS to the gateway: ARP, then the packet across, then the echo back to the OS
     exchange(b"hello from the phone", GW, "a packet from the phone's OS crosses the line, the LAN answers it, and the answer reaches the OS as the packet it is")
+    check(seen.get("host") == "test-phone", f"the DHCP server was told the phone's name, made into a host name: {seen.get('host')}")
     check(seen["arp"] >= 1 and seen["echo"] == 1, f"...the phone asked who has the gateway (ARP) before the first packet, which crossed once: {seen}")
     # off the link: the internet is the gateway's business; the frame goes to the gateway's MAC
     exchange(b"to the internet", socket.inet_aton("8.8.8.8"), "a packet for the internet goes to the gateway's MAC and its answer comes back")

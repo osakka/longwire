@@ -47,7 +47,7 @@ and the **safety phrase** once there is a call), one big button, a **Home** card
 name for the phone if the link did not, and press **Turn on**. The system asks once to allow the VPN. Compare the safety phrase with the one on the home node's screen, once, when the call is first made (the same as between two
 desktops; [PROTOCOL §3](PROTOCOL.md)). The home node answers by its own policy (`longwire policy`, or `longwire answer auto`).
 
-**The address** is not typed: it comes from DHCP, from the home router, as it would for a laptop on the home network. The phone's hardware address is made from its key, so it is always the same one, and the router
+**The address** is not typed: it comes from DHCP, from the home router, and the router is told the phone's name (the one you set, or the phone's model if you set none, made into a host name: lower case, hyphens, 32 characters at most), so its list says whose phone it is and not "longwire", as it would for a laptop on the home network. The phone's hardware address is made from its key, so it is always the same one, and the router
 tends to give it the same address; a reservation in the router for that address pins it.
 
 By default the tunnel carries only the home network's subnet: the printer and the NAS, not the whole internet. "Send everything through home" adds the default route; the home node then needs `--exit` sharing for

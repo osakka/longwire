@@ -18,7 +18,11 @@ instead of typing it.
 5. **The switchboard says its own details**: `longwire-switchboard show` prints its address, its port (the status now carries it), its version and the commands that name it to a node and invite a phone; and `token invite`
    without `--host` takes this machine's name and that port (and says so, since the name may not be where a phone reaches it).
 
+6. **The phone tells the DHCP server its name.** It had said "longwire" to every router, so every phone looked alike. It now sends its own name (the app's Name field, or the phone's model when that is empty)
+   made into a host name (RFC 1123: letters, digits and single hyphens, not at an end; lower case; at most 32; a name with nothing Latin in it leaves "longwire"). The desktop's jack runs the system's DHCP
+   client (`dhclient`, `dhcpcd`, `udhcpc`), which sends what its own configuration says; the jack passes no name of its own.
+
 ## Tests
 
-`tests/tokens.sh` (show, and invite without a host, against a running switchboard); `tests/pane.sh` (the Address row is a choice, fixed shows its address, choosing dhcp sets it); `tests/leafnet.sh` still passes with the
+`tests/tokens.sh` (show, and invite without a host, against a running switchboard); `tests/leaf.sh` and `tests/leafnet.sh` (the host name, made from several names, and seen by the home LAN's server); `tests/pane.sh` (the Address row is a choice, fixed shows its address, choosing dhcp sets it); `tests/leafnet.sh` still passes with the
 engine sleeping longer when idle (its DHCP, calls, restarts and kills all run embedded). Not tested: any of the look, the icon on a launcher, the battery's saving, the exemption dialog. They are for the phone.

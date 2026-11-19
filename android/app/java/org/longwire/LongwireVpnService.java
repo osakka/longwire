@@ -84,7 +84,7 @@ public class LongwireVpnService extends VpnService {
         String dir = getFilesDir().getPath();
         String home = p.getString("home", "").trim();
         boolean all = p.getBoolean("all", false);
-        String err = Engine.start(dir, p.getString("switchboard", "").trim(), p.getString("token", "").trim(), p.getString("name", "").trim(), false, p.getBoolean("saver", false) ? 55 : 25);
+        String err = Engine.start(dir, p.getString("switchboard", "").trim(), p.getString("token", "").trim(), (p.getString("name", "").trim().isEmpty() ? Build.MODEL : p.getString("name", "").trim()), false, p.getBoolean("saver", false) ? 55 : 25);
         if (!err.isEmpty()) {
             finish("Cannot start: " + err);
             return;

@@ -155,9 +155,29 @@ int main(void)
 		check(!memcmp(m.mac, m2.mac, 6), "the same key, the same MAC, whenever");
 	}
 
+	/* the name it gives the DHCP server: a host name made from the phone's own */
+	{
+		lw_leaf h;
+		const char *in[] = { "Omar's Pixel 9!", "  --x--  ", "SM-S918B", "", "\xd8\xb9\xd9\x85\xd8\xb1", "a  b", "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef" };
+		const char *want[] = { "omar-s-pixel-9", "x", "sm-s918b", "longwire", "longwire", "a-b", "abcdefghijklmnopqrstuvwxyz012345" };
+		int k, okh = 1;
+
+		for (k = 0; k < 7; k++) {
+			leaf_init(&h, key, 0);
+			leaf_hostname(&h, in[k]);
+			if (strcmp(h.host, want[k])) {
+				okh = 0;
+				printf("  %s -> %s, wanted %s\n", in[k], h.host, want[k]);
+			}
+		}
+		check(okh, "the DHCP host name is the phone's name made into one: lower case, hyphens for the rest, trimmed, 32 at most; nothing usable leaves longwire");
+	}
+
 	/* DISCOVER */
 	nsent = 0;
+	leaf_hostname(&m, "Omar's phone");
 	leaf_tick(&m, t, tx, 0);
+	check(nsent == 1 && opt(sent[0], sentlen[0], 12) && opt(sent[0], sentlen[0], 12)[-1] == 12 && !memcmp(opt(sent[0], sentlen[0], 12), "omar-s-phone", 12), "the DISCOVER carries that name as option 12");
 	check(nsent == 1 && !memcmp(sent[0], bc, 6) && !memcmp(sent[0] + 6, m.mac, 6) && get16(sent[0] + 34) == 68 && get16(sent[0] + 36) == 67, "it asks the LAN for an address: a DHCP DISCOVER to the broadcast, 68 to 67");
 	check(sentlen[0] >= 300 && opt(sent[0], sentlen[0], 53) && *opt(sent[0], sentlen[0], 53) == 1 && !memcmp(sent[0] + 42 + 28, m.mac, 6), "...a full-size BOOTP message, type 1, with its own hardware address");
 	{
