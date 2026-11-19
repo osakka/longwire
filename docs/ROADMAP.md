@@ -94,8 +94,8 @@ and then dial and pick up entirely from the hibr desktop.
 
 **M6: Pocket.** Done when a phone on mobile data gets a lease from the home router and prints to the home printer.
 - The member-mode adapter (a virtual MAC, a DHCPv4 client, ARP and NDP responders); the leaf role; the Android app
-  (`VpnService` around `engine/` through JNI, the one piece outside hibr). First, confirm that TCC can build the engine
-  as an Android library: [ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md) leaves no other compiler to use
+  (`VpnService` around `engine/` through JNI, the one piece outside hibr). TCC builds the engine as an Android library and its arm64 code is correct under
+  emulation ([ADR 0074](adr/0074-tcc-builds-the-engine-for-android.md)); not yet run on a device
 
 **M7: Speed.** Done when the TCC build reaches 600 Mbit/s on x86-64.
 - PCP as a further address, and public members of a line offered as relay candidates to callers outside it

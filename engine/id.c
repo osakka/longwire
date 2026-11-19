@@ -14,6 +14,11 @@
 #include "../vendor/monocypher/monocypher-ed25519.h"
 #include "../vendor/mlkem768/kem.h"
 
+#if defined(__ANDROID__) && __ANDROID_API__ < 28
+#include <sys/syscall.h>
+#define getrandom(b, n, f) syscall(SYS_getrandom, (b), (n), (f))	/* bionic has the function from Android 9 (API 28); the kernel call is older */
+#endif
+
 double lw_now(void)
 {
 	struct timespec t;

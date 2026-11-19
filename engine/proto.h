@@ -80,6 +80,7 @@
 #define ADMIT_DEFAULT_DAYS 90
 #define ROLL_LEN 112		/* line_id 8, time 8, signer 32, sig 64 over line_id, time and "roll": no admit made before the time is good */
 #define REV_MAX 256		/* evictions a node holds that can still matter; a node holding this many takes no new admit */
+#undef LINE_MAX			/* (<limits.h> has one of its own on some systems: bionic, for one) */
 #define LINE_MAX 16
 #define EVICT_LEN 144		/* line_id 8, key_id 32, time 8, signer 32, sig 64 */
 #define MEMBER_LEN 106		/* number 9, key_id 32, ed_pub 32, role 1, home switchboard key id 32 */

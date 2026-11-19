@@ -82,6 +82,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0071](0071-a-switchboard-never-starts-a-handshake-to-a-node.md) | A switchboard never starts a handshake to a node | accepted; built in 0.5.57 |
 | [0072](0072-every-dropdown-in-the-pane-is-one-declared-list.md) | Every dropdown in the pane is one declared list | accepted; built in 0.5.58 |
 | [0073](0073-name-servers-say-so-when-they-cannot-be-asked.md) | Name servers say so when they cannot be asked, and systemd-resolved is suggested | accepted; built in 0.5.59 |
+| [0074](0074-tcc-builds-the-engine-for-android.md) | TCC builds the engine for Android | accepted; the build in 0.5.60, the app *(planned: M6)* |
 
 ---
 

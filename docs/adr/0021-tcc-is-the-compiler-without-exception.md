@@ -28,5 +28,4 @@ the end-to-end tests, and fuzzing with a harness TCC builds *(planned: M8)*.
 
 Every platform must be reachable with TCC. For Linux and the BSDs and macOS that is the same position as hibr's. For the
 Android app the engine has to be built by a cross-compiling TCC into a library an Android app can load; whether TCC can
-produce that is **unverified** and has to be settled before the app starts, since the rule leaves no fallback
-*(planned: M6)*. If it cannot, the decision is the project's to revisit explicitly, not something to route around.
+produce that was **unverified** and has been settled: it can, and the library is built and checked as far as there is no device ([ADR 0074](0074-tcc-builds-the-engine-for-android.md)); the app itself is *(planned: M6)*. If it cannot, the decision is the project's to revisit explicitly, not something to route around.
