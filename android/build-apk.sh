@@ -1,13 +1,15 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # The Android app (docs/adr/0076): build/android/longwire-VERSION.apk. The native engine is built by TCC (android/build-native.sh); only the Java part, which is not C, uses Google's tools: javac (a JDK),
-# aapt2, d8, zipalign and apksigner (the SDK's build tools). The SDK is not fetched here (it asks for Google's licence, which is a person's to accept): point LW_SDK at one with platform 36 and
-# build tools, and LW_JAVA_HOME at a JDK 17 or newer.
+# aapt2, d8, zipalign and apksigner (the SDK's build tools). The SDK is not fetched here (it asks for Google's licence, which is a person's to accept): it is looked for in the cache (LW_ANDROID_CACHE, default
+# ~/.cache/longwire-android/sdk; LW_SDK=DIR names another) with platform 36 and build tools, and a JDK 17 or newer in LW_JAVA_HOME, JAVA_HOME or the cache's jdk.
 #   LW_KEYSTORE=FILE [LW_KEY_ALIAS=NAME]   sign with the owner's key (apksigner asks for the password); without it the APK is left unsigned, and Android will not install an unsigned APK
 set -e
 cd "$(dirname "$0")/.."
-: "${LW_SDK:?LW_SDK: the Android SDK (platforms/android-36, build-tools/36.0.0)}"
-J=${LW_JAVA_HOME:-$JAVA_HOME}
+C=${LW_ANDROID_CACHE:-$HOME/.cache/longwire-android}
+LW_SDK=${LW_SDK:-$C/sdk}
+[ -d "$LW_SDK/platforms/android-36" ] || { echo "apk: no Android SDK with platform 36 and build tools at $LW_SDK (LW_SDK=DIR)" >&2; exit 1; }
+J=${LW_JAVA_HOME:-${JAVA_HOME:-$C/jdk}}
 [ -x "$J/bin/javac" ] || { echo "apk: LW_JAVA_HOME must name a JDK" >&2; exit 1; }
 PATH=$J/bin:$PATH
 BT=$(ls -d "$LW_SDK"/build-tools/* | sort -V | tail -1)

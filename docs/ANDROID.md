@@ -16,15 +16,16 @@ How it is built: [ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-a
 ## Building it
 
 ```sh
-sh android/build-native.sh                       # the engine, by TCC, for arm64 (about 660 MB downloaded the first time: TinyCC's source and Google's headers)
-LW_SDK=~/android-sdk LW_JAVA_HOME=/usr/lib/jvm/java-21 sh android/build-apk.sh
+sh android/build-native.sh        # the engine, by TCC, for arm64 (about 660 MB downloaded the first time: TinyCC's source and Google's headers)
+sh android/build-apk.sh           # the app around it
 ```
 
-The SDK (platform 36, build tools) and a JDK are not fetched by the scripts: the SDK asks for Google's licence, which is a person's to accept. The Java part of the app is not C and does not fall under the compiler rule
-([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)); the native library is built by TCC like everything else.
+Both keep what they fetch in `~/.cache/longwire-android` (`LW_ANDROID_CACHE` names another). The Android SDK (platform 36 and build tools; `sdk/` in that folder, or `LW_SDK=DIR`) and a JDK 17 or newer (`jdk/` there, or
+`LW_JAVA_HOME`) are not fetched by the scripts: the SDK asks for Google's licence, which is a person's to accept (`sdkmanager "platforms;android-36" "build-tools;36.0.0"`). The Java part of the app is not C and does not fall under the
+compiler rule ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)); the native library is built by TCC like everything else.
 
 **Signing is yours.** Android installs nothing unsigned. Point the script at your key: `LW_KEYSTORE=~/my.jks LW_KEY_ALIAS=longwire sh android/build-apk.sh` (it asks for the password), which writes
-`build/android/longwire-VERSION.apk`. Without a key it writes `longwire-VERSION.apk.unsigned`; no key is made or kept for you. Install with `adb install build/android/longwire-VERSION.apk`, or copy the file to the phone.
+`build/android/longwire-VERSION.apk`; or sign the `.unsigned` file yourself with the SDK's `build-tools/36.0.0/apksigner sign --ks KEYSTORE --out longwire.apk longwire-VERSION.apk.unsigned`. Without a key it writes `longwire-VERSION.apk.unsigned`; no key is made or kept for you. Install with `adb install build/android/longwire-VERSION.apk`, or copy the file to the phone.
 
 ## Using it
 
