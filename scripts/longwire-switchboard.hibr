@@ -7,7 +7,7 @@
 #
 #   longwire-switchboard token new [N] | list | remove TOKEN   [--tokens FILE] [--state DIR]     (the invitations; no switchboard runs)
 #   longwire-switchboard show [--state DIR]                                                       (this switchboard's address, port and version, and the command that invites a phone)
-#   longwire-switchboard token invite [--host HOST:PORT] [--home NUMBER] [--name TEXT]   [--tokens FILE] [--state DIR]   (one token, as a link a phone opens; and as a QR code if qrencode is there)
+#   longwire-switchboard token invite [--host HOST:PORT] [--dial NUMBER] [--name TEXT]   [--tokens FILE] [--state DIR]   (one token, as a link a phone opens; and as a QR code if qrencode is there)
 #   longwire-switchboard bans list | clear [KEY|all]   [--state DIR]                                (the bans of the running switchboard)
 #   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
 #                        [--per-ip-hour N] [--rings-per-minute N] [--max-nodes N]
@@ -37,7 +37,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.63
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.64
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -79,7 +79,7 @@ sb_field() { printf '%s' "$1" | sed -n "s/.*\"$2\":\"\{0,1\}\([^\",}]*\).*/\1/p"
 # `token`: make, list and remove registration tokens in the tokens file, for whoever runs the switchboard. It touches only that file (mode 0600, written whole beside
 # itself and moved into place, so a crash keeps every token) and needs no module and no running switchboard.
 tokens_cmd() {
-	local sub file= n i t line first host= home= name= addr link
+	local sub file= n i t line first host= dial= name= addr link
 	local pos=()
 	shift					# "token"
 	sub=${1:-}
@@ -89,7 +89,7 @@ tokens_cmd() {
 		--tokens) need_value "$@"; file=$2; shift 2 ;;
 		--state) need_value "$@"; SB_DIR=$2; shift 2 ;;
 		--host) need_value "$@"; host=$2; shift 2 ;;
-		--home) need_value "$@"; home=$2; shift 2 ;;
+		--dial) need_value "$@"; dial=$2; shift 2 ;;
 		--name) need_value "$@"; name=$2; shift 2 ;;
 		*) pos+=("$1"); shift ;;
 		esac
@@ -143,7 +143,7 @@ tokens_cmd() {
 		printf '%s' "$out" > "$file.new" && chmod 600 "$file.new" && mv "$file.new" "$file" || { echo "longwire-switchboard: cannot write $file" >&2; exit 1; }
 		tok_owner
 		echo "removed" ;;
-	invite)					# one token, and the link that carries it to a phone with everything else it needs: the switchboard's address, and which number is home (docs/adr/0077)
+	invite)					# one token, and the link that carries it to a phone with everything else it needs: the switchboard's address, and which number to dial (docs/adr/0077)
 		if [ -z "$host" ]; then		# not said: this machine's name, and the port the running switchboard listens on
 			st=$(sb_status) && [ -n "$(sb_field "$st" port)" ] || { echo "longwire-switchboard: token invite --host HOST:PORT: the address the phone reaches this switchboard at (no switchboard is running here to ask)" >&2; exit 2; }
 			host=$(hostname -f 2> /dev/null || hostname):$(sb_field "$st" port)
@@ -151,7 +151,7 @@ tokens_cmd() {
 		fi
 		case $host in *:[0-9]*) ;; *) echo "longwire-switchboard: token invite --host HOST:PORT: the address the phone reaches this switchboard at" >&2; exit 2 ;; esac
 		case $host in *[!A-Za-z0-9.:_-]*) echo "longwire-switchboard: --host: a name or address and a port, nothing else" >&2; exit 2 ;; esac
-		case $home in ''|*[!0-9-]*) [ -z "$home" ] || { echo "longwire-switchboard: --home wants a number like 312-884-076" >&2; exit 2; } ;; esac
+		case $dial in ''|*[!0-9-]*) [ -z "$dial" ] || { echo "longwire-switchboard: --dial wants a number like 312-884-076" >&2; exit 2; } ;; esac
 		[ -r "$SB_DIR/seed" ] || { echo "longwire-switchboard: no switchboard has run in $SB_DIR yet (it makes its address when it first starts)" >&2; exit 1; }
 		mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
 		addr=$(lw key address "$SB_DIR/seed") || { echo "longwire-switchboard: cannot read this switchboard's address" >&2; exit 1; }
@@ -162,7 +162,7 @@ tokens_cmd() {
 		chmod 600 "$file"
 		tok_owner
 		link="longwire://enroll?sb=$host/$addr&token=$t"
-		[ -z "$home" ] || link+="&home=$home"
+		[ -z "$dial" ] || link+="&dial=$dial"
 		[ -z "$name" ] || link+="&name=$(printf '%s' "$name" | od -An -tx1 -v | tr -d '\n' | sed 's/ /%/g')"
 		echo "$link"
 		if command -v qrencode > /dev/null 2>&1; then
@@ -171,7 +171,7 @@ tokens_cmd() {
 			echo "longwire-switchboard: install qrencode to see this as a QR code to scan; the link above works pasted into a message or an email" >&2
 		fi
 		echo "longwire-switchboard: the link carries one token: it is good once, for one phone. Keep it between you and the phone." >&2 ;;
-	*) echo "usage: longwire-switchboard token new [N] | list | remove TOKEN | invite --host HOST:PORT [--home NUMBER] [--name TEXT]   [--tokens FILE] [--state DIR]" >&2; exit 2 ;;
+	*) echo "usage: longwire-switchboard token new [N] | list | remove TOKEN | invite --host HOST:PORT [--dial NUMBER] [--name TEXT]   [--tokens FILE] [--state DIR]" >&2; exit 2 ;;
 	esac
 }
 
@@ -193,8 +193,8 @@ show_cmd() {
 	echo "address      $addr"
 	echo "port         ${port:-unknown} (udp)    version $ver    numbers $(sb_field "$st" numbers), online $(sb_field "$st" online)"
 	echo "a node       --switchboard $host:${port:-PORT}/$addr"
-	echo "a phone      please longwire-switchboard token invite --host $host:${port:-PORT} --home HOME-NUMBER --name \"My phone\""
-	echo "             (HOME-NUMBER: run longwire status on the home machine; --host: where the phone reaches this machine, if not $host)"
+	echo "a phone      please longwire-switchboard token invite --host $host:${port:-PORT} --dial NUMBER --name \"My phone\""
+	echo "             (NUMBER: the node the phone is to dial: run longwire status on it; --host: where the phone reaches this machine, if not $host)"
 }
 
 [ "${1:-}" = show ] && { show_cmd "$@"; exit 0; }

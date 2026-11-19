@@ -31,14 +31,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 /**
- * One screen: how the line is, a button, where home is, and two switches. The colours are the brand's (docs/BRAND.md): copper for the wire, dial green for connected, ringing amber for working, hang-up red for
+ * One screen: how the line is, a button, what it is joined to, and two switches. The colours are the brand's (docs/BRAND.md): copper for the wire, dial green for connected, ringing amber for working, hang-up red for
  * trouble; the text is monospace because numbers are. What the system's VPN dialog says is the system's (it is asked once).
  */
 public class MainActivity extends Activity {
     private static final int CONSENT = 1;
     private static final int COPPER = 0xFFC0632B, GREEN = 0xFF2FB67C, AMBER = 0xFFE0A100, RED = 0xFFD9473F;
     private int bg, card, ink, dim, field;
-    private EditText sb, home, token, name;
+    private EditText sb, dial, token, name;
     private Switch all, saver;
     private Button go, edit, allow;
     private TextView title, detail, phrase, summary;
@@ -112,11 +112,11 @@ public class MainActivity extends Activity {
         gl.topMargin = dp(16);
         col.addView(go, gl);
 
-        // where home is: said in two lines once it is set, and the fields behind Edit
+        // what it is joined to: the switchboard and the number it dials, said in two lines once they are set, and the fields behind Edit
         LinearLayout cn = box(col, 16);
         LinearLayout ch = new LinearLayout(this);
         ch.setGravity(Gravity.CENTER_VERTICAL);
-        TextView ct = text("Home", 16, ink, true);
+        TextView ct = text("Line", 16, ink, true);
         ch.addView(ct, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         edit = new Button(this);
         edit.setAllCaps(false);
@@ -132,7 +132,7 @@ public class MainActivity extends Activity {
         form = new LinearLayout(this);
         ((LinearLayout) form).setOrientation(LinearLayout.VERTICAL);
         sb = field((LinearLayout) form, "Switchboard", "host:port/lw1…", p.getString("switchboard", ""));
-        home = field((LinearLayout) form, "Home number", "312-884-076", p.getString("home", ""));
+        dial = field((LinearLayout) form, "Number to dial", "312-884-076", p.getString("dial", ""));
         token = field((LinearLayout) form, "Token (only if the switchboard asks)", "", p.getString("token", ""));
         name = field((LinearLayout) form, "Name this phone gives", "", p.getString("name", ""));
         cn.addView(form);
@@ -140,18 +140,18 @@ public class MainActivity extends Activity {
         // two switches
         LinearLayout op = box(col, 16);
         all = new Switch(this);
-        all.setText("Send everything through home");
+        all.setText("Send everything through the line");
         all.setTextColor(ink);
         all.setChecked(p.getBoolean("all", false));
         op.addView(all);
-        op.addView(text("Off: only your home network comes through (the printer, the NAS). On: the whole internet leaves from home.", 12, dim, false));
+        op.addView(text("Off: only the network the other end is on comes through (its printer, its NAS). On: the whole internet leaves from there.", 12, dim, false));
         saver = new Switch(this);
         saver.setText("Battery saver");
         saver.setTextColor(ink);
         saver.setChecked(p.getBoolean("saver", false));
         saver.setPadding(0, dp(14), 0, 0);
         op.addView(saver);
-        op.addView(text("Checks in with home every 55 s instead of 25 s. Turn it off if the line drops while you are on mobile data. Takes effect the next time you turn it on.", 12, dim, false));
+        op.addView(text("Checks in every 55 s instead of 25 s. Turn it off if the line drops while you are on mobile data. Takes effect the next time you turn it on.", 12, dim, false));
 
         // Android pauses background apps unless it is told not to
         batt = box(col, 16);
@@ -174,7 +174,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 2);
         }
-        editing = p.getString("switchboard", "").isEmpty() || p.getString("home", "").isEmpty();
+        editing = p.getString("switchboard", "").isEmpty() || p.getString("dial", "").isEmpty();
         tick.run();
         enroll(getIntent());
     }
@@ -268,8 +268,8 @@ public class MainActivity extends Activity {
         summary.setVisibility(show ? View.GONE : View.VISIBLE);
         edit.setVisibility(running ? View.GONE : View.VISIBLE);
         edit.setText(editing ? "Done" : "Edit");
-        String s = sb.getText().toString().trim(), h = home.getText().toString().trim();
-        summary.setText(s.isEmpty() && h.isEmpty() ? "Nothing set yet: press Edit, or open an invitation link." : "switchboard  " + (s.contains("/") ? s.substring(0, s.indexOf('/')) : s) + "\nhome         " + h);
+        String s = sb.getText().toString().trim(), h = dial.getText().toString().trim();
+        summary.setText(s.isEmpty() && h.isEmpty() ? "Nothing set yet: press Edit, or open an invitation link." : "switchboard  " + (s.contains("/") ? s.substring(0, s.indexOf('/')) : s) + "\ndials        " + h);
         batt.setVisibility(ignoringBattery() ? View.GONE : View.VISIBLE);
     }
 
@@ -305,7 +305,7 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * A link from a switchboard's owner (`longwire-switchboard token invite`), opened from a message, an email or a scanned QR code: the switchboard, a token and, if the owner said, which number is home.
+     * A link from a switchboard's owner (`longwire-switchboard token invite`), opened from a message, an email or a scanned QR code: the switchboard, a token and, if the owner said, which number to dial.
      * It fills the form and says so; it turns nothing on. Anything that is not what such a link carries is refused, whoever sent it.
      */
     private void enroll(Intent i) {
@@ -313,7 +313,7 @@ public class MainActivity extends Activity {
         if (u == null || !"longwire".equals(u.getScheme()) || !"enroll".equals(u.getHost())) {
             return;
         }
-        String s = u.getQueryParameter("sb"), t = u.getQueryParameter("token"), h = u.getQueryParameter("home"), n = u.getQueryParameter("name");
+        String s = u.getQueryParameter("sb"), t = u.getQueryParameter("token"), h = u.getQueryParameter("dial"), n = u.getQueryParameter("name");
         boolean ok = s != null && s.matches("[A-Za-z0-9._-]{1,200}:[0-9]{1,5}/lw1[a-z2-7]{52}")
             && (t == null || t.matches("[0-9a-f]{32}"))
             && (h == null || h.matches("[0-9]{3}-[0-9]{3}-[0-9]{3}|lw1[a-z2-7]{52}"))
@@ -325,7 +325,7 @@ public class MainActivity extends Activity {
         sb.setText(s);
         token.setText(t == null ? "" : t);
         if (h != null) {
-            home.setText(h);
+            dial.setText(h);
         }
         if (n != null && name.getText().length() == 0) {
             name.setText(n);
@@ -339,14 +339,14 @@ public class MainActivity extends Activity {
             startService(new Intent(this, LongwireVpnService.class).setAction(LongwireVpnService.STOP));
             return;
         }
-        if (sb.getText().toString().trim().isEmpty() || home.getText().toString().trim().isEmpty()) {
+        if (sb.getText().toString().trim().isEmpty() || dial.getText().toString().trim().isEmpty()) {
             editing = true;
-            Toast.makeText(this, "Set the switchboard and the home number first", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Set the switchboard and the number to dial first", Toast.LENGTH_LONG).show();
             refresh();
             return;
         }
         getSharedPreferences("longwire", MODE_PRIVATE).edit()
-            .putString("switchboard", sb.getText().toString()).putString("home", home.getText().toString())
+            .putString("switchboard", sb.getText().toString()).putString("dial", dial.getText().toString())
             .putString("token", token.getText().toString()).putString("name", name.getText().toString())
             .putBoolean("all", all.isChecked()).putBoolean("saver", saver.isChecked()).apply();
         Intent consent = VpnService.prepare(this);

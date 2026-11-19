@@ -11,7 +11,7 @@ How it is built: [ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-a
 - An Android 7 (API 24) or newer phone with a 64-bit ARM processor (arm64-v8a). Written against Android 16.
 - A **switchboard** it can reach (`HOST:PORT/lw1…`, the address `longwire-switchboard` prints), and a **home node** on the line: a machine on the home network running `longwire` with `--splice` (or in jack mode), registered
   on the same switchboard. A token, if the switchboard asks for one.
-- The home node's **number** (`312-884-076`, or its full `lw1…` address) to call.
+- The **number** to dial (`312-884-076`, or its full `lw1…` address): the node on your home network that the phone joins.
 
 ## Building it
 
@@ -32,10 +32,10 @@ compiler rule ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)); t
 Typing a switchboard's 55-character address on a phone is the manual way, and nobody should. On the machine that runs the switchboard:
 
 ```sh
-please longwire-switchboard token invite --host sb.example.org:6741 --home 312-884-076 --name "Omar's phone"
+please longwire-switchboard token invite --host sb.example.org:6741 --dial 312-884-076 --name "Omar's phone"
 ```
 
-(`--host` is where the phone reaches the switchboard; `--home` is the number of the home node; `--name` is optional.) It makes **one token**, good once, and prints a `longwire://enroll?...` link and, if
+(`--host` is where the phone reaches the switchboard; `--dial` is the number of the node the phone is to call; `--name` is optional.) It makes **one token**, good once, and prints a `longwire://enroll?...` link and, if
 `qrencode` is installed, the same as a QR code in the terminal. Send the link to the phone in a message or an email, or point the phone's camera at the QR code: the phone offers to open it in **Longwire**, which fills in
 the form and says so. Nothing is turned on until you press **Turn on**. The link is a secret between you and that phone: anyone who opens it first uses the token. The app refuses anything that is not exactly what
 such a link carries.
@@ -43,14 +43,14 @@ such a link carries.
 ## Using it
 
 Open **Longwire** (or the invitation link). The screen is a status card (a coloured dot and one word: **Connected** in green, **Connecting** in amber, **Needs attention** in red, **Off**, then what it is doing
-and the **safety phrase** once there is a call), one big button, a **Home** card (the switchboard and the home number, with **Edit** behind it), and two switches. Fill in the switchboard, the home number, a token if needed, and a
+and the **safety phrase** once there is a call), one big button, a **Line** card (the switchboard and the number it dials, with **Edit** behind it), and two switches. Fill in the switchboard, the number to dial, a token if needed, and a
 name for the phone if the link did not, and press **Turn on**. The system asks once to allow the VPN. Compare the safety phrase with the one on the home node's screen, once, when the call is first made (the same as between two
 desktops; [PROTOCOL §3](PROTOCOL.md)). The home node answers by its own policy (`longwire policy`, or `longwire answer auto`).
 
 **The address** is not typed: it comes from DHCP, from the home router, and the router is told the phone's name (the one you set, or the phone's model if you set none, made into a host name: lower case, hyphens, 32 characters at most), so its list says whose phone it is and not "longwire", as it would for a laptop on the home network. The phone's hardware address is made from its key, so it is always the same one, and the router
 tends to give it the same address; a reservation in the router for that address pins it.
 
-By default the tunnel carries only the home network's subnet: the printer and the NAS, not the whole internet. "Send everything through home" adds the default route; the home node then needs `--exit` sharing for
+By default the tunnel carries only the home network's subnet: the printer and the NAS, not the whole internet. "Send everything through the line" adds the default route; the home node then needs `--exit` sharing for
 the internet to work ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)).
 
 ## Always on, and the battery
@@ -67,9 +67,9 @@ A phone that is connected all day should cost little, and what costs is waking u
 
 ## What it does not do yet
 
-- **IPv6** is not carried *(planned: M6)*. With "send everything through home" it is dropped, not let past the line; without it, the phone's IPv6 goes out the normal way.
+- **IPv6** is not carried *(planned: M6)*. With "send everything through the line" it is dropped, not let past the line; without it, the phone's IPv6 goes out the normal way.
 - **The identity** is a file in the app's private storage. If the phone is lost, or the app's data is cleared, the phone is a new member and the home node must be told its new number. A recovery phrase and the Android
   Keystore are planned (M6).
 - **The leaf role** *(planned: M6)* would let the phone ask home to keep quiet, which is where the rest of the saving is.
-- **One home number**; no list of homes, no switching.
+- **One number to dial**; no list of them, no switching.
 - **No system call filter** on the engine in the phone (the process is the app's, under Android's own sandbox).

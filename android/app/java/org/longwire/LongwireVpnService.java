@@ -16,7 +16,7 @@ import org.json.JSONObject;
 
 /**
  * The phone's longwire (docs/adr/0076). The system gives an IP tunnel; the engine (a node whose port is the phone's adapter) puts it on the line: it asks the far LAN for an address, and this builds the tunnel
- * with what the LAN said. This service starts the engine, dials the home number when the line has a dial tone, and builds the tunnel again when the address moves. The engine's own sockets stay outside the
+ * with what the LAN said. This service starts the engine, dials its number when the line has a dial tone, and builds the tunnel again when the address moves. The engine's own sockets stay outside the
  * tunnel because the app is not routed through it (addDisallowedApplication): otherwise the line would be carried through itself.
  */
 public class LongwireVpnService extends VpnService {
@@ -24,6 +24,8 @@ public class LongwireVpnService extends VpnService {
     /** What the screen shows; written here, read there. */
     static volatile String status = "Off";
     static volatile String phrase = "";
+    /** One line for the notification: who it is joined to, and through which switchboard. The address and the gateway are for the screen. */
+    static volatile String note = "";
     static volatile boolean running;
     /** 0 off, 1 working on it, 2 connected, 3 needs attention: what the screen's colour says. */
     static volatile int level;
@@ -82,7 +84,11 @@ public class LongwireVpnService extends VpnService {
     private void supervise() {
         SharedPreferences p = getSharedPreferences("longwire", MODE_PRIVATE);
         String dir = getFilesDir().getPath();
-        String home = p.getString("home", "").trim();
+        String dial = p.getString("dial", "").trim();
+        String sbHost = p.getString("switchboard", "").trim();
+        if (sbHost.contains("/")) {
+            sbHost = sbHost.substring(0, sbHost.indexOf('/'));
+        }
         boolean all = p.getBoolean("all", false);
         String err = Engine.start(dir, p.getString("switchboard", "").trim(), p.getString("token", "").trim(), (p.getString("name", "").trim().isEmpty() ? Build.MODEL : p.getString("name", "").trim()), false, p.getBoolean("saver", false) ? 55 : 25);
         if (!err.isEmpty()) {
@@ -111,13 +117,17 @@ public class LongwireVpnService extends VpnService {
                 gen = -1;
             }
             phrase = "";
-            boolean lineUp = false;			// a session to a member of the line, which is not the same as having an address: the address is kept when home goes away
+            boolean lineUp = false;			// a session to a member of the line, which is not the same as having an address: the address is kept when the other end goes away
+            String peerNum = "";
             if (st != null) {
                 JSONArray peers = st.optJSONArray("peers");
                 for (int i = 0; peers != null && i < peers.length(); i++) {
                     JSONObject q = peers.optJSONObject(i);
                     if (q != null && "up".equals(q.optString("state"))) {
                         lineUp = true;
+                        if (peerNum.isEmpty()) {
+                            peerNum = q.optString("number");
+                        }
                         if (!q.optString("phrase").isEmpty()) {
                             phrase = q.optString("phrase");
                         }
@@ -130,27 +140,30 @@ public class LongwireVpnService extends VpnService {
                 status = "The engine does not answer";
             } else if (bound && lineUp) {
                 level = 2;
-                status = "Connected: " + m.optString("ip") + " through " + m.optString("gateway");
+                String who = peerNum.isEmpty() ? dial : peerNum;
+                status = "Connected to " + who + "\nthrough " + sbHost + "\nyour address " + m.optString("ip") + ", gateway " + m.optString("gateway");
+                note = "Connected to " + who + " · " + sbHost;
             } else if (!lineUp && "dial tone".equals(sbs)) {
-                // no session to home: call it. This holds with an address too: home restarted, or the road changed, and the address is kept while the line is made again.
-                status = bound ? "Home is not answering: calling it again (the address is kept)" : "On the line, calling home";
+                // no session with the number: call it. This holds with an address too: the other end restarted, or the road changed, and the address is kept while the line is made again.
+                status = bound ? "Lost " + dial + ": calling it again (the address is kept)" : "On the line, calling " + dial;
                 long now = System.currentTimeMillis();
-                if (!home.isEmpty() && "idle".equals(call) && now - lastDial > 5000) {
+                if (!dial.isEmpty() && "idle".equals(call) && now - lastDial > 5000) {
                     lastDial = now;
-                    JSONObject r = ctl.ask("dial " + home);
+                    JSONObject r = ctl.ask("dial " + dial);
                     if (r != null && r.has("error") && !r.optString("error").startsWith("already")) {	// "already calling": the engine is on it
                         level = 3;
                         status = "Cannot dial: " + r.optString("error");
                     }
                 }
             } else if (m != null && "asking".equals(m.optString("member")) && lineUp) {
-                status = "Connected to home, asking its network for an address";
+                status = "Connected to " + (peerNum.isEmpty() ? dial : peerNum) + ", asking its network for an address";
             } else {
                 status = "Reaching the switchboard (" + (sbs.isEmpty() ? "?" : sbs) + ")";
             }
-            if (!status.equals(shown)) {		// the notification says what the screen says, when it changes and not otherwise
-                shown = status;
-                foreground(status);
+            String line = level == 2 && !note.isEmpty() ? note : status.split("\n")[0];
+            if (!line.equals(shown)) {		// the notification says who the line is to, when that changes and not otherwise
+                shown = line;
+                foreground(line);
             }
             try {
                 Thread.sleep(visible ? 1000 : 5000);

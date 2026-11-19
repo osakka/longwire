@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "November 2026" "longwire 0.5.63" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "November 2026" "longwire 0.5.64" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
@@ -16,7 +16,7 @@ longwire-switchboard \- the longwire rendezvous server: gives nodes their number
 .br
 .B longwire-switchboard token invite \-\-host
 .IR HOST:PORT
-.RB [ \-\-home " " \fINUMBER\fR "] [" \-\-name " " \fITEXT\fR "] [" \-\-tokens " " \fIFILE\fR "] [" \-\-state " " \fIDIR\fR ]
+.RB [ \-\-dial " " \fINUMBER\fR "] [" \-\-name " " \fITEXT\fR "] [" \-\-tokens " " \fIFILE\fR "] [" \-\-state " " \fIDIR\fR ]
 .br
 .B longwire-switchboard bans
 .BR list " | " clear
@@ -174,8 +174,8 @@ takes one out (a token with a reserved number goes by its first word).
 .B token invite
 makes one token and prints it as a link a phone opens:
 .I longwire://enroll?sb=HOST:PORT/ADDRESS&token=TOKEN
-and, if given, the number of the home node
-.RB ( \-\-home )
+and, if given, the number the phone is to dial
+.RB ( \-\-dial )
 and a name for the phone
 .RB ( \-\-name ).
 .B \-\-host

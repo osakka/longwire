@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.64
+
+**The phone says who it is joined to** ([ADR 0079](docs/adr/0079-the-phone-says-who-it-is-joined-to.md)), the owner's remarks on 0.5.63: a prettier logo (the rotary telephone with its handset on the cradle and the dial's finger holes); no more
+"Home": the card is **Line** (the switchboard and the **number to dial**), and the invitation's option is `token invite --dial NUMBER` (it was `--home`; the link's parameter is `dial=`); the notification says
+`Connected to 312-884-076 · sb.example.org:1877` instead of an address and a gateway. The phone's saved number is asked for once again. Not run on a phone.
+
 ## 0.5.63
 
 **A phone with a face, a logo and a battery** ([ADR 0078](docs/adr/0078-a-phone-with-a-face-a-logo-and-a-battery.md)), the owner's asks. The app has a logo (the classic rotary telephone with the wire hanging under it,

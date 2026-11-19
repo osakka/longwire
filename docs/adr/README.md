@@ -87,6 +87,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0076](0076-the-phone-is-a-member-with-an-adapter-and-an-app.md) | The phone is a member, with an adapter and an app | accepted; built in 0.5.61, not run on a phone |
 | [0077](0077-a-phone-is-enrolled-by-a-link.md) | A phone is enrolled by a link | accepted; built in 0.5.62 |
 | [0078](0078-a-phone-with-a-face-a-logo-and-a-battery.md) | A phone with a face, a logo and a battery | accepted; built in 0.5.63 |
+| [0079](0079-the-phone-says-who-it-is-joined-to.md) | The phone says who it is joined to | accepted; built in 0.5.64 |
 
 ---
 

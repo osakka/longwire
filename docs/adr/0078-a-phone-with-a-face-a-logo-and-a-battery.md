@@ -8,7 +8,7 @@ instead of typing it.
 1. **The logo is the classic rotary telephone** (the glyph the menu bar draws under Blit's glyphs: the handset over a trapezoid body with a dial) in copper and insulator on line black, the wire hanging below it and
    the signal on it (`brand/app-icon.svg`). In the app it is an adaptive launcher icon and a one-colour notification icon, vector drawables, built into the APK by the resource compiler.
 2. **The screen is rebuilt** on the brand's palette: a status card whose colour says the state (green connected, amber connecting, red needs attention, grey off), the detail under it and the safety phrase; one large
-   button; a Home card that says the switchboard and the number and keeps the fields behind Edit; the two switches; and, until it is allowed, a card asking to let it run in the background. It follows the system's light or dark
+   button; a Line card that says the switchboard and the number it dials and keeps the fields behind Edit; the two switches; and, until it is allowed, a card asking to let it run in the background. It follows the system's light or dark
    mode. It is monospace, as numbers are.
 3. **The battery**: an engine inside an app sleeps a second at a time when no call is being made and every session is up (a call or a handshake wakes it as before, a packet wakes it at once; only the timers are coarser);
    the app's own loop looks every second with the screen on and every five with it off; a phone renews its keys every five minutes, not two; **Battery saver** sends the keep-alive every 55 s, not 25; and the app asks
