@@ -63,6 +63,42 @@ public class MainActivity extends Activity {
             requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 2);
         }
         tick.run();
+        enroll(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        enroll(i);
+    }
+
+    /**
+     * A link from a switchboard's owner (`longwire-switchboard token invite`), opened from a message, an email or a scanned QR code: the switchboard, a token and, if the owner said, which number is home.
+     * It fills the form and says so; it turns nothing on. Anything that is not what such a link carries is refused, whoever sent it.
+     */
+    private void enroll(Intent i) {
+        android.net.Uri u = i == null ? null : i.getData();
+        if (u == null || !"longwire".equals(u.getScheme()) || !"enroll".equals(u.getHost())) {
+            return;
+        }
+        String s = u.getQueryParameter("sb"), t = u.getQueryParameter("token"), h = u.getQueryParameter("home"), n = u.getQueryParameter("name");
+        boolean ok = s != null && s.matches("[A-Za-z0-9._-]{1,200}:[0-9]{1,5}/lw1[a-z2-7]{52}")
+            && (t == null || t.matches("[0-9a-f]{32}"))
+            && (h == null || h.matches("[0-9]{3}-[0-9]{3}-[0-9]{3}|lw1[a-z2-7]{52}"))
+            && (n == null || (n.length() <= 40 && n.matches("[\\p{L}\\p{N} ._'-]*")));
+        if (!ok) {
+            android.widget.Toast.makeText(this, "That link is not a Longwire invitation", android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        sb.setText(s);
+        token.setText(t == null ? "" : t);
+        if (h != null) {
+            home.setText(h);
+        }
+        if (n != null && name.getText().length() == 0) {
+            name.setText(n);
+        }
+        android.widget.Toast.makeText(this, "Invitation read: check it, then Turn on", android.widget.Toast.LENGTH_LONG).show();
     }
 
     private EditText field(LinearLayout col, String hint, String value, int type) {

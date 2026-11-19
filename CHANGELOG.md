@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.62
+
+**A phone is enrolled by a link** ([ADR 0077](docs/adr/0077-a-phone-is-enrolled-by-a-link.md)), the owner's idea: `longwire-switchboard token invite --host HOST:PORT [--home NUMBER] [--name TEXT]` makes one token and prints a
+`longwire://enroll?...` link (and a QR code in the terminal if `qrencode` is installed; the packages suggest it). The phone opens it from a message, an email or its camera, and the app fills in its form, turning nothing on, and
+refuses anything that is not what such a link carries. The switchboard's key is read from its seed, never copied by hand. Not run on a phone.
+
 ## 0.5.61
 
 **The Android app** ([ADR 0076](docs/adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md), [guide](docs/ANDROID.md)), the owner's request: a phone joins a line as a member through Android's own VPN. `engine/member.c` is the adapter

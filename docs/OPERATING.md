@@ -53,7 +53,8 @@ use, the tokens that have not been spent.) These steps have not been run under a
 
 The switchboard script can make, list and remove tokens itself, with no switchboard running and no `openssl`: `please longwire-switchboard token new 3 --tokens /var/lib/longwire-switchboard/tokens`
 prints three new tokens and adds them to the file (mode 0600); `token list` shows the unspent ones; `token remove TOKEN` takes one out. Run as root it keeps the file
-owned by the folder's owner, the service. The **Switchboard** window does the same from the desktop (View > Tokens, [DESKTOP](DESKTOP.md#the-switchboard-window)).
+owned by the folder's owner, the service. `token invite --host HOST:PORT [--home NUMBER] [--name TEXT]` makes one token and prints it as a **link a phone opens** ([ANDROID](ANDROID.md#enrolling-a-phone),
+[ADR 0077](adr/0077-a-phone-is-enrolled-by-a-link.md)), and as a QR code to scan if `qrencode` is installed. The **Switchboard** window does the same from the desktop (View > Tokens, [DESKTOP](DESKTOP.md#the-switchboard-window)).
 
 Open the firewall (`please ufw allow 6741,9488/udp`, or your own tool), read its address, and give each user a token:
 

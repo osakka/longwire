@@ -27,9 +27,22 @@ compiler rule ([ADR 0021](adr/0021-tcc-is-the-compiler-without-exception.md)); t
 **Signing is yours.** Android installs nothing unsigned. Point the script at your key: `LW_KEYSTORE=~/my.jks LW_KEY_ALIAS=longwire sh android/build-apk.sh` (it asks for the password), which writes
 `build/android/longwire-VERSION.apk`; or sign the `.unsigned` file yourself with the SDK's `build-tools/36.0.0/apksigner sign --ks KEYSTORE --out longwire.apk longwire-VERSION.apk.unsigned`. Without a key it writes `longwire-VERSION.apk.unsigned`; no key is made or kept for you. Install with `adb install build/android/longwire-VERSION.apk`, or copy the file to the phone.
 
+## Enrolling a phone
+
+Typing a switchboard's 55-character address on a phone is the manual way, and nobody should. On the machine that runs the switchboard:
+
+```sh
+please longwire-switchboard token invite --host sb.example.org:6741 --home 312-884-076 --name "Omar's phone"
+```
+
+(`--host` is where the phone reaches the switchboard; `--home` is the number of the home node; `--name` is optional.) It makes **one token**, good once, and prints a `longwire://enroll?...` link and, if
+`qrencode` is installed, the same as a QR code in the terminal. Send the link to the phone in a message or an email, or point the phone's camera at the QR code: the phone offers to open it in **Longwire**, which fills in
+the form and says so. Nothing is turned on until you press **Turn on**. The link is a secret between you and that phone: anyone who opens it first uses the token. The app refuses anything that is not exactly what
+such a link carries.
+
 ## Using it
 
-Open **Longwire**, fill in the switchboard, the home number, a token if needed, and a name for the phone, and press **Turn on**. The system asks once to allow the VPN. The screen says where it is: reaching the switchboard,
+Open **Longwire** (or the invitation link), fill in the switchboard, the home number, a token if needed, and a name for the phone if the link did not, and press **Turn on**. The system asks once to allow the VPN. The screen says where it is: reaching the switchboard,
 calling home, connected to home and asking its network for an address, connected with the address and gateway. The **safety phrase** shown is the one the home node's screen shows: compare them, once, when the call
 is first made (the same as between two desktops; [PROTOCOL §3](PROTOCOL.md)). The home node answers by its own policy (`longwire policy`).
 
