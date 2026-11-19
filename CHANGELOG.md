@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 "Home": the card is **Line** (the switchboard and the **number to dial**), and the invitation's option is `token invite --dial NUMBER` (it was `--home`; the link's parameter is `dial=`); the notification says
 `Connected to 312-884-076 · sb.example.org:1877` instead of an address and a gateway. The phone's saved number is asked for once again. Not run on a phone.
 
+Published: hibr-apps 3b88437, hibr-apt 3ec96b2, hibr-rpm f82d9ed, hibr-arch a61fbc5.
+
 ## 0.5.63
 
 **A phone with a face, a logo and a battery** ([ADR 0078](docs/adr/0078-a-phone-with-a-face-a-logo-and-a-battery.md)), the owner's asks. The app has a logo (the classic rotary telephone with the wire hanging under it,
