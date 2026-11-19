@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.61
+
+**The Android app** ([ADR 0076](docs/adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md), [guide](docs/ANDROID.md)), the owner's request: a phone joins a line as a member through Android's own VPN. `engine/member.c` is the adapter
+(a MAC of its own, a DHCPv4 client that asks the far LAN for the address, ARP, IPv4 wrapped and unwrapped), a node with the port `member`, run *embedded* on a thread of the app's process (`android/jni.c`); the app
+(`android/app/`, Java) builds the tunnel from the lease, dials home, and builds it again when the address moves. `sh android/build-apk.sh` builds the APK, signed only with the owner's key. **Built and tested on Linux
+(`tests/leaf.sh`, `tests/leafnet.sh`); not run on a phone.** IPv6, the one-session leaf role, the Keystore and a recovery phrase are planned (M6). Nothing changes for desktops and switchboards.
+
 ## 0.5.60
 
 **The Switchboard window says what matters** ([ADR 0075](docs/adr/0075-the-switchboard-window-says-what-matters.md)), the owner's remarks: the heading was the switchboard's own key cut to 30 characters, which no one can read or use.

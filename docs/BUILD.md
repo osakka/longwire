@@ -94,7 +94,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.60
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.61
 # modules: longwire
 ```
 
@@ -190,7 +190,7 @@ Measured in the design spike (x86_64, TCC 0.9.27): the complete crypto test harn
 | **Linux**, unprivileged | shell | *(planned: M5)* |
 | **FreeBSD / OpenBSD** | splice (BPF), jack (tap) | `net.link.tap.user_open=1`; BPF device permissions for splice *(planned: M5)* |
 | **macOS** | splice (BPF, wired), member (utun) | BPF injection works with `/dev/bpf*` access, as Wireshark's ChmodBPF grants; macOS has no L2 tap without a system extension *(planned: M5)* |
-| **Android** | member | `engine/` built by TCC for arm64 into a library a small Kotlin `VpnService` app loads, the UDP socket `protect()`ed; the only place without hibr. Whether TCC can build an Android-loadable library is unverified and comes first *(planned: M6)* |
+| **Android** | member | `engine/` built by TCC for arm64 into a library a small Java `VpnService` app loads (`sh android/build-native.sh`, `sh android/build-apk.sh`); the app is left out of the tunnel so the engine's sockets need no `protect()`; the only place without hibr. Built; its first run on a phone is the owner's ([ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md)) |
 | **Windows**, **iOS** | member | *(planned)* |
 
 ## The module and hibr's ABI

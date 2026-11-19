@@ -15,7 +15,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 | **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | built, apart from PCP and relay candidates *(planned: M7)*; the independent doc review is done |
 | **M4** | Desktop and distribution | planned |
 | **M5** | No privilege, more Unix | planned |
-| **M6** | Pocket: member mode, Android | planned |
+| **M6** | Pocket: member mode, Android | built in part: the adapter and the app, not yet run on a phone |
 | **M7** | Speed | planned |
 | **M8** | 1.0: verification | planned |
 | **M9** | Operator grade: replicas, federation, a switchboard that can run a service for others | proposed |
@@ -93,9 +93,9 @@ and then dial and pick up entirely from the hibr desktop.
   for init systems other than systemd
 
 **M6: Pocket.** Done when a phone on mobile data gets a lease from the home router and prints to the home printer.
-- The member-mode adapter (a virtual MAC, a DHCPv4 client, ARP and NDP responders); the leaf role; the Android app
-  (`VpnService` around `engine/` through JNI, the one piece outside hibr). TCC builds the engine as an Android library and its arm64 code is correct under
-  emulation ([ADR 0074](adr/0074-tcc-builds-the-engine-for-android.md)); not yet run on a device
+- *Built:* the member-mode adapter (a virtual MAC, a DHCPv4 client, an ARP responder, IPv4 wrapped and unwrapped, `engine/member.c`) and the Android app (a `VpnService` around `engine/` through JNI, the one piece outside hibr),
+  [ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md); TCC builds the engine as an Android library and its arm64 code is correct under emulation ([ADR 0074](adr/0074-tcc-builds-the-engine-for-android.md)). *Not run on a phone yet.*
+- IPv6 for members (SLAAC, NDP); the leaf role (one session, for the battery); the seed kept in the Android Keystore; a recovery phrase shown in the app; a kill switch (the system's "block connections without VPN" does it today)
 
 **M7: Speed.** Done when the TCC build reaches 600 Mbit/s on x86-64.
 - PCP as a further address, and public members of a line offered as relay candidates to callers outside it

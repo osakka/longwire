@@ -59,6 +59,7 @@ typedef struct lw_cfg {
 	int  has_authority;
 	uint8_t admit[145];		/* an operator-signed admit to present before this node is on any line */
 	int  has_admit;
+	int  embedded;			/* the engine runs inside another program (a phone's app): it closes none of that program's descriptors, takes no signals and puts no system call filter on a process that is not its own (docs/adr/0076) */
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	char underlay[32];		/* the network device to reach the world by when the jack has the other end's network ("": the default route's) */
 	int  everything;		/* everything goes through the line (docs/adr/0045): tie every socket of ours to the real device */

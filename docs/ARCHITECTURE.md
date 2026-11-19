@@ -53,7 +53,7 @@ modes differ only in what that port is:
 | **sock** | frames as datagrams on a Unix socket | none | for tests and experiments only |
 | **none** | no local port | none | what the switchboard uses: it never sees a frame |
 | **shell** | A tap inside an unprivileged user + network namespace | **None** | *(planned: M5)* `longwire shell` hands you a shell whose only network is the line. |
-| **member** | An L3 TUN from the OS: Android `VpnService`, macOS utun, Windows wintun | The OS VPN consent prompt | *(planned: M6)* See §5. |
+| **member** | An L3 TUN from the OS: Android `VpnService` (built, [ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md)); macOS utun, Windows wintun *(planned: M6)* | The OS VPN consent prompt | See §5. |
 | **BSD / macOS splice** | BPF device | access to `/dev/bpf*` | *(planned: M5)* |
 
 **A node always runs as an ordinary user.** For splice, the service manager starts the node script with
@@ -141,7 +141,7 @@ In the test suite the active box is killed and traffic resumes, with nothing don
 (the test allows up to 14). A takeover within two seconds of the group forming, before the first list has been shared, falls back to
 ordinary learning and is slower.
 
-## 5. Member mode: a phone as an Ethernet host *(planned: M6)*
+## 5. Member mode: a phone as an Ethernet host
 
 Android and macOS give apps an IP tunnel, not Ethernet. longwire bridges the gap **in userspace**, on the device:
 
@@ -154,7 +154,10 @@ Android and macOS give apps an IP tunnel, not Ethernet. longwire bridges the gap
 5. The tunnel gets the lease's address and, by default, only the line's subnet (*split*). `--all-traffic` also
    routes the default route through the far site's gateway.
 
-Members, along with laptops in jack mode that ask for it, are **leaves**: a leaf keeps *one* session, to the node it
+*Built* (Android, [ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md)): 1, 2, the ARP half of 3, 4 and 5 (the tunnel carries the line's subnet, or everything with `all traffic`), in `engine/member.c`, tested
+against a scripted LAN and on a real line (`tests/leaf.sh`, `tests/leafnet.sh`). *Planned (M6):* IPv6 (SLAAC and an NDP responder: until then IPv6 is dropped, and with `all traffic` the tunnel black-holes it rather than let it past the line), and the leaf role below.
+
+Members, along with laptops in jack mode that ask for it, are **leaves** *(planned: M6)*: a leaf keeps *one* session, to the node it
 dialed, and that node treats the leaf like a host on its local port. One session means one keepalive, which a phone
 battery appreciates. Sites are **trunks**, a full mesh.
 
@@ -223,6 +226,7 @@ engine/                      plain C99: never includes hibr.h, so the Android ap
   sess.c                     sessions and the peer table: data packets, replay window, rekey, keepalive
   sw.c                       the switch: MAC table, flood, split horizon, frame split, MSS clamp, ARP, re-segmenting
   site.c                     site groups: probes, election, standby, takeover
+  member.c                   the phone's adapter: a MAC, DHCPv4, ARP, IPv4 wrapped and unwrapped (a state machine over frames and a clock), and the node's side of it (ADR 0076)
   line.c                     lines: members, admits, eviction, persistence, the mesh maintainer
   exit.c                     the exit: a member that shares its internet says so (M_EXIT), the choice of exit, frames for the exit gateway handed to it (ADR 0056)
   relay.c                    relaying: the route table, wrapped datagrams, relay requests, path upgrade
@@ -256,8 +260,8 @@ bundles/longwire.json       the catalogue bundle that installs the pane, the bar
 packaging/                   deb, rpm and arch builds, the launcher, the two root helpers (longwire-jack, installed as jack and jack-everything, and longwire-site) and their three polkit actions, the group, the systemd units (Homebrew *(planned: M5)*)
 ```
 
-When the Android app comes (M6), it builds `engine/` with TCC for arm64 into a library behind a small Kotlin `VpnService`. That is the
-only place the engine is used without hibr.
+The Android app builds `engine/` with TCC for arm64 into a library (`android/jni.c`) behind a small `VpnService` in Java (`android/app/`). That is the
+only place the engine is used without hibr; there it runs *embedded*, on a thread of the app's own process ([ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md)).
 
 **The control socket.** The worker owns the sockets, the port and all keys. The node script, `longwire` commands
 in other terminals and the desktop pane all reach it through `lw` verbs, which travel over a Unix socket (mode 0600

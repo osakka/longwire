@@ -1,6 +1,6 @@
 # 0074 — TCC builds the engine for Android
 
-Status: accepted; the build is made (0.5.60). The app around it *(planned: M6)*. The owner asked for the Android app ("a longwire APK that interfaces with the system VPN"); [ADR 0021](0021-tcc-is-the-compiler-without-exception.md) said the
+Status: accepted; the build is made (0.5.60). The adapter and the app around it are built, [ADR 0076](0076-the-phone-is-a-member-with-an-adapter-and-an-app.md). The owner asked for the Android app ("a longwire APK that interfaces with the system VPN"); [ADR 0021](0021-tcc-is-the-compiler-without-exception.md) said the
 first thing to settle was whether TCC can build the engine as an Android library, since the rule leaves no other compiler.
 
 ## Context

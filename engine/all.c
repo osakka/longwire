@@ -5,6 +5,7 @@
 #include "hs.c"
 #include "sess.c"
 #include "sw.c"
+#include "member.c"
 #include "site.c"
 #include "line.c"
 #include "exit.c"

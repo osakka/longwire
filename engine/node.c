@@ -279,10 +279,11 @@ void lw_node_release(lw_node *n)
 		close(n->uudp);
 	if (n->udp6 >= 0)
 		close(n->udp6);
-	if (n->port_fd >= 0)
+	if (n->port_fd >= 0 && !n->leaf)		/* a member's tunnel is the app's own */
 		close(n->port_fd);
 	if (n->ctl_fd >= 0)
 		close(n->ctl_fd);
+	free(n->leaf);
 	crypto_wipe(&n->id, sizeof n->id);
 	free(n->calls);
 	free(n->peers);
@@ -348,30 +349,32 @@ int lw_node_serve(lw_node *n)
 	int i;
 
 	n->rx_fd = n->udp >= 0 ? n->udp : n->udp6;
-	close_inherited(n);
-	{					/* a crash must not leave the seed or the KEM key in a file */
-		struct rlimit nocore = { 0, 0 };
+	if (!n->cfg.embedded) {			/* a worker of its own: it holds nothing of its starter's, and is confined */
+		close_inherited(n);
+		{					/* a crash must not leave the seed or the KEM key in a file */
+			struct rlimit nocore = { 0, 0 };
 
-		setrlimit(RLIMIT_CORE, &nocore);
-	}
-	mlock(&n->id, sizeof n->id);		/* locks don't survive fork(); failure (rlimit) is not fatal */
-	signal(SIGTERM, on_term);
-	signal(SIGINT, on_term);
-	signal(SIGPIPE, SIG_IGN);
-	{					/* everything the loop needs is open: close the files and system calls it can reach, for good (docs/adr/0062). A worker that cannot be confined does not run. */
-		char e2[300] = "";
+			setrlimit(RLIMIT_CORE, &nocore);
+		}
+		mlock(&n->id, sizeof n->id);		/* locks don't survive fork(); failure (rlimit) is not fatal */
+		signal(SIGTERM, on_term);
+		signal(SIGINT, on_term);
+		signal(SIGPIPE, SIG_IGN);
+		{					/* everything the loop needs is open: close the files and system calls it can reach, for good (docs/adr/0062). A worker that cannot be confined does not run. */
+			char e2[300] = "";
 
-		if (lw_sandbox(n, e2, sizeof e2)) {
-			char path[320];
-			FILE *ef;
+			if (lw_sandbox(n, e2, sizeof e2)) {
+				char path[320];
+				FILE *ef;
 
-			snprintf(path, sizeof path, "%s/worker.err", n->cfg.state_dir);
-			if ((ef = fopen(path, "w"))) {
-				fprintf(ef, "%s\n", e2);
-				fclose(ef);
+				snprintf(path, sizeof path, "%s/worker.err", n->cfg.state_dir);
+				if ((ef = fopen(path, "w"))) {
+					fprintf(ef, "%s\n", e2);
+					fclose(ef);
+				}
+				free(pf);
+				return -1;
 			}
-			free(pf);
-			return -1;
 		}
 	}
 	while (!n->stop && !g_stop) {
@@ -438,6 +441,8 @@ int lw_node_serve(lw_node *n)
 		if (pf[2].revents & POLLIN)
 			ctl_accept(n);
 		sess_timers(n);
+		if (n->leaf)
+			leaf_step(n);
 		if (n->role)
 			board_timers(n);
 		else

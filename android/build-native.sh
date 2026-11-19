@@ -36,5 +36,5 @@ BSW64='-D__builtin_bswap64(x)=((unsigned long long)((((x)&0xffull)<<56)|(((x)&0x
 	-D__ANDROID__ -D__ANDROID_API__="$API" -DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD -D_Nonnull= -D_Nullable= -D_Null_unspecified= \
 	'-D__has_feature(x)=0' '-D__has_builtin(x)=0' '-D__has_attribute(x)=0' '-D__has_include(x)=0' '-D__has_include_next(x)=0' "$BSW16" "$BSW32" "$BSW64" \
 	-D__PRETTY_FUNCTION__=__func__ -include android/shim.h -DLW_VERSION="\"$(cat VERSION)\"" -Wall -shared \
-	-o build/android/liblongwire.so engine/all.c $VEND -L"$SR/usr/lib/aarch64-linux-android/$API" -lc -ldl
+	-o build/android/liblongwire.so android/jni.c $VEND -L"$SR/usr/lib/aarch64-linux-android/$API" -lc -ldl
 echo "android: build/android/liblongwire.so ($(wc -c < build/android/liblongwire.so) bytes, arm64-v8a, API $API)"

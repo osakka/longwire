@@ -226,6 +226,35 @@ typedef struct pin {
 
 struct board;
 
+/* member.c: a phone as a host on the line (docs/adr/0076). The OS gives IP packets; the line carries Ethernet frames. A member has a MAC of its own, asks the far LAN for an address (DHCPv4),
+ * answers ARP for it, and wraps and unwraps IP. It is a state machine over frames and a clock: it sends and delivers through two functions it is given, and touches no descriptor. */
+#define MB_ARP 16
+enum { MB_INIT, MB_SELECT, MB_REQUEST, MB_BOUND, MB_RENEW };
+typedef void (*lw_mtx)(void *ctx, const uint8_t *frame, size_t len);	/* a frame toward the line */
+typedef void (*lw_mup)(void *ctx, const uint8_t *ip, size_t len);	/* an IP packet toward the OS tunnel */
+typedef struct lw_leaf {
+	uint8_t  mac[6];
+	int      state, tries;
+	uint32_t xid, ip, mask, gw, server, dns[3];
+	int      ndns;
+	uint32_t offer_ip, offer_server, lease, t1, t2;
+	char     domain[64];
+	int      mtu;			/* the far LAN's interface MTU (option 26), 0 if it said none */
+	unsigned gen;			/* counts changes of address: the app builds its tunnel again when it moves */
+	double   t_next, t_bound, ask_t, pend_t;
+	struct { uint32_t ip; uint8_t mac[6]; double t; } arp[MB_ARP];
+	uint8_t  pend[1500];
+	size_t   pendlen;
+	uint32_t pend_hop;
+	int      pend_asks;
+	uint64_t os_in, os_out, drop_v6, drop_os, drop_line, arp_answered, dhcp_sent;
+} lw_leaf;
+void leaf_init(lw_leaf *m, const uint8_t key_id[32], double now);
+void leaf_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx);
+void leaf_from_os(lw_leaf *m, double now, const uint8_t *pkt, size_t len, lw_mtx tx, void *ctx);
+void leaf_from_line(lw_leaf *m, double now, const uint8_t *f, size_t len, lw_mtx tx, void *ctx, lw_mup up, void *uctx);
+int  leaf_bound(const lw_leaf *m);
+
 #define LW_JNETS 32
 typedef struct lw_jnet {		/* a network connected to the jack: address and mask, one family */
 	uint8_t fam, net[16], mask[16];
@@ -237,6 +266,9 @@ struct lw_node {
 	uint8_t  mac1_key[32];		/* H("mac1" | my key_id) */
 	int      udp, port_fd, ctl_fd, stop;
 	int      port_is_sock;
+	int leaf_want;		/* the app's handing over of the tunnel from its own thread: the loop takes it at the top of an iteration (leaf_attach) */
+	unsigned leaf_asked, leaf_done;
+	lw_leaf *leaf;			/* a member: the phone's adapter (member.c); the port is the OS tunnel, attached later */
 	char     peer_sock[256];	/* sock port: where frames go */
 	lw_peer *peers;
 	int      maxpeers;
@@ -486,6 +518,13 @@ unsigned lw_sum16(const uint8_t *p, size_t n, unsigned sum);
 int  sw_remote_macs(lw_node *n, uint8_t out[][6], int max);	/* MACs learned behind peers */
 void sw_gratuitous(lw_node *n);
 void sw_fragment(lw_node *n, int pi, const uint8_t *body, size_t len, int ctl);	/* ctl: a control message in two parts, not a frame */
+
+int  leaf_open(lw_node *n, char *err, size_t errn);
+void leaf_attach(lw_node *n, int fd);
+void leaf_pump(lw_node *n);
+void leaf_line(lw_node *n, const uint8_t *f, size_t len);
+void leaf_step(lw_node *n);
+int  leaf_json(lw_node *n, char *out, size_t cap);
 
 /* port.c */
 int  port_open(lw_node *n, char *err, size_t errn);

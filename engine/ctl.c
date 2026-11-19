@@ -199,6 +199,8 @@ void ctl_accept(lw_node *n)
 	}
 	if (!strcmp(line, "status"))
 		len = n->role ? board_status_json(n, out, sizeof out) : node_status_json(n, out, sizeof out);
+	else if (!strcmp(line, "member"))
+		len = leaf_json(n, out, sizeof out);
 	else if (!strcmp(line, "stop")) {
 		n->stop = 1;
 		len = snprintf(out, sizeof out, "{\"node\":\"stopping\"}\n");

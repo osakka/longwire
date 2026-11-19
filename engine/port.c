@@ -105,6 +105,8 @@ int port_open(lw_node *n, char *err, size_t errn)
 		n->port_fd = fd;
 		return 0;
 	}
+	if (!strcmp(kind, "member"))		/* a phone: the OS gives IP packets, the adapter makes them Ethernet (docs/adr/0076) */
+		return leaf_open(n, err, errn);
 	if (!strcmp(kind, "none")) {		/* a switchboard has no local port */
 		n->port_fd = -1;
 		return 0;
@@ -140,6 +142,10 @@ int port_open(lw_node *n, char *err, size_t errn)
 
 int port_read(lw_node *n, uint8_t *buf, size_t cap)
 {
+	if (n->leaf) {				/* the adapter reads the tunnel itself and puts what it makes into the switch */
+		leaf_pump(n);
+		return -1;
+	}
 	if (n->splice) {			/* skip what this box itself put on the wire */
 		for (;;) {
 			struct lw_sll sll;
@@ -174,6 +180,10 @@ int port_read(lw_node *n, uint8_t *buf, size_t cap)
 
 void port_write(lw_node *n, const uint8_t *f, size_t len)
 {
+	if (n->leaf) {
+		leaf_line(n, f, len);
+		return;
+	}
 	if (n->port_is_sock) {
 		struct sockaddr_un a;
 

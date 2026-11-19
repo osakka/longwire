@@ -84,6 +84,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0073](0073-name-servers-say-so-when-they-cannot-be-asked.md) | Name servers say so when they cannot be asked, and systemd-resolved is suggested | accepted; built in 0.5.59 |
 | [0074](0074-tcc-builds-the-engine-for-android.md) | TCC builds the engine for Android | accepted; the build in 0.5.60, the app *(planned: M6)* |
 | [0075](0075-the-switchboard-window-says-what-matters.md) | The Switchboard window says what matters | accepted; built in 0.5.60 |
+| [0076](0076-the-phone-is-a-member-with-an-adapter-and-an-app.md) | The phone is a member, with an adapter and an app | accepted; built in 0.5.61, not run on a phone |
 
 ---
 
