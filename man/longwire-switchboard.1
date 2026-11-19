@@ -11,6 +11,10 @@ longwire-switchboard \- the longwire rendezvous server: gives nodes their number
 .BR new " [" \fIN\fR "] | " list " | " remove " " \fITOKEN\fR
 .RB [ \-\-tokens " " \fIFILE\fR "] [" \-\-state " " \fIDIR\fR ]
 .br
+.B longwire-switchboard token invite \-\-host
+.IR HOST:PORT
+.RB [ \-\-home " " \fINUMBER\fR "] [" \-\-name " " \fITEXT\fR "] [" \-\-tokens " " \fIFILE\fR "] [" \-\-state " " \fIDIR\fR ]
+.br
 .B longwire-switchboard bans
 .BR list " | " clear
 .RB [ \fIKEY\fR | all ]
@@ -156,7 +160,18 @@ registration tokens (one if omitted, at most 1000), appends them to the tokens f
 prints the unspent ones, and
 .B token remove
 takes one out (a token with a reserved number goes by its first word).
-They work on the tokens file only (mode 0600, rewritten whole beside itself), so no switchboard needs to run.
+.B token invite
+makes one token and prints it as a link a phone opens:
+.I longwire://enroll?sb=HOST:PORT/ADDRESS&token=TOKEN
+and, if given, the number of the home node
+.RB ( \-\-home )
+and a name for the phone
+.RB ( \-\-name ).
+.B \-\-host
+is where the phone reaches this switchboard.
+With qrencode installed it also draws the link as a QR code.
+The link is good once, for one phone.
+The other subcommands work on the tokens file only (mode 0600, rewritten whole beside itself), so no switchboard needs to run.
 Without
 .BR \-\-tokens ,
 the file is
