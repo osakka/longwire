@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later: the notification's small icon: one colour, the telephone and its wire -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:pathData="M22,32 Q22,22 33,22 L75,22 Q86,22 86,32 L86,42 L76,42 L76,33 Q76,32 75,32 L33,32 Q32,32 32,33 L32,42 L22,42 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M30,48 L78,48 L86,70 Q87,76 81,76 L27,76 Q21,76 22,70 Z" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="5" android:strokeLineCap="round" android:pathData="M26,88 C40,102 68,102 82,88" />
+</vector>

@@ -1,11 +1,14 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "November 2026" "longwire 0.5.62" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "November 2026" "longwire 0.5.63" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
 .B longwire-switchboard
 .BI \-\-registry " HOST:PORT/KEY" | none
 .RI [ options ]
+.br
+.B longwire-switchboard show
+.RB [ \-\-state " " \fIDIR\fR ]
 .br
 .B longwire-switchboard token
 .BR new " [" \fIN\fR "] | " list " | " remove " " \fITOKEN\fR
@@ -151,6 +154,14 @@ The service uses the group
 Members of the group can read its status, page through its nodes, list its bans and watch the calls; they are not sent the events that carry a token, an address or a ban.
 Only the user it runs as, or root, can stop it over the socket, decide its registrations or lift a ban.
 Without this option only the user it runs as may use the socket; not even root may.
+.SH SHOW
+.B show
+asks the running switchboard (as you, or the service's, as the Switchboard application finds it) for its address, its port and its version, and prints them with the commands that name it to a node and invite a phone.
+With
+.B token invite
+and no
+.BR \-\-host ,
+the switchboard's own port is used, with this machine's name.
 .SH TOKENS
 .B token new
 makes

@@ -21,7 +21,8 @@ rm -rf "$O"
 mkdir -p "$O/gen" "$O/cls" "$O/stage/lib/arm64-v8a"
 [ -f build/android/liblongwire.so ] || sh android/build-native.sh
 sed "s/@VERSIONCODE@/$VC/; s/@VERSION@/$V/" android/app/AndroidManifest.xml > "$O/AndroidManifest.xml"
-"$BT/aapt2" link -o "$O/base.apk" --manifest "$O/AndroidManifest.xml" -I "$JAR" --min-sdk-version 24 --target-sdk-version 34
+"$BT/aapt2" compile --dir android/app/res -o "$O/res.zip"
+"$BT/aapt2" link -o "$O/base.apk" --manifest "$O/AndroidManifest.xml" -I "$JAR" -R "$O/res.zip" --min-sdk-version 24 --target-sdk-version 34
 # shellcheck disable=SC2046
 "$J/bin/javac" -source 8 -target 8 -Xlint:-options -classpath "$JAR" -d "$O/cls" $(find android/app/java -name '*.java')
 "$BT/d8" --lib "$JAR" --min-api 24 --output "$O" $(find "$O/cls" -name '*.class')

@@ -1338,11 +1338,11 @@ int board_status_json(lw_node *n, char *o, size_t cap)
 	lw_hex(kid, n->id.key_id, 32);
 	lw_address(addr, n->id.key_id);
 	return LW_SN(o, cap,
-		"{\"node\":\"switchboard\",\"key_id\":\"%s\",\"address\":\"%s\",\"version\":\"%s\",\"uptime\":%d,\"numbers\":%d,\"online\":%d,"
+		"{\"node\":\"switchboard\",\"key_id\":\"%s\",\"address\":\"%s\",\"port\":%u,\"version\":\"%s\",\"uptime\":%d,\"numbers\":%d,\"online\":%d,"
 		"\"calls_ringing\":%d,\"policy\":\"%s\",\"drop_garbage\":%llu,\"code\":\"%s\",\"code_refused\":\"%s\",\"codes_issued\":%d,"
 		"\"max_nodes\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"cookies_got\":%llu,\"strikes_given\":%llu,\"bans_issued\":%llu,\"net_bans_issued\":%llu,\"ban_refused\":%llu,"
 		"\"rx_pkts\":%llu,\"rx_bytes\":%llu,\"tx_pkts\":%llu,\"tx_bytes\":%llu,\"rings\":%llu,\"put_through\":%llu,\"ended\":%llu,\"registrations\":%llu,\"bans_active\":%d,\"echo_shed\":%llu,\"ctl_split\":%llu,\"hs_replay\":%llu,\"hs_crossed\":%llu}\n",
-		kid, addr, LW_VERSION, (int)(n->now - n->started), b->n, online_n, calls,
+		kid, addr, (unsigned)n->udp_port, LW_VERSION, (int)(n->now - n->started), b->n, online_n, calls,
 		n->cfg.policy_script ? "script" : "open", (unsigned long long)n->drop_garbage, n->home_code, n->reg_why, b->ncodes, n->maxpeers,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->cookies_got,
 		(unsigned long long)n->strikes_given, (unsigned long long)n->bans_issued, (unsigned long long)n->net_bans_issued, (unsigned long long)n->bans_refused,

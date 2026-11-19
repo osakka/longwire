@@ -42,18 +42,34 @@ such a link carries.
 
 ## Using it
 
-Open **Longwire** (or the invitation link), fill in the switchboard, the home number, a token if needed, and a name for the phone if the link did not, and press **Turn on**. The system asks once to allow the VPN. The screen says where it is: reaching the switchboard,
-calling home, connected to home and asking its network for an address, connected with the address and gateway. The **safety phrase** shown is the one the home node's screen shows: compare them, once, when the call
-is first made (the same as between two desktops; [PROTOCOL §3](PROTOCOL.md)). The home node answers by its own policy (`longwire policy`).
+Open **Longwire** (or the invitation link). The screen is a status card (a coloured dot and one word: **Connected** in green, **Connecting** in amber, **Needs attention** in red, **Off**, then what it is doing
+and the **safety phrase** once there is a call), one big button, a **Home** card (the switchboard and the home number, with **Edit** behind it), and two switches. Fill in the switchboard, the home number, a token if needed, and a
+name for the phone if the link did not, and press **Turn on**. The system asks once to allow the VPN. Compare the safety phrase with the one on the home node's screen, once, when the call is first made (the same as between two
+desktops; [PROTOCOL §3](PROTOCOL.md)). The home node answers by its own policy (`longwire policy`, or `longwire answer auto`).
+
+**The address** is not typed: it comes from DHCP, from the home router, as it would for a laptop on the home network. The phone's hardware address is made from its key, so it is always the same one, and the router
+tends to give it the same address; a reservation in the router for that address pins it.
 
 By default the tunnel carries only the home network's subnet: the printer and the NAS, not the whole internet. "Send everything through home" adds the default route; the home node then needs `--exit` sharing for
 the internet to work ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)).
+
+## Always on, and the battery
+
+A phone that is connected all day should cost little, and what costs is waking up. Three things are done and one is yours:
+
+- **The engine sleeps** a second at a time when nothing is happening (a call or a handshake makes it wake as fast as ever, and a packet wakes it at once), where it used to wake ten times a second.
+- **The app looks at the engine** every second with the screen on and every five with it off.
+- **The keys are renewed every five minutes**, not two: a renewal is a key exchange.
+- **Battery saver** (a switch): the phone sends its keep-alive every 55 s instead of 25 s. Keep it off if the line drops on mobile data: mobile networks forget idle UDP flows at times of their own choosing, and this has not been
+  tried on one. The home node sends its own keep-alives at its own rate (`longwire up --keepalive`); the phone's radio wakes for those too, so the saving is real only when home is slowed to match.
+- **Yours:** Android pauses background apps to save battery, and a paused Longwire is a dropped line. The app shows **Let it run in the background** until you have allowed it (one tap, one system dialog). With it, the
+  system keeps the line up while the phone sleeps.
 
 ## What it does not do yet
 
 - **IPv6** is not carried *(planned: M6)*. With "send everything through home" it is dropped, not let past the line; without it, the phone's IPv6 goes out the normal way.
 - **The identity** is a file in the app's private storage. If the phone is lost, or the app's data is cleared, the phone is a new member and the home node must be told its new number. A recovery phrase and the Android
   Keystore are planned (M6).
-- **No battery optimisation** beyond the line's own keepalive (25 s); the leaf role *(planned: M6)* cuts it.
+- **The leaf role** *(planned: M6)* would let the phone ask home to keep quiet, which is where the rest of the saving is.
 - **One home number**; no list of homes, no switching.
 - **No system call filter** on the engine in the phone (the process is the app's, under Android's own sandbox).

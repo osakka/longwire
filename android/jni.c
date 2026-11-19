@@ -17,7 +17,7 @@ static void *serve(void *a)
 }
 
 /* "" when it is running, or what stopped it */
-JNIEXPORT jstring JNICALL Java_org_longwire_Engine_start(JNIEnv *env, jclass cls, jstring jdir, jstring jsb, jstring jtoken, jstring jname, jboolean listed)
+JNIEXPORT jstring JNICALL Java_org_longwire_Engine_start(JNIEnv *env, jclass cls, jstring jdir, jstring jsb, jstring jtoken, jstring jname, jboolean listed, jint keepalive)
 {
 	const char *dir = (*env)->GetStringUTFChars(env, jdir, 0), *sb = (*env)->GetStringUTFChars(env, jsb, 0);
 	const char *tok = (*env)->GetStringUTFChars(env, jtoken, 0), *nm = (*env)->GetStringUTFChars(env, jname, 0);
@@ -44,6 +44,8 @@ JNIEXPORT jstring JNICALL Java_org_longwire_Engine_start(JNIEnv *env, jclass cls
 	c.answer = 1;				/* there is no script on a phone: the engine lets in the members of its own line and refuses everyone else */
 	c.no_nat_pmp = 1;			/* a phone has no router of its own to ask, and asking costs battery */
 	c.mtu = 1400;
+	c.keepalive = keepalive >= 10 && keepalive <= 120 ? keepalive : 25;	/* what this end sends when idle: the battery saver says 55 */
+	c.rekey_after = 300;			/* a handshake is two packets and a key exchange: every five minutes is enough for a phone, and the desktop's two is not */
 	c.maxpeers = 16;
 	if (!(g_node = lw_node_open(&c, err, sizeof err)) || pthread_create(&g_thr, 0, serve, 0)) {
 		if (g_node && !*err)

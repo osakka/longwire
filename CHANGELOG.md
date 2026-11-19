@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.63
+
+**A phone with a face, a logo and a battery** ([ADR 0078](docs/adr/0078-a-phone-with-a-face-a-logo-and-a-battery.md)), the owner's asks. The app has a logo (the classic rotary telephone with the wire hanging under it,
+`brand/app-icon.svg`) and a new screen (a coloured status card, one big button, a Home card, light and dark). Always on: the engine sleeps a second at a time when idle instead of waking ten times a second, the app looks every five
+seconds with the screen off, keys are renewed every five minutes, there is a **Battery saver** switch (keep-alive 55 s) and a card that asks Android to let it run in the background. In the desktop pane the **Address** is a choice,
+**dhcp** or **fixed**. **`longwire-switchboard show`** prints the switchboard's address, port and the commands that name it; `token invite` takes the port by itself. Not run on a phone.
+
 ## 0.5.62
 
 **A phone is enrolled by a link** ([ADR 0077](docs/adr/0077-a-phone-is-enrolled-by-a-link.md)), the owner's idea: `longwire-switchboard token invite --host HOST:PORT [--home NUMBER] [--name TEXT]` makes one token and prints a

@@ -6,7 +6,8 @@
 # policy: who may register, and whose call may ring. See docs/SWITCHBOARD.md.
 #
 #   longwire-switchboard token new [N] | list | remove TOKEN   [--tokens FILE] [--state DIR]     (the invitations; no switchboard runs)
-#   longwire-switchboard token invite --host HOST:PORT [--home NUMBER] [--name TEXT]   [--tokens FILE] [--state DIR]   (one token, as a link a phone opens; and as a QR code if qrencode is there)
+#   longwire-switchboard show [--state DIR]                                                       (this switchboard's address, port and version, and the command that invites a phone)
+#   longwire-switchboard token invite [--host HOST:PORT] [--home NUMBER] [--name TEXT]   [--tokens FILE] [--state DIR]   (one token, as a link a phone opens; and as a QR code if qrencode is there)
 #   longwire-switchboard bans list | clear [KEY|all]   [--state DIR]                                (the bans of the running switchboard)
 #   longwire-switchboard [--listen ADDR:PORT] [--tokens FILE] [--state DIR]
 #                        [--per-ip-hour N] [--rings-per-minute N] [--max-nodes N]
@@ -36,7 +37,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.62
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.63
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -62,6 +63,18 @@ need_value() {
 }
 need_number() { case $2 in ''|*[!0-9]*) echo "longwire-switchboard: $1 wants a number, not '$2'" >&2; exit 2 ;; esac; }
 need_onoff() { case $2 in on|off) ;; *) echo "longwire-switchboard: $1 is on or off, not '$2'" >&2; exit 2 ;; esac; }
+
+# The running switchboard's own status, as the Switchboard application finds it: the one run by hand as you, or else the service's (docs/adr/0048). Prints the JSON, or fails.
+sb_status() {
+	mod load "${LONGWIRE_MOD:-longwire}" || return 1
+	if [ -z "${LW_SOCK:-}" ]; then
+		LW_SOCK=$SB_DIR/ctl
+		[ ! -S "$LW_SOCK" ] && [ -S "${LW_RUN:-/run}/longwire-switchboard/ctl" ] && LW_SOCK=${LW_RUN:-/run}/longwire-switchboard/ctl
+	fi
+	export LW_SOCK
+	lw status 2> /dev/null
+}
+sb_field() { printf '%s' "$1" | sed -n "s/.*\"$2\":\"\{0,1\}\([^\",}]*\).*/\1/p"; }
 
 # `token`: make, list and remove registration tokens in the tokens file, for whoever runs the switchboard. It touches only that file (mode 0600, written whole beside
 # itself and moved into place, so a crash keeps every token) and needs no module and no running switchboard.
@@ -131,6 +144,11 @@ tokens_cmd() {
 		tok_owner
 		echo "removed" ;;
 	invite)					# one token, and the link that carries it to a phone with everything else it needs: the switchboard's address, and which number is home (docs/adr/0077)
+		if [ -z "$host" ]; then		# not said: this machine's name, and the port the running switchboard listens on
+			st=$(sb_status) && [ -n "$(sb_field "$st" port)" ] || { echo "longwire-switchboard: token invite --host HOST:PORT: the address the phone reaches this switchboard at (no switchboard is running here to ask)" >&2; exit 2; }
+			host=$(hostname -f 2> /dev/null || hostname):$(sb_field "$st" port)
+			echo "longwire-switchboard: --host not given: using $host (is that where the phone reaches it? --host HOST:PORT says otherwise)" >&2
+		fi
 		case $host in *:[0-9]*) ;; *) echo "longwire-switchboard: token invite --host HOST:PORT: the address the phone reaches this switchboard at" >&2; exit 2 ;; esac
 		case $host in *[!A-Za-z0-9.:_-]*) echo "longwire-switchboard: --host: a name or address and a port, nothing else" >&2; exit 2 ;; esac
 		case $home in ''|*[!0-9-]*) [ -z "$home" ] || { echo "longwire-switchboard: --home wants a number like 312-884-076" >&2; exit 2; } ;; esac
@@ -158,6 +176,28 @@ tokens_cmd() {
 }
 
 [ "${1:-}" = token ] && { tokens_cmd "$@"; exit 0; }
+
+# `show`: what the owner needs to tell a node or a phone about this switchboard, from the running switchboard itself.
+show_cmd() {
+	local st addr port ver host
+	shift					# "show"
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--state) need_value "$@"; SB_DIR=$2; shift 2 ;;
+		*) echo "usage: longwire-switchboard show [--state DIR]" >&2; exit 2 ;;
+		esac
+	done
+	st=$(sb_status) || { echo "longwire-switchboard: no switchboard answers here (is it running? as a service, are you in the group longwire, or run this with please)" >&2; exit 1; }
+	addr=$(sb_field "$st" address); port=$(sb_field "$st" port); ver=$(sb_field "$st" version)
+	host=$(hostname -f 2> /dev/null || hostname)
+	echo "address      $addr"
+	echo "port         ${port:-unknown} (udp)    version $ver    numbers $(sb_field "$st" numbers), online $(sb_field "$st" online)"
+	echo "a node       --switchboard $host:${port:-PORT}/$addr"
+	echo "a phone      please longwire-switchboard token invite --host $host:${port:-PORT} --home HOME-NUMBER --name \"My phone\""
+	echo "             (HOME-NUMBER: run longwire status on the home machine; --host: where the phone reaches this machine, if not $host)"
+}
+
+[ "${1:-}" = show ] && { show_cmd "$@"; exit 0; }
 
 # `bans`: what the running switchboard has banned, and lifting bans. The same control socket as the rest; lifting is the owner's alone.
 bans_cmd() {

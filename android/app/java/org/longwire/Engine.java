@@ -10,7 +10,7 @@ final class Engine {
     private Engine() {}
 
     /** "" when it is running, or what stopped it. */
-    static native String start(String dir, String switchboard, String token, String name, boolean listed);
+    static native String start(String dir, String switchboard, String token, String name, boolean listed, int keepalive);
 
     /** The tunnel's descriptor, or -1 for none. Returns when the engine has taken it, after which the old one may be closed. */
     static native void attach(int fd);

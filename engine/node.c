@@ -345,6 +345,23 @@ void node_dispatch(lw_node *n, const uint8_t *buf, size_t r, const struct sockad
 		n->drop_garbage++;
 }
 
+/* How long the loop may sleep when nothing arrives. A node of its own wakes ten times a second: its timers (handshake retries, hole punching, keepalives) want that. A phone's engine, inside an app, is
+ * on a battery: when no call is being made and every session is up, it may sleep a second (a packet wakes it at once; only the timers are coarser), and in a call or a handshake it wakes as often as ever. */
+static int poll_ms(const lw_node *n)
+{
+	int i;
+
+	if (!n->cfg.embedded)
+		return 100;
+	for (i = 0; i < n->ncalls; i++)
+		if (n->calls[i].state != CALL_IDLE && n->calls[i].state != CALL_UP)
+			return 100;
+	for (i = 0; i < n->maxpeers; i++)
+		if (n->peers[i].used && !n->peers[i].cur.valid)
+			return 100;
+	return 1000;
+}
+
 int lw_node_serve(lw_node *n)
 {
 	struct pollfd *pf = malloc((size_t)(6 + SPRAY_N + n->maxpeers) * sizeof *pf);
@@ -407,7 +424,7 @@ int lw_node_serve(lw_node *n)
 				pf[nf++].fd = n->peers[k].sfd;
 		for (k = 0; k < nf; k++)
 			pf[k].events = POLLIN;
-		if (poll(pf, (nfds_t)nf, 100) < 0 && errno != EINTR)
+		if (poll(pf, (nfds_t)nf, poll_ms(n)) < 0 && errno != EINTR)
 			break;
 		n->now = lw_now();
 		jnets_fresh(n);				/* the jack's networks, once a second (under.c) */

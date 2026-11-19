@@ -64,6 +64,13 @@ poles and text automatically in dark mode.
 - Clear space around the mark is one node diameter on every side.
 - Never put the wire in a straight line, add a padlock or globe, or put it in a shield.
 
+### The app icon
+
+<p><img src="../brand/app-icon.svg" alt="longwire app icon" width="96"></p>
+
+The classic rotary telephone (the one the menu bar draws under Blit's glyphs) in copper and insulator on line black, the wire hanging below it with the green signal on it. `brand/app-icon.svg` is the picture; the
+Android app has it as an adaptive icon and a one-colour notification icon (`android/app/res/`). The same rules apply: the wire is never straight, and the green is the signal.
+
 ## Palette
 
 | Token | Hex | Use |
@@ -76,7 +83,7 @@ poles and text automatically in dark mode.
 | **hang-up red** | `#D9473F` | rejected, key changed, failure |
 
 Status colours mean the same thing everywhere: in the hibr desktop they are the active theme's own (dim when off, *info* while waiting, *good* when on,
-*warning* when ringing), and on Android the palette above *(planned: M6)*. In a terminal the sign that starts a sentence takes the colour: ✓ green, ✗ red, ⚠ amber, ☎ green for your own
+*warning* when ringing), and in the Android app the palette above. In a terminal the sign that starts a sentence takes the colour: ✓ green, ✗ red, ⚠ amber, ☎ green for your own
 number and amber for someone calling; never into a pipe, with `NO_COLOR`, or on a dumb terminal (`LONGWIRE_COLOR=always` or `never` decides it). Copper is never used for a status.
 
 ## Type

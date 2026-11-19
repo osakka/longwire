@@ -25,6 +25,10 @@ public class LongwireVpnService extends VpnService {
     static volatile String status = "Off";
     static volatile String phrase = "";
     static volatile boolean running;
+    /** 0 off, 1 working on it, 2 connected, 3 needs attention: what the screen's colour says. */
+    static volatile int level;
+    /** The screen is showing: the loop looks every second; with it dark, every five (a phone that is on all day should not wake itself to look at nothing). */
+    static volatile boolean visible = true;
 
     private Thread sup;
     private volatile boolean run;
@@ -66,7 +70,8 @@ public class LongwireVpnService extends VpnService {
             nm.createNotificationChannel(new NotificationChannel("line", "Line", NotificationManager.IMPORTANCE_LOW));
         }
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "line") : new Notification.Builder(this);
-        b.setSmallIcon(android.R.drawable.ic_lock_idle_lock).setContentTitle("Longwire").setContentText(text).setOngoing(true);
+        int icon = getResources().getIdentifier("ic_stat", "drawable", getPackageName());
+        b.setSmallIcon(icon != 0 ? icon : android.R.drawable.ic_lock_idle_lock).setContentTitle("Longwire").setContentText(text).setOngoing(true);
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(1, b.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED);
         } else {
@@ -79,11 +84,13 @@ public class LongwireVpnService extends VpnService {
         String dir = getFilesDir().getPath();
         String home = p.getString("home", "").trim();
         boolean all = p.getBoolean("all", false);
-        String err = Engine.start(dir, p.getString("switchboard", "").trim(), p.getString("token", "").trim(), p.getString("name", "").trim(), false);
+        String err = Engine.start(dir, p.getString("switchboard", "").trim(), p.getString("token", "").trim(), p.getString("name", "").trim(), false, p.getBoolean("saver", false) ? 55 : 25);
         if (!err.isEmpty()) {
             finish("Cannot start: " + err);
             return;
         }
+        level = 1;
+        String shown = "";
         Ctl ctl = new Ctl(new File(dir, "ctl").getPath());
         long lastDial = 0;
         int gen = -1;
@@ -94,6 +101,7 @@ public class LongwireVpnService extends VpnService {
             if (bound && m.optInt("gen") != gen) {
                 gen = m.optInt("gen");
                 if (!buildTunnel(m, all)) {
+                    level = 3;
                     status = "The system would not build the tunnel";
                     gen = -1;
                 }
@@ -116,9 +124,12 @@ public class LongwireVpnService extends VpnService {
                     }
                 }
             }
+            level = 1;
             if (st == null) {
+                level = 3;
                 status = "The engine does not answer";
             } else if (bound && lineUp) {
+                level = 2;
                 status = "Connected: " + m.optString("ip") + " through " + m.optString("gateway");
             } else if (!lineUp && "dial tone".equals(sbs)) {
                 // no session to home: call it. This holds with an address too: home restarted, or the road changed, and the address is kept while the line is made again.
@@ -128,6 +139,7 @@ public class LongwireVpnService extends VpnService {
                     lastDial = now;
                     JSONObject r = ctl.ask("dial " + home);
                     if (r != null && r.has("error") && !r.optString("error").startsWith("already")) {	// "already calling": the engine is on it
+                        level = 3;
                         status = "Cannot dial: " + r.optString("error");
                     }
                 }
@@ -136,8 +148,12 @@ public class LongwireVpnService extends VpnService {
             } else {
                 status = "Reaching the switchboard (" + (sbs.isEmpty() ? "?" : sbs) + ")";
             }
+            if (!status.equals(shown)) {		// the notification says what the screen says, when it changes and not otherwise
+                shown = status;
+                foreground(status);
+            }
             try {
-                Thread.sleep(1000);
+                Thread.sleep(visible ? 1000 : 5000);
             } catch (InterruptedException e) {
                 break;
             }
@@ -204,6 +220,7 @@ public class LongwireVpnService extends VpnService {
 
     private void finish(String last) {
         running = false;
+        level = last.startsWith("Cannot") ? 3 : 0;
         sup = null;
         status = last;
         phrase = "";

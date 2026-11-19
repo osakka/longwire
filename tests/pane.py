@@ -285,7 +285,7 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     check(any(l == "PTYJOB longwire jack lw9" for l in log), f"Turn on with no jack asks for it to be made, with the password dialog: {log}")
     # the address of the jack: with one set that the device does not have, Turn on asks for the jack again, with the address; with it there, it does not
     rows, log, r = drive(envF, 'lwp_pset interface lo; lwp_pset address 10.77.0.2/24; dump 1; longwire_do 1 on 1')
-    check(any(x[0] == "action" and x[1] == "Address" and x[2] == "10.77.0.2/24" for x in rows), f"the pane has an Address row with the address: {[x[:3] for x in rows if x[0] == 'action']}")
+    check(any(x[0] == "action" and x[1] == "Fixed address" and x[2] == "10.77.0.2/24" for x in rows), f"the pane has a Fixed address row with the address: {[x[:3] for x in rows if x[0] == 'action']}")
     check(any(l == "PTYJOB longwire jack --address 10.77.0.2/24 lo" for l in log), f"Turn on with an address the device lacks asks for it to be put there: {log}")
     rows, log, r = drive(envF, 'lwp_pset address 127.0.0.1/8; longwire_do 1 on 1')
     check(any(l.startswith("JOB longwire on") for l in log) and not any("PTYJOB" in l for l in log), f"and with the address already on the device it just turns on: {log}")
@@ -294,7 +294,7 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     rows, log, r = drive(envF, 'lwp_pset interface lw9; lwp_pset address dhcp; longwire_do 1 on 1')
     check(any(l == "PTYJOB longwire jack --address dhcp lw9" for l in log), f"address dhcp on a device that is not there asks for the jack, with a DHCP client: {log}")
     rows, log, r = drive(envF, 'lwp_pset address ""; lwp_pset interface lw9; dump 1')
-    check(any(x[0] == "action" and x[1] == "Address" and x[2] == "none" for x in rows), f"an empty address shows as none: {[x[:3] for x in rows if x[0] == 'action']}")
+    check(any(x[0] == "action" and x[1] == "Fixed address" and x[2] == "none" for x in rows), f"an empty address shows as none: {[x[:3] for x in rows if x[0] == 'action']}")
     # routes beyond the line: a gateway and networks; Turn on asks the jack for them when they are missing (lo has no such route)
     rows, log, r = drive(envF, 'lwp_pset interface lo; lwp_pset address 127.0.0.1/8; lwp_pset gateway 127.0.0.254; lwp_pset routes 192.0.2.0/24; dump 1; longwire_do 1 on 1')
     labels = {x[1]: x[2] for x in rows if x[0] == "action"}
@@ -389,6 +389,14 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     ch = drive.choices
     check(ch.get("profile", [""])[0] == "cp_set_lwprofile" and "home" in ch["profile"][1].split(",") and "work" in ch["profile"][1].split(","), f"the Profile row declares the profiles as its list: {ch.get('profile')}")
     check(ch.get("attach") == ["cp_set_lwattach", "jack,splice"], f"the Attach row declares jack and splice: {ch.get('attach')}")
+    check(ch.get("addrmode") == ["cp_set_lwaddrmode", "dhcp,fixed"], f"the Address row of a jack profile is a choice: dhcp or fixed: {ch.get('addrmode')}")
+    rows, log, r = drive(envF, 'lwp_pset attach jack; lwp_pset address dhcp; dump 1')
+    check(any(x[0] == "set" and x[1] == "Address" and x[2] == "dhcp" for x in rows) and not any(x[1] == "Fixed address" for x in rows), f"with dhcp it says dhcp and there is no fixed address to show: {[x[:3] for x in rows if 'ddress' in x[1]]}")
+    rows, log, r = drive(envF, 'lwp_pset address 10.77.0.2/24; dump 1')
+    rows, log, r = drive(envF, 'dump 1')
+    check(any(x[0] == "set" and x[1] == "Address" and x[2] == "fixed" for x in rows) and any(x[0] == "action" and x[1] == "Fixed address" and x[2] == "10.77.0.2/24" for x in rows), f"with an address it says fixed, and shows it on a row of its own: {[x[:3] for x in rows if 'ddress' in x[1]]}")
+    rows, log, r = drive(envF, 'cp_set_lwaddrmode "" dhcp; p := lwp_cur; echo "ADDR ${LWP_PF[$p.address]-}"')
+    check("ADDR dhcp" in r.stdout, f"choosing dhcp sets the profile's address to dhcp: {r.stdout.strip()[-30:]}")
     check(ch.get("ppolicy") == ["cp_set_lwppolicy", "ask,known,auto,never"], f"the answer policy row declares its four: {ch.get('ppolicy')}")
     check(ch.get("lwstyle") == ["cp_set_lwstyle", "modern,classic"], f"the Phone Style row declares modern and classic: {ch.get('lwstyle')}")
     rows, log, r = drive(envB, "dump 1")
