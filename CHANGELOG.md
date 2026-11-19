@@ -10,6 +10,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 seconds with the screen off, keys are renewed every five minutes, there is a **Battery saver** switch (keep-alive 55 s) and a card that asks Android to let it run in the background. In the desktop pane the **Address** is a choice,
 **dhcp** or **fixed**. **`longwire-switchboard show`** prints the switchboard's address, port and the commands that name it; `token invite` takes the port by itself. The phone tells the DHCP server **its own name** (made into a host name) instead of "longwire" to every router. Not run on a phone.
 
+Published: hibr-apps 907f236, hibr-apt 72e1509, hibr-rpm ea9a0fc, hibr-arch bb6bed8.
+
 ## 0.5.62
 
 **A phone is enrolled by a link** ([ADR 0077](docs/adr/0077-a-phone-is-enrolled-by-a-link.md)), the owner's idea: `longwire-switchboard token invite --host HOST:PORT [--home NUMBER] [--name TEXT]` makes one token and prints a
