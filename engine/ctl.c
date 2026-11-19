@@ -215,10 +215,13 @@ void ctl_close(lw_node *n)
 	int i;
 
 	for (i = 0; i < MAXSUBS; i++)
-		if (n->subs[i] >= 0)
+		if (n->subs[i] >= 0) {
 			close(n->subs[i]);
+			n->subs[i] = -1;
+		}
 	if (n->ctl_fd >= 0) {
 		close(n->ctl_fd);
+		n->ctl_fd = -1;			/* inside an app the number may be somebody else's a moment later: closed once */
 		unlink(n->cfg.ctl_path);
 	}
 }

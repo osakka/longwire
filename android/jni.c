@@ -41,6 +41,7 @@ JNIEXPORT jstring JNICALL Java_org_longwire_Engine_start(JNIEnv *env, jclass cls
 	snprintf(c.name, sizeof c.name, "%s", nm);
 	c.listed = listed ? 1 : 0;
 	c.embedded = 1;
+	c.answer = 1;				/* there is no script on a phone: the engine lets in the members of its own line and refuses everyone else */
 	c.no_nat_pmp = 1;			/* a phone has no router of its own to ask, and asking costs battery */
 	c.mtu = 1400;
 	c.maxpeers = 16;

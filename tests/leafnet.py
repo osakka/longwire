@@ -86,14 +86,14 @@ def main():
 
     os_end, eng_end = socket.socketpair(socket.AF_UNIX, socket.SOCK_DGRAM)
     os_end.settimeout(0.2)
-    phone = subprocess.Popen([os.path.abspath("build/leafnet"), f"{T}/phone", f"{T}/bundlehome@127.0.0.1:41701", str(eng_end.fileno())], pass_fds=(eng_end.fileno(),), stdout=subprocess.PIPE, text=True)
-    check(phone.stdout.readline().strip() == "attached", "the phone's engine runs on a thread and takes its tunnel from another (leaf_attach)")
+
+    def start_phone(rounds, via=None):
+        return subprocess.Popen([os.path.abspath("build/leafnet"), f"{T}/phone", via or f"{T}/bundlehome@127.0.0.1:41701", str(eng_end.fileno()), str(rounds)], pass_fds=(eng_end.fileno(),), stdout=subprocess.PIPE, text=True)
 
     seen = {"discover": 0, "request": 0, "arp": 0, "echo": 0, "inet": 0}
-    deadline, bound = time.time() + 45, None
+    state = {"bound": None}
 
     def pump(until):
-        nonlocal bound
         while time.time() < until:
             try:
                 f = lan.recv(2048)
@@ -121,46 +121,46 @@ def main():
                     data = f[14 + ihl + 8:]
                     seen["echo" if dst == GW else "inet"] += 1
                     lan.sendto(eth(f[6:12], GWMAC, 0x0800, ip4(dst, src, 17, udp(dp, sp, data))), f"{T}/Hport")
-            if bound is None:
+            if state["bound"] is None:
                 try:
                     m = ctl(f"{T}/phone/ctl", "member")
                     if m.get("member") == "bound":
-                        bound = m
+                        state["bound"] = m
                 except Exception:
                     pass
 
-    t0 = time.time()
-    while bound is None and time.time() < deadline:
-        pump(time.time() + 0.5)
-    check(bound is not None, f"the phone is on the line and the home LAN's DHCP gave it an address ({int(time.time() - t0)} s)")
+    def wait_bound(what):
+        state["bound"] = None
+        t0 = time.time()
+        while state["bound"] is None and time.time() < t0 + 45:
+            pump(time.time() + 0.5)
+        check(state["bound"] is not None, f"{what}: on the line, and the home LAN's DHCP gave it an address ({int(time.time() - t0)} s)")
+        return state["bound"]
+
+    def exchange(payload, dst, what):
+        os_end.send(ip4(ME, dst, 17, udp(5000, 7, payload)))
+        got = None
+        for _ in range(40):
+            pump(time.time() + 0.2)
+            try:
+                got = os_end.recv(2048)
+                break
+            except socket.timeout:
+                pass
+        check(got is not None and got[12:16] == dst and got[16:20] == ME and got[9] == 17 and got[28:] == payload and csum(got[:20]) == 0, f"{what}: {got[28:] if got else None}")
+
+    phone = start_phone(2)
+    check(phone.stdout.readline().strip() == "attached", "the phone's engine runs on a thread and takes its tunnel from another (leaf_attach)")
+    bound = wait_bound("the phone")
     if bound:
         check(bound["ip"] == "192.168.1.50" and bound["gateway"] == "192.168.1.1" and bound["prefix"] == 24 and bound["dns"] == ["192.168.1.1"] and bound["lease"] == 3600 and bound["tun"],
               f"the lease is the LAN's: {bound['ip']}/{bound['prefix']} via {bound['gateway']}, dns {bound['dns']}")
     # a UDP packet from the OS to the gateway: ARP, then the packet across, then the echo back to the OS
-    p = ip4(ME, GW, 17, udp(5000, 7, b"hello from the phone"))
-    os_end.send(p)
-    got = None
-    for _ in range(40):
-        pump(time.time() + 0.2)
-        try:
-            got = os_end.recv(2048)
-            break
-        except socket.timeout:
-            pass
-    check(got is not None and got[12:16] == GW and got[16:20] == ME and got[9] == 17 and got[28:] == b"hello from the phone" and csum(got[:20]) == 0,
-          f"a packet from the phone's OS crosses the line, the LAN answers it, and the answer reaches the OS as the packet it is: {got[28:] if got else None}")
+    exchange(b"hello from the phone", GW, "a packet from the phone's OS crosses the line, the LAN answers it, and the answer reaches the OS as the packet it is")
     check(seen["arp"] >= 1 and seen["echo"] == 1, f"...the phone asked who has the gateway (ARP) before the first packet, which crossed once: {seen}")
     # off the link: the internet is the gateway's business; the frame goes to the gateway's MAC
-    os_end.send(ip4(ME, socket.inet_aton("8.8.8.8"), 17, udp(5001, 7, b"to the internet")))
-    got = None
-    for _ in range(40):
-        pump(time.time() + 0.2)
-        try:
-            got = os_end.recv(2048)
-            break
-        except socket.timeout:
-            pass
-    check(got is not None and got[12:16] == socket.inet_aton("8.8.8.8") and got[28:] == b"to the internet" and seen["inet"] == 1, f"a packet for the internet goes to the gateway's MAC and its answer comes back: {seen}")
+    exchange(b"to the internet", socket.inet_aton("8.8.8.8"), "a packet for the internet goes to the gateway's MAC and its answer comes back")
+    check(seen["inet"] == 1, f"...once: {seen}")
     # a spoofed source never leaves
     before = dict(seen)
     os_end.send(ip4(socket.inet_aton("10.9.9.9"), GW, 17, udp(5002, 7, b"spoof")))
@@ -169,9 +169,150 @@ def main():
     st = ctl(f"{T}/phone/ctl", "member")
     check(st["os_in"] >= 2 and st["os_out"] >= 2 and st["drop_os"] >= 1, f"the adapter counts what it did: {st['os_in']} in, {st['os_out']} out, {st['drop_os']} refused")
 
-    phone.terminate()
-    check(phone.wait(timeout=10) == 0, "the engine stops when it is told, its thread joined, nothing left")
+    # a peer that hangs up on the engine's reply must not end the process that holds it (SIGPIPE; the app's own process is the engine's)
+    for _ in range(30):
+        c = socket.socket(socket.AF_UNIX)
+        c.connect(f"{T}/phone/ctl")
+        c.sendall(b"status\n")
+        c.close()
+    time.sleep(0.5)
+    check(ctl(f"{T}/phone/ctl", "member").get("member") == "bound", "thirty callers that hang up before the reply do not end the process or the engine")
+
+    # turned off and on in the same process, as an app does it: nothing is left open, and the line comes back
+    phone.send_signal(15)
+    line = phone.stdout.readline().split()
+    check(line[:1] == ["stopped"] and line[1] == line[2], f"the engine stops when it is told, its thread joined; no descriptor is left open ({line})")
+    check(phone.stdout.readline().strip() == "attached", "it starts again in the same process")
+    wait_bound("started again, with its state kept")
+    exchange(b"after a restart", GW, "a packet crosses again")
+    phone.send_signal(15)
+    line = phone.stdout.readline().split()
+    check(line[:1] == ["stopped"] and line[1] == line[2] and phone.wait(timeout=10) == 0, f"...and a second time: still no descriptor left open ({line})")
+
+    # the app killed by the system: the control socket is left behind, and the next start must not be refused
+    phone = start_phone(1)
+    check(phone.stdout.readline().strip() == "attached", "a new process starts")
+    wait_bound("the new process")
+    phone.kill()
+    phone.wait()
+    check(os.path.exists(f"{T}/phone/ctl"), "killed hard, it leaves its control socket behind")
+    phone = start_phone(1)
+    check(phone.stdout.readline().strip() == "attached", "the next start is not refused by the socket left behind")
+    wait_bound("after the kill")
+    exchange(b"after a kill", GW, "a packet crosses")
+    phone.send_signal(15)
+    phone.wait(timeout=10)
     lw("stop", "--sock", f"{T}/ctlhome")
+
+    # the way the app does it: a switchboard, a call made over the control socket, and a home that goes away and comes back while the phone holds its address
+    time.sleep(1)
+    lw("key", "new", f"{T}/seedsb")
+    sba = lw("key", "address", f"{T}/seedsb").stdout.strip()
+    r = lw("sb", "start", "--seed", f"{T}/seedsb", "--sock", f"{T}/ctlsb", "--listen", "127.0.0.1:41800", "--registry", "none", "--cand-loopback")
+    check(r.returncode == 0 and sba.startswith("lw1"), f"a switchboard starts: {r.stderr[-200:]}")
+
+    def start_home():
+        return lw("start", "--seed", f"{T}/seedhome", "--sock", f"{T}/ctlhome", "--listen", "127.0.0.1:41701", "--sock-port", f"{T}/Hport:{T}/Hhost", "--switchboard", f"127.0.0.1:41800/{sba}",
+                  "--cand-loopback", "--keepalive", "2", "--rekey", "4")
+
+    check(start_home().returncode == 0, "the home node starts and registers")
+    num = None
+    t0 = time.time()
+    while not num and time.time() < t0 + 20:
+        try:
+            num = ctl(f"{T}/ctlhome", "status").get("number")
+        except Exception:
+            pass
+        time.sleep(0.3)
+    check(bool(num), f"the home node has a number: {num}")
+    phone = start_phone(1, f"sb:127.0.0.1:41800/{sba}")
+    check(phone.stdout.readline().strip() == "attached", "the phone's engine starts with the switchboard's address, no peer")
+
+    def phone_state():
+        try:
+            st = ctl(f"{T}/phone/ctl", "status")
+            return st.get("switchboard"), st.get("call")
+        except Exception:
+            return None, None
+
+    def call_home():
+        t1 = time.time()
+        while time.time() < t1 + 90:
+            sbs, call = phone_state()
+            if call == "up":
+                return True
+            if sbs == "dial tone" and call == "idle":
+                try:
+                    ctl(f"{T}/phone/ctl", "dial " + num)
+                except Exception:
+                    pass
+            try:
+                if ctl(f"{T}/ctlhome", "status").get("call") == "ringing":	# the home node's person (or its script) answers
+                    ctl(f"{T}/ctlhome", "pickup")
+            except Exception:
+                pass
+            pump(time.time() + 1.0)
+        print("  gave up", int(time.time() - t1))
+        try:
+            hs = ctl(f"{T}/ctlhome", "status")
+            print("  home:", hs.get("number"), hs.get("call"), hs.get("switchboard"), "phone:", phone_state(), [(p["number"], p["state"]) for p in ctl(f"{T}/phone/ctl", "status").get("peers", [])])
+        except Exception as e:
+            print("  status failed", e)
+        return False
+
+    import threading
+    def watch(path, tag):
+        try:
+            w = socket.socket(socket.AF_UNIX); w.connect(path); w.sendall(b"watch\n")
+            buf = b""
+            while True:
+                d = w.recv(4096)
+                if not d: break
+                buf += d
+                while b"\n" in buf:
+                    l, buf = buf.split(b"\n", 1)
+                    try:
+                        e = json.loads(l)
+                        if tag.startswith("home") and e.get("event") == "ring":	# the home node's script: auto answer (here, the test is the script)
+                            ctl(f"{T}/ctlhome", "pickup " + e["call"])
+                    except Exception:
+                        pass
+        except Exception as e:
+            print("  watch ended", tag, e)
+    threading.Thread(target=watch, args=(f"{T}/phone/ctl", "phone"), daemon=True).start()
+    threading.Thread(target=watch, args=(f"{T}/ctlhome", "home"), daemon=True).start()
+    check(call_home(), "the phone, with a dial tone, calls the home number over its control socket, and the call is up")
+    wait_bound("through the switchboard")
+    exchange(b"through a switchboard", GW, "a packet crosses")
+    lw("stop", "--sock", f"{T}/ctlhome")
+    t1 = time.time()
+    gone = None
+    while gone is None and time.time() < t1 + 90:
+        pump(time.time() + 1.0)
+        sbs, call = phone_state()
+        if call == "idle":
+            gone = time.time() - t1
+    check(gone is not None, f"home goes away: the phone's engine says the call is over, as the app needs to hear it ({int(gone or -1)} s)")
+    check(ctl(f"{T}/phone/ctl", "member").get("member") == "bound", "...while it keeps its address (the tunnel and what runs over it are not torn down for a line that comes back)")
+    time.sleep(2)
+    check(start_home().returncode == 0, "home comes back")
+    time.sleep(1)
+    threading.Thread(target=watch, args=(f"{T}/ctlhome", "home2"), daemon=True).start()
+    num2 = None
+    t1 = time.time()
+    while not num2 and time.time() < t1 + 20:
+        try:
+            num2 = ctl(f"{T}/ctlhome", "status").get("number")
+        except Exception:
+            pass
+        time.sleep(0.3)
+    num = num2 or num
+    check(call_home(), f"the phone calls again and the call is up (home's number {'unchanged' if num2 == num else 'is ' + str(num2)})")
+    exchange(b"after home came back", GW, "a packet crosses with the same address")
+    phone.send_signal(15)
+    phone.wait(timeout=10)
+    lw("stop", "--sock", f"{T}/ctlhome")
+    lw("stop", "--sock", f"{T}/ctlsb")
     print("FAILED: " + "; ".join(fails) if fails else "all leafnet checks passed")
     sys.exit(1 if fails else 0)
 

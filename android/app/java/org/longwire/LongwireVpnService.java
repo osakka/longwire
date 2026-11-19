@@ -103,30 +103,35 @@ public class LongwireVpnService extends VpnService {
                 gen = -1;
             }
             phrase = "";
+            boolean lineUp = false;			// a session to a member of the line, which is not the same as having an address: the address is kept when home goes away
             if (st != null) {
                 JSONArray peers = st.optJSONArray("peers");
                 for (int i = 0; peers != null && i < peers.length(); i++) {
                     JSONObject q = peers.optJSONObject(i);
-                    if (q != null && "up".equals(q.optString("state")) && !q.optString("phrase").isEmpty()) {
-                        phrase = q.optString("phrase");
+                    if (q != null && "up".equals(q.optString("state"))) {
+                        lineUp = true;
+                        if (!q.optString("phrase").isEmpty()) {
+                            phrase = q.optString("phrase");
+                        }
                     }
                 }
             }
             if (st == null) {
                 status = "The engine does not answer";
-            } else if (bound) {
+            } else if (bound && lineUp) {
                 status = "Connected: " + m.optString("ip") + " through " + m.optString("gateway");
-            } else if (!"up".equals(call) && "dial tone".equals(sbs)) {
-                status = "On the line, calling home";
+            } else if (!lineUp && "dial tone".equals(sbs)) {
+                // no session to home: call it. This holds with an address too: home restarted, or the road changed, and the address is kept while the line is made again.
+                status = bound ? "Home is not answering: calling it again (the address is kept)" : "On the line, calling home";
                 long now = System.currentTimeMillis();
-                if (!home.isEmpty() && "idle".equals(call) && now - lastDial > 10000) {
+                if (!home.isEmpty() && "idle".equals(call) && now - lastDial > 5000) {
                     lastDial = now;
                     JSONObject r = ctl.ask("dial " + home);
-                    if (r != null && r.has("error")) {
+                    if (r != null && r.has("error") && !r.optString("error").startsWith("already")) {	// "already calling": the engine is on it
                         status = "Cannot dial: " + r.optString("error");
                     }
                 }
-            } else if (m != null && "asking".equals(m.optString("member")) && "up".equals(call)) {
+            } else if (m != null && "asking".equals(m.optString("member")) && lineUp) {
                 status = "Connected to home, asking its network for an address";
             } else {
                 status = "Reaching the switchboard (" + (sbs.isEmpty() ? "?" : sbs) + ")";

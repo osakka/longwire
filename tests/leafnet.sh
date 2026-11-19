@@ -10,6 +10,6 @@ VENDOR="vendor/monocypher/monocypher.c vendor/monocypher/monocypher-ed25519.c $(
 # shellcheck disable=SC2086
 tcc -g -Ivendor/mlkem768 -DLW_VERSION='"leafnet"' -Wall -o "$B/leafnet" tests/leafnet.c $VENDOR
 T=$(mktemp -d /tmp/lwleafnet.XXXXXX)
-cleanup() { [ -S "$T/ctlhome" ] && $HIBR -c "mod load $PWD/$B/longwire.so; lw stop --sock $T/ctlhome" > /dev/null 2>&1 || true; sleep 0.3; rm -rf "$T"; }
+cleanup() { [ -S "$T/ctlsb" ] && $HIBR -c "mod load $PWD/$B/longwire.so; lw stop --sock $T/ctlsb" > /dev/null 2>&1; [ -S "$T/ctlhome" ] && $HIBR -c "mod load $PWD/$B/longwire.so; lw stop --sock $T/ctlhome" > /dev/null 2>&1 || true; sleep 0.3; rm -rf "$T"; }
 trap cleanup EXIT
 HIBR=$HIBR python3 -I tests/leafnet.py "$T"

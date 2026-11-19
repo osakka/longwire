@@ -268,8 +268,16 @@ fail:
 
 void lw_node_release(lw_node *n)
 {
+	int i;
+
 	if (!n)
 		return;
+	spray_close(n);				/* a process that goes on after the node (an app) must not be left with its sockets */
+	for (i = 0; n->peers && i < n->maxpeers; i++)
+		if (n->peers[i].used && n->peers[i].sfd && n->peers[i].sfd != n->udp && n->peers[i].sfd != n->udp6) {
+			close(n->peers[i].sfd);
+			n->peers[i].sfd = 0;
+		}
 	if (n->udp >= 0)
 		close(n->udp);
 	ban_free(n);
@@ -349,7 +357,13 @@ int lw_node_serve(lw_node *n)
 	int i;
 
 	n->rx_fd = n->udp >= 0 ? n->udp : n->udp6;
-	if (!n->cfg.embedded) {			/* a worker of its own: it holds nothing of its starter's, and is confined */
+	if (n->cfg.embedded) {			/* a thread of somebody else's process: nothing process-wide, but a peer that hangs up on a reply must not end that process (SIGPIPE), so this thread blocks it */
+		sigset_t pipe;
+
+		sigemptyset(&pipe);
+		sigaddset(&pipe, SIGPIPE);
+		pthread_sigmask(SIG_BLOCK, &pipe, 0);
+	} else {				/* a worker of its own: it holds nothing of its starter's, and is confined */
 		close_inherited(n);
 		{					/* a crash must not leave the seed or the KEM key in a file */
 			struct rlimit nocore = { 0, 0 };

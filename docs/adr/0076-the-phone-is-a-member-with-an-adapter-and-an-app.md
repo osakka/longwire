@@ -27,11 +27,14 @@ What was left was the adapter, the way the engine lives inside an app, and the a
    and puts no filter on the process**. The app starts it, hands it the tunnel, and stops it: three calls. Everything else goes through the engine's **control socket** in the app's private directory, the same words the desktop's
    scripts use (`status`, `member`, `dial`, `hangup`). The tunnel is handed over from the app's thread to the engine's by a lock and an acknowledgement (`leaf_attach` returns when the loop has it), so the app may close the old one
    without a read in flight on a descriptor the system may give to something else.
-4. **The app is Java, a `VpnService`** (`android/app/`): it starts the engine; dials the home number when the line has a dial tone, and again if the call is lost; builds the tunnel from the lease (the address, the line's subnet
+4. **No script, so the engine answers** (`answer` in the configuration, set by the app): a ring from a member of the phone's own line is answered at once, as the desktop script's policy does for a node vouched for by the line,
+   and any other ring is refused: a phone takes no unsolicited calls. Without this a phone whose home restarted could never be called back by the line's own mesh, and a call from a stranger would ring unanswered for a minute.
+5. **The app is Java, a `VpnService`** (`android/app/`): it starts the engine; dials the home number when the line has a dial tone, and again if the call is lost; builds the tunnel from the lease (the address, the line's subnet
    or everything, the resolvers and domain, an MTU of at most 1400); builds it again when the generation moves; and shows the safety phrase. The app is **left out of its own tunnel** (`addDisallowedApplication`), so the
    engine's sockets reach the world without `protect()` and the line is not carried through itself. With "send everything through home" the tunnel also takes `::/0` on a made-up address, which **drops IPv6 instead of
-   letting it past the line** (IPv6 is not carried).
-5. **Signing is the owner's.** `android/build-apk.sh` builds the APK with the SDK's tools (the Java part is not C; the native library is built by TCC) and signs it only with the key the owner points it at (`LW_KEYSTORE`).
+   letting it past the line** (IPv6 is not carried). When home goes away the address and the tunnel are **kept** (what runs over them is not torn down for a line that comes back) and the app calls home again until a
+   session is up; the screen says which of the two it is.
+6. **Signing is the owner's.** `android/build-apk.sh` builds the APK with the SDK's tools (the Java part is not C; the native library is built by TCC) and signs it only with the key the owner points it at (`LW_KEYSTORE`).
    Without one it writes `longwire-VERSION.apk.unsigned`, which Android will not install. No key is made, held or committed here.
 
 ## Not done, and what that means
@@ -42,7 +45,7 @@ What was left was the adapter, the way the engine lives inside an app, and the a
 - **IPv6** is not carried *(planned: M6)*. **The leaf role** (one session, for the battery) *(planned: M6)*: a phone is a member with a session to each member it talks to, like any node, and keeps the line's keepalives.
 - **The seed** is a file in the app's private directory, mode 0600 (the system's sandbox is its protection); **keeping it in the Android Keystore** and **showing a recovery phrase** are *(planned: M6)*.
 - **No system call filter** on the phone's engine: the process is the app's, and the system's own sandbox and filter apply to it. The desktop's worker is confined to what it needs (ADR 0062); this is weaker, and says so.
-- **A hostile member can answer a phone's DHCP** as it could any host's on a LAN (the same trust as a cable): the checks above bound what it can say, not whether it speaks. It is a line of people one admitted.
+- **A hostile member can answer a phone's DHCP, and its ARP** as it could any host's on a LAN (the same trust as a cable): the checks above bound what a lease can say; they do not stop a member from claiming the gateway's address. It is a line of people one admitted.
 - **No duplicate-address check** (a probe before using the lease): the far LAN's server is trusted to hand out free addresses.
 - **A kill switch** is the system's: "Block connections without VPN" in the VPN's settings *(planned: M6)* for the app to offer.
 
@@ -51,4 +54,6 @@ What was left was the adapter, the way the engine lives inside an app, and the a
 `tests/leaf.sh` (bounds-checked): the MAC; DISCOVER; offers refused for a mask that is not one, a loopback or link-local address, a gateway off the link, a wrong transaction; REQUEST, ACK, the lease's fields; ARP answered
 and learned; a packet waits for ARP and is released; the broadcast and multicast MACs; nothing with another source, loopback, ourselves, IPv6 or a false length leaves; what reaches the OS is exact and only what is ours;
 renewal, a moved address, NAK, expiry; four thousand frames of noise and of mangled replies. `tests/leafnet.sh`: a real node and a real home node, a scripted LAN, a socket pair for the tunnel: the lease, a packet to
-the gateway and its echo, a packet for the internet through the gateway's MAC, a spoofed source refused, the adapter's counters, a clean stop.
+the gateway and its echo, a packet for the internet through the gateway's MAC, a spoofed source refused, the adapter's counters, callers that hang up on a reply (SIGPIPE), the engine turned off and on twice in one
+process with the descriptor count unchanged, a process killed hard and started again over the control socket it left, and then **the app's own path**: a switchboard, the call made over the control socket, home stopped and
+started again while the phone holds its address, the line made again, packets crossing. (The test is the home node's script: it answers rings.) Sockets opened for hole punching are closed on release by reading, not by this test.
