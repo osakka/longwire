@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 `longwire://enroll?...` link (and a QR code in the terminal if `qrencode` is installed; the packages suggest it). The phone opens it from a message, an email or its camera, and the app fills in its form, turning nothing on, and
 refuses anything that is not what such a link carries. The switchboard's key is read from its seed, never copied by hand. Not run on a phone.
 
+Published: hibr-apps bcb6445, hibr-apt ad3eb8f, hibr-rpm 7e7c206, hibr-arch 415b4f3.
+
 ## 0.5.61
 
 **The Android app** ([ADR 0076](docs/adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md), [guide](docs/ANDROID.md)), the owner's request: a phone joins a line as a member through Android's own VPN. `engine/member.c` is the adapter
