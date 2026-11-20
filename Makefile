@@ -42,6 +42,7 @@ check: all lint
 	sh tests/operator.sh
 	sh tests/expiry.sh
 	sh tests/bigline.sh
+	sh tests/leafline.sh
 	sh tests/ipv6.sh
 	sh tests/panel.sh
 	sh tests/pane.sh

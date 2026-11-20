@@ -64,6 +64,7 @@ typedef struct lw_cfg {
 	int  n_dhcp;
 	uint8_t dhcp_servers[8][32];	/* members that may answer DHCP, and advertise routers, besides the ones this node asked for */
 	int  answer;			/* 0: rings are left to the script. 1: no script is there (a phone): a ring from a member of our line is answered at once, and any other refused (docs/adr/0076) */
+	int  leaf;			/* a node that keeps sessions only with the numbers it was asked to be joined to (a phone): it does not dial the rest of its line and refuses a ring from one it did not ask for (docs/BACKLOG.md LW-3) */
 	int  embedded;			/* the engine runs inside another program (a phone's app): it closes none of that program's descriptors, takes no signals and puts no system call filter on a process that is not its own (docs/adr/0076) */
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */
 	char underlay[32];		/* the network device to reach the world by when the jack has the other end's network ("": the default route's) */

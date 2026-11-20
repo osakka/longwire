@@ -7,7 +7,7 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 |---|---|---|
 | LW-1 | The Android app shows its version | built, ships in 0.5.70 |
 | LW-2 | The mesh calls an absent member less and less often | built, ships with LW-1 in 0.5.70 |
-| LW-3 | The phone keeps one session (it does not mesh with the whole line) | open |
+| LW-3 | The phone keeps one session (it does not mesh with the whole line) | built in 0.5.71 ([ADR 0087](adr/0087-a-leaf-keeps-only-the-sessions-it-asked-for.md)) |
 | LW-4 | The desktop jack takes a whole DHCP lease: gateway, name servers and routes, within limits | open, needs the owner's lease (`/run/longwire/dhcp-lw0.leases`) |
 | LW-5 | The desktop jack tells the DHCP client the machine's own host name | open |
 | LW-6 | A member's claim to an address a local host holds is refused (ARP and neighbour inspection) | open |
@@ -17,7 +17,7 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-10 | The phone's seed is kept in the Android Keystore, and a recovery phrase is shown | open |
 | LW-11 | The phone offers the system's kill switch | open |
 | LW-12 | The phone dials by name from Android's contacts | open |
-| LW-13 | The phone asks its home to keep quiet (the leaf role's keep-alive) | open, after LW-3 |
+| LW-13 | The phone asks its home to keep quiet (the leaf role's keep-alive) | open |
 | LW-14 | The numbers a person dialled, and the boxes vouched for, survive a restart of the node | open |
 | LW-15 | The IANA application for the name `longwire` and a port (UDP 6741 proposed) is submitted, followed up, and the default changed if IANA assigns another | drafted ([IANA](IANA.md)); the owner submits |
 

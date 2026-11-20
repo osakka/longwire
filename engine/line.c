@@ -1193,6 +1193,8 @@ void line_timers(lw_node *n)
 	if (!n->line.have || !n->registered || n->now - n->line.tick < 1.0)
 		return;
 	n->line.tick = n->now;
+	if (n->cfg.leaf)			/* a leaf holds the sessions it was asked for and no others: it neither dials the line nor reports on it */
+		return;
 	for (i = 0; i < n->line.nm; i++) {
 		lw_member *m = &n->line.m[i];
 		lw_peer *q;

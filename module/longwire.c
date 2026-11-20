@@ -24,7 +24,7 @@
 #include "../engine/lw.h"
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.70"
+#define LW_VERSION "0.5.71"
 #endif
 
 static void default_sock(char *out, size_t n)
@@ -423,6 +423,16 @@ static int do_start(sh *s, int ac, char **av, int role)
 				goto out;
 			}
 			c->n_never++;
+		}
+		else if (!strcmp(a, "--leaf") && !role) {
+			if (!strcmp(v, "on"))
+				c->leaf = 1;
+			else if (!strcmp(v, "off"))
+				c->leaf = 0;
+			else {
+				hibr_fail(s, "lw start: --leaf wants on or off");
+				goto out;
+			}
 		}
 		else if (!strcmp(a, "--site-info") && !role) {
 			if (!strcmp(v, "on"))

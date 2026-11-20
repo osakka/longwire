@@ -1525,6 +1525,18 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				ev_emit(n, "{\"event\":\"ring\",\"call\":\"%s\",\"from\":\"%s\",\"name\":\"%s\",\"key_id\":\"%s\",\"known\":%s,\"admit\":%s}",
 					hx, f, en, kh, pc ? "true" : "false", admitted ? "true" : "false");
 			}
+			if (n->cfg.leaf) {		/* a leaf lets in only the numbers it asked for, whatever the script would say: the rest of the line may ring it and is refused, unheard */
+				int k, ok = 0;
+
+				for (k = 0; k < 8; k++)
+					if (!strcmp(n->asked[k], num))
+						ok = 1;
+				if (!ok) {
+					send_answer(n, c, V_REJECT);
+					call_end(c);
+					return;
+				}
+			}
 			if (n->cfg.answer == 1) {	/* the script's policy for a node that has none: a member of our line is let in, nobody else is */
 				send_answer(n, c, admitted ? V_ACCEPT : V_REJECT);
 				if (!admitted)

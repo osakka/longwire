@@ -87,6 +87,6 @@ A phone that is connected all day should cost little, and what costs is waking u
 - **The identity** is a file in the app's private storage. If the phone is lost, or the app's data is cleared, the phone is a new member and the home node must be told its new number. A recovery phrase and the Android
   Keystore are planned (M6).
 - **The leaf role** *(planned: M6)* would let the phone ask home to keep quiet, which is where the rest of the saving is.
-- **The phone meshes with the whole line**, calling every member it has no session with (a battery cost, and calls the switchboard sees): the one-session leaf role *(planned: M6)* is ticket LW-3 in the [BACKLOG](BACKLOG.md).
+- **The phone is a leaf** ([ADR 0087](adr/0087-a-leaf-keeps-only-the-sessions-it-asked-for.md)): it dials only the numbers in its list and refuses a ring from any other member. The other members still ring it, with the backoff of ADR 0085, and it refuses them; telling them to stop is the keep-quiet message *(planned: M6)*, ticket LW-13.
 - **No dialling by name** on the phone: Android's contacts are not used (ticket LW-12).
 - **No system call filter** on the engine in the phone (the process is the app's, under Android's own sandbox).
