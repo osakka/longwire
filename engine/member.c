@@ -556,7 +556,7 @@ int leaf_open(lw_node *n, char *err, size_t errn)
 /* The tunnel's descriptor is the app's own: the node reads and writes it and never closes it. The app calls this from its own thread, and the engine's loop is one thread that must not have a
  * descriptor taken from under a read: this asks, and waits (a second at most) until the loop has taken it. Once it returns, the loop touches no descriptor it had before, and the app may close
  * the old one. */
-void leaf_attach(lw_node *n, int fd)
+int leaf_attach(lw_node *n, int fd)
 {
 	unsigned asked;
 	int i, done = 0;
@@ -565,13 +565,15 @@ void leaf_attach(lw_node *n, int fd)
 	n->leaf_want = fd;
 	asked = ++n->leaf_asked;
 	pthread_mutex_unlock(&leaf_mx);
-	for (i = 0; i < 200 && !done && !n->stop; i++) {
+	/* The loop looks at this at the top of an iteration, and an idle one sleeps up to a second (poll_ms): three seconds is more than the longest sleep and a call's busy spell. */
+	for (i = 0; i < 600 && !done && !n->stop; i++) {
 		pthread_mutex_lock(&leaf_mx);
 		done = n->leaf_done == asked;
 		pthread_mutex_unlock(&leaf_mx);
 		if (!done)
 			usleep(5000);
 	}
+	return done;				/* 0: the engine has not let go of what it had (it is stopping, or stuck): the caller must not close the old descriptor */
 }
 
 static void leaf_take(lw_node *n)

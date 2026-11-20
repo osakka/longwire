@@ -65,12 +65,11 @@ done:
 }
 
 /* The tunnel the app has built (or -1: it has none). It returns when the engine has taken it, after which the app may close the one it had. */
-JNIEXPORT void JNICALL Java_org_longwire_Engine_attach(JNIEnv *env, jclass cls, jint fd)
+JNIEXPORT jboolean JNICALL Java_org_longwire_Engine_attach(JNIEnv *env, jclass cls, jint fd)
 {
 	(void)env;
 	(void)cls;
-	if (g_node)
-		leaf_attach(g_node, fd);
+	return g_node && leaf_attach(g_node, fd) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL Java_org_longwire_Engine_stop(JNIEnv *env, jclass cls)

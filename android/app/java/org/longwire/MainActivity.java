@@ -322,16 +322,32 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "That link is not a Longwire invitation", Toast.LENGTH_LONG).show();
             return;
         }
-        sb.setText(s);
-        token.setText(t == null ? "" : t);
-        if (h != null) {
-            dial.setText(h);
+        if (LongwireVpnService.running) {
+            Toast.makeText(this, "Turn Longwire off before using an invitation", Toast.LENGTH_LONG).show();
+            return;
         }
-        if (n != null && name.getText().length() == 0) {
-            name.setText(n);
+        final String fs = s, ft = t == null ? "" : t, fh = h, fn = n;
+        Runnable apply = () -> {
+            sb.setText(fs);
+            token.setText(ft);
+            if (fh != null) {
+                dial.setText(fh);
+            }
+            if (fn != null && name.getText().length() == 0) {
+                name.setText(fn);
+            }
+            editing = false;
+            refresh();
+            Toast.makeText(this, "Invitation read: check it, then Turn on", Toast.LENGTH_LONG).show();
+        };
+        if (sb.getText().toString().trim().isEmpty()) {
+            apply.run();
+            return;
         }
-        editing = false;
-        Toast.makeText(this, "Invitation read: check it, then Turn on", Toast.LENGTH_LONG).show();
+        // a link anyone can send must not quietly replace what is set: say what it would put there, and ask
+        new android.app.AlertDialog.Builder(this).setTitle("Use this invitation?")
+            .setMessage("It would replace the switchboard " + sb.getText().toString().split("/")[0] + " with " + fs.split("/")[0] + (fh != null ? " and dial " + fh : "") + ".")
+            .setPositiveButton("Use it", (d, w) -> apply.run()).setNegativeButton("Keep what I have", null).show();
     }
 
     private void toggle() {

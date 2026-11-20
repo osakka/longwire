@@ -44,7 +44,20 @@ static int round_of(lw_cfg *c)
 		return 1;
 	}
 	pthread_create(&th, 0, serve, n);
-	leaf_attach(n, g_tun);			/* from this thread, as the app does it: the engine's own thread takes it */
+	if (!leaf_attach(n, g_tun)) {		/* from this thread, as the app does it: the engine's own thread takes it */
+		fprintf(stderr, "the engine did not take the tunnel\n");
+		return 1;
+	}
+	{					/* handed over and taken back while the loop is idle and asleep for up to a second: each must be taken, or the app would close a descriptor the engine still holds */
+		int k, taken = 0;
+
+		for (k = 0; k < 3; k++)
+			taken += leaf_attach(n, -1) + leaf_attach(n, g_tun);
+		if (taken != 6) {
+			fprintf(stderr, "the engine took %d of 6 hand-overs\n", taken);
+			return 1;
+		}
+	}
 	printf("attached\n");
 	fflush(stdout);
 	while (!quit)

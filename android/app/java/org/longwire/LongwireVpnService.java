@@ -98,7 +98,7 @@ public class LongwireVpnService extends VpnService {
         level = 1;
         String shown = "";
         Ctl ctl = new Ctl(new File(dir, "ctl").getPath());
-        long lastDial = 0;
+        long lastDial = 0, wait = 5000;
         int gen = -1;
         while (run) {
             JSONObject m = ctl.ask("member"), st = ctl.ask("status");
@@ -112,9 +112,10 @@ public class LongwireVpnService extends VpnService {
                     gen = -1;
                 }
             } else if (!bound && tun != null) {
-                Engine.attach(-1);
-                close();
-                gen = -1;
+                if (Engine.attach(-1)) {		// closed only once the engine has let go of it
+                    close();
+                    gen = -1;
+                }
             }
             phrase = "";
             boolean lineUp = false;			// a session to a member of the line, which is not the same as having an address: the address is kept when the other end goes away
@@ -139,6 +140,7 @@ public class LongwireVpnService extends VpnService {
                 level = 3;
                 status = "The engine does not answer";
             } else if (bound && lineUp) {
+                wait = 5000;
                 level = 2;
                 String who = peerNum.isEmpty() ? dial : peerNum;
                 status = "Connected to " + who + "\nthrough " + sbHost + "\nyour address " + m.optString("ip") + ", gateway " + m.optString("gateway");
@@ -147,8 +149,9 @@ public class LongwireVpnService extends VpnService {
                 // no session with the number: call it. This holds with an address too: the other end restarted, or the road changed, and the address is kept while the line is made again.
                 status = bound ? "Lost " + dial + ": calling it again (the address is kept)" : "On the line, calling " + dial;
                 long now = System.currentTimeMillis();
-                if (!dial.isEmpty() && "idle".equals(call) && now - lastDial > 5000) {
+                if (!dial.isEmpty() && "idle".equals(call) && now - lastDial > wait) {
                     lastDial = now;
+                    wait = Math.min(wait * 2, 120000);	// the other end is down: a phone that is on all day does not knock every five seconds
                     JSONObject r = ctl.ask("dial " + dial);
                     if (r != null && r.has("error") && !r.optString("error").startsWith("already")) {	// "already calling": the engine is on it
                         level = 3;
@@ -171,9 +174,8 @@ public class LongwireVpnService extends VpnService {
                 break;
             }
         }
-        Engine.attach(-1);
+        Engine.stop();				// the engine's thread is joined first: nothing reads the tunnel when it is closed
         close();
-        Engine.stop();
         finish("Off");
     }
 
@@ -201,11 +203,14 @@ public class LongwireVpnService extends VpnService {
             if (fresh == null) {
                 return false;
             }
+            if (!Engine.attach(fresh.getFd())) {	// the engine did not take it: it still holds the old one, which stays open, and this one is not used
+                fresh.close();
+                return false;
+            }
             ParcelFileDescriptor old = tun;
             tun = fresh;
-            Engine.attach(fresh.getFd());	// returns when the engine holds the new one
             if (old != null) {
-                old.close();
+                old.close();			// the engine holds the new one: nothing reads the old
             }
             return true;
         } catch (Exception e) {

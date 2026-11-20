@@ -12,8 +12,8 @@ final class Engine {
     /** "" when it is running, or what stopped it. */
     static native String start(String dir, String switchboard, String token, String name, boolean listed, int keepalive);
 
-    /** The tunnel's descriptor, or -1 for none. Returns when the engine has taken it, after which the old one may be closed. */
-    static native void attach(int fd);
+    /** The tunnel's descriptor, or -1 for none. True when the engine has taken it, after which the old one may be closed; false, and the old one must stay open. */
+    static native boolean attach(int fd);
 
     static native void stop();
 }
