@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.66
+
+**The phone tries again when the network comes back** ([ADR 0081](docs/adr/0081-the-phone-tries-again-when-the-network-comes-back.md)), the owner's question about the back-off: the app listens for the system's word that the network changed or came back,
+forgets the wait it had earned and tells the engine (the new control word `road`: tell every peer, redo handshakes that were backing off, register again); and the **longest wait** between redials is a setting (30 s, 2 min, 10 min). The Switchboard window's two token
+notices are if/else (no `dt_notep` status is tested). Not run on a phone.
+
 ## 0.5.65
 
 **DHCP snooping for the line** ([ADR 0080](docs/adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)), the owner's question: a DHCP reply, a DHCPv6 reply or a router advertisement from a member this node did not ask for is refused, before anything

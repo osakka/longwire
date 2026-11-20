@@ -2048,6 +2048,10 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			return LW_SN(out, cap, "{\"error\":\"%s was not pinned\"}\n", f);
 		return LW_SN(out, cap, "{\"unpinned\":\"%s\"}\n", f);
 	}
+	if (!strcmp(line, "road")) {		/* a phone is told by its system that the network changed, and the engine cannot always see it for itself */
+		road_kick(n);
+		return LW_SN(out, cap, "{\"road\":\"kicked\"}\n");
+	}
 	if (!strncmp(line, "hangup", 6)) {
 		char num[NUMLEN + 1] = "", perr[160];
 		int i, any = 0, leave;

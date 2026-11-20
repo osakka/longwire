@@ -175,6 +175,9 @@ def main():
     st = ctl(f"{T}/phone/ctl", "member")
     check(st["os_in"] >= 2 and st["os_out"] >= 2 and st["drop_os"] >= 1, f"the adapter counts what it did: {st['os_in']} in, {st['os_out']} out, {st['drop_os']} refused")
 
+    # the phone's system says the network changed: the engine tells its peers at once, and the line carries on
+    check(ctl(f"{T}/phone/ctl", "road") == {"road": "kicked"}, "the `road` word makes the engine tell its peers the road changed")
+    exchange(b"after the road changed", GW, "a packet crosses after it")
     # a peer that hangs up on the engine's reply must not end the process that holds it (SIGPIPE; the app's own process is the engine's)
     for _ in range(30):
         c = socket.socket(socket.AF_UNIX)

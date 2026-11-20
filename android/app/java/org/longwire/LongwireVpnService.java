@@ -32,6 +32,9 @@ public class LongwireVpnService extends VpnService {
     /** The screen is showing: the loop looks every second; with it dark, every five (a phone that is on all day should not wake itself to look at nothing). */
     static volatile boolean visible = true;
 
+    /** The system says the network changed or came back: the loop forgets its back-off and tells the engine at once. */
+    static volatile boolean kick;
+
     private Thread sup;
     private volatile boolean run;
     private ParcelFileDescriptor tun;
@@ -99,8 +102,32 @@ public class LongwireVpnService extends VpnService {
         String shown = "";
         Ctl ctl = new Ctl(new File(dir, "ctl").getPath());
         long lastDial = 0, wait = 5000;
+        long longest = p.getInt("longest", 120) * 1000L;
+        android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
+        android.net.ConnectivityManager.NetworkCallback watch = new android.net.ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(android.net.Network n) {
+                kick = true;
+            }
+
+            @Override
+            public void onLinkPropertiesChanged(android.net.Network n, android.net.LinkProperties lp) {
+                kick = true;
+            }
+        };
+        try {
+            cm.registerDefaultNetworkCallback(watch);
+        } catch (Exception e) {
+            watch = null;			// no callback: the back-off alone decides
+        }
         int gen = -1;
         while (run) {
+            if (kick) {				// a network came back or changed: no waiting out a back-off that was earned on the old one
+                kick = false;
+                wait = 5000;
+                lastDial = 0;
+                ctl.ask("road");
+            }
             JSONObject m = ctl.ask("member"), st = ctl.ask("status");
             boolean bound = m != null && "bound".equals(m.optString("member")) || m != null && "renewing".equals(m.optString("member"));
             String call = st == null ? "" : st.optString("call"), sbs = st == null ? "" : st.optString("switchboard");
@@ -151,7 +178,7 @@ public class LongwireVpnService extends VpnService {
                 long now = System.currentTimeMillis();
                 if (!dial.isEmpty() && "idle".equals(call) && now - lastDial > wait) {
                     lastDial = now;
-                    wait = Math.min(wait * 2, 120000);	// the other end is down: a phone that is on all day does not knock every five seconds
+                    wait = Math.min(wait * 2, longest);	// the other end is down: a phone that is on all day does not knock every five seconds
                     JSONObject r = ctl.ask("dial " + dial);
                     if (r != null && r.has("error") && !r.optString("error").startsWith("already")) {	// "already calling": the engine is on it
                         level = 3;
@@ -172,6 +199,13 @@ public class LongwireVpnService extends VpnService {
                 Thread.sleep(visible ? 1000 : 5000);
             } catch (InterruptedException e) {
                 break;
+            }
+        }
+        if (watch != null) {
+            try {
+                cm.unregisterNetworkCallback(watch);
+            } catch (Exception e) {
+                // it was never registered
             }
         }
         Engine.stop();				// the engine's thread is joined first: nothing reads the tunnel when it is closed

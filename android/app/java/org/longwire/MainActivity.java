@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
     private int bg, card, ink, dim, field;
     private EditText sb, dial, token, name;
     private Switch all, saver;
+    private android.widget.RadioGroup retry;
     private Button go, edit, allow;
     private TextView title, detail, phrase, summary;
     private View dot, form, batt;
@@ -152,6 +153,30 @@ public class MainActivity extends Activity {
         saver.setPadding(0, dp(14), 0, 0);
         op.addView(saver);
         op.addView(text("Checks in every 55 s instead of 25 s. Turn it off if the line drops while you are on mobile data. Takes effect the next time you turn it on.", 12, dim, false));
+
+        op.addView(text("When the other end is not answering", 14, ink, false));
+        op.getChildAt(op.getChildCount() - 1).setPadding(0, dp(14), 0, 0);
+        retry = new android.widget.RadioGroup(this);
+        retry.setOrientation(LinearLayout.HORIZONTAL);
+        int[] secs = {30, 120, 600};
+        String[] labels = {"30 s", "2 min", "10 min"};
+        int have = p.getInt("longest", 120);
+        for (int i = 0; i < 3; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(this);
+            rb.setId(1000 + secs[i]);
+            rb.setText(labels[i]);
+            rb.setTextColor(ink);
+            rb.setTypeface(Typeface.MONOSPACE);
+            retry.addView(rb);
+            if (secs[i] == have) {
+                retry.check(rb.getId());
+            }
+        }
+        if (retry.getCheckedRadioButtonId() < 0) {
+            retry.check(1120);
+        }
+        op.addView(retry);
+        op.addView(text("It tries again after 5 s, then waits longer each time, up to this. It tries at once when the network comes back.", 12, dim, false));
 
         // Android pauses background apps unless it is told not to
         batt = box(col, 16);
@@ -364,7 +389,8 @@ public class MainActivity extends Activity {
         getSharedPreferences("longwire", MODE_PRIVATE).edit()
             .putString("switchboard", sb.getText().toString()).putString("dial", dial.getText().toString())
             .putString("token", token.getText().toString()).putString("name", name.getText().toString())
-            .putBoolean("all", all.isChecked()).putBoolean("saver", saver.isChecked()).apply();
+            .putBoolean("all", all.isChecked()).putBoolean("saver", saver.isChecked())
+            .putInt("longest", Math.max(30, retry.getCheckedRadioButtonId() - 1000)).apply();
         Intent consent = VpnService.prepare(this);
         if (consent != null) {
             startActivityForResult(consent, CONSENT);

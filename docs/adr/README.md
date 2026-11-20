@@ -89,6 +89,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0078](0078-a-phone-with-a-face-a-logo-and-a-battery.md) | A phone with a face, a logo and a battery | accepted; built in 0.5.63 |
 | [0079](0079-the-phone-says-who-it-is-joined-to.md) | The phone says who it is joined to | accepted; built in 0.5.64 |
 | [0080](0080-only-a-member-we-asked-for-may-speak-for-the-network.md) | Only a member we asked for may speak for the network | accepted; built in 0.5.65 |
+| [0081](0081-the-phone-tries-again-when-the-network-comes-back.md) | The phone tries again when the network comes back | accepted; built in 0.5.66 |
 
 ---
 

@@ -53,6 +53,12 @@ tends to give it the same address; a reservation in the router for that address 
 By default the tunnel carries only the home network's subnet: the printer and the NAS, not the whole internet. "Send everything through the line" adds the default route; the home node then needs `--exit` sharing for
 the internet to work ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)).
 
+## When the other end does not answer
+
+The app calls the number, and if there is no answer it tries again after 5 s, then waits longer each time, up to a **longest wait** you choose (30 s, 2 min, 10 min; **When the other end is not answering** in the app, taking effect
+the next time you turn it on). When the phone's network changes or comes back (wifi to mobile data, out of a tunnel) it forgets that wait, tells the line the road changed, and tries at once
+([ADR 0081](adr/0081-the-phone-tries-again-when-the-network-comes-back.md)). The address and the tunnel are kept meanwhile.
+
 ## Always on, and the battery
 
 A phone that is connected all day should cost little, and what costs is waking up. Three things are done and one is yours:

@@ -52,7 +52,7 @@ static uint64_t road_fp(lw_node *n, int *has_road)
 }
 
 /* The road changed: tell every peer now, from the new road, and let every handshake that was backing off try again. */
-static void road_kick(lw_node *n)
+void road_kick(lw_node *n)
 {
 	int i;
 

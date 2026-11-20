@@ -525,6 +525,7 @@ int  sw_remote_macs(lw_node *n, uint8_t out[][6], int max);	/* MACs learned behi
 void sw_gratuitous(lw_node *n);
 void sw_fragment(lw_node *n, int pi, const uint8_t *body, size_t len, int ctl);	/* ctl: a control message in two parts, not a frame */
 
+void road_kick(lw_node *n);			/* the road changed: tell every peer now, and let every handshake that was backing off try again (also the `road` control word: a phone is told by its system) */
 int  leaf_open(lw_node *n, char *err, size_t errn);
 int  leaf_owns(const lw_node *n, int fam, const uint8_t *ip);
 int  leaf_attach(lw_node *n, int fd);
