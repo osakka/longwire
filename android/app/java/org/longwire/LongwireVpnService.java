@@ -67,6 +67,42 @@ public class LongwireVpnService extends VpnService {
     @Override
     public void onDestroy() {
         run = false;
+        stayAwake(false);
+    }
+
+    private android.os.PowerManager.WakeLock wake;
+    private android.net.wifi.WifiManager.WifiLock wifi;
+
+    /**
+     * Keep the phone's processor and its wifi awake while the line is on (docs/adr/0099). A sleeping phone stops its timers: no keep-alive is sent, the router forgets the phone's
+     * mapping in half a minute, and the line is dead while the key and the notification still say it is up, until something wakes the phone. The cost is battery.
+     */
+    private void stayAwake(boolean on) {
+        try {
+            if (on) {
+                if (wake == null) {
+                    wake = ((android.os.PowerManager) getSystemService(POWER_SERVICE)).newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "longwire:line");
+                    wake.setReferenceCounted(false);
+                    wake.acquire();
+                }
+                if (wifi == null) {
+                    wifi = ((android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE)).createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "longwire:line");
+                    wifi.setReferenceCounted(false);
+                    wifi.acquire();
+                }
+            } else {
+                if (wake != null && wake.isHeld()) {
+                    wake.release();
+                }
+                if (wifi != null && wifi.isHeld()) {
+                    wifi.release();
+                }
+                wake = null;
+                wifi = null;
+            }
+        } catch (Exception e) {
+            // the phone would not give it: the line runs without
+        }
     }
 
     private void foreground(String text) {
@@ -86,6 +122,7 @@ public class LongwireVpnService extends VpnService {
 
     private void supervise() {
         SharedPreferences p = getSharedPreferences("longwire", MODE_PRIVATE);
+        stayAwake(p.getBoolean("awake", true));
         String dir = getFilesDir().getPath();
         java.util.List<String> targets = new java.util.ArrayList<>();
         for (String t : p.getString("dial", "").trim().split("[,\\s]+")) {
@@ -353,6 +390,7 @@ public class LongwireVpnService extends VpnService {
 
     private void finish(String last) {
         running = false;
+        stayAwake(false);
         level = last.startsWith("Cannot") ? 3 : 0;
         sup = null;
         status = last;

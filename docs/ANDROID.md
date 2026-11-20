@@ -76,7 +76,8 @@ A phone that is connected all day should cost little, and what costs is waking u
 - **The engine sleeps** a second at a time when nothing is happening (a call or a handshake makes it wake as fast as ever, and a packet wakes it at once), where it used to wake ten times a second.
 - **The app looks at the engine** every second with the screen on and every five with it off.
 - **The keys are renewed every five minutes**, not two: a renewal is a key exchange.
-- **Battery saver** (a switch): the phone sends its keep-alive every 55 s instead of 25 s. Keep it off if the line drops on mobile data: mobile networks forget idle UDP flows at times of their own choosing, and this has not been
+- **Keep the line up while the phone sleeps** (a switch, on by default): the app holds a wake lock and a wifi lock while the line is on, so a sleeping phone still sends its keep-alives and the router keeps its mapping; without it a phone with the screen off may stop, and the line is dead (with the key still showing) until something wakes it ([ADR 0099](adr/0099-a-sleeping-phone-and-a-long-keep-alive-do-not-lose-the-line.md)). It costs battery.
+- **Battery saver** (a switch): the phone sends its keep-alive every 55 s instead of 25 s (its heartbeat to the switchboard stays at 30 s). Keep it off if the line drops on mobile data: mobile networks forget idle UDP flows at times of their own choosing, and this has not been
   tried on one. The home node sends its own keep-alives at its own rate (`longwire up --keepalive`); the phone's radio wakes for those too, so the saving is real only when home is slowed to match.
 - **Yours:** Android pauses background apps to save battery, and a paused Longwire is a dropped line. The app shows **Let it run in the background** until you have allowed it (one tap, one system dialog). With it, the
   system keeps the line up while the phone sleeps.

@@ -45,6 +45,7 @@ check: all lint
 	sh tests/leafline.sh
 	sh tests/sbrestart.sh
 	sh tests/pairrestart.sh
+	sh tests/presence.sh
 	sh tests/ipv6.sh
 	sh tests/panel.sh
 	sh tests/pane.sh

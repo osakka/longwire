@@ -25,6 +25,7 @@
 #define LINE_MSS4 1340			/* TCP MSS on the line: a segment with 12 bytes of options is a 1406-byte frame, under FRAME_SINGLE */
 #define LINE_MSS6 1320
 #define SITE_MEMBERS 4
+#define HB_MAX 30.0			/* the longest a node waits between heartbeats to its switchboard, whatever its keep-alive: presence there lapses after 80 s (board.c PRESENT) */
 #define MESH_RING 12.0			/* how long a mesh call (a member dialling a member) waits for an answer, at the caller and at the switchboard: no person is asked, so it is answered at once or not at all */
 #define MAXSUBS 8
 #define OFFERS 1024			/* bundles offered ahead of a handshake: hashed by key id, so a flood costs bandwidth, not a few packets */

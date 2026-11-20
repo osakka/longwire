@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     private static final int COPPER = 0xFFC0632B, GREEN = 0xFF2FB67C, AMBER = 0xFFE0A100, RED = 0xFFD9473F;
     private int bg, card, ink, dim, field;
     private EditText sb, dial, token, name;
-    private Switch all, saver;
+    private Switch all, saver, awake;
     private android.widget.Spinner retry, giveTries, giveMin;
     private static final int[] secs = {30, 120, 600}, tryVals = {0, 5, 10, 20}, minVals = {0, 5, 30, 120};
     private Button go, edit, allow, forget;
@@ -166,6 +166,13 @@ public class MainActivity extends Activity {
         saver.setChecked(p.getBoolean("saver", false));
         saver.setPadding(0, dp(14), 0, 0);
         op.addView(saver);
+        awake = new Switch(this);
+        awake.setText("Keep the line up while the phone sleeps");
+        awake.setTextColor(ink);
+        awake.setChecked(p.getBoolean("awake", true));
+        awake.setPadding(0, dp(14), 0, 0);
+        op.addView(awake);
+        op.addView(text("Keeps the processor and the wifi awake while the line is on, so the line does not go quiet when the screen is off. It costs battery; with it off, a sleeping phone may stop sending its keep-alives and the line is dead until something wakes it. Takes effect the next time you turn it on.", 12, dim, false));
         op.addView(text("Checks in every 55 s instead of 25 s. Turn it off if the line drops while you are on mobile data. Takes effect the next time you turn it on.", 12, dim, false));
 
         // when the other end stops answering: three dropdowns on a card of their own, each a label and what it is set to
@@ -568,7 +575,7 @@ public class MainActivity extends Activity {
         getSharedPreferences("longwire", MODE_PRIVATE).edit()
             .putString("switchboard", sb.getText().toString()).putString("dial", dial.getText().toString())
             .putString("token", token.getText().toString()).putString("name", name.getText().toString())
-            .putBoolean("all", all.isChecked()).putBoolean("saver", saver.isChecked())
+            .putBoolean("all", all.isChecked()).putBoolean("saver", saver.isChecked()).putBoolean("awake", awake.isChecked())
             .putInt("longest", secs[retry.getSelectedItemPosition()])
             .putInt("giveTries", tryVals[giveTries.getSelectedItemPosition()]).putInt("giveMin", minVals[giveMin.getSelectedItemPosition()]).apply();
         Intent consent = VpnService.prepare(this);

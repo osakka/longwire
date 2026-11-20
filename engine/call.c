@@ -1729,7 +1729,7 @@ void registration_timers(lw_node *n)
 			int nc = gather(n, cc, MAXCANDS);
 
 			ctl_msg_send(n, s, M_HEARTBEAT, b, (size_t)cands_put(n, b, cc, nc));
-			n->next_hb = n->now + n->keepalive;
+			n->next_hb = n->now + (n->keepalive > HB_MAX ? HB_MAX : n->keepalive);	/* the switchboard counts a node online if it was heard within 80 s, and only a heartbeat is hearing it: a long keep-alive (a phone's battery saver) must not make presence lapse (ADR 0099) */
 		} else if (n->registered && !n->role && n->have_refl && n->now >= n->next_echo) {
 			if (n->echo_tries >= 4) {		/* no answer: the switchboard has no second port, or a firewall hides it */
 				n->echo_tries = 0;
