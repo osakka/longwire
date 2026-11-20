@@ -19,6 +19,22 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-12 | The phone dials by name from Android's contacts | open |
 | LW-13 | The phone asks its home to keep quiet (the leaf role's keep-alive) | open, after LW-3 |
 | LW-14 | The numbers a person dialled, and the boxes vouched for, survive a restart of the node | open |
+| LW-15 | The IANA application for the name `longwire` and a port (UDP 6741 proposed) is submitted, followed up, and the default changed if IANA assigns another | drafted ([IANA](IANA.md)); the owner submits |
+
+## Bugs and gaps found
+
+Found while auditing the documents against the code and the tests (2026-11-20), and while building the pair and the phone. Each names how it shows, what is known of the cause, and what closes it. A bug is taken like a ticket, in this order, before the feature tickets that touch the same code.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| BUG-1 | `tests/m1.sh` (a NAT test: "the strict end dials", 80 s) failed once in a full check under load and passed alone, twice; the cause is not found | medium: a flaky test hides a real regression | open |
+| BUG-2 | `tests/operator.sh` ("the evicted node is refused if it rings back") failed once in a full check and passed alone; the cause is not found | medium | open |
+| BUG-3 | `tests/expiry.sh` failed intermittently in full checks: a rejoined member is judged at its 20 s deadline and the test waited exactly 20 s; and a "pre-roll" admit was made five seconds before *now*, not before the roll. Fixed in the test (0.5.67) and run six times under load | low | closed in 0.5.67 |
+| BUG-4 | The phone's count of failed tries only counts calls made, so with a switchboard that cannot be reached only the time limit gives up; the screen does not say so | low | open |
+| BUG-5 | A box's claim of its site role is kept by the switchboard for two minutes: after a box stops, the window can show a pair, and "active", for up to two minutes | low | documented ([ADR 0086](adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md)); a refinement would clear it when the node goes offline |
+| BUG-6 | A ring is named from the address book only when the caller was saved by phone number: a person saved by full address only is not named ([ADR 0082](adr/0082-a-name-is-dialled-from-the-address-book.md)) | low | open |
+| BUG-7 | `drop_echo` counts two different things (a frame that came round by its bytes, and a member's frame from a host of our own LAN); the status does not say which | low | open |
+| BUG-8 | The Android app's logic (the number list, failover, give-up, the network callback) has no test of its own: only compilation, and the engine's side | medium | open: needs a JVM test of the supervisor with a stand-in engine |
 
 ## The tickets
 
@@ -53,5 +69,8 @@ calls only the numbers it was given and keeps those sessions. *Done when* a phon
 **LW-13: keep quiet.** The home node sends keep-alives at its own rate and the phone's radio wakes for them. A leaf could ask it to slow down.
 
 **LW-14: restarts.** The dialled numbers and the vouched boxes are kept for the life of the node and are not written down; a restart asks again. Keep them in the state directory.
+
+**LW-15: the port.** The application is written ([IANA](IANA.md)) and checked against the registry (no entry for 6741, 9488 or the name). The owner supplies the assignee and contact and a public address for the specification, and submits it at <https://www.iana.org/form/ports-services>. When IANA answers: 6741 is recorded;
+another number changes the default everywhere it is written (one release); a refusal is answered. The echo port is derived from the listen port by a fixed offset (2747) and is not asked for.
 
 Not on the list: Windows and macOS members *(planned: M6)*; the old-switchboard fallback (dropped: no compatibility is kept).

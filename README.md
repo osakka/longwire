@@ -54,8 +54,7 @@ the built module ([BUILD](docs/BUILD.md)).
 | 2 | **node** (`longwire`) | a hibr script: client and server in one: the commands, the answer policy, the events as sentences | hibr's catalogue (`cli/longwire`) |
 | 3 | **module** (`longwire.so`) | the hibr module: the whole engine in C. Crypto, sockets, NAT punching, the switch, the ports. Runs in its own worker process | deb, rpm and pacman packages from the hibr repositories; Homebrew *(planned: M5)* |
 
-**C handles bytes and keys; hibr makes the decisions.** The engine's C never includes `hibr.h`, so the phone app can
-reuse it later through JNI. That app will be a fourth piece *(planned: M6)*. The module ships as deb, rpm and pacman packages in the hibr
+**C handles bytes and keys; hibr makes the decisions.** The engine's C never includes `hibr.h`, so the phone app reuses it through JNI: that app is a fourth piece, built and run on a phone ([ANDROID](docs/ANDROID.md)). The module ships as deb, rpm and pacman packages in the hibr
 repositories, and the scripts, the pane and the menu bar telephone through hibr's catalogue; `make` builds the same from source ([BUILD](docs/BUILD.md)).
 
 ## Ways to attach
@@ -65,7 +64,7 @@ repositories, and the scripts, the pane and the menu bar telephone through hibr'
 | **splice** | a whole site (*the primary case*) | `AmbientCapabilities=CAP_NET_RAW` in the node's service unit | Frames go straight onto the wired NIC. **No interface is created.** |
 | **jack** | one Linux host | `longwire jack` (a root helper makes the tap after one password; or by hand, `ip tuntap add mode tap user $USER`) | The host gets a tap on the far subnet, with an address from the profile or a DHCP server on the line, routes beyond it, or everything through it, out by a member that shares its internet. |
 | **shell** | one Linux user, no privilege at all | none (user namespaces) | A shell whose network *is* the line *(planned: M5)* |
-| **member** | phones, laptops on macOS and Windows | the OS's VPN prompt | longwire acts as an Ethernet host in userspace, so the device gets a real DHCP lease on the far LAN *(planned: M6)* |
+| **member** | a phone (Android: built); macOS and Windows *(planned: M6)* | the OS's VPN prompt | longwire acts as an Ethernet host in userspace, so the device gets a real DHCP lease on the far LAN ([ANDROID](docs/ANDROID.md)) |
 
 ## Using it
 
@@ -75,6 +74,7 @@ repositories, and the scripts, the pane and the menu bar telephone through hibr'
 | [ANDROID](docs/ANDROID.md) | the phone as a member of a line: build, sign, install, use; what is not done |
 | [DESKTOP](docs/DESKTOP.md) | the graphical side: the Control Panel pane, the menu bar telephone, the Control Strip, the Switchboard window |
 | [BACKLOG](docs/BACKLOG.md) | what is open, in the order it is done, one ticket at a time |
+| [IANA](docs/IANA.md) | the application for a service name and a port number, ready to submit, with what the owner must add |
 | [OPERATING](docs/OPERATING.md) | run a switchboard, run a site as a service, back up your identity, upgrade |
 | [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | a message or a symptom, its cause, and the fix |
 | [SECURITY](docs/SECURITY.md) | what longwire protects, what "quantum-safe" does and does not mean here, what has been checked, what has not |
@@ -98,15 +98,16 @@ repositories, and the scripts, the pane and the menu bar telephone through hibr'
 
 ## Status
 
-**M0 to M3 are built, and most of M4 (the desktop and distribution):** profiles, the Control Panel pane, the menu bar telephone and the Control Strip, the
-packages and the catalogue entries are published. A jack takes its address from the profile or a DHCP server on the line, reaches networks
-behind a gateway, and can send everything through the line, out through a member that shares its internet (`longwire exit on` there, `everything=yes` here: no gateway typed), letting go when the machine changes network; connecting and disconnecting can need no password while rerouting the whole machine still asks; the safety phrase is committed to before it is
-shown, agreed with every peer a switchboard reached (fellow members and relayed ones too), and the desktop shows it; a switchboard strikes and bans keys that keep failing, says so when it is silent, and its window shows traffic and bans. **M0, M1, M2 and M3** are built with TCC and nothing else and tested end to end: the
-handshake and its cookies, the switchboard, calls through simulated NATs, splice carrying real ping, ARP, TCP and
-broadcasts between LANs that are one subnet, a second box on a segment taking over when the first is killed, lines of
-up to 16 sites that join by number (with an operator, if the line has one), build their own mesh with no prompt, evict a member, and heal after a restart, and nodes behind strict NATs, relays or IPv6. The jack has carried real calls between the author's desktop and a site
-node; routes, everything through the line, a member sharing its internet (tested on the engine and in network namespaces) and a laptop moving between networks have not run on a real tap end to end, a real exit on the internet has not been tried, and real routers and wide-area links beyond
-that are untested. See the [roadmap](docs/ROADMAP.md).
+The releases are 0.5.x; the [CHANGELOG](CHANGELOG.md) says what each carried and the [BACKLOG](docs/BACKLOG.md) what is open. In short:
+
+- **Built with TCC and tested end to end** (the full suite, `make check`, on real kernels in network namespaces): the handshake and its cookies; the switchboard (numbers, tokens, directory, bans); calls through simulated NATs, strict NATs and relays; splice carrying real ping, ARP, TCP and broadcasts between LANs that are one subnet;
+  lines of up to 16 sites with an operator, evictions, rolls and expiring admits; **two boxes on one segment as one site** (one active, one standby, a takeover in seconds, a second box joining through a real switchboard while a host broadcasts, in both key orders); what a bridge never carries
+  (spanning tree, LLDP and CDP stay on their own wire) and a loop between two forwarding boxes stopped even if the election fails; **a DHCP guard** (only a member you asked for may be the network's server or router); the jack's address and the whole-line options; exits; names; dialling by name from the address book
+  (hibr 0.99.553 or later); and the Switchboard window, which shows traffic, bans and the pairs.
+- **The phone** (Android, [ANDROID](docs/ANDROID.md)): the engine as a library built by TCC, an adapter that gives the phone a real DHCP lease from the far LAN, and a Java app around it with invitation links, backup numbers and give-up limits. The adapter and the embedded engine are tested on Linux, on a real line; the app has been **run on the
+  owner's phone** (connected through the line, the screens and the notification as built up to 0.5.68), and its backup numbers and give-up limits, its battery saving, its behaviour across a change from wifi to mobile data, and its look on other phones have **not been tried or measured**.
+- **Not built or not verified**: IPv6 on the phone; the leaf role (one session); the seed in the Android Keystore; macOS and Windows members; the formal analysis of the handshake and an outside review *(planned: M8)*; a real exit on the internet and routes on a real tap end to end; wide-area links beyond those tried; the IANA registration of the port
+  ([IANA](docs/IANA.md), drafted). See the [roadmap](docs/ROADMAP.md) and the [backlog](docs/BACKLOG.md).
 
 ```
 make && make check

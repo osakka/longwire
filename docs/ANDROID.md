@@ -4,7 +4,7 @@ A phone joins a line as a **member**: it appears on the home network the way a l
 the internet through home. It is Android's own VPN (`VpnService`), so the system shows the key icon and its consent dialog, and "Block connections without VPN" in Settings is the kill switch.
 How it is built: [ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md); the design: [ARCHITECTURE §5](ARCHITECTURE.md#5-member-mode-a-phone-as-an-ethernet-host).
 
-**Status: built; its first run on a phone is the owner's.** Expect to find things.
+**Status: built, and run on the owner's phone** (connected through the line). Its backup numbers, give-up limits and battery saving, and a change from wifi to mobile data, have not been tried or measured on a phone: expect to find things.
 
 ## What it needs
 
@@ -87,5 +87,6 @@ A phone that is connected all day should cost little, and what costs is waking u
 - **The identity** is a file in the app's private storage. If the phone is lost, or the app's data is cleared, the phone is a new member and the home node must be told its new number. A recovery phrase and the Android
   Keystore are planned (M6).
 - **The leaf role** *(planned: M6)* would let the phone ask home to keep quiet, which is where the rest of the saving is.
-- **One number to dial**; no list of them, no switching.
+- **The phone meshes with the whole line**, calling every member it has no session with (a battery cost, and calls the switchboard sees): the one-session leaf role *(planned: M6)* is ticket LW-3 in the [BACKLOG](BACKLOG.md).
+- **No dialling by name** on the phone: Android's contacts are not used (ticket LW-12).
 - **No system call filter** on the engine in the phone (the process is the app's, under Android's own sandbox).

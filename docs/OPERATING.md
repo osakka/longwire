@@ -53,7 +53,7 @@ use, the tokens that have not been spent.) These steps have not been run under a
 
 The switchboard script can make, list and remove tokens itself, with no switchboard running and no `openssl`: `please longwire-switchboard token new 3 --tokens /var/lib/longwire-switchboard/tokens`
 prints three new tokens and adds them to the file (mode 0600); `token list` shows the unspent ones; `token remove TOKEN` takes one out. Run as root it keeps the file
-owned by the folder's owner, the service. `token invite --host HOST:PORT [--home NUMBER] [--name TEXT]` makes one token and prints it as a **link a phone opens** ([ANDROID](ANDROID.md#enrolling-a-phone),
+owned by the folder's owner, the service. `token invite [--host HOST:PORT] [--dial NUMBER[,NUMBER...]] [--name TEXT]` (`longwire-switchboard show` prints the switchboard's address, port and this command ready to run) makes one token and prints it as a **link a phone opens** ([ANDROID](ANDROID.md#enrolling-a-phone),
 [ADR 0077](adr/0077-a-phone-is-enrolled-by-a-link.md)), and as a QR code to scan if `qrencode` is installed. The **Switchboard** window does the same from the desktop (View > Tokens, [DESKTOP](DESKTOP.md#the-switchboard-window)).
 
 Open the firewall (`please ufw allow 6741,9488/udp`, or your own tool), read its address, and give each user a token:
@@ -153,6 +153,22 @@ longwire operator evict operator.seed LINEID NODE            # sign an eviction;
 
 See [ADR 0026](adr/0026-a-line-may-have-an-operator.md). A lost operator key means nobody new can join and nobody can be evicted
 until a new line is founded; a stolen one lets its holder admit and evict at will. Treat it like a signing key.
+
+## Two boxes for one site
+
+Two splice boxes on **one LAN segment** make one site: they elect one to forward and the other stands by, and a takeover needs no handshake ([ARCHITECTURE §4](ARCHITECTURE.md), [ADR 0083](adr/0083-a-pair-of-boxes-is-one-site-and-a-bridge-carries-no-control-frames.md)). To add a second box:
+
+1. **Give it its own identity**: its own state directory, so it makes its own seed and gets its own number. Never copy the first box's seed: one key on two machines is one number registered from two places, and the boxes could not elect.
+2. **Run it the same way** (`--splice NIC`, the same switchboard; a token of its own if the switchboard asks for one: it is spent once, and a restart with the same seed does not need it again).
+3. **Have it dial the first box once**: `longwire dial NUMBER` on the new box. The first box answers by its own policy; with `--answer known` it does not know a stranger, so one `longwire pickup` there (within 60 s), once. They become members of one line, and the site secret comes from the line key.
+4. **Check both**: `longwire status` shows `"site":"active"` on one (the lower key id) and `"standby"` on the other, `"site_members":1` on each. The Switchboard window lists the two together. `drop_echo` and `drop_ctrl` stay near 0; a `loop-guard` event means the election was not working.
+5. **Clients**: use 0.5.68 or later everywhere (a client takes its DHCP lease from whichever box is active, which it learns from the box it dialled), and give a phone **both numbers** (*Numbers to dial, in order*, [ANDROID](ANDROID.md)).
+
+The two boxes are two numbers; nothing makes them one number. A member of the line (a phone, a laptop) holds a session with both, so it needs no action when the active box fails.
+
+## Phones
+
+A phone joins as a member: [ANDROID](ANDROID.md) (build, sign, install; enrol it with `longwire-switchboard token invite`; backup numbers; give-up limits).
 
 ## Back up and restore the identity
 

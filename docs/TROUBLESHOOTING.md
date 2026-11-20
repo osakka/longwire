@@ -275,6 +275,26 @@ The service runs as a transient user; lift it as root: `please longwire-switchbo
 **I lost my seed / moved to a new machine.**
 `longwire key import` and type the 33 words you exported. You get the same number back when you register. With no words, the number is gone.
 
+## The phone
+
+**The status says "Needs attention" or "Cannot start".** The line under it says why. *Cannot start: …* is the engine refusing its settings (the switchboard address is not `HOST:PORT/lw1…`). *The engine does not answer* means the app's engine stopped: turn it off and on. *The system would not build the tunnel* means Android refused the VPN (turn off another VPN, or allow this one in Settings).
+
+**It stays on "Reaching the switchboard".** The phone cannot reach the switchboard's UDP port (a firewall, or the wrong host or port). Try the same address from a machine: `longwire show`.
+
+**It is "On the line, calling 312-884-076" and never connects.** The number is not online, or its node answers by a policy that is not letting the phone in: on that node `longwire answer auto` for the first call (or `longwire pickup` when it rings), then the phone is a member and later calls are accepted.
+
+**It connects but shows no address.** The far LAN's DHCP server did not answer: the node it dialled is not on that LAN (a jack, not a splice), or a second box on the segment is the active one and the phone's app is older than 0.5.68, which refuses its reply (the node's `dhcp_guarded` count rises, and its log says `dhcp-blocked`).
+
+**"Longwire turned itself off".** The give-up limit set in the app was reached (failed tries in a row, or time without a line). Open it and turn it on; set the limits to *never* if it should keep trying.
+
+**It drops on mobile data but not on wifi.** Turn **Battery saver** off (its keep-alive is 55 s, which some mobile networks are too slow for), and allow it to run in the background (the card at the bottom of the screen).
+
+## A member is refused as the network's server, or a loop is reported
+
+**`dhcp-blocked`**: a member answered as DHCP, DHCPv6 or a router for this node's own side and was refused, because this node did not ask for it ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)). If it is meant to (the other box of a pair, or a DHCP server at another site), name it: `longwire up --dhcp-server ITS-FULL-ADDRESS`, or dial it. If it is not, someone on the line is posing as the network's server.
+
+**`loop-guard`**: a member is on this node's own LAN segment and is carrying what is already on it. Two boxes both forward: the election is not working. Check that they share a line (or the same `--site-key`) and that probes can pass between them (`longwire status`: `"site"`). For a minute nothing is carried between that member and the LAN, so the loop stops; the cost is duplicates until the election works.
+
 ## Still stuck
 
 Send the three outputs above to whoever runs your switchboard, or to the maintainer. The design is described in

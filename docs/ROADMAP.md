@@ -15,7 +15,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 | **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | built, apart from PCP and relay candidates *(planned: M7)*; the independent doc review is done |
 | **M4** | Desktop and distribution | planned |
 | **M5** | No privilege, more Unix | planned |
-| **M6** | Pocket: member mode, Android | built in part: the adapter and the app, not yet run on a phone |
+| **M6** | Pocket: member mode, Android | built in part: the adapter and the app, run on the owner's phone; IPv6, the leaf role and the Keystore remain |
 | **M7** | Speed | planned |
 | **M8** | 1.0: verification | planned |
 | **M9** | Operator grade: replicas, federation, a switchboard that can run a service for others | proposed |
@@ -41,6 +41,9 @@ What is *not* verified by those tests, plainly:
 - **There is no default public switchboard** until its host and key are supplied: `--switchboard` is required.
 
 ## Coming
+
+**M2, since the first release: two boxes as one site** is also built: a second box joins through a real switchboard and the pair elects one active and one standby, a loop is stopped even if the election fails, a client takes its lease through whichever box is active, and the switchboard's window shows the pair
+([ADR 0083](adr/0083-a-pair-of-boxes-is-one-site-and-a-bridge-carries-no-control-frames.md), [ADR 0086](adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md)); tests `m2b`, `m2c`, `m2d`.
 
 **M3: Party line** (built, apart from PCP and relay candidates). Done when four sites, one behind carrier NAT on both ends, are all one L2 network, and a
 relayed pair upgrades to direct once a path exists.
@@ -94,7 +97,7 @@ and then dial and pick up entirely from the hibr desktop.
 
 **M6: Pocket.** Done when a phone on mobile data gets a lease from the home router and prints to the home printer.
 - *Built:* the member-mode adapter (a virtual MAC, a DHCPv4 client, an ARP responder, IPv4 wrapped and unwrapped, `engine/member.c`) and the Android app (a `VpnService` around `engine/` through JNI, the one piece outside hibr),
-  [ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md); TCC builds the engine as an Android library and its arm64 code is correct under emulation ([ADR 0074](adr/0074-tcc-builds-the-engine-for-android.md)). *Not run on a phone yet.*
+  [ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md); TCC builds the engine as an Android library and its arm64 code is correct under emulation ([ADR 0074](adr/0074-tcc-builds-the-engine-for-android.md)). *Run on the owner's phone* (connected through the line); its battery saving and a change from wifi to mobile data have not been tried or measured. Since 0.5.61: invitation links ([ADR 0077](adr/0077-a-phone-is-enrolled-by-a-link.md)), a new screen and a logo ([0078](adr/0078-a-phone-with-a-face-a-logo-and-a-battery.md)), a retry that follows the network ([0081](adr/0081-the-phone-tries-again-when-the-network-comes-back.md)), backup numbers and give-up limits ([0084](adr/0084-the-phone-has-backup-numbers-and-gives-up-by-its-own-limits.md)), and the version on the screen.
 - IPv6 for members (SLAAC, NDP); the leaf role (one session, for the battery); the seed kept in the Android Keystore; a recovery phrase shown in the app; a kill switch (the system's "block connections without VPN" does it today)
 
 **M7: Speed.** Done when the TCC build reaches 600 Mbit/s on x86-64.
@@ -103,6 +106,8 @@ and then dial and pick up entirely from the hibr desktop.
   TCC's assembler is verified), an optional AEGIS-256 suite, real path-MTU probing, and a proper end-to-end benchmark
 
 **M8: 1.0.** Done when an independent report has no open high-severity findings.
+- *Built, from this milestone's concerns:* what a rogue member can do to a LAN is narrowed: a DHCP, DHCPv6 or router-advertisement reply from a member that was not asked for is refused ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)); spanning tree and the other link-local control frames are not carried; a frame that comes round, and a member on the node's own segment, are
+  recognised ([ADR 0083](adr/0083-a-pair-of-boxes-is-one-site-and-a-bridge-carries-no-control-frames.md)). *Open:* inspection of a member's ARP and neighbour claims (ticket LW-6 in the [BACKLOG](BACKLOG.md)).
 - A security contact at the project's own address and a public home for reports (today: a personal address and a written disclosure policy in [SECURITY](SECURITY.md#reporting-a-problem)); holding a first call off the line until its safety phrase is confirmed (stage 2 of ADR 0040; the committed eight-word phrase is built) and the phrase exchange in the formal model; a formal model of the handshake (Tamarin or ProVerif); known-answer tests for the vendored crypto (X25519, BLAKE2b, ChaCha20-Poly1305 and Ed25519 are cross-checked against other implementations now; ML-KEM is not) and a script that
   fetches and verifies the vendored sources; fuzzing of the parsers the harness does not reach yet (the line operator's signed
   messages, a relay's second hop, the state files; what it does reach is in [ADR 0033](adr/0033-a-switchboard-is-built-for-strangers.md));

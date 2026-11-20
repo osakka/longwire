@@ -151,6 +151,11 @@ ping 10.77.0.1            # from B
 
 Anything that works on a LAN works now: file shares, printers, `ssh`, mDNS names.
 
+## A phone
+
+An Android phone is a member of the line: it takes its address from the far LAN's own DHCP server and reaches what is on it. On the machine that runs your switchboard, `longwire-switchboard token invite --dial NUMBER` makes a link (and a QR code if `qrencode` is installed): open it on the phone with Longwire installed,
+press **Turn on**, and compare the safety phrase. The whole story, and how to install the app, is in [ANDROID](ANDROID.md).
+
 ## Day to day
 
 | I want to… | Desktop | Command line |
