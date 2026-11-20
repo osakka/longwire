@@ -45,7 +45,7 @@ def main():
     check(bool(na and nb), f"both nodes register: {na} {nb}")
     S.stop()
     until(lambda: S.proc.poll() is not None, 20)
-    time.sleep(3)
+    time.sleep(float(os.environ.get("DOWN", "3")))
     S2 = Node("S", ns, "longwire-switchboard.hibr", sbargs)
     until(lambda: os.path.exists(S2.sock), 15)
     t0 = time.time()
