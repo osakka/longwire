@@ -35,7 +35,7 @@ import android.widget.Toast;
  * trouble; the text is monospace because numbers are. What the system's VPN dialog says is the system's (it is asked once).
  */
 public class MainActivity extends Activity {
-    private static final int CONSENT = 1;
+    private static final int CONSENT = 1, PICK = 2;
     private static final int COPPER = 0xFFC0632B, GREEN = 0xFF2FB67C, AMBER = 0xFFE0A100, RED = 0xFFD9473F;
     private int bg, card, ink, dim, field;
     private EditText sb, dial, token, name;
@@ -135,6 +135,11 @@ public class MainActivity extends Activity {
         ((LinearLayout) form).setOrientation(LinearLayout.VERTICAL);
         sb = field((LinearLayout) form, "Switchboard", "host:port/lw1…", p.getString("switchboard", ""));
         dial = field((LinearLayout) form, "Numbers to dial, in order (a second is the backup)", "312-884-076, 447-120-933", p.getString("dial", ""));
+        Button contacts = new Button(this);
+        contacts.setAllCaps(false);
+        contacts.setText("Add a number from your contacts");
+        contacts.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_PICK, android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI), PICK));
+        ((LinearLayout) form).addView(contacts);
         token = field((LinearLayout) form, "Token (only if the switchboard asks)", "", p.getString("token", ""));
         name = field((LinearLayout) form, "Name this phone gives", "", p.getString("name", ""));
         cn.addView(form);
@@ -578,6 +583,38 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int req, int res, Intent data) {
         if (req == CONSENT && res == RESULT_OK) {
             begin();
+        } else if (req == PICK && res == RESULT_OK && data != null && data.getData() != null) {
+            addContact(data.getData());
+        }
+    }
+
+    /**
+     * A number from a contact the person picked (ADR 0096): the picker hands this app that one contact for this once, so no permission to read the contacts is asked. A phone number
+     * written as a Longwire number (nine digits, in threes) is added to the numbers to dial, once; anything else is said not to be one.
+     */
+    private void addContact(Uri uri) {
+        try (android.database.Cursor c = getContentResolver().query(uri, new String[] {android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER, android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME}, null, null, null)) {
+            if (c == null || !c.moveToFirst()) {
+                return;
+            }
+            String digits = c.getString(0).replaceAll("[^0-9]", "");
+            String who = c.getString(1);
+            if (digits.length() != 9) {
+                Toast.makeText(this, who + " has no Longwire number: it is nine digits, like 312-884-076", Toast.LENGTH_LONG).show();
+                return;
+            }
+            String num = digits.substring(0, 3) + "-" + digits.substring(3, 6) + "-" + digits.substring(6);
+            String have = dial.getText().toString().trim();
+            for (String t : have.split("[,\\s]+")) {
+                if (t.replace("-", "").equals(digits)) {
+                    Toast.makeText(this, who + " (" + num + ") is already in the list", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+            }
+            dial.setText(have.isEmpty() ? num : have + ", " + num);
+            Toast.makeText(this, "Added " + who + " " + num, Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Cannot read that contact", Toast.LENGTH_SHORT).show();
         }
     }
 

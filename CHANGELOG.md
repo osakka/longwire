@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.75 (unreleased)
 
+**A number is picked from the contacts** (LW-12, [ADR 0096](docs/adr/0096-a-number-is-picked-from-the-contacts.md)): *Add a number from your contacts* opens the system's picker and adds a contact's Longwire number (nine digits) to the numbers to dial, with no permission to read the contacts.
+
 **The phone's failover decisions are tested** (LW-18): which number to call, how long to wait, when to give up, and that a dead first number with a survivor carrying the line is not a failure now live in `Failover` and are driven on a JVM (`tests/failover.sh`, 18 checks).
 
 **The app opens the system's kill switch** (LW-11, [ADR 0095](docs/adr/0095-the-kill-switch-is-the-systems-and-the-app-opens-it.md)): a *Kill switch* card says what Android's Always-on VPN with *Block connections without VPN* does and opens the system's VPN settings, where the person turns it on for Longwire.

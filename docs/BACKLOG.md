@@ -15,7 +15,7 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-8 | The Switchboard window shows which nodes are one site | built, ships with LW-1 and LW-2 in 0.5.70 |
 | LW-10 | The phone's seed is kept in the Android Keystore, and a recovery phrase is shown | built in 0.5.72 ([ADR 0091](adr/0091-the-phones-seed-lives-in-the-keystore.md)) |
 | LW-11 | The phone offers the system's kill switch | built after 0.5.74 ([ADR 0095](adr/0095-the-kill-switch-is-the-systems-and-the-app-opens-it.md)) |
-| LW-12 | The phone dials by name from Android's contacts | open |
+| LW-12 | The phone dials by name from Android's contacts | built after 0.5.74 as a picker ([ADR 0096](adr/0096-a-number-is-picked-from-the-contacts.md)); a name typed in the list is not looked up |
 | LW-13 | The phone asks its home to keep quiet (the leaf role's keep-alive) | open |
 | LW-14 | The numbers a person dialled, and the boxes vouched for, survive a restart of the node | closed without building: [ADR 0089](adr/0089-who-may-speak-for-the-network-is-not-kept-across-a-restart.md) |
 | LW-15 | The IANA application for the name `longwire` and a port (UDP 6741 proposed) is submitted, followed up, and the default changed if IANA assigns another | drafted ([IANA](IANA.md)); the owner submits |
