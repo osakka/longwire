@@ -229,6 +229,19 @@ public class MainActivity extends Activity {
         allow.setOnClickListener(v -> allowBackground());
         ((LinearLayout) batt).addView(allow);
 
+        // what the person is on
+        String ver = "";
+        try {
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            ver = "longwire " + pi.versionName + " (" + pi.versionCode + ")";
+        } catch (Exception e) {
+            ver = "longwire";
+        }
+        TextView vt = text(ver, 12, dim, false);
+        vt.setGravity(Gravity.CENTER_HORIZONTAL);
+        vt.setPadding(0, dp(20), 0, 0);
+        col.addView(vt);
+
         ScrollView sv = new ScrollView(this);
         sv.setBackgroundColor(bg);
         sv.setFillViewport(true);

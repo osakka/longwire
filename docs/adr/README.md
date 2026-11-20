@@ -93,6 +93,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0082](0082-a-name-is-dialled-from-the-address-book.md) | A name is dialled from the address book | accepted; built in 0.5.67 |
 | [0083](0083-a-pair-of-boxes-is-one-site-and-a-bridge-carries-no-control-frames.md) | A pair of boxes is one site, and a bridge carries no control frames | accepted; built in 0.5.68 |
 | [0084](0084-the-phone-has-backup-numbers-and-gives-up-by-its-own-limits.md) | The phone has backup numbers and gives up by its own limits | accepted; built in 0.5.69 |
+| [0085](0085-the-mesh-calls-an-absent-member-less-and-less-often.md) | The mesh calls an absent member less and less often | accepted; built in 0.5.70 |
 
 ---
 

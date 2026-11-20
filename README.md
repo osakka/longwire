@@ -74,6 +74,7 @@ repositories, and the scripts, the pane and the menu bar telephone through hibr'
 | [QUICKSTART](docs/QUICKSTART.md) | two machines on one line in ten minutes, on the desktop or the command line |
 | [ANDROID](docs/ANDROID.md) | the phone as a member of a line: build, sign, install, use; what is not done |
 | [DESKTOP](docs/DESKTOP.md) | the graphical side: the Control Panel pane, the menu bar telephone, the Control Strip, the Switchboard window |
+| [BACKLOG](docs/BACKLOG.md) | what is open, in the order it is done, one ticket at a time |
 | [OPERATING](docs/OPERATING.md) | run a switchboard, run a site as a service, back up your identity, upgrade |
 | [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | a message or a symptom, its cause, and the fix |
 | [SECURITY](docs/SECURITY.md) | what longwire protects, what "quantum-safe" does and does not mean here, what has been checked, what has not |

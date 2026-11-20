@@ -3,6 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.70
+
+**The app shows its version, and the mesh is calmer** (tickets LW-1 and LW-2 of the new [backlog](docs/BACKLOG.md); [ADR 0085](docs/adr/0085-the-mesh-calls-an-absent-member-less-and-less-often.md)): the main screen says `longwire 0.5.70 (5070)`. A member of a line called every member it had no session
+with once a minute, for ever, and the switchboard saw each call; the wait now grows from 8 seconds to a quarter of an hour (four calls an hour to a member that is away, not sixty), and a change of network puts it back to nothing. Not run on a phone.
+
 ## 0.5.69
 
 **The phone has backup numbers, and gives up by its own limits** ([ADR 0084](docs/adr/0084-the-phone-has-backup-numbers-and-gives-up-by-its-own-limits.md)), for using a second server: *Numbers to dial, in order* takes several (the first, then the next after two tries, the one that answers first next time; the screen says which),
