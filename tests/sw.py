@@ -169,6 +169,8 @@ def main():
     ptext = "\n".join(l for l in out if l.startswith("PUT "))
     idxl = next((l for l in out if l.startswith("IDX ")), "")
     check(f"active with {num['B']}" in ptext and f"standby with {num['A']}" in ptext, f"a pair: each row says its role and the other's number: {[l for l in out if 'active' in l or 'standby' in l][:2]}")
+    rows = [l for l in out if l.startswith("PUT ") and (num["A"] in l or num["B"] in l)]
+    check(len(rows) == 2 and "\u250c" in rows[0] and "\u2514" in rows[1], f"the two boxes of the site are one bracket down the left edge, opening and closing (ADR 0093): {[l[:40] for l in rows]}")
     check("1 site with a standby" in ptext, f"...and the heading counts the sites: {[l for l in out if 'Nodes' in l][:1]}")
     check(sorted(idxl.split()[1:]) == ["0", "1"] and (idxl.split()[1:] == ["0", "1"] or idxl.split()[1:] == ["1", "0"]), f"...and the two are listed together: {idxl}")
 

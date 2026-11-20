@@ -149,6 +149,18 @@ fn sw_filter(int id) {
 	SW[$id]["idx"]=${res% }
 }
 
+# Whether two nodes (by their keys in the list) are boxes of one site, as either says of itself.
+fn sw_mates(int id, k1, k2) {
+	local n1 n2
+
+	n1=${SWN[$id][$k1]["number"]-}
+	n2=${SWN[$id][$k2]["number"]-}
+	[ -n "$n1" ] && [ -n "$n2" ] || return 1
+	case " ${SWN[$id][$k1]["with"]-} " in *" $n2 "*) return 0 ;; esac
+	case " ${SWN[$id][$k2]["with"]-} " in *" $n1 "*) return 0 ;; esac
+	return 1
+}
+
 # Add a sample to a history kept as a string of numbers, and drop the oldest.
 fn sw_push(int id, key, int v) {
 	local -a a
@@ -660,7 +672,7 @@ fn sw_drawcalls(int id, int r0, int rows, int w, int now) {
 }
 
 fn switchboard_draw(int id, int h, int w, int row, int col) {
-	local now sock i k num r r0 vis top sel n total on max bw filled bar nw name lamp line ago sp1 sp2 half fr rin rout sites srows q tf comp alerts
+	local now sock i k num r r0 vis top sel n total on max bw filled bar nw name lamp line ago sp1 sp2 half fr rin rout sites srows q tf comp alerts br
 	local -a idx
 
 	now := dt_ms
@@ -870,7 +882,14 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 		else
 			console pen "$DT_DIM" "$DT_FACE"
 		fi
-		sw_put "$id" "$r" 1 " $lamp $line"
+		# the boxes of one site are one bracket down the left edge: a pair is seen at a glance (ADR 0093)
+		br=" "
+		if [ "$i" -gt 0 ] && sw_mates "$id" "${idx[$((i - 1))]}" "$k"; then
+			br=$([ "$((i + 1))" -lt "$n" ] && sw_mates "$id" "$k" "${idx[$((i + 1))]}" && echo "${GL[tree_mid]:-├}" || echo "${GL[tree_end]:-└}")
+		elif [ "$((i + 1))" -lt "$n" ] && sw_mates "$id" "$k" "${idx[$((i + 1))]}"; then
+			br=${GL[tree_top]:-┌}
+		fi
+		sw_put "$id" "$r" 1 "$br$lamp $line"
 	done
 	if [ "$n" = 0 ]; then
 		console pen "$DT_DIM" "$DT_FACE"
