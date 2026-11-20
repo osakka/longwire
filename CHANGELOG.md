@@ -5,7 +5,7 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.75
 
-**A sleeping phone and a long keep-alive no longer lose the line** (BUG-10, [ADR 0099](docs/adr/0099-a-sleeping-phone-and-a-long-keep-alive-do-not-lose-the-line.md)): a node's heartbeat to its switchboard is at most 30 s apart, so presence there does not lapse with the battery saver (test `presence`); and the app holds a wake lock and a wifi lock while the line is on, with a switch to turn it off, so a phone with the screen off keeps sending its keep-alives.
+**A sleeping phone and a long keep-alive no longer lose the line** (BUG-10, [ADR 0099](docs/adr/0099-a-sleeping-phone-and-a-long-keep-alive-do-not-lose-the-line.md)): a node's heartbeat to its switchboard is at most 30 s apart, so presence there does not lapse with the battery saver (test `presence`); and the app holds a wake lock and a wifi lock while the line is on, with a switch to turn it off, so a phone with the screen off keeps sending its keep-alives; and the engine counts time with the clock that runs through suspend.
 
 **The phone carries IPv6** (LW-9, [ADR 0098](docs/adr/0098-the-phone-carries-ipv6.md)): the adapter makes an address from the far LAN's router advertisement (SLAAC), answers neighbour solicitations, resolves neighbours, and carries IPv6 both ways; the app puts the address and its route in the tunnel. Checked against a stand-in IPv6 router, including what must not change the address; not tried on a phone.
 

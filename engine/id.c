@@ -23,7 +23,11 @@ double lw_now(void)
 {
 	struct timespec t;
 
+#ifdef CLOCK_BOOTTIME
+	clock_gettime(CLOCK_BOOTTIME, &t);	/* counts while the phone is suspended, as the boxes' clocks do: after a sleep the phone knows its sessions have timed out (ADR 0099) */
+#else
 	clock_gettime(CLOCK_MONOTONIC, &t);
+#endif
 	return t.tv_sec + t.tv_nsec / 1e9;
 }
 

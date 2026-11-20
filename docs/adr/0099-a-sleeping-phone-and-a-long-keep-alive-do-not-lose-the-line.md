@@ -12,9 +12,12 @@ Status: accepted; built in the release after 0.5.74. The owner's phone (pixon) s
 1. **A node's heartbeat to its switchboard is at most 30 seconds apart,** whatever its keep-alive (`HB_MAX`). Nothing changes for the default 25 s. The switchboard needs no change and an older one keeps its 80 s.
 2. **The app holds a partial wake lock and a high-performance wifi lock while the line is on,** by default, with a switch (*Keep the line up while the phone sleeps*) to turn it off. Released when the line is turned off or the service ends.
 
+3. **The engine counts time with `CLOCK_BOOTTIME`,** which runs while the phone is suspended, not `CLOCK_MONOTONIC`, which stops. With the old clock a phone that slept for ten minutes woke believing no time had passed, its sessions fresh, while every box had dropped them 76 s into the sleep; it would send into a dead session until three keep-alives of *awake* silence. With the new one it knows at once that the sessions have timed out.
+
 ## Consequences
 
 - A phone with the battery saver on stays online at the switchboard, at the price of a heartbeat every 30 s (a small packet) instead of 55 s.
 - The line stays up while the phone sleeps. The cost is battery: the processor is not allowed to sleep. A phone that is on charge all day does not care; the switch is for one that is not.
 - Android may still stop an app that has not been let off the battery optimisation (the *Always on* card); a wake lock does not survive Doze for such an app.
-- Not tried on a phone: the wake lock and the wifi lock are compiled, and the owner's phone is the test.
+- Not tried on a phone: the wake lock, the wifi lock and the clock are compiled, and the owner's phone is the test. A wake lock does not survive Doze for an app that is not let off the battery optimisation; whether the owner's phone has done so is not known (BUG-10).
+- **What this does not settle** is the battery saver: a phone that sends every 55 s may be erased by a box that waits 76 s (BUG-11, LW-24).
