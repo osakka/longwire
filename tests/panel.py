@@ -52,7 +52,10 @@ def main():
         by = {n["number"]: n for n in reg["nodes"]}
         check(by[num["A"]]["name"] == "Alice" and by[num["A"]]["listed"] and by[num["A"]]["online"], "an entry has the number, the name given, listed and online")
         check(by[num["B"]]["name"] == "" and not by[num["B"]]["listed"], "a node that gave no name has none invented")
-        check(all(set(n) == {"number", "name", "listed", "online", "age"} for n in reg["nodes"]), "an entry holds no address and no key")
+        # the fields an entry may hold: no address and no key. `site` and `with` (ADR 0086) are what a box says of its site group, and `with` is numbers only
+        import re
+        check(all(set(n) == {"number", "name", "listed", "online", "age", "site", "with"} and n["site"] in ("", "active", "standby") and all(re.fullmatch(r"\d{3}-\d{3}-\d{3}", w) for w in n["with"]) for n in reg["nodes"]),
+              "an entry holds no address and no key (only a number, a name, and what it says of its site, as numbers)")
         check(reg["next"] == 2 and nodes(1)["nodes"][0]["number"] == reg["nodes"][1]["number"], "a page starts where asked and says where the next one starts")
 
     st = json.loads(subprocess.run([HIBR, "-c", f"mod load {MOD}; lw status --sock {S.sock}"], capture_output=True, text=True).stdout.strip().splitlines()[-1])
