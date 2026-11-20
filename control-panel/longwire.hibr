@@ -279,7 +279,7 @@ fn lwp_pset(key, value) {
 	n := lwp_cur
 	[ -n "$n" ] || n=home
 	if out=$(longwire profile set "$n" "$key=$value" 2>&1); then
-		DT_LW_PROFILE=$n
+		dt_set DT_LW_PROFILE "$n"			# the one way a pane changes a kept setting (hibr ADR 0050): the desktop sets it and saves it
 		lwp_profiles 1
 		return 0
 	fi
@@ -647,13 +647,12 @@ fn cp_set_lwaddrmode(int? id = "", value = "") {
 		dt_ask "Address" "Address" "" lwp_setaddress "like 192.168.152.10/24"
 	fi
 }
-fn cp_set_lwnode(int? id = "", value = "") { DT_LW_NODE=$value; LWP_T=-100; cp_save; }
-fn cp_set_lwstyle(int? id = "", value = "") { DT_LWSTYLE=$value; dt_has lwb_refresh && lwb_refresh; cp_save; }
+fn cp_set_lwnode(int? id = "", value = "") { dt_set DT_LW_NODE "$value"; LWP_T=-100; }
+fn cp_set_lwstyle(int? id = "", value = "") { dt_set DT_LWSTYLE "$value"; dt_has lwb_refresh && lwb_refresh; }
 fn cp_set_lwprofile(int? id = "", value = "") {
-	DT_LW_PROFILE=$value
+	dt_set DT_LW_PROFILE "$value"
 	longwire profile default "$value" > /dev/null 2>&1		# the command and the menu bar use the default one: it is the one shown here
 	lwp_profiles 1
-	cp_save
 }
 
 # The token is typed into a masked dialog and goes to `longwire profile token` on its standard input, never on a command line.
@@ -680,9 +679,8 @@ fn lwp_newprofile(text, int? id = "") {
 	text=${text//[[:space:]]/}
 	[ -n "$text" ] || return 0
 	if out=$(longwire profile set "$text" interface=lw0 2>&1); then
-		DT_LW_PROFILE=$text
+		dt_set DT_LW_PROFILE "$text"
 		lwp_profiles 1
-		cp_save
 	else
 		dt_notep high "%s" "$out"
 	fi
@@ -696,9 +694,8 @@ fn lwp_renameprofile(text, int? id = "") {
 	[ -n "$text" ] || return 0
 	old := lwp_cur
 	if out=$(longwire profile rename "$old" "$text" 2>&1); then
-		[ "$DT_LW_PROFILE" = "$old" ] && DT_LW_PROFILE=$text
+		[ "$DT_LW_PROFILE" = "$old" ] && dt_set DT_LW_PROFILE "$text"
 		lwp_profiles 1
-		cp_save
 	else
 		dt_notep high "%s" "$out"
 	fi
@@ -858,8 +855,7 @@ fn lwp_sitedone(int n, int st) {
 	LWP_NODEST=-100
 	if [ "$st" = 0 ]; then
 		if [ -n "$LWP_SITE" ]; then
-			DT_LW_NODE="${LW_RUN:-/run}/longwire/$LWP_SITE/ctl"
-			cp_save
+			dt_set DT_LW_NODE "${LW_RUN:-/run}/longwire/$LWP_SITE/ctl"
 			dt_notep low "Site node running on %s: the Node row follows it" "$LWP_SITE"
 		else
 			dt_notep low "The site node is stopped"
@@ -1122,5 +1118,4 @@ fn longwire_do(int w, k, int dir) {
 	verify:*) LWP_VNUM=${k#verify:}; dt_ask "Verify $LWP_VNUM" "Their words" "" lwp_verifygo "the 8 words they see; a mismatch ends the call" ;;
 	evict:*) lwp_ask evict "${k#evict:}" "Evict ${k#evict:}? Every member drops it and the line key changes." ;;
 	esac
-	cp_save
 }

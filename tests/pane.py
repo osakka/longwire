@@ -27,6 +27,7 @@ fn dt_joblast(int n) { ret ""; }
 declare -gA DTJ
 fn dt_panelpane(pane) { printf 'PANE %%s\n' "$pane" >> "$LOG"; }
 fn cp_save() { return 0; }
+fn dt_set(n, v) { declare -g "$n=$v"; }
 fn cp_toggle(var) { return 0; }
 fn cp_choice(int w, int n, cur, set, ...vals) { local IFS=$'\x1f'; CP[$w][$n]["val"]=$cur; CP[$w][$n]["set"]=$set; CP[$w][$n]["choices"]="${vals[*]}"; }
 fn dt_job(kind, tag, then, ...cmd) { printf 'JOB %%s\n' "${cmd[*]}" >> "$LOG"; ret 1; }
