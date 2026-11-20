@@ -18,7 +18,7 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-11 | The phone offers the system's kill switch | open |
 | LW-12 | The phone dials by name from Android's contacts | open |
 | LW-13 | The phone asks its home to keep quiet (the leaf role's keep-alive) | open |
-| LW-14 | The numbers a person dialled, and the boxes vouched for, survive a restart of the node | open |
+| LW-14 | The numbers a person dialled, and the boxes vouched for, survive a restart of the node | closed without building: [ADR 0089](adr/0089-who-may-speak-for-the-network-is-not-kept-across-a-restart.md) |
 | LW-15 | The IANA application for the name `longwire` and a port (UDP 6741 proposed) is submitted, followed up, and the default changed if IANA assigns another | drafted ([IANA](IANA.md)); the owner submits |
 
 ## Bugs and gaps found
