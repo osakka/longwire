@@ -13,13 +13,13 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-6 | A member's claim to an address a local host holds is refused (ARP and neighbour inspection) | built in 0.5.71 ([ADR 0090](adr/0090-a-member-may-not-claim-an-address-our-lan-holds.md)) |
 | LW-7 | The profile and the pane set `--dhcp-guard` and `--dhcp-server` | built in 0.5.71 |
 | LW-8 | The Switchboard window shows which nodes are one site | built, ships with LW-1 and LW-2 in 0.5.70 |
-| LW-9 | The phone carries IPv6 | open |
 | LW-10 | The phone's seed is kept in the Android Keystore, and a recovery phrase is shown | built in 0.5.72 ([ADR 0091](adr/0091-the-phones-seed-lives-in-the-keystore.md)) |
 | LW-11 | The phone offers the system's kill switch | open |
 | LW-12 | The phone dials by name from Android's contacts | open |
 | LW-13 | The phone asks its home to keep quiet (the leaf role's keep-alive) | open |
 | LW-14 | The numbers a person dialled, and the boxes vouched for, survive a restart of the node | closed without building: [ADR 0089](adr/0089-who-may-speak-for-the-network-is-not-kept-across-a-restart.md) |
 | LW-15 | The IANA application for the name `longwire` and a port (UDP 6741 proposed) is submitted, followed up, and the default changed if IANA assigns another | drafted ([IANA](IANA.md)); the owner submits |
+| LW-9 | The phone carries IPv6 | open, last: the owner moved it to the end (2026-11-20) |
 
 ## Bugs and gaps found
 
