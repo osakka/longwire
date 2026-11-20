@@ -2,7 +2,7 @@
 
 This is the text of the application for a **service name and a user port number** ([RFC 6335](https://www.rfc-editor.org/rfc/rfc6335), the form at
 <https://www.iana.org/form/ports-services>), ready to paste into the form, field by field. It was written against the form as it stands on 2026-11-20 (13 fields and 11 usage questions) and checked against the code and the other documents:
-every statement below is in [PROTOCOL](PROTOCOL.md), [CRYPTO](CRYPTO.md), [SWITCHBOARD](SWITCHBOARD.md) or [ARCHITECTURE](ARCHITECTURE.md). It is the owner's to submit: the form asks who the assignee is.
+every statement below is in [PROTOCOL](PROTOCOL.md), [CRYPTO](CRYPTO.md), [SWITCHBOARD](SWITCHBOARD.md) or [ARCHITECTURE](ARCHITECTURE.md). It is the owner's to submit: the form asks who the assignee is. **Submitted by the owner on 2026-11-20**; the answer is awaited.
 
 ## Before submitting
 
