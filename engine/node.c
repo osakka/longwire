@@ -293,6 +293,7 @@ void lw_node_release(lw_node *n)
 	if (n->ctl_fd >= 0)
 		close(n->ctl_fd);
 	free(n->leaf);
+	free(n->seen);
 	crypto_wipe(&n->id, sizeof n->id);
 	free(n->calls);
 	free(n->peers);
@@ -429,6 +430,20 @@ int lw_node_serve(lw_node *n)
 			break;
 		n->now = lw_now();
 		jnets_fresh(n);				/* the jack's networks, once a second (under.c) */
+		/* the LAN first: a frame is on the LAN before its copy has been carried over the line and back, and a box that hears the copy first would put on the LAN what is already there (sw.c: seen_before) */
+		if (pf[1].revents & POLLIN)
+			for (i = 0; i < 256; i++) {
+				r = port_read(n, big, sizeof big);
+				if (r < 1)
+					break;
+				if (r > FRAME_MAX) {		/* a coalesced frame from a NIC: cut it down to size */
+					if (resegment(n, big, (size_t)r))
+						n->resegmented++;
+					else
+						n->drop_oversize++;
+				} else
+					sw_from_local(n, big, (size_t)r);
+			}
 		for (k = 4; k < nf; k++)
 			if (pf[k].revents & POLLIN) {
 				int fd = pf[k].fd;
@@ -454,19 +469,6 @@ int lw_node_serve(lw_node *n)
 				n->rx_pkts++;
 				n->rx_bytes_all += (uint64_t)r;
 				node_dispatch(n, buf, (size_t)r, (struct sockaddr *)&ss, sl);
-			}
-		if (pf[1].revents & POLLIN)
-			for (i = 0; i < 256; i++) {
-				r = port_read(n, big, sizeof big);
-				if (r < 1)
-					break;
-				if (r > FRAME_MAX) {		/* a coalesced frame from a NIC: cut it down to size */
-					if (resegment(n, big, (size_t)r))
-						n->resegmented++;
-					else
-						n->drop_oversize++;
-				} else
-					sw_from_local(n, big, (size_t)r);
 			}
 		if (pf[3].revents & POLLIN)
 			echo_serve(n);

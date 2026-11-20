@@ -29,6 +29,7 @@
 #define M_RELAY_NO  0x0a	/* peer_key_id(32) */
 #define M_ADMIT     0x0d	/* admit: this member's admit, said when a session comes up and when it is renewed (docs/adr/0065) */
 #define M_ROLL      0x0e	/* the operator's roll: no admit made before its time is good (docs/adr/0065) */
+#define M_SITE      0x0f	/* count(1) key_id(32)...: the boxes on this one's own LAN segment that it has heard (up to 8): said every 5 s by a splice box, so that a member that dialled it trusts them to answer DHCP too (docs/adr/0083) */
 #define M_EXIT      0x0c	/* mac(6): this member shares its internet, through the machine with this MAC (docs/adr/0056); said every 10 s */
 /* node <-> switchboard */
 #define M_REGISTER 0x20		/* token_len(1) token */

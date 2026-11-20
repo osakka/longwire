@@ -3,6 +3,13 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.68
+
+**Two boxes on one segment are one site, and a bridge carries no control frames** ([ADR 0083](docs/adr/0083-a-pair-of-boxes-is-one-site-and-a-bridge-carries-no-control-frames.md)), from the owner's question about a second server beside vpn-1, checked against a real bridge.
+Found and fixed: **spanning tree, LLDP, LACP and Cisco's CDP/PVST+ were tunnelled across the line** (they now cross in neither direction); **two boxes that both forward looped** (a frame that comes round is recognised by its bytes and dropped, and a member that does it
+is a segment-mate that carries nothing to or from the LAN for a minute; the `loop-guard` event); and **the DHCP guard would have broken a client's lease through the other box of a pair** (a box now tells its members which boxes share its segment, `SITE`, and a member
+that asked for it lets them answer). New counters `drop_ctrl` and `drop_echo`. New tests on a real kernel: `m2b` (both boxes forwarding), `m2c` (a second box joins through a switchboard while a host broadcasts, both key orders), `m2d` (a phone-style client gets and renews its lease through the pair, and after one box is stopped).
+
 ## 0.5.67
 
 **Dial by name** ([ADR 0082](docs/adr/0082-a-name-is-dialled-from-the-address-book.md)), the owner's option A: `longwire dial NAME` calls a person by the name in your address book (hibr's Contacts, 0.99.553 or later; it answers

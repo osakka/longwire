@@ -91,6 +91,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0080](0080-only-a-member-we-asked-for-may-speak-for-the-network.md) | Only a member we asked for may speak for the network | accepted; built in 0.5.65 |
 | [0081](0081-the-phone-tries-again-when-the-network-comes-back.md) | The phone tries again when the network comes back | accepted; built in 0.5.66 |
 | [0082](0082-a-name-is-dialled-from-the-address-book.md) | A name is dialled from the address book | accepted; built in 0.5.67 |
+| [0083](0083-a-pair-of-boxes-is-one-site-and-a-bridge-carries-no-control-frames.md) | A pair of boxes is one site, and a bridge carries no control frames | accepted; built in 0.5.68 |
 
 ---
 

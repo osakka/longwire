@@ -101,6 +101,8 @@ typedef struct lw_peer {
 	int      dialer;		/* we made the call that created this peer */
 	int      asked;			/* we asked for this member, by number or by name or by naming it in the configuration: not a mesh call, not one that rang us. It may answer DHCP for us (guard_ok) */
 	double   guard_t;		/* when a frame of its was last refused, for the event */
+	double   mate_until, mate_t;	/* it is on our own LAN segment (it handed us frames that were already on it): nothing is carried between it and the LAN until then (sw.c, seen_before) */
+	int      mate_hits;
 	int      relayed;		/* every datagram for this peer goes through a relay: peers[via_peer], on route via_route */
 	int      via_peer;
 	uint32_t via_route;
@@ -349,7 +351,11 @@ struct lw_node {
 	/* M2: the switch's extras and the site group */
 	double   dhcp_say;		/* when a dhcp-conflict was last announced */
 	struct { uint32_t ip; double t, said; } dhcp[4];	/* servers whose offers were seen lately (ARCHITECTURE section 3) */
-	uint64_t dhcp_conflicts, dhcp_guarded;
+	uint64_t dhcp_conflicts, dhcp_guarded, drop_ctrl, drop_echo;
+	struct seen_ent { uint64_t h; double t; uint8_t dir; int16_t peer; } *seen;	/* the frames carried in the last second (sw.c: seen_before) */
+	uint8_t  vouched[16][32];		/* keys an asked member has said are on its own LAN segment: they may answer DHCP for us, for as long as this node runs (M_SITE) */
+	unsigned vouched_i;
+	double   site_vouch_t;
 	char     asked[8][NUMLEN + 1];		/* the numbers a person dialled lately: a member of these may answer DHCP for us even when the other end made the last call (the guard) */
 	unsigned asked_i;
 	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize, cand_skipped;
@@ -516,6 +522,8 @@ void spray_adopt(lw_node *n, lw_peer *p);
 void spray_step(lw_node *n, lw_call *c);
 void punch_pkt(lw_node *n, const lw_call *c, uint8_t pk[33]);
 void sw_from_local(lw_node *n, const uint8_t *f, size_t len);
+int  peer_asked(const lw_node *n, const lw_peer *p);	/* we asked for it: a number a person dialled, or a peer the configuration names with an address */
+void site_vouch(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len);
 void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len);
 int  sw_count(const lw_node *n);
 int  resegment(lw_node *n, const uint8_t *frame, size_t len);

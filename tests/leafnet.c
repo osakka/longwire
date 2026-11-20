@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 	snprintf(c.ctl_path, sizeof c.ctl_path, "%s/ctl", argv[1]);
 	snprintf(c.state_dir, sizeof c.state_dir, "%s", argv[1]);
 	snprintf(c.port_kind, sizeof c.port_kind, "member");
-	snprintf(c.listen, sizeof c.listen, "127.0.0.1:0");
+	snprintf(c.listen, sizeof c.listen, "%s", getenv("LEAFNET_LISTEN") ? getenv("LEAFNET_LISTEN") : "127.0.0.1:0");	/* the tests that put the phone on a network of its own say "0": everywhere */
 	if (!strncmp(argv[2], "sb:", 3)) {	/* as the app has it: the line's switchboard, and a call to make over the control socket */
 		snprintf(c.switchboard, sizeof c.switchboard, "%s", argv[2] + 3);
 		c.listed = 0;

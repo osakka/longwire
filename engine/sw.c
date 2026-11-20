@@ -652,6 +652,107 @@ void sw_fragment(lw_node *n, int pi, const uint8_t *b, size_t len, int ctl)
 
 /* ---- the switch ------------------------------------------------------------------ */
 
+/* ---- what a bridge never carries -------------------------------------------------------------------------------------------------------------------------------------------------- */
+
+/* The link-local control frames are for the wire they were sent on, whatever they are: spanning tree (BPDUs), pause and LACP, 802.1X, LLDP and the rest of 01:80:C2:00:00:00 to 0F, and Cisco's
+ * CDP, VTP, DTP and PVST+ (01:00:0C:CC:CC:CC, :CD, and 01:00:0C:CD:CD:CD). A bridge consumes them and sends its own. Carried over a line they join two sites' spanning trees (a root over there becomes
+ * a root here), trip BPDU guard on the port the box is on, and show a switch at one site as a neighbour of another's. They cross in neither direction (docs/adr/0083). */
+static int ctrl_frame(const uint8_t *f)
+{
+	if (f[0] == 0x01 && f[1] == 0x80 && f[2] == 0xc2 && f[3] == 0 && f[4] == 0 && f[5] <= 0x0f)
+		return 1;
+	if (f[0] == 0x01 && f[1] == 0x00 && f[2] == 0x0c)
+		return (f[3] == 0xcc && f[4] == 0xcc && (f[5] == 0xcc || f[5] == 0xcd)) || (f[3] == 0xcd && f[4] == 0xcd && f[5] == 0xcd);
+	return 0;
+}
+
+/* Two boxes on one segment that both forward (the election failed, or one has just joined and not yet got its secret) carry each frame twice, and put each other's frames back on the LAN: a loop. The
+ * address a frame is from cannot say whose it is (another box's copy of a host's frame is the host's frame, byte for byte), so the boxes remember what they have carried, by the bytes: a frame from a member
+ * whose bytes are those of a frame that came off our LAN in the last second was already on it, and a frame off our LAN whose bytes are those of one a member has just handed us was put there by that member.
+ * Either way the member is **on our segment** (a member of the line at another site cannot have done it), and nothing is carried between it and the LAN for a minute, which ends the loop whatever the two boxes
+ * believe about each other. The copy itself is dropped at once. Three in five seconds make a member a segment-mate: a stray collision (two sites that share a MAC) must not cut a member off. Nothing is done
+ * to a frame that has no twin from the other side, so a host's repeated frames, a burst of identical datagrams, a retransmission, are never touched. Remembered by a 64-bit hash of the bytes, in a table of 4096. */
+#define SEEN_N 4096
+#define SEEN_FOR 1.0
+#define MATE_FOR 60.0
+static uint64_t frame_hash(const uint8_t *f, size_t len)
+{
+	uint64_t h = 0x9e3779b97f4a7c15ull ^ len, w;
+	size_t i = 0;
+
+	for (; i + 8 <= len; i += 8) {
+		memcpy(&w, f + i, 8);
+		h = (h ^ w) * 0xff51afd7ed558ccdull;
+		h ^= h >> 32;
+	}
+	for (w = 0; i < len; i++)
+		w = w << 8 | f[i];
+	h = (h ^ w) * 0xc4ceb9fe1a85ec53ull;
+	h ^= h >> 29;
+	return h ? h : 1;
+}
+
+static int is_mate(const lw_node *n, int pi)
+{
+	return n->peers[pi].mate_until > n->now;
+}
+
+static void mate_note(lw_node *n, int pi)
+{
+	lw_peer *p = &n->peers[pi];
+
+	if (n->now - p->mate_t > 5.0)
+		p->mate_hits = 0;
+	p->mate_t = n->now;
+	if (++p->mate_hits < 3)
+		return;
+	if (!is_mate(n, pi)) {
+		char num[16] = "";
+
+		if (p->number[0])
+			fmt_number(num, p->number);
+		ev_emit(n, "{\"event\":\"loop-guard\",\"number\":\"%s\"}", num);
+	}
+	p->mate_until = n->now + MATE_FOR;
+}
+
+/* Has the other side already carried these bytes this second? Remembered as ours either way. dir: 0 from the LAN, 1 from member `pi`. */
+static int seen_before(lw_node *n, const uint8_t *f, size_t len, int dir, int pi)
+{
+	uint64_t h = frame_hash(f, len);
+	struct seen_ent *s;
+	int dup;
+
+	if (!n->seen && !(n->seen = calloc(SEEN_N, sizeof *n->seen)))
+		return 0;
+	s = &n->seen[h % SEEN_N];
+	dup = s->h == h && s->dir != dir && n->now - s->t < SEEN_FOR;
+	if (dup) {
+		n->drop_echo++;
+		if (dir == 1)
+			mate_note(n, pi);		/* it handed us what came off our LAN */
+		else if (s->peer >= 0 && s->peer < n->maxpeers)
+			mate_note(n, s->peer);		/* what it handed us is what came off our LAN */
+		return 1;				/* the entry stays as it was: the next copy (a third box's) is one too */
+	}
+	s->h = h;
+	s->dir = (uint8_t)dir;
+	s->t = n->now;
+	s->peer = (int16_t)(dir ? pi : -1);
+	return 0;
+}
+
+/* A member's frame whose source is a host that spoke on our own LAN a moment ago has come round, whatever its bytes. */
+static int echo_from_peer(lw_node *n, const uint8_t *src)
+{
+	mac_ent *e;
+
+	if ((src[0] & 1) || !(e = mac_find(n, src, 0)) || e->port != -1 || n->now - e->seen >= MAC_STEAL_GUARD)
+		return 0;
+	n->drop_echo++;
+	return 1;
+}
+
 void sw_from_local(lw_node *n, const uint8_t *in, size_t len)
 {
 	uint8_t f[FRAME_MAX];
@@ -662,6 +763,10 @@ void sw_from_local(lw_node *n, const uint8_t *in, size_t len)
 		n->drop_garbage++;
 		return;
 	}
+	if (ctrl_frame(in)) {			/* for the wire it came on: neither seen nor sent over the line */
+		n->drop_ctrl++;
+		return;
+	}
 	if (n->splice && site_input(n, in, len))	/* another box on this segment announcing itself */
 		return;
 	n->local_rx++;
@@ -669,6 +774,9 @@ void sw_from_local(lw_node *n, const uint8_t *in, size_t len)
 		n->drop_standby++;
 		return;
 	}
+
+	if (seen_before(n, in, len, 0, -1))		/* what a member of ours has just put on the LAN, come back: another box's copy. Not forwarded, and nothing learned from it */
+		return;
 	memcpy(f, in, len);
 	mss_clamp(f, len);
 	learn(n, f + 6, -1);
@@ -682,14 +790,14 @@ void sw_from_local(lw_node *n, const uint8_t *in, size_t len)
 	if (!(f[0] & 1) && (e = mac_find(n, f, 0))) {
 		if (e->port == -1)
 			return;			/* local to local: never leaves the site */
-		if (n->peers[e->port].used && n->peers[e->port].cur.valid) {
+		if (n->peers[e->port].used && n->peers[e->port].cur.valid && !is_mate(n, e->port)) {
 			to_peer(n, e->port, f, len);
 			return;
 		}			/* its peer is gone: flood, it may have moved */
 	}
 	n->flood++;
 	for (i = 0; i < n->maxpeers; i++)
-		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].cur.valid && flood_ok(n, &n->peers[i]))
+		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].cur.valid && !is_mate(n, i) && flood_ok(n, &n->peers[i]))
 			to_peer(n, i, f, len);
 }
 
@@ -762,6 +870,18 @@ static int guard_kind(const uint8_t *f, size_t len)
 
 /* May this member's frame go to our own side? A frame of those kinds is the network telling us how to be on it: a lease, a router. Only a member we asked for, or one the configuration names, may say it. Without
  * this a member who rang us, or one the mesh joined to us, could answer a machine's DHCP and be its gateway: the switch's own protections (a member cannot take a local host's address) do not stop a *server*. */
+int peer_asked(const lw_node *n, const lw_peer *p)
+{
+	int i;
+
+	if (p->asked)
+		return 1;
+	for (i = 0; p->number[0] && i < 8; i++)
+		if (!strcmp(n->asked[i], p->number))
+			return 1;
+	return 0;
+}
+
 static int guard_ok(lw_node *n, int pi, const uint8_t *f, size_t len)
 {
 	const char *kind = n->cfg.port_kind;
@@ -769,13 +889,13 @@ static int guard_ok(lw_node *n, int pi, const uint8_t *f, size_t len)
 	lw_peer *p = &n->peers[pi];
 	static const char *const what[] = { "", "DHCP", "DHCPv6", "a router advertisement", "an IPv6 frame that cannot be read" };
 
-	if (!on || !(k = guard_kind(f, len)) || p->asked)
+	if (!on || !(k = guard_kind(f, len)) || peer_asked(n, p))
 		return 1;
-	for (i = 0; p->number[0] && i < 8; i++)
-		if (!strcmp(n->asked[i], p->number))
-			return 1;
 	for (i = 0; i < n->cfg.n_dhcp; i++)
 		if (!crypto_verify32(n->cfg.dhcp_servers[i], p->key_id))
+			return 1;
+	for (i = 0; i < 16; i++)			/* a member we asked for has said this one is on its own segment: the same site, the other box of a pair */
+		if (!crypto_verify32(n->vouched[i], p->key_id))
 			return 1;
 	n->dhcp_guarded++;
 	if (n->now - p->guard_t >= 60.0 || p->guard_t == 0) {		/* said at most once a minute per member: frames are free to forge */
@@ -802,7 +922,17 @@ void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len)
 		n->drop_garbage++;
 		return;
 	}
+	if (ctrl_frame(f)) {			/* a member's spanning tree is not ours (and a box's own never goes over) */
+		n->drop_ctrl++;
+		return;
+	}
+	if (is_mate(n, pi)) {			/* on our own segment: whatever it carries is on the LAN already */
+		n->drop_echo++;
+		return;
+	}
 	if (!guard_ok(n, pi, f, len))		/* before anything is learned from it */
+		return;
+	if (seen_before(n, f, len, 1, pi) || echo_from_peer(n, f + 6))	/* a frame we already have from the LAN, or one from a host of our own LAN: it has come round */
 		return;
 	learn(n, f + 6, pi);
 	arp_learn(n, f, len);

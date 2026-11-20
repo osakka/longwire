@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.67
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.68
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.67}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.68}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -176,6 +176,7 @@ announce() {
 	call-lost)        say "✗  lost the call to ${e[number]}: ${e[reason]}" ;;
 	site)             say "·  this box is now ${e[role]} for its LAN segment (${e[members]} on it)" ;;
 	hangup)           say "·  ${e[number]} hung up (${e[by]})" ;;
+	loop-guard)       say "⚠  ${e[number]:-a member} is on this node's own LAN segment and carrying what is already on it (two boxes that both forward: the election failed, or one has just joined). Nothing is carried between it and the LAN for a minute. Check that the boxes share a line or a --site-key: longwire status says site" ;;
 	dhcp-blocked)     say "⚠  ${e[number]:-a member} answered as ${e[what]} for this machine's network and was refused: it is on the line, but you did not ask for it. To let it: longwire up --dhcp-server ITS-FULL-ADDRESS" ;;
 	dhcp-conflict)    say "⚠  two DHCP servers answer on this line (${e[servers]}): clients may get clashing leases" ;;
 	key-changed)      say "⚠  KEY CHANGED for ${e[number]}: ${e[action]}" ;;

@@ -131,6 +131,8 @@ const char *site_role(const lw_node *n)
 	return n->standby ? "standby" : "active";
 }
 
+static void site_vouch_send(lw_node *n);
+
 void site_timers(lw_node *n)
 {
 	int i, lower = 0, was = n->standby;
@@ -150,6 +152,10 @@ void site_timers(lw_node *n)
 		probe_mac(n, p, p + PROBE_LEN - 16);
 		port_write(n, p, PROBE_LEN);
 		n->site_probe_t = n->now;
+	}
+	if (n->now - n->site_vouch_t >= 5.0) {
+		n->site_vouch_t = n->now;
+		site_vouch_send(n);
 	}
 	for (i = 0; i < SITE_MEMBERS; i++)
 		if (n->site[i].used && n->now - n->site[i].seen <= SILENCE && memcmp(n->site[i].key_id, n->id.key_id, 32) < 0)
@@ -197,6 +203,47 @@ void site_timers(lw_node *n)
 		ev_emit(n, "{\"event\":\"site\",\"role\":\"active\",\"members\":%d}", site_members(n) + 1);
 	} else if (!was && n->standby)
 		ev_emit(n, "{\"event\":\"site\",\"role\":\"standby\",\"members\":%d}", site_members(n) + 1);
+}
+
+/* The boxes on this one's own LAN segment, said to the members it is linked to, so that one that dialled this box lets them answer DHCP for it as well: a pair of boxes on one segment is one site to a
+ * client, and whichever of them is active carries the lease (docs/adr/0083). Said every 5 s, and only by a box that has heard another. */
+static void site_vouch_send(lw_node *n)
+{
+	uint8_t b[1 + 8 * 32];
+	int i, c = 0;
+
+	for (i = 0; i < SITE_MEMBERS && c < 8; i++)
+		if (n->site[i].used && n->now - n->site[i].seen <= SILENCE) {
+			memcpy(b + 1 + 32 * c, n->site[i].key_id, 32);
+			c++;
+		}
+	if (!c)
+		return;
+	b[0] = (uint8_t)c;
+	for (i = 0; i < n->maxpeers; i++)
+		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].cur.valid)
+			ctl_msg_send(n, &n->peers[i], M_SITE, b, 1 + 32 * (size_t)c);
+}
+
+/* What a member we asked for says is on its own segment: remembered, for as long as this node runs, so that when it goes the other box may still answer. Only a member we asked for is believed. */
+void site_vouch(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
+{
+	int c, j;
+
+	if (len < 1 || pl[0] > 8 || len != 1 + 32 * (size_t)pl[0] || !peer_asked(n, p))
+		return;
+	for (c = 0; c < pl[0]; c++) {
+		const uint8_t *k = pl + 1 + 32 * c;
+		int have = 0;
+
+		if (!memcmp(k, n->id.key_id, 32))
+			continue;
+		for (j = 0; j < 16; j++)
+			if (!memcmp(n->vouched[j], k, 32))
+				have = 1;
+		if (!have)
+			memcpy(n->vouched[n->vouched_i++ & 15], k, 32);
+	}
 }
 
 /* The site secret comes from the line key unless one was given with --site-key. A rotated key is kept as the previous

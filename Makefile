@@ -65,6 +65,9 @@ check: all lint
 	sh tests/guard.sh
 	sh tests/guardnet.sh
 	sh tests/book.sh
+	sh tests/m2b.sh
+	sh tests/m2c.sh
+	sh tests/m2d.sh
 	sh tests/sandbox.sh
 	sh tests/events.sh
 	sh tests/doctor.sh

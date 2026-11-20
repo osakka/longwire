@@ -118,6 +118,10 @@ Bridging L2 over the internet carries the LAN's chatter. longwire trims it witho
   ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)): a DHCP reply, a DHCPv6 reply or a router advertisement from a member this node did not ask for (a number a person dialled, or a peer
   the configuration names with an address) or is not told to trust (`--dhcp-server`) is refused before anything is learned from it, through priority tags and extension headers, and counted (`dhcp_guarded`, the `dhcp-blocked` event). It is on for a
   splice, a jack and a phone.
+- **What a bridge never carries.** The link-local control frames (`01:80:C2:00:00:00` to `0F`: spanning tree, pause, LACP, 802.1X, LLDP; and Cisco's CDP, VTP, DTP and PVST+) are for the wire they were sent on: they cross the line in
+  neither direction, so two sites' spanning trees are not joined and a switch's BPDU guard is not tripped by a box ([ADR 0083](adr/0083-a-pair-of-boxes-is-one-site-and-a-bridge-carries-no-control-frames.md)).
+- **A pair of boxes is one site, and a loop is stopped even if the election fails.** A frame from a member whose bytes are those of one that just came off our LAN (or the reverse) has come round: it is dropped, and a member that does it
+  three times in five seconds is on our own segment and carries nothing to or from the LAN for a minute. A box tells its members which boxes share its segment (`SITE`), so a client that dialled one box lets the other answer its DHCP.
 
 ## 4. Two boxes on one segment: site groups
 
