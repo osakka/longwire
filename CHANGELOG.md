@@ -11,6 +11,10 @@ with once a minute, for ever, and the switchboard saw each call; the wait now gr
 **The Switchboard window shows a pair as a pair** (LW-8, [ADR 0086](docs/adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md)), the owner's question about vpn-1 and vpn-2: a splice box in a site group tells its switchboard which it is (active or standby) and who it is paired with; the window lists the two together,
 each row says its role and its partner (`active with 353-768-703`), and the heading counts the sites. Display only, in memory, and `--site-info off` on a box says nothing.
 
+The window and the Control Panel pane change their kept settings with `dt_set` (hibr 0.99.554, ADR 0050), so those two entries now require hibr 0.99.554. The panel test now allows an entry's `site` and `with` (numbers only), still no address and no key. Docs audit: README status, roadmap, operating (pairs, phones), quickstart, troubleshooting, security, threat model, the backlog's bugs; [IANA](docs/IANA.md) is the application for the service name and port.
+
+Published: hibr-apps f697954, hibr-apt cd1479a, hibr-rpm af914c8, hibr-arch 45e5bf4.
+
 ## 0.5.69
 
 **The phone has backup numbers, and gives up by its own limits** ([ADR 0084](docs/adr/0084-the-phone-has-backup-numbers-and-gives-up-by-its-own-limits.md)), for using a second server: *Numbers to dial, in order* takes several (the first, then the next after two tries, the one that answers first next time; the screen says which),
