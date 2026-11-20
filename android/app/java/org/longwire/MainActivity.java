@@ -40,7 +40,8 @@ public class MainActivity extends Activity {
     private int bg, card, ink, dim, field;
     private EditText sb, dial, token, name;
     private Switch all, saver;
-    private android.widget.RadioGroup retry, giveTries, giveMin;
+    private android.widget.Spinner retry, giveTries, giveMin;
+    private static final int[] secs = {30, 120, 600}, tryVals = {0, 5, 10, 20}, minVals = {0, 5, 30, 120};
     private Button go, edit, allow;
     private TextView title, detail, phrase, summary;
     private View dot, form, batt;
@@ -154,69 +155,14 @@ public class MainActivity extends Activity {
         op.addView(saver);
         op.addView(text("Checks in every 55 s instead of 25 s. Turn it off if the line drops while you are on mobile data. Takes effect the next time you turn it on.", 12, dim, false));
 
-        op.addView(text("When the other end is not answering", 14, ink, false));
-        op.getChildAt(op.getChildCount() - 1).setPadding(0, dp(14), 0, 0);
-        retry = new android.widget.RadioGroup(this);
-        retry.setOrientation(LinearLayout.HORIZONTAL);
-        int[] secs = {30, 120, 600};
-        String[] labels = {"30 s", "2 min", "10 min"};
-        int have = p.getInt("longest", 120);
-        for (int i = 0; i < 3; i++) {
-            android.widget.RadioButton rb = new android.widget.RadioButton(this);
-            rb.setId(1000 + secs[i]);
-            rb.setText(labels[i]);
-            rb.setTextColor(ink);
-            rb.setTypeface(Typeface.MONOSPACE);
-            retry.addView(rb);
-            if (secs[i] == have) {
-                retry.check(rb.getId());
-            }
-        }
-        if (retry.getCheckedRadioButtonId() < 0) {
-            retry.check(1120);
-        }
-        op.addView(retry);
-        op.addView(text("It tries again after 5 s, then waits longer each time, up to this. It tries at once when the network comes back.", 12, dim, false));
-
-        op.addView(text("Turn off by itself after", 14, ink, false));
-        op.getChildAt(op.getChildCount() - 1).setPadding(0, dp(14), 0, 0);
-        giveTries = new android.widget.RadioGroup(this);
-        giveTries.setOrientation(LinearLayout.HORIZONTAL);
-        int[] tv = {0, 5, 10, 20};
-        String[] tl = {"never", "5 tries", "10 tries", "20 tries"};
-        for (int i = 0; i < 4; i++) {
-            android.widget.RadioButton rb = new android.widget.RadioButton(this);
-            rb.setId(2000 + tv[i]);
-            rb.setText(tl[i]);
-            rb.setTextColor(ink);
-            rb.setTypeface(Typeface.MONOSPACE);
-            rb.setTextSize(12);
-            giveTries.addView(rb);
-        }
-        giveTries.check(2000 + p.getInt("giveTries", 0));
-        if (giveTries.getCheckedRadioButtonId() < 0) {
-            giveTries.check(2000);
-        }
-        op.addView(giveTries);
-        giveMin = new android.widget.RadioGroup(this);
-        giveMin.setOrientation(LinearLayout.HORIZONTAL);
-        int[] mv = {0, 5, 30, 120};
-        String[] ml = {"never", "5 min", "30 min", "2 h"};
-        for (int i = 0; i < 4; i++) {
-            android.widget.RadioButton rb = new android.widget.RadioButton(this);
-            rb.setId(3000 + mv[i]);
-            rb.setText(ml[i]);
-            rb.setTextColor(ink);
-            rb.setTypeface(Typeface.MONOSPACE);
-            rb.setTextSize(12);
-            giveMin.addView(rb);
-        }
-        giveMin.check(3000 + p.getInt("giveMin", 0));
-        if (giveMin.getCheckedRadioButtonId() < 0) {
-            giveMin.check(3000);
-        }
-        op.addView(giveMin);
-        op.addView(text("Failed tries in a row, or time without a line, whichever comes first: the VPN turns itself off and says so. Never keeps trying for as long as it is on.", 12, dim, false));
+        // when the other end stops answering: three dropdowns on a card of their own, each a label and what it is set to
+        LinearLayout na = box(col, 16);
+        na.addView(text("When the other end is not answering", 16, ink, true));
+        na.addView(text("It tries again after 5 s, then waits longer each time. It tries at once when the network comes back.", 12, dim, false));
+        retry = pick(na, "Longest wait between tries", new String[] {"30 s", "2 min", "10 min"}, secs, p.getInt("longest", 120), 1);
+        giveTries = pick(na, "Turn off after failed tries", new String[] {"never", "5 tries", "10 tries", "20 tries"}, tryVals, p.getInt("giveTries", 0), 0);
+        giveMin = pick(na, "Turn off after time without a line", new String[] {"never", "5 min", "30 min", "2 h"}, minVals, p.getInt("giveMin", 0), 0);
+        na.addView(text("Whichever comes first: the VPN turns itself off and says so. Never keeps trying for as long as it is on.", 12, dim, false));
 
         // Android pauses background apps unless it is told not to
         batt = box(col, 16);
@@ -268,6 +214,80 @@ public class MainActivity extends Activity {
         t.setTextColor(color);
         t.setTypeface(Typeface.MONOSPACE, bold ? Typeface.BOLD : Typeface.NORMAL);
         return t;
+    }
+
+    /**
+     * A row with its label on the left and a dropdown on the right: the shown choice sits in a rounded field with a copper chevron, and the list opens on the card's own colour.
+     * `values` are what is kept for each label; `have` is the kept value (the choice at `dflt` if it is none of them).
+     */
+    private android.widget.Spinner pick(LinearLayout into, String label, String[] labels, int[] values, int have, int dflt) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView l = text(label, 14, ink, false);
+        row.addView(l, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        android.widget.Spinner sp = new android.widget.Spinner(this, android.widget.Spinner.MODE_DROPDOWN);
+        final int[] cur = {0};			// the chosen row, for the list to show it in bold
+        sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            public void onItemSelected(android.widget.AdapterView<?> a, View v, int i, long id) {
+                cur[0] = i;
+            }
+
+            public void onNothingSelected(android.widget.AdapterView<?> a) {
+            }
+        });
+        sp.setAdapter(new android.widget.BaseAdapter() {
+            public int getCount() {
+                return labels.length;
+            }
+
+            public Object getItem(int i) {
+                return labels[i];
+            }
+
+            public long getItemId(int i) {
+                return i;
+            }
+
+            public View getView(int i, View v, ViewGroup parent) {
+                LinearLayout r = new LinearLayout(MainActivity.this);
+                r.setGravity(Gravity.CENTER_VERTICAL);
+                r.setPadding(dp(12), dp(8), dp(12), dp(8));
+                GradientDrawable g = new GradientDrawable();
+                g.setColor(field);
+                g.setCornerRadius(dp(10));
+                r.setBackground(g);
+                r.addView(text(labels[i], 14, ink, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+                TextView chev = text("\u25BE", 14, COPPER, true);
+                chev.setPadding(dp(10), 0, 0, 0);
+                r.addView(chev);
+                return r;
+            }
+
+            public View getDropDownView(int i, View v, ViewGroup parent) {
+                TextView t = text(labels[i], 14, ink, i == cur[0]);
+                t.setPadding(dp(16), dp(12), dp(16), dp(12));
+                t.setBackgroundColor(card);
+                return t;
+            }
+        });
+        GradientDrawable pop = new GradientDrawable();
+        pop.setColor(card);
+        pop.setCornerRadius(dp(10));
+        pop.setStroke(dp(1), field);
+        sp.setPopupBackgroundDrawable(pop);
+        sp.setBackground(null);
+        sp.setPadding(0, 0, 0, 0);
+        int at = dflt;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == have) {
+                at = i;
+            }
+        }
+        sp.setSelection(at);
+        row.addView(sp, new LinearLayout.LayoutParams(dp(136), ViewGroup.LayoutParams.WRAP_CONTENT));
+        row.setPadding(0, dp(14), 0, dp(4));
+        into.addView(row);
+        return sp;
     }
 
     /** A rounded card in the column. */
@@ -451,8 +471,8 @@ public class MainActivity extends Activity {
             .putString("switchboard", sb.getText().toString()).putString("dial", dial.getText().toString())
             .putString("token", token.getText().toString()).putString("name", name.getText().toString())
             .putBoolean("all", all.isChecked()).putBoolean("saver", saver.isChecked())
-            .putInt("longest", Math.max(30, retry.getCheckedRadioButtonId() - 1000))
-            .putInt("giveTries", Math.max(0, giveTries.getCheckedRadioButtonId() - 2000)).putInt("giveMin", Math.max(0, giveMin.getCheckedRadioButtonId() - 3000)).apply();
+            .putInt("longest", secs[retry.getSelectedItemPosition()])
+            .putInt("giveTries", tryVals[giveTries.getSelectedItemPosition()]).putInt("giveMin", minVals[giveMin.getSelectedItemPosition()]).apply();
         Intent consent = VpnService.prepare(this);
         if (consent != null) {
             startActivityForResult(consent, CONSENT);
