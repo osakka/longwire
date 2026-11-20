@@ -65,12 +65,14 @@ echo "REAL ip=\${new_ip_address:-} routers=\${new_routers:-} dns=\${new_domain_n
 RS
 chmod +x "$T/real-script"
 export LONGWIRE_DHCP_SCRIPT=$T/real-script
+HN=$(sed 's/\..*//; s/[^A-Za-z0-9-]//g; s/^-*//' /proc/sys/kernel/hostname | cut -c1-63)	# what the helper sends as the machine's name (LW-5)
+[ -n "$HN" ] || { echo "skip: this machine has no usable host name"; exit 0; }
 cp /bin/sleep "$T/bin/dhclient"	# a client of ours from before: a process called dhclient
 "$T/bin/dhclient" 60 & oldpid=$!
 mkdir -p "$RUN"; echo $oldpid > "$RUN/dhcp-lw7.pid"
 rm -f "$T/bin/dhclient"; cp /bin/sleep "$T/dhclient"; mkclient dhclient
 run --dhcp lw7 1000
-[ $rc = 0 ] && grep -q "dhclient -nw -pf $RUN/dhcp-lw7.pid -lf $RUN/dhcp-lw7.leases -sf $RUN/dhcp-hook-lw7 lw7" "$LWJ_LOG" && ok "--dhcp starts dhclient on the jack, with its own pid file, lease file and hook" || bad "dhclient: rc=$rc $out $(cat "$LWJ_LOG")"
+[ $rc = 0 ] && grep -q "dhclient -nw -pf $RUN/dhcp-lw7.pid -lf $RUN/dhcp-lw7.leases -cf $RUN/dhcp-lw7.conf -sf $RUN/dhcp-hook-lw7 lw7" "$LWJ_LOG" && [ "$(cat "$RUN/dhcp-lw7.conf")" = "send host-name \"$HN\";" ] && ok "--dhcp starts dhclient on the jack, with its own pid file, lease file and hook" || bad "dhclient: rc=$rc $out $(cat "$LWJ_LOG")"
 sleep 0.2
 kill -0 $oldpid 2> /dev/null && { bad "the client from before is still there"; kill $oldpid; } || ok "and the client of ours from before is stopped, so there is only one"
 : > "$LWJ_LOG"
@@ -89,11 +91,11 @@ hook_sees() { : > "$LWJ_LOG"; new_ip_address=$1 new_subnet_mask=$2 reason=BOUND 
 rm -f "$T/bin/dhclient"
 mkclient dhcpcd
 run --dhcp lw7 1000
-grep -q "dhcpcd -b -G -C resolv.conf -C ntp.conf -O routers -O classless_static_routes -O ms_classless_static_routes -O static_routes -O domain_name_servers .* lw7" "$LWJ_LOG" && ok "without dhclient, dhcpcd: in the background, no gateway, no resolv.conf or ntp.conf, and neither the routers, the classless routes (option 121), the name servers nor anything else that could reach the machine is asked for or believed" || bad "dhcpcd: rc=$rc $(cat "$LWJ_LOG")"
+grep -q "dhcpcd -b -G -C resolv.conf -C ntp.conf -O routers -O classless_static_routes -O ms_classless_static_routes -O static_routes -O domain_name_servers .* -h $HN lw7" "$LWJ_LOG" && ok "without dhclient, dhcpcd: in the background, no gateway, no resolv.conf or ntp.conf, and neither the routers, the classless routes (option 121), the name servers nor anything else that could reach the machine is asked for or believed" || bad "dhcpcd: rc=$rc $(cat "$LWJ_LOG")"
 rm -f "$T/bin/dhcpcd"
 mkclient udhcpc
 run --dhcp lw7 1000
-grep -q "udhcpc -b -i lw7 -p $RUN/dhcp-lw7.pid -s $RUN/dhcp-hook-lw7" "$LWJ_LOG" && ok "and udhcpc after that, with the hook as its script" || bad "udhcpc: rc=$rc $(cat "$LWJ_LOG")"
+grep -q "udhcpc -b -i lw7 -p $RUN/dhcp-lw7.pid -s $RUN/dhcp-hook-lw7 -x hostname:$HN" "$LWJ_LOG" && ok "and udhcpc after that, with the hook as its script" || bad "udhcpc: rc=$rc $(cat "$LWJ_LOG")"
 rm -f "$T/bin/udhcpc"
 if command -v dhclient dhcpcd udhcpc > /dev/null 2>&1; then
 	echo "skip: no client at all (this machine has one in the search path)"

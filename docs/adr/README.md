@@ -96,6 +96,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0085](0085-the-mesh-calls-an-absent-member-less-and-less-often.md) | The mesh calls an absent member less and less often | accepted; built in 0.5.70 |
 | [0086](0086-the-switchboard-window-shows-a-pair-as-a-pair.md) | The switchboard window shows a pair as a pair | accepted; built in 0.5.70 |
 | [0087](0087-a-leaf-keeps-only-the-sessions-it-asked-for.md) | A leaf keeps only the sessions it asked for | accepted |
+| [0088](0088-the-jack-tells-the-dhcp-server-the-machines-name.md) | The jack tells the DHCP server the machine's name | accepted |
 
 ---
 

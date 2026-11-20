@@ -7,6 +7,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 **The phone keeps only the sessions it asked for** (LW-3, [ADR 0087](docs/adr/0087-a-leaf-keeps-only-the-sessions-it-asked-for.md)): the phone's engine is a *leaf*: it does not dial the other members of its line, and it refuses a ring from any it did not ask for, so in a line of five it holds the sessions of the numbers in its list and no more. `longwire up --leaf on` does the same on a machine; test `leafline`.
 
+**The jack tells the router the machine's name** (LW-5, [ADR 0088](docs/adr/0088-the-jack-tells-the-dhcp-server-the-machines-name.md)): the DHCP client started on a jack is told the machine's host name, whichever client it is, so the router lists the lease under it.
+
 ## 0.5.70
 
 **The app shows its version, and the mesh is calmer** (tickets LW-1 and LW-2 of the new [backlog](docs/BACKLOG.md); [ADR 0085](docs/adr/0085-the-mesh-calls-an-absent-member-less-and-less-often.md)): the main screen says `longwire 0.5.70 (5070)`. A member of a line called every member it had no session

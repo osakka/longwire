@@ -134,7 +134,7 @@ if [ -n "$remove" ]; then
 	elif command -v dhcpcd > /dev/null; then
 		dhcpcd -k "$tap" > /dev/null 2>&1
 	fi
-	rm -f "$pidf" "$rundir/dhcp-hook-$tap" "$rundir/dhcp-$tap.leases"
+	rm -f "$pidf" "$rundir/dhcp-hook-$tap" "$rundir/dhcp-$tap.leases" "$rundir/dhcp-$tap.conf"
 	rules_off
 	share_off
 	ip link delete "$tap" || exit 1
@@ -390,6 +390,15 @@ HK
 		chmod 755 "$hook"
 	}
 
+	# The machine's own host name goes to the server as the name this client asks to be known by (ADR 0079, ticket LW-5): what the client's own configuration says is not
+	# what is wanted on a line, and some send none. Only what a host name may be (letters, digits, hyphens; 63 at most) is sent; no name, or none left, sends none.
+	hn=
+	read -r hn < /proc/sys/kernel/hostname 2> /dev/null
+	hn=${hn%%.*}
+	hn=${hn//[!A-Za-z0-9-]/}
+	hn=${hn#"${hn%%[!-]*}"}
+	hn=${hn:0:63}
+
 	real=
 	if command -v dhclient > /dev/null; then
 		real=${LONGWIRE_DHCP_SCRIPT:-}
@@ -399,12 +408,15 @@ HK
 			done
 		fi
 		mkhook "$real"
-		dhclient -nw -pf "$pidf" -lf "$rundir/dhcp-$tap.leases" -sf "$hook" "$tap" || exit 1
+		cf=$rundir/dhcp-$tap.conf		# its own configuration: the system's would add what it likes; this names the host and nothing else
+		: > "$cf" || exit 1
+		[ -z "$hn" ] || printf 'send host-name "%s";\n' "$hn" > "$cf" || exit 1
+		dhclient -nw -pf "$pidf" -lf "$rundir/dhcp-$tap.leases" -cf "$cf" -sf "$hook" "$tap" || exit 1
 		client=dhclient
 	elif command -v dhcpcd > /dev/null; then
 		dhcpcd -k "$tap" > /dev/null 2>&1
 		dhcpcd -b -G -C resolv.conf -C ntp.conf -O routers -O classless_static_routes -O ms_classless_static_routes -O static_routes -O domain_name_servers -O domain_name \
-			-O domain_search -O ntp_servers -O host_name -O interface_mtu "$tap" || exit 1		# what a server sends that could reach the machine is neither asked for nor believed
+			-O domain_search -O ntp_servers -O host_name -O interface_mtu ${hn:+-h "$hn"} "$tap" || exit 1		# what a server sends that could reach the machine is neither asked for nor believed
 		client=dhcpcd
 	elif command -v udhcpc > /dev/null; then
 		real=${LONGWIRE_DHCP_SCRIPT:-}
@@ -414,7 +426,7 @@ HK
 			done
 		fi
 		mkhook "$real"
-		udhcpc -b -i "$tap" -p "$pidf" -s "$hook" || exit 1
+		udhcpc -b -i "$tap" -p "$pidf" -s "$hook" ${hn:+-x "hostname:$hn"} || exit 1
 		client=udhcpc
 	else
 		fail "no DHCP client found: install isc-dhcp-client, dhcpcd or udhcpc (busybox)" 3

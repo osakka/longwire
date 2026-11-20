@@ -76,7 +76,7 @@ longwire profile set home address=10.77.0.2/24        # on B
 **Turn on** (or `longwire on`) then puts it on the device, in the same password step that makes the device; after a restart, once more. By hand
 instead, as root: `ip addr add 10.77.0.1/24 dev lw0`.
 
-If a DHCP server sits on the other side (a router at a site you have bridged), ask it instead: type `dhcp` in the **Address** row, or `longwire profile set home address=dhcp`. The same password step starts a DHCP client on the jack (`dhclient`, `dhcpcd` or `udhcpc`, whichever is installed); it keeps asking until the line answers, and it takes the address and the network route only: never a default route and never name servers, so that a line cannot take over your machine's traffic.
+If a DHCP server sits on the other side (a router at a site you have bridged), ask it instead: type `dhcp` in the **Address** row, or `longwire profile set home address=dhcp`. The same password step starts a DHCP client on the jack (`dhclient`, `dhcpcd` or `udhcpc`, whichever is installed) and tells the server the machine's own host name ([ADR 0088](adr/0088-the-jack-tells-the-dhcp-server-the-machines-name.md)); it keeps asking until the line answers, and it takes the address and the network route only: never a default route and never name servers, so that a line cannot take over your machine's traffic.
 
 ### Beyond the bridged subnet
 
