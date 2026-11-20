@@ -166,6 +166,18 @@ Two splice boxes on **one LAN segment** make one site: they elect one to forward
 
 The two boxes are two numbers; nothing makes them one number. A member of the line (a phone, a laptop) holds a session with both, so it needs no action when the active box fails.
 
+## Updating a pair of boxes
+
+Both boxes of a pair carry the same LAN, one of them forwarding. Updating them together takes the LAN's link to the other sites down for as long as both restart (about a minute); one at a time it takes nothing down but a takeover that needs no handshake. So **roll the standby first, check, then the active**:
+
+1. **Find which is which:** `longwire status` on each says `"site":"active"` or `"standby"`.
+2. **Update the standby** (the package, then restart its service, or the container image if the boxes are containers) and wait for it to come back: `"site":"standby"` again, and `"site_members":1`.
+3. **Check what the pair is for:** a client's lease through the pair (a phone: turn the line off and on, and see it connect with its address), `drop_ctrl` and `drop_echo` near 0, and no `loop-guard` event.
+4. **Update the active one.** The standby takes over within about a minute; clients keep their sessions with both boxes and need nothing.
+5. **If the boxes are rolled by something automatic** (an image that follows the newest release, a timer), make it update one box and wait for a check before the other; two boxes restarted within seconds of each other is the case this section is about.
+
+The switchboard is separate: restarting it does not stop a connected pair, and a node registers with it again by itself (`tests/sbrestart.sh`). Before you upgrade or restart a switchboard that shows a problem, take `longwire-switchboard status` and `longwire status` from the nodes first: they hold the counters that say what it did.
+
 ## Phones
 
 A phone joins as a member: [ANDROID](ANDROID.md) (build, sign, install; enrol it with `longwire-switchboard token invite`; backup numbers; give-up limits).
