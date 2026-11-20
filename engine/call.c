@@ -1648,9 +1648,38 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 		relay_msg(n, p, msg, pl, len);
 }
 
+/* A splice box that has a site group tells its switchboard which it is and who shares its segment: when that changes, and every 30 s while it holds (the switchboard forgets a claim it has not heard for two minutes). Display only: nothing is decided by it. */
+static void site_info_timer(lw_node *n)
+{
+	lw_peer *s = sbp(n);
+	uint8_t b[2 + 8 * 32];
+	size_t l = 2;
+	int i, c = 0;
+
+	if (!n->splice || !n->have_site_key || n->cfg.no_site_info || !s || !s->cur.valid || !n->registered)
+		return;
+	b[0] = n->standby ? 2 : 1;
+	for (i = 0; i < SITE_MEMBERS && c < 8; i++)
+		if (n->site[i].used && n->now - n->site[i].seen <= 3.5) {
+			memcpy(b + l, n->site[i].key_id, 32);
+			l += 32;
+			c++;
+		}
+	b[1] = (uint8_t)c;
+	if (!c)					/* alone on its segment: there is no pair to show */
+		return;
+	if (l == n->siteinfo_len && !memcmp(b, n->siteinfo_last, l) && n->now - n->siteinfo_t < 30.0)
+		return;
+	memcpy(n->siteinfo_last, b, l);
+	n->siteinfo_len = l;
+	n->siteinfo_t = n->now;
+	ctl_msg_send(n, s, M_SITEINFO, b, l);
+}
+
 /* Registering with our switchboard (a switchboard registering with its registry of codes does the same, once). */
 void registration_timers(lw_node *n)
 {
+	site_info_timer(n);
 	lw_peer *s = sbp(n);
 
 	if (s) {

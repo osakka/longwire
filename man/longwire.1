@@ -466,6 +466,9 @@ A DHCP reply, a DHCPv6 reply or a router advertisement from a member you did not
 .B auto
 (the default) is on for a splice, a jack and a phone, and off for a socket port.
 .TP
+.BI \-\-site\-info " on|off"
+Tell the switchboard which boxes share this segment and which is active, so its operator's window shows the pair (default on; only a splice box in a site group says anything).
+.TP
 .BI \-\-dhcp\-server " KEY"
 A member that may answer DHCP and advertise routers for this machine's side though you did not dial it: its full address or key id.
 Up to eight; repeat the option.

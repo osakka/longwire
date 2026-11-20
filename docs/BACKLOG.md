@@ -12,7 +12,7 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-5 | The desktop jack tells the DHCP client the machine's own host name | open |
 | LW-6 | A member's claim to an address a local host holds is refused (ARP and neighbour inspection) | open |
 | LW-7 | The profile and the pane set `--dhcp-guard` and `--dhcp-server` | open |
-| LW-8 | The Switchboard window shows which nodes are one site | open |
+| LW-8 | The Switchboard window shows which nodes are one site | built, ships with LW-1 and LW-2 in 0.5.70 |
 | LW-9 | The phone carries IPv6 | open |
 | LW-10 | The phone's seed is kept in the Android Keystore, and a recovery phrase is shown | open |
 | LW-11 | The phone offers the system's kill switch | open |
@@ -40,7 +40,7 @@ calls only the numbers it was given and keeps those sessions. *Done when* a phon
 
 **LW-7: the pane and the profile** carry the DHCP guard and the named servers, as the command line does.
 
-**LW-8: the pair in the window.** The switchboard knows nothing of lines or sites: two boxes are two entries. Nodes could name their site-mates when they register, so the Switchboard window shows the pair. Display only.
+**LW-8: the pair in the window.** The switchboard knew nothing of sites: two boxes were two entries. A splice box in a site group now tells its switchboard which it is and who it is paired with, and the window lists the pair together ([ADR 0086](adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md)). Display only.
 
 **LW-9: IPv6 on the phone** (SLAAC and an NDP responder); until then it is dropped, and black-holed with "everything through the line".
 

@@ -65,6 +65,7 @@ before the handshake. Messages are `CTL` messages inside that session:
 | `REJECTED` | `0x28` | sb → caller | call id, reason, callee number | unknown number, not online, declined, busy, refused by policy, no answer |
 | `LOOKUP` | `0x29` | node → sb | kind (key id or name), query | the directory ([ADR 0023](adr/0023-names-are-opt-in-claims.md)): → `FOUND` |
 | `FOUND` | `0x2a` | sb → node | status (ok, no directory, slow down), query, up to 8 × (number, key id, name) | only nodes that chose to be listed. A node may look up once a second, with a burst of 5 |
+| `SITEINFO` | `0x2b` | node → sb | role (1 active, 2 standby), count, count × key id (at most 8) | a splice box in a site group says which it is and which boxes share its LAN segment: kept in memory for two minutes, listed with the node and shown in the operator's window, nothing is decided by it ([ADR 0086](adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md)); a node can say `--site-info off` |
 | `REFUSED` | `0x2f` | sb → node | reason text | registration refused |
 
 A node counts as **online** if its session is up and it has been heard from in the last 80 seconds. The switchboard

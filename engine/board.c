@@ -25,6 +25,9 @@ typedef struct reg {
 	long    wall, wall_logged;		/* unix time last heard, and the last time that was written to the log */
 	char    name[LW_NAME_MAX + 1];		/* in memory only: sent again whenever the node registers */
 	int     listed;
+	uint8_t site_role, site_n;		/* what it claims of its site: 1 active, 2 standby, and the boxes it says share its LAN segment (display only, in memory) */
+	uint8_t site_mates[8][32];
+	double  site_t;
 	double  look_tok, look_t;		/* a budget for directory lookups */
 	double  miss_tok, miss_t;		/* a budget for dials that find no one: learning which numbers exist is slow */
 	double  dial_tok, dial_t;		/* and one for dials of any kind: a number is not found by trying them all */
@@ -997,6 +1000,14 @@ void board_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t le
 		} else
 			(void)do_register(n, p, 0, nm_, listed_);
 		return;
+	case M_SITEINFO:				/* a splice box says which it is of its site group: a claim, shown to the operator and nothing else */
+		if (!r || len < 2 || (pl[0] != 1 && pl[0] != 2) || pl[1] > 8 || len != 2 + 32 * (size_t)pl[1])
+			return;
+		r->site_role = pl[0];
+		r->site_n = pl[1];
+		memcpy(r->site_mates, pl + 2, 32 * (size_t)pl[1]);
+		r->site_t = n->now;
+		return;
 	case M_HEARTBEAT:
 		if (!r)
 			return;
@@ -1255,8 +1266,24 @@ static int nodes_json(lw_node *n, int from, char *out, size_t cap)
 
 		fmt_number(f, r->number);
 		json_esc(nm, sizeof nm, r->name);
-		len = lw_app(out, cap, len, "%s{\"number\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"online\":%s,\"age\":%d}",
-				any ? "," : "", f, nm, r->listed ? "true" : "false", online(n, r) ? "true" : "false", (int)(time(0) - r->wall));
+		{
+			char with[8 * 20 + 4] = "";
+			int w = 0, m;
+			int live = r->site_role && n->now - r->site_t < 120.0;
+
+			for (m = 0; live && m < r->site_n; m++) {
+				const reg *o = reg_by_key(b, r->site_mates[m]);
+				char of[16];
+
+				if (!o)
+					continue;
+				fmt_number(of, o->number);
+				w += snprintf(with + w, sizeof with - (size_t)w, "%s\"%s\"", w ? "," : "", of);
+			}
+			len = lw_app(out, cap, len, "%s{\"number\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"online\":%s,\"age\":%d,\"site\":\"%s\",\"with\":[%s]}",
+					any ? "," : "", f, nm, r->listed ? "true" : "false", online(n, r) ? "true" : "false", (int)(time(0) - r->wall),
+					live ? (r->site_role == 1 ? "active" : "standby") : "", with);
+		}
 		any++;
 		last = i + 1;
 	}

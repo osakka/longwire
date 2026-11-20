@@ -126,6 +126,18 @@ def main():
     low = "v2" if (kid(name) < k1) else "v1"
     act = "v1" if V1.status()["site"] == "active" else "v2"
     check(act == low, f"the lower key id is the active one ({act}; lower is {low})")
+    # the switchboard's own view: both boxes have told it which they are, and who they are paired with (what the operator's window shows)
+    def sb_nodes():
+        out = subprocess.run([L.HIBR, "-c", f"mod load {L.MOD}; lw sb nodes 0 --sock {S.sock}"], capture_output=True, text=True).stdout
+        return {x["number"]: x for x in json.loads(out)["nodes"]}
+    def paired():
+        nd = sb_nodes()
+        a, b = nd.get(n1), nd.get(n2)
+        return a and b and a["site"] and b["site"] and a["with"] == [n2] and b["with"] == [n1] and sorted([a["site"], b["site"]]) == ["active", "standby"] and nd
+    nd = until(paired, 45)
+    check(bool(nd), f"the switchboard has been told which of the two is active and which standby, and that they are a pair: {[(x['number'], x['site'], x['with']) for x in (nd or sb_nodes()).values() if x['site']]}")
+    if nd:
+        check(nd[n1]["site"] == V1.status()["site"] and nd[n2]["site"] == V2.status()["site"], "...and what it was told is what the boxes say of themselves")
     ga.wait()
     echoes = json_load(ra.communicate()[0])
     copies = json_load(rb.communicate()[0])

@@ -163,6 +163,14 @@ def main():
     check("online only" in text and "Nodes (2)" in text, f"o shows only the nodes online (both are): {r.stderr[-200:]}")
     check(any(l.startswith("COPY ") and l[5:] in num.values() for l in out), f"Copy takes the chosen node's number: {[l for l in out if l.startswith('COPY')]}")
 
+    # a pair of boxes on one segment, as they say of themselves (ADR 0086): grouped, with the role and the partner
+    out, r = drive(S.sock, 'switchboard_open 1; sw_scan 1 0; SWN[1][0]["site"]=active; SWN[1][0]["with"]="%s"; SWN[1][1]["site"]=standby; SWN[1][1]["with"]="%s"; sw_filter 1; echo "IDX ${SW[1][idx]}"; SW[1][scant]=99999999999999; switchboard_draw 1 22 100 1 1' % (num["B"], num["A"]))
+    ptext = "\n".join(l for l in out if l.startswith("PUT "))
+    idxl = next((l for l in out if l.startswith("IDX ")), "")
+    check(f"active with {num['B']}" in ptext and f"standby with {num['A']}" in ptext, f"a pair: each row says its role and the other's number: {[l for l in out if 'active' in l or 'standby' in l][:2]}")
+    check("1 site with a standby" in ptext, f"...and the heading counts the sites: {[l for l in out if 'Nodes' in l][:1]}")
+    check(sorted(idxl.split()[1:]) == ["0", "1"] and (idxl.split()[1:] == ["0", "1"] or idxl.split()[1:] == ["1", "0"]), f"...and the two are listed together: {idxl}")
+
     # the bans: b turns the list into them, x asks before lifting
     out, r = drive(S.sock, "switchboard_open 1; switchboard_key 1 b; sw_scan 1 0; switchboard_draw 1 22 74 1 1; switchboard_key 1 x")
     text = "\n".join(l for l in out if l.startswith("PUT "))

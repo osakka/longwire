@@ -43,6 +43,7 @@
 #define M_REJECTED 0x28		/* call_id(8) reason(1) callee number(9) */
 #define M_LOOKUP   0x29		/* kind(1: 0 key id, 1 name) query */
 #define M_FOUND    0x2a		/* status(1: 0 ok, 1 no directory) kind(1) query_len(1) query n(1) n x (number(9) key_id(32) namelen(1) name) */
+#define M_SITEINFO 0x2b		/* role(1: 1 active, 2 standby) count(1) key_id(32)...: a splice box tells its switchboard which it is and which boxes share its LAN segment (at most 8), so the operator's window can show a pair: display only, a claim (docs/adr/0086) */
 #define M_REFUSED  0x2f		/* reason string */
 
 #define V_ACCEPT 0

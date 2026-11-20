@@ -356,6 +356,9 @@ struct lw_node {
 	uint8_t  vouched[16][32];		/* keys an asked member has said are on its own LAN segment: they may answer DHCP for us, for as long as this node runs (M_SITE) */
 	unsigned vouched_i;
 	double   site_vouch_t;
+	double   siteinfo_t;			/* when the switchboard was last told which site role this box has (call.c: site_info_timer) */
+	uint8_t  siteinfo_last[2 + 8 * 32];
+	size_t   siteinfo_len;
 	char     asked[8][NUMLEN + 1];		/* the numbers a person dialled lately: a member of these may answer DHCP for us even when the other end made the last call (the guard) */
 	unsigned asked_i;
 	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize, cand_skipped;

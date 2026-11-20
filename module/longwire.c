@@ -424,6 +424,16 @@ static int do_start(sh *s, int ac, char **av, int role)
 			}
 			c->n_never++;
 		}
+		else if (!strcmp(a, "--site-info") && !role) {
+			if (!strcmp(v, "on"))
+				c->no_site_info = 0;
+			else if (!strcmp(v, "off"))
+				c->no_site_info = 1;
+			else {
+				hibr_fail(s, "lw start: --site-info wants on or off");
+				goto out;
+			}
+		}
 		else if (!strcmp(a, "--dhcp-guard") && !role) {
 			if (!strcmp(v, "auto"))
 				c->dhcp_guard = 0;

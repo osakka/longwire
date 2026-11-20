@@ -125,7 +125,28 @@ fn sw_filter(int id) {
 		fi
 		out+="$k "
 	done
-	SW[$id]["idx"]=$out
+	# the nodes of one site (a pair of boxes on one segment, as they say of themselves) sit together, the first in the order and then its mates
+	local -a ks
+	local -A pos had
+	local m mk res=
+
+	read -ra ks <<< "$out"
+	for k in "${ks[@]}"; do
+		num=${SWN[$id][$k]["number"]}
+		[ -n "$num" ] && pos[$num]=$k
+	done
+	for k in "${ks[@]}"; do
+		[ -n "${had[$k]-}" ] && continue
+		had[$k]=1
+		res+="$k "
+		for m in ${SWN[$id][$k]["with"]-}; do
+			mk=${pos[$m]-}
+			[ -n "$mk" ] && [ -z "${had[$mk]-}" ] || continue
+			had[$mk]=1
+			res+="$mk "
+		done
+	done
+	SW[$id]["idx"]=${res% }
 }
 
 # Add a sample to a history kept as a string of numbers, and drop the oldest.
@@ -283,7 +304,7 @@ fn sw_alerts(int id) {
 }
 
 fn sw_scan(int id, int now) {
-	local sock st pg cur total nx cnt i k v num nm lst on age
+	local sock st pg cur total nx cnt i j k v num nm lst on age site nwith with mn
 
 	sock := sw_sock
 	if ! st := lw status --sock "$sock" 2> /dev/null || ! json parse SW_J "$st" 2> /dev/null; then
@@ -359,6 +380,15 @@ fn sw_scan(int id, int now) {
 			SWN[$id][$((cur + i))]["listed"]=$lst
 			SWN[$id][$((cur + i))]["online"]=$on
 			SWN[$id][$((cur + i))]["age"]=$age
+			site := json get SW_P ".nodes[$i].site"
+			nwith := json len SW_P ".nodes[$i].with"
+			with=
+			for ((j = 0; j < nwith; j++)); do
+				mn := json get SW_P ".nodes[$i].with[$j]"
+				with+="$mn "
+			done
+			SWN[$id][$((cur + i))]["site"]=$site
+			SWN[$id][$((cur + i))]["with"]=${with% }
 		done
 		nx := json get SW_P .next
 		[ "$nx" -ge "$total" ] || [ "$cnt" = 0 ] && nx=0
@@ -631,7 +661,7 @@ fn sw_drawcalls(int id, int r0, int rows, int w, int now) {
 }
 
 fn switchboard_draw(int id, int h, int w, int row, int col) {
-	local now sock i k num r r0 vis top sel n total on max bw filled bar nw name lamp line ago sp1 sp2 half fr rin rout srows q tf comp alerts
+	local now sock i k num r r0 vis top sel n total on max bw filled bar nw name lamp line ago sp1 sp2 half fr rin rout sites srows q tf comp alerts
 	local -a idx
 
 	now := dt_ms
@@ -773,6 +803,11 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 		total=${SW[$id]["ntotal"]:-0}
 		line="Nodes ($total)"
 		[ "$n" != "$total" ] && line="Nodes ($n of $total)"
+		sites=0
+		for ((i = 0; i < ${SW[$id]["ntotal"]:-0}; i++)); do
+			[ "${SWN[$id][$i]["site"]-}" = active ] && sites=$((sites + 1))
+		done
+		[ "$sites" -gt 0 ] && line+="   $sites site$([ "$sites" -gt 1 ] && echo s) with a standby"
 		[ "${SW[$id]["only"]}" = 1 ] && line+="   online only"
 		q := dt_searchq "$id"
 		[ -n "$q" ] && line+="   matching \"$q\""
@@ -825,6 +860,10 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 		line="$num $name"
 		[ "${SWN[$id][$k]["listed"]}" = true ] && line+=" ${GL[star]}" || line+="  "
 		line+=" $ago"
+		if [ -n "${SWN[$id][$k]["site"]}" ]; then			# one of a pair: which it is, and who it is paired with
+			line+="  ${SWN[$id][$k]["site"]}"
+			[ -n "${SWN[$id][$k]["with"]}" ] && line+=" ${GL[arrow]:-with} ${SWN[$id][$k]["with"]// /, }"
+		fi
 		if [ "$i" = "$sel" ] && ! dt_searchon "$id"; then
 			console pen "$DT_SELINK" "$DT_ACTIVE" bold
 		elif [ "${SWN[$id][$k]["online"]}" = true ]; then

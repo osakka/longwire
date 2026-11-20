@@ -142,6 +142,7 @@ registers at a switchboard that wants one; after that the switchboard knows the 
 | `--nat-pmp on\|off` | ask the home router (NAT-PMP) to keep a port open for this node and offer it as an address (default on) |
 | `--direct-retry S` | how often a relayed peer tries for a direct path (60, doubling to 600) |
 | `--dhcp-guard auto\|on\|off` | who may speak for the network to this machine's side ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)): a DHCP reply, a DHCPv6 reply or a router advertisement from a member you did not ask for is refused. `auto` (default): on for a splice, a jack and a phone, off for a socket port |
+| `--site-info on\|off` | tell the switchboard which boxes share this segment and which is active, so the operator's Switchboard window shows the pair (default on; a splice box in a site group only; [ADR 0086](adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md)) |
 | `--dhcp-server KEY` | a member that may answer DHCP and advertise routers for this machine's side though you did not dial it (its full address `lw1…` or key id; up to 8, repeat the option) |
 | `--keepalive S`, `--rekey S` | keepalive interval (25) and rekey interval (120), in seconds |
 | `--sb-rekey S` | the rekey interval of a switchboard session (600), the same on the node and the switchboard: a switchboard holds thousands of sessions, and they carry only control messages |

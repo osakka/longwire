@@ -59,6 +59,7 @@ typedef struct lw_cfg {
 	int  has_authority;
 	uint8_t admit[145];		/* an operator-signed admit to present before this node is on any line */
 	int  has_admit;
+	int  no_site_info;		/* do not tell the switchboard which boxes share this segment and which is active (docs/adr/0086) */
 	int  dhcp_guard;		/* what the line may say to this node's own side (docs/adr/0080): 0 by the port (a splice, a jack, a phone: on; a socket port: off), 1 on, 2 off */
 	int  n_dhcp;
 	uint8_t dhcp_servers[8][32];	/* members that may answer DHCP, and advertise routers, besides the ones this node asked for */
