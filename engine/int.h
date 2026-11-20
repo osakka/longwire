@@ -101,6 +101,7 @@ typedef struct lw_peer {
 	int      dialer;		/* we made the call that created this peer */
 	int      asked;			/* we asked for this member, by number or by name or by naming it in the configuration: not a mesh call, not one that rang us. It may answer DHCP for us (guard_ok) */
 	double   guard_t;		/* when a frame of its was last refused, for the event */
+	double   claim_t;		/* when a claim of an address of our LAN was last refused, for the event */
 	double   mate_until, mate_t;	/* it is on our own LAN segment (it handed us frames that were already on it): nothing is carried between it and the LAN until then (sw.c, seen_before) */
 	int      mate_hits;
 	int      relayed;		/* every datagram for this peer goes through a relay: peers[via_peer], on route via_route */
@@ -351,7 +352,7 @@ struct lw_node {
 	/* M2: the switch's extras and the site group */
 	double   dhcp_say;		/* when a dhcp-conflict was last announced */
 	struct { uint32_t ip; double t, said; } dhcp[4];	/* servers whose offers were seen lately (ARCHITECTURE section 3) */
-	uint64_t dhcp_conflicts, dhcp_guarded, drop_ctrl, drop_echo;
+	uint64_t dhcp_conflicts, dhcp_guarded, drop_ctrl, drop_echo, drop_claim;
 	struct seen_ent { uint64_t h; double t; uint8_t dir; int16_t peer; } *seen;	/* the frames carried in the last second (sw.c: seen_before) */
 	uint8_t  vouched[16][32];		/* keys an asked member has said are on its own LAN segment: they may answer DHCP for us, for as long as this node runs (M_SITE) */
 	unsigned vouched_i;
@@ -366,7 +367,8 @@ struct lw_node {
 	uint16_t frag_id;
 	uint64_t ctl_split;		/* control messages sent in two parts */
 	struct { uint32_t ip; uint8_t mac[6]; double t; } arp[256];
-	struct { uint8_t ip[16]; uint8_t mac[6]; double t; } nd[256];	/* IPv6 neighbours learned from neighbour discovery */
+	struct { uint8_t ip[16]; uint8_t mac[6]; double t; } nd[256];
+	struct { uint8_t ip[16]; double t; } lan_claim[256];		/* addresses that hosts of our own LAN have said they hold (ARP, neighbour discovery): a member may not claim them (ADR 0090) */	/* IPv6 neighbours learned from neighbour discovery */
 	int      splice;			/* the local port is a NIC on a LAN segment */
 	uint8_t  nic_mac[6];
 	uint8_t  site_key[32], site_key_prev[32];

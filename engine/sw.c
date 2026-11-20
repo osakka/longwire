@@ -716,6 +716,124 @@ static void mate_note(lw_node *n, int pi)
 	p->mate_until = n->now + MATE_FOR;
 }
 
+#define CLAIM_FOR 120.0		/* how long an address said on our own LAN is a local host's: ARP caches expire about as fast */
+
+/* The address a frame claims for its sender, if it is ARP or neighbour discovery: 4 an ARP sender's IPv4 address (in ip[0..3], the rest zero), 6 an IPv6 address a solicitation comes
+ * from or an advertisement says is the sender's (a priority tag and the extension headers are looked through, as the guard does). 0: nothing, or an address that says nothing
+ * (unspecified, multicast). */
+static int claim_of(const uint8_t *f, size_t len, uint8_t ip[16])
+{
+	static const uint8_t none[16] = {0};
+	size_t o = 12, l4;
+	unsigned et, nh;
+	int i;
+
+	memset(ip, 0, 16);
+	for (i = 0; i < 2; i++) {
+		if (o + 2 > len)
+			return 0;
+		et = get16(f + o);
+		if (et != 0x8100 && et != 0x88a8)
+			break;
+		o += 4;
+	}
+	if (o + 2 > len)
+		return 0;
+	et = get16(f + o);
+	o += 2;
+	if (et == 0x0806) {
+		if (o + 28 > len || get16(f + o) != 1 || get16(f + o + 2) != 0x0800 || f[o + 4] != 6 || f[o + 5] != 4)
+			return 0;
+		memcpy(ip, f + o + 14, 4);
+		return (ip[0] | ip[1] | ip[2] | ip[3]) ? 4 : 0;
+	}
+	if (et != 0x86dd || o + 40 > len || (f[o] >> 4) != 6)
+		return 0;
+	nh = f[o + 6];
+	l4 = o + 40;
+	for (i = 0; i < 8; i++) {
+		if (nh == 0 || nh == 43 || nh == 60) {		/* hop-by-hop, routing, destination options */
+			if (l4 + 8 > len)
+				return 0;
+			nh = f[l4];
+			l4 += ((size_t)f[l4 + 1] + 1) * 8;
+		} else if (nh == 44) {				/* fragment */
+			if (l4 + 8 > len || (get16(f + l4 + 2) & 0xfff8))
+				return 0;
+			nh = f[l4];
+			l4 += 8;
+		} else if (nh == 51) {				/* authentication header */
+			if (l4 + 8 > len)
+				return 0;
+			nh = f[l4];
+			l4 += ((size_t)f[l4 + 1] + 2) * 4;
+		} else
+			break;
+	}
+	if (nh != 58 || l4 + 24 > len || f[l4 + 1] != 0)
+		return 0;
+	if (f[l4] == 135)				/* a solicitation: the asker says whose address it comes from */
+		memcpy(ip, f + o + 8, 16);
+	else if (f[l4] == 136)				/* an advertisement says whose the target is */
+		memcpy(ip, f + l4 + 8, 16);
+	else
+		return 0;
+	return memcmp(ip, none, 16) && ip[0] != 0xff ? 6 : 0;
+}
+
+static unsigned claim_slot(const uint8_t *ip)
+{
+	uint32_t h = 2166136261u;
+	int i;
+
+	for (i = 0; i < 16; i++)
+		h = (h ^ ip[i]) * 16777619u;
+	return h & 255;
+}
+
+/* A host of our own LAN said it holds this address. */
+static void claim_note(lw_node *n, const uint8_t *f, size_t len)
+{
+	uint8_t ip[16];
+	unsigned i;
+
+	if (!claim_of(f, len, ip))
+		return;
+	i = claim_slot(ip);
+	memcpy(n->lan_claim[i].ip, ip, 16);
+	n->lan_claim[i].t = n->now;
+}
+
+/* A member says it holds an address that a host of our own LAN said it holds a moment ago: refused, and said (once a minute per member: frames are free to forge). The switch's other
+ * protections stop a member taking a local host's MAC; this is the address (ADR 0090). */
+static int claim_refused(lw_node *n, int pi, const uint8_t *f, size_t len)
+{
+	uint8_t ip[16];
+	unsigned i;
+	int k;
+	lw_peer *p = &n->peers[pi];
+
+	if (!(k = claim_of(f, len, ip)))
+		return 0;
+	i = claim_slot(ip);
+	if (memcmp(n->lan_claim[i].ip, ip, 16) || n->now - n->lan_claim[i].t >= CLAIM_FOR)
+		return 0;
+	n->drop_claim++;
+	if (n->now - p->claim_t >= 60.0 || p->claim_t == 0) {
+		char num[16] = "", a[48];
+
+		p->claim_t = n->now ? n->now : 1.0;
+		if (p->number[0])
+			fmt_number(num, p->number);
+		if (k == 4)
+			snprintf(a, sizeof a, "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+		else
+			lw_hex(a, ip, 16);
+		ev_emit(n, "{\"event\":\"address-claim\",\"number\":\"%s\",\"what\":\"%s\",\"address\":\"%s\"}", num, k == 4 ? "ARP" : "neighbour discovery", a);
+	}
+	return 1;
+}
+
 /* Has the other side already carried these bytes this second? Remembered as ours either way. dir: 0 from the LAN, 1 from member `pi`. */
 static int seen_before(lw_node *n, const uint8_t *f, size_t len, int dir, int pi)
 {
@@ -777,6 +895,7 @@ void sw_from_local(lw_node *n, const uint8_t *in, size_t len)
 
 	if (seen_before(n, in, len, 0, -1))		/* what a member of ours has just put on the LAN, come back: another box's copy. Not forwarded, and nothing learned from it */
 		return;
+	claim_note(n, in, len);			/* the addresses our own hosts hold: a member may not say it holds one */
 	memcpy(f, in, len);
 	mss_clamp(f, len);
 	learn(n, f + 6, -1);
@@ -931,6 +1050,8 @@ void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len)
 		return;
 	}
 	if (!guard_ok(n, pi, f, len))		/* before anything is learned from it */
+		return;
+	if (claim_refused(n, pi, f, len))	/* an address a host of our own LAN holds, claimed by a member */
 		return;
 	if (seen_before(n, f, len, 1, pi) || echo_from_peer(n, f + 6))	/* a frame we already have from the LAN, or one from a host of our own LAN: it has come round */
 		return;

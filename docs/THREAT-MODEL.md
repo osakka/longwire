@@ -132,7 +132,9 @@ A line is a LAN of people one admitted, and a member can do what a host on a LAN
 - **A frame that comes round** (two boxes that both forward) is dropped, and a member that does it is isolated from the LAN for a minute.
 - **Taking a local host's address** (before: [ADR 0063](adr/0063-inputs-are-bounded-by-the-way-they-are-written.md)): a member's frame whose source is a host that spoke on our LAN within ten seconds is not put on it.
 
-What is left: a member can still **claim a local host's address in ARP or a neighbour advertisement** (the frames are not refused by their content, ticket LW-6 in the [BACKLOG](BACKLOG.md)), scan, and lie in what it says if it is one the node asked for. The statement of what the switchboard learns about a pair (`--site-info`) is in [ADR 0086](adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md).
+- **Claiming a local host's address in ARP or neighbour discovery:** an address a host of our LAN has said it holds in the last two minutes is refused when a member says it ([ADR 0090](adr/0090-a-member-may-not-claim-an-address-our-lan-holds.md)), counted as `drop_claim`, with the event `address-claim`.
+
+What is left: a member can still take the address of a host that has been silent for two minutes, scan, and lie in what it says if it is one the node asked for. The statement of what the switchboard learns about a pair (`--site-info`) is in [ADR 0086](adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md).
 
 ## Known gaps today
 

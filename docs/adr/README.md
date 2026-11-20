@@ -98,6 +98,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0087](0087-a-leaf-keeps-only-the-sessions-it-asked-for.md) | A leaf keeps only the sessions it asked for | accepted |
 | [0088](0088-the-jack-tells-the-dhcp-server-the-machines-name.md) | The jack tells the DHCP server the machine's name | accepted |
 | [0089](0089-who-may-speak-for-the-network-is-not-kept-across-a-restart.md) | Who may speak for the network is not kept across a restart | accepted |
+| [0090](0090-a-member-may-not-claim-an-address-our-lan-holds.md) | A member may not claim an address our LAN holds | accepted |
 
 ---
 

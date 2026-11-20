@@ -11,6 +11,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 **The profile and the pane carry the DHCP guard** (LW-7): the profile keys `dhcp_guard` and `dhcp_server` (the command line's `--dhcp-guard` and `--dhcp-server`) are kept, passed to the node and to the site node, and shown in the Control Panel as *Who may answer DHCP* and *DHCP servers*.
 
+**A member may not claim an address our LAN holds** (LW-6, [ADR 0090](docs/adr/0090-a-member-may-not-claim-an-address-our-lan-holds.md)): an ARP or neighbour-discovery message from a member that says it holds an address a host of the node's own LAN said it holds in the last two minutes is refused, counted (`drop_claim`) and reported (`address-claim`); test `claim`.
+
 ## 0.5.70
 
 **The app shows its version, and the mesh is calmer** (tickets LW-1 and LW-2 of the new [backlog](docs/BACKLOG.md); [ADR 0085](docs/adr/0085-the-mesh-calls-an-absent-member-less-and-less-often.md)): the main screen says `longwire 0.5.70 (5070)`. A member of a line called every member it had no session
