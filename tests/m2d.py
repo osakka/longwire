@@ -156,7 +156,10 @@ def main():
     t0 = time.time()
     ctl(psock, "dial " + n1)                          # it dials vpn-1 only
     got = until(lambda: member(psock).get("member") == "bound" and member(psock), 60)
-    check(bool(got), f"the phone dialled vpn-1 only, and gets its lease from the LAN's DHCP server through the active box ({act}) in {time.time() - t0:.0f} s")
+    check(bool(got) and time.time() - t0 < 15, f"the phone dialled vpn-1 only, and gets its lease from the LAN's DHCP server through the active box ({act}) in {time.time() - t0:.0f} s, under 15 (without ADR 0092 it takes 25 s: the other box has to ring a phone that refuses it)")
+    pe = until(lambda: [q for q in ctl(psock, "status")["peers"] if q["state"] == "up"], 20)
+    check(len([q for q in ctl(psock, "status")["peers"] if q["state"] == "up"]) == 2,
+          "the phone, which dialled one box, keeps a session with both boxes of the pair (ADR 0092): a standby box forwards nothing")
     if got:
         check(got["ip"] == "192.168.1.50" and got["gateway"] == "192.168.1.1", f"the lease is the LAN's: {got['ip']} via {got['gateway']}")
         sent0 = got["dhcp_sent"]; gen = got["gen"]

@@ -19,6 +19,12 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-13 | The phone asks its home to keep quiet (the leaf role's keep-alive) | open |
 | LW-14 | The numbers a person dialled, and the boxes vouched for, survive a restart of the node | closed without building: [ADR 0089](adr/0089-who-may-speak-for-the-network-is-not-kept-across-a-restart.md) |
 | LW-15 | The IANA application for the name `longwire` and a port (UDP 6741 proposed) is submitted, followed up, and the default changed if IANA assigns another | drafted ([IANA](IANA.md)); the owner submits |
+| LW-16 | **Redundancy: a phone that restarts with its dialled box dead still reaches the pair.** A leaf learns the other box only from a live vouch (kept in memory, [ADR 0089](adr/0089-who-may-speak-for-the-network-is-not-kept-across-a-restart.md)): with only a dead box in its list it cannot reach the survivor, which the 0.5.70 mesh did from the line roster. The app learns and shows the partner boxes (visible, removable) and keeps them in its list | open |
+| LW-17 | **The Switchboard window shows a site as a tree**: a parent row for the site (its boxes counted, active and standby) with each box a child, so redundancy is seen at a glance; a ghost child from a claim two minutes stale is cleared when the node goes offline (BUG-5) | open |
+| LW-18 | **The phone app's supervisor under failover**: what "up" means when the dialled box is dead and its partner carries traffic; the give-up limits and an engine restart (which drops the vouch) must not fire while the line is up through the survivor. A JVM test with a stand-in engine (BUG-8) | open |
+| LW-19 | **The leaf dials a vouched box at once**, not on the mesh's backoff (which grows to 15 minutes): a vouch proves the box is alive on the segment now. And a failover time bound in `m2d` | open |
+| LW-20 | **The release roll of a pair**: the boxes restart within about 40 s of each release; roll the standby first, verify the pair and a client's lease, then the active (with cix) | open |
+| LW-21 | **BUG-9 reproduced production-shaped**: a 0.5.69 switchboard, 0.5.70 nodes as a splice site pair behind one NAT address, restarted; and the switchboard peer's state on a stuck node (`handshaking` or `idle`) recorded before any restart | open |
 | LW-9 | The phone carries IPv6 | open, last: the owner moved it to the end (2026-11-20) |
 
 ## Bugs and gaps found
@@ -58,6 +64,8 @@ calls only the numbers it was given and keeps those sessions. *Done when* a phon
 **LW-7: the pane and the profile** carry the DHCP guard and the named servers, as the command line does.
 
 **LW-8: the pair in the window.** The switchboard knew nothing of sites: two boxes were two entries. A splice box in a site group now tells its switchboard which it is and who it is paired with, and the window lists the pair together ([ADR 0086](adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md)). Display only.
+
+**LW-16 to LW-21** are the redundancy tickets the advisor review of 2026-11-20 raised after the phone failed to get an address through a standby box ([ADR 0092](adr/0092-a-leaf-keeps-the-other-box-of-a-pair-too.md)); the owner asked for no workarounds and a tree in the window. They come before LW-9.
 
 **LW-9: IPv6 on the phone** (SLAAC and an NDP responder); until then it is dropped, and black-holed with "everything through the line".
 
