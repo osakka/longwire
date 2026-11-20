@@ -3,13 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
-## Unreleased
+## 0.5.74 (unreleased)
 
 **The Switchboard window brackets a site's boxes** (LW-17, [ADR 0093](docs/adr/0093-a-site-is-one-bracket-in-the-switchboard-window.md)): the boxes of one site are one bracket down the left edge, so a pair is seen at a glance. The pair test now pins ADR 0092: the phone's lease in under 15 s and sessions with both boxes.
 
 ## 0.5.73
 
 **A phone that dials one box of a pair gets its address again** ([ADR 0092](docs/adr/0092-a-leaf-keeps-the-other-box-of-a-pair-too.md)): the 0.5.71 leaf role kept a session with the box the phone dialled only, and when that was the standby box of a pair (which forwards nothing) the phone stayed at "asking its network for an address". The leaf now also keeps the other box of the pair, which the box it dialled vouches for. The pair test's phone is a leaf, as the app's is, so the test covers it.
+
+Published: hibr-apps 9b78061, hibr-apt 437b82b, hibr-rpm 831e3b7, hibr-arch a07ba56.
 
 ## 0.5.72
 
