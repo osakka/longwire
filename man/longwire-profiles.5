@@ -138,6 +138,17 @@ the number of the member to go out through, like 447\-120\-933, when more than o
 It must be sharing, or nothing goes out.
 Empty: the only one; with several sharing, none is used.
 .TP
+.B dhcp_guard
+Who may speak for the network to this machine's side: a DHCP reply, a DHCPv6 reply or a router advertisement from a member that was not asked for is refused.
+.B auto
+(the default),
+.B on
+or
+.BR off .
+.TP
+.B dhcp_server
+Members besides the ones dialled that may answer DHCP for this machine, such as the other box of a pair: full addresses (lw1...) or key ids, up to 8, separated by commas.
+.TP
 .B exit
 .B yes
 shares this machine's internet with the line: the members that send everything through the line with no gateway go out through this machine, and the internet sees its address.

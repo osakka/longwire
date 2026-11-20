@@ -399,6 +399,7 @@ x := lwp_bytes 999; echo "F $x"; x := lwp_bytes 12345; echo "F $x"; x := lwp_byt
     rows, log, r = drive(envF, 'cp_set_lwaddrmode "" dhcp; p := lwp_cur; echo "ADDR ${LWP_PF[$p.address]-}"')
     check("ADDR dhcp" in r.stdout, f"choosing dhcp sets the profile's address to dhcp: {r.stdout.strip()[-30:]}")
     check(ch.get("ppolicy") == ["cp_set_lwppolicy", "ask,known,auto,never"], f"the answer policy row declares its four: {ch.get('ppolicy')}")
+    check(ch.get("pguard") == ["cp_set_lwpguard", "auto,on,off"], f"the DHCP guard row declares its three (LW-7): {ch.get('pguard')}")
     check(ch.get("lwstyle") == ["cp_set_lwstyle", "modern,classic"], f"the Phone Style row declares modern and classic: {ch.get('lwstyle')}")
     rows, log, r = drive(envB, "dump 1")
     check(drive.choices.get("policy") == ["cp_set_lwpolicy", "ask,known,auto,never"], f"the answer policy row of a running node declares its four: {drive.choices.get('policy')}")

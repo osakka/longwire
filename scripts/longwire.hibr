@@ -235,7 +235,7 @@ profiles_read() {
 		case $k in
 		default) PDEFAULT=$eq ;;
 		profile) cur=$eq; PNAMES+=("$cur") ;;
-		switchboard|token|attach|interface|address|gateway|routes|everything|dns|keep_jack|name|listed|answer|exit|exit_through) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
+		switchboard|token|attach|interface|address|gateway|routes|everything|dns|keep_jack|name|listed|answer|exit|exit_through|dhcp_guard|dhcp_server) [ -n "$cur" ] && [ "$eq" = "=" ] && PF["$cur.$k"]=$v ;;
 		esac
 	done < "$PROFILES"
 }
@@ -248,7 +248,7 @@ profiles_write() {
 		out="$out
 profile $n
 "
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through dhcp_guard dhcp_server; do
 			[ -n "${PF[$n.$k]:-}" ] && out="$out  $k = ${PF[$n.$k]}
 "
 		done
@@ -346,8 +346,22 @@ dns_ok() {
 	return 0
 }
 
+# The members that may answer DHCP for this machine besides the ones it dialled (ADR 0080): full addresses (lw1 and 52 base32 characters) or key ids (64 hex digits),
+# separated by commas; at most 8.
+dhcp_servers_ok() {
+	local x
+
+	[ -z "$1" ] && return 0
+	list_split "$1"
+	[ "${#LIST[@]}" -le 8 ] || { echo "longwire: dhcp_server names at most 8 members" >&2; return 1; }
+	for x in "${LIST[@]}"; do
+		[[ $x =~ ^(lw1[a-z2-7]{52}|[0-9a-f]{64})$ ]] || { echo "longwire: dhcp_server is a member's full address (lw1...) or key id, separated by commas" >&2; return 1; }
+	done
+	return 0
+}
+
 profile_args() {
-	local n=$1
+	local n=$1 x
 	PARGS=()
 	PANSWER=${PF[$n.answer]:-}
 	[ -n "${PF[$n.switchboard]:-}" ] && PARGS+=(--switchboard "${PF[$n.switchboard]}")
@@ -359,6 +373,11 @@ profile_args() {
 	esac
 	[ -n "${PF[$n.name]:-}" ] && PARGS+=(--name "${PF[$n.name]}")
 	[ "${PF[$n.listed]:-}" = yes ] && PARGS+=(--listed)
+	[ -z "${PF[$n.dhcp_guard]:-}" ] || PARGS+=(--dhcp-guard "${PF[$n.dhcp_guard]}")
+	if [ -n "${PF[$n.dhcp_server]:-}" ]; then
+		list_split "${PF[$n.dhcp_server]}"
+		for x in "${LIST[@]}"; do PARGS+=(--dhcp-server "$x"); done
+	fi
 	if [ "${PF[$n.everything]:-}" = yes ] && [ "${PF[$n.attach]:-jack}" = jack ]; then
 		PARGS+=(--everything)
 		if [ -z "${PF[$n.gateway]:-}" ]; then		# no gateway named: through the member that shares its internet (docs/adr/0056)
@@ -383,7 +402,7 @@ cmd_profile() {
 		n=${1:-$PDEFAULT}
 		[ -n "$n" ] && profile_exists "$n" || { echo "longwire: no profile${n:+ called $n}" >&2; exit 1; }
 		echo "profile $n$([ "$n" = "$PDEFAULT" ] && echo '   (default)')"
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through dhcp_guard dhcp_server; do
 			v=${PF[$n.$k]:-}
 			[ -n "$v" ] || continue
 			[ "$k" = token ] && v="(set, ${#v} characters)"		# the token is not shown: it is in the file, readable by you only
@@ -391,7 +410,7 @@ cmd_profile() {
 		done ;;
 	set)
 		n=${1:-}
-		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through)" >&2; exit 2; }
+		[ $# -ge 2 ] || { echo "usage: longwire profile set NAME KEY=VALUE...   (keys: switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through dhcp_guard dhcp_server)" >&2; exit 2; }
 		shift
 		case $n in ''|*[!A-Za-z0-9._-]*) echo "longwire: a profile name is letters, digits, . _ -" >&2; exit 2 ;; esac
 		profile_exists "$n" || { PNAMES+=("$n"); [ -n "$PDEFAULT" ] || PDEFAULT=$n; }	# the first profile is the default one
@@ -413,7 +432,9 @@ cmd_profile() {
 			exit) case $v in yes|no|"") ;; *) echo "longwire: exit is yes or no (yes: this machine shares its internet with the line)" >&2; exit 2 ;; esac ;;
 			exit_through) [[ $v =~ ^([0-9]{3}-?[0-9]{3}-?[0-9]{3})?$ ]] || { echo "longwire: exit_through is a member's number, like 447-120-933" >&2; exit 2; } ;;
 			answer) case $v in ask|known|auto|never|"") ;; *) echo "longwire: answer is ask, known, auto or never" >&2; exit 2 ;; esac ;;
-			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through)" >&2; exit 2 ;;
+			dhcp_guard) case $v in auto|on|off|"") ;; *) echo "longwire: dhcp_guard is auto, on or off" >&2; exit 2 ;; esac ;;
+			dhcp_server) v=${v//[[:space:]]/}; dhcp_servers_ok "$v" || exit 2 ;;
+			*) echo "longwire: unknown key '$k' (switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through dhcp_guard dhcp_server)" >&2; exit 2 ;;
 			esac
 			if [ -n "$v" ]; then PF["$n.$k"]=$v; else unset "PF[$n.$k]"; fi
 		done
@@ -440,7 +461,7 @@ cmd_profile() {
 		[ "$to" = "$n" ] && exit 0
 		profile_exists "$to" && { echo "longwire: there is already a profile called '$to'" >&2; exit 1; }
 		for i in "${!PNAMES[@]}"; do [ "${PNAMES[$i]}" = "$n" ] && PNAMES[$i]=$to; done		# same place in the list, same default
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through; do
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through dhcp_guard dhcp_server; do
 			if [ -n "${PF[$n.$k]:-}" ]; then PF["$to.$k"]=${PF[$n.$k]}; fi
 			unset "PF[$n.$k]"
 		done
@@ -452,7 +473,7 @@ cmd_profile() {
 		local keep=() m
 		for m in "${PNAMES[@]}"; do [ "$m" = "$n" ] || keep+=("$m"); done
 		PNAMES=("${keep[@]}")
-		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through; do unset "PF[$n.$k]"; done
+		for k in switchboard token attach interface address gateway routes everything dns keep_jack name listed answer exit exit_through dhcp_guard dhcp_server; do unset "PF[$n.$k]"; done
 		[ "$PDEFAULT" = "$n" ] && PDEFAULT=${PNAMES[0]:-}
 		profiles_write ;;
 	*) echo "usage: longwire profile list | show [NAME] | set NAME KEY=VALUE... | token NAME (on stdin) | default NAME | rename OLD NEW | remove NAME" >&2; exit 2 ;;
@@ -919,7 +940,7 @@ site_helper() {
 }
 
 cmd_site() {
-	local helper nic profile argsf line uid
+	local helper nic profile argsf line uid x
 	if ! helper=$(site_helper); then
 		echo "longwire: the site helper is not installed (the longwire package has it). By hand: longwire setup splice NIC" >&2
 		return 1
@@ -949,6 +970,11 @@ cmd_site() {
 	esac
 	[ -z "${PF[$profile.answer]:-}" ] || line="$line --answer ${PF[$profile.answer]}"
 	[ "${PF[$profile.listed]:-}" != yes ] || line="$line --listed"
+	[ -z "${PF[$profile.dhcp_guard]:-}" ] || line="$line --dhcp-guard ${PF[$profile.dhcp_guard]}"
+	if [ -n "${PF[$profile.dhcp_server]:-}" ]; then
+		list_split "${PF[$profile.dhcp_server]}"
+		for x in "${LIST[@]}"; do line="$line --dhcp-server $x"; done
+	fi
 	umask 077
 	mkdir -p "$LW_DIR" && chmod 700 "$LW_DIR"
 	argsf=$LW_DIR/site-args

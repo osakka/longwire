@@ -466,6 +466,9 @@ A DHCP reply, a DHCPv6 reply or a router advertisement from a member you did not
 .B auto
 (the default) is on for a splice, a jack and a phone, and off for a socket port.
 .TP
+.BI \-\-leaf " on|off"
+Keep sessions only with the numbers dialled: do not dial the rest of the line, and refuse a ring from a member that was not asked for (default off; the phone's app is always a leaf).
+.TP
 .BI \-\-site\-info " on|off"
 Tell the switchboard which boxes share this segment and which is active, so its operator's window shows the pair (default on; only a splice box in a site group says anything).
 .TP

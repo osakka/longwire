@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 **The jack tells the router the machine's name** (LW-5, [ADR 0088](docs/adr/0088-the-jack-tells-the-dhcp-server-the-machines-name.md)): the DHCP client started on a jack is told the machine's host name, whichever client it is, so the router lists the lease under it.
 
+**The profile and the pane carry the DHCP guard** (LW-7): the profile keys `dhcp_guard` and `dhcp_server` (the command line's `--dhcp-guard` and `--dhcp-server`) are kept, passed to the node and to the site node, and shown in the Control Panel as *Who may answer DHCP* and *DHCP servers*.
+
 ## 0.5.70
 
 **The app shows its version, and the mesh is calmer** (tickets LW-1 and LW-2 of the new [backlog](docs/BACKLOG.md); [ADR 0085](docs/adr/0085-the-mesh-calls-an-absent-member-less-and-less-often.md)): the main screen says `longwire 0.5.70 (5070)`. A member of a line called every member it had no session

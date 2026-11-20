@@ -11,7 +11,7 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-4 | The desktop jack takes a whole DHCP lease: gateway, name servers and routes, within limits | open, needs the owner's lease (`/run/longwire/dhcp-lw0.leases`) |
 | LW-5 | The desktop jack tells the DHCP client the machine's own host name | built in 0.5.71 ([ADR 0088](adr/0088-the-jack-tells-the-dhcp-server-the-machines-name.md)) |
 | LW-6 | A member's claim to an address a local host holds is refused (ARP and neighbour inspection) | open |
-| LW-7 | The profile and the pane set `--dhcp-guard` and `--dhcp-server` | open |
+| LW-7 | The profile and the pane set `--dhcp-guard` and `--dhcp-server` | built in 0.5.71 |
 | LW-8 | The Switchboard window shows which nodes are one site | built, ships with LW-1 and LW-2 in 0.5.70 |
 | LW-9 | The phone carries IPv6 | open |
 | LW-10 | The phone's seed is kept in the Android Keystore, and a recovery phrase is shown | open |

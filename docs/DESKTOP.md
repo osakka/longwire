@@ -54,6 +54,8 @@ The page says **Longwire is off** and shows the connection. These rows are shown
 | **Name** | what callers see when you ring them. A claim, never proof. |
 | **List in the directory** | on: others can find you by name on the switchboard. Off by default. |
 | **When a call rings** | how this machine answers: `ask`, `known`, `auto` or `never` (see below). |
+| **Who may answer DHCP** | the DHCP guard for this connection: `auto` (the default), `on` or `off` ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)). |
+| **DHCP servers** | members besides the ones dialled that may answer DHCP for this machine, such as the other box of a pair: full addresses, up to 8, separated by commas. |
 | **Longwire on the Menu Bar** | show or hide the telephone. |
 | **Phone Style** | **modern** (a handset) or **classic** (a rotary desk phone). Shown only where the glyph set draws telephones (Blit's); it chooses the picture for both the menu bar and the Control Strip. Under Blit's glyphs the classic phone is two cells wide ([ADR 0070](adr/0070-the-classic-phone-is-two-cells-under-blits-glyphs.md)), and the strip module is two cells wide with it. |
 | **A service node runs here** | shown when a site service runs on this machine and you cannot reach it: join the group `longwire`, then log in again. |

@@ -106,6 +106,8 @@ profile home
   name = osakka
   listed = no
   answer = known
+  dhcp_guard = auto                 who may speak for the network to this machine's side: auto (the default), on or off ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md))
+  dhcp_server = lw1...,lw1...        members besides the ones dialled that may answer DHCP for this machine: full addresses or key ids, up to 8, separated by commas
 ```
 
 ```

@@ -27,6 +27,7 @@ DT_LW_NODE="${DT_LW_NODE--}"
 command -v dt_keep > /dev/null && dt_keep DT_LW_PROFILE DT_LWBAR DT_LWSTYLE DT_LW_NODE
 
 LWP_POLICIES=(ask known auto never)
+LWP_GUARDS=(auto on off)
 LWP_STYLES=(modern classic)
 LWP_ATTACHES=(jack splice)
 LWP_ADDRMODES=(dhcp fixed)
@@ -254,7 +255,7 @@ fn lwp_profiles(force = "") {
 		default) LWP_PDEF=$eq ;;
 		profile) cur=$eq; LWP_PNAMES+=("$cur") ;;
 		token) [ -n "$cur" ] && LWP_PF["$cur.token"]=${#v} ;;
-		switchboard | attach | interface | address | gateway | routes | everything | dns | keep_jack | name | listed | answer | exit | exit_through) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
+		switchboard | attach | interface | address | gateway | routes | everything | dns | keep_jack | name | listed | answer | exit | exit_through | dhcp_guard | dhcp_server) [ -n "$cur" ] && LWP_PF["$cur.$k"]=$v ;;
 		esac
 	done < "$f"
 }
@@ -402,6 +403,8 @@ fn longwire_rows(int w) {
 		CP[$w][$n]["val"]=off; [ "${LWP_PF[$p.listed]-}" = yes ] && CP[$w][$n]["val"]=on
 		CP[$w][$n]["key"]=listed; n=$((n + 1))
 		lwp_row "$w" "$n" set "When a call rings" "${LWP_PF[$p.answer]:-ask}" ppolicy; cp_choice "$w" "$n" "${LWP_PF[$p.answer]:-ask}" cp_set_lwppolicy "${LWP_POLICIES[@]}"; n=$((n + 1))
+		lwp_row "$w" "$n" set "Who may answer DHCP" "${LWP_PF[$p.dhcp_guard]:-auto}" pguard; cp_choice "$w" "$n" "${LWP_PF[$p.dhcp_guard]:-auto}" cp_set_lwpguard "${LWP_GUARDS[@]}"; n=$((n + 1))
+		lwp_row "$w" "$n" action "DHCP servers" "${LWP_PF[$p.dhcp_server]:+named}${LWP_PF[$p.dhcp_server]:-only the numbers dialled}" dhcpserver; n=$((n + 1))
 		if dt_has lwb_tick; then
 			CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Longwire on the Menu Bar"; CP[$w][$n]["wtype"]=bool
 			CP[$w][$n]["val"]=off; [ "$DT_LWBAR" = 1 ] && CP[$w][$n]["val"]=on
@@ -630,6 +633,8 @@ fn lwp_setroutes(text, int? id = "") { lwp_pset routes "$text"; return 0; }	# as
 fn lwp_setname(text, int? id = "") { lwp_pset name "$text"; return 0; }
 fn cp_set_lwpolicy(int? id = "", value = "") { lwp_setpolicy "$value"; }
 fn cp_set_lwppolicy(int? id = "", value = "") { lwp_pset answer "$value"; }
+fn cp_set_lwpguard(int? id = "", value = "") { lwp_pset dhcp_guard "$value"; }
+fn lwp_setdhcpserver(text, int? id = "") { text=${text//[[:space:]]/}; lwp_pset dhcp_server "$text"; return 0; }
 fn cp_set_lwattach(int? id = "", value = "") { lwp_pset attach "$value"; }
 # dhcp: the line's DHCP server gives this machine its address. fixed: it is typed here (asked for now, if there is none yet).
 fn lwp_addrmode(p) {
@@ -1091,6 +1096,7 @@ fn longwire_do(int w, k, int dir) {
 	gateway) p := lwp_cur; dt_ask "Gateway" "Gateway" "${LWP_PF[$p.gateway]-}" lwp_setgateway "a router on the line; empty for none" ;;
 	access) lwp_openaccess ;;
 	dns) p := lwp_cur; dt_ask "Name server" "Address" "${LWP_PF[$p.dns]-}" lwp_setdns "up to 3, like 1.1.1.1 9.9.9.9; empty: your own" ;;
+	dhcpserver) p := lwp_cur; dt_ask "DHCP servers" "Members" "${LWP_PF[$p.dhcp_server]-}" lwp_setdhcpserver "full addresses (lw1...) separated by commas, up to 8; empty: only the numbers dialled may answer" ;;
 	exitthrough) p := lwp_cur; dt_ask "Through" "Number" "${LWP_PF[$p.exit_through]-}" lwp_setexitthrough "a member's number; empty: the only one" ;;
 	routes) p := lwp_cur; dt_ask "Routes" "Networks" "${LWP_PF[$p.routes]-}" lwp_setroutes "like 192.168.150.0/24 10.20.0.0/16" ;;
 	address) p := lwp_cur; dt_ask "Address" "Address" "${LWP_PF[$p.address]-}" lwp_setaddress "like 192.168.152.10/24, or dhcp" ;;

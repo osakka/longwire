@@ -52,7 +52,7 @@ def main():
     check(rc == 2 and "no profile yet" in out and "profile set" in out, f"on with no profile says how to make one: {out[:90]!r}")
     rc, out = lwc("profile", "set", "bad", sbarg, "token=bad-token", "attach=sock", f"interface={peer}", "answer=known")
     check(rc == 0, f"a profile is set: {out!r}")
-    rc, out = lwc("profile", "set", "good", sbarg, "token=good-token-one", "attach=sock", f"interface={peer}", "answer=known", "name=Test Box")
+    rc, out = lwc("profile", "set", "good", sbarg, "token=good-token-one", "attach=sock", f"interface={peer}", "answer=known", "name=Test Box", "dhcp_guard=on", "dhcp_server=lw1" + "a" * 52 + "," + "0" * 64)
     check(rc == 0, f"a second one with a good token: {out!r}")
     path = f"{home}/cfg/longwire/profiles"
     mode = stat.S_IMODE(os.stat(path).st_mode)
@@ -63,6 +63,11 @@ def main():
     check("good-token-one" not in out and "token = (set, 14 characters)" in out and "name = Test Box" in out, f"show does not print the token: {out!r}")
     rc, out = lwc("profile", "set", "good", "attach=banana")
     check(rc == 2 and "attach is jack or splice" in out, f"a wrong value is refused plainly: {out!r}")
+    check("dhcp_guard = on" in lwc("profile", "show", "good")[1] and "dhcp_server = lw1" in lwc("profile", "show", "good")[1], "the DHCP guard and the named servers are kept in the profile (LW-7)")
+    for bad, why in (("dhcp_guard=maybe", "dhcp_guard is auto, on or off"), ("dhcp_server=192.168.1.1", "dhcp_server is a member's full address"),
+                     ("dhcp_server=" + ",".join(["lw1" + "a" * 52] * 9), "at most 8")):
+        rc, out = lwc("profile", "set", "good", bad)
+        check(rc == 2 and why in out, f"{bad[:40]} is refused plainly: {out!r}")
     rc, out = lwc("profile", "set", "good", "colour=red")
     check(rc == 2 and "unknown key" in out, f"so is an unknown key: {out!r}")
     rc, out = lwc("profile", "set", "bad name", "name=x")
