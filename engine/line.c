@@ -1146,6 +1146,22 @@ static void admit_sweep(lw_node *n)
 	}
 }
 
+/* How long to wait before calling a member we have no session with again: 8, 16, 32 s, then a minute, then doubling to a quarter of an hour. A member that is away (a laptop closed, a phone off) is not at the other end of a
+ * call that will be answered, and when it comes back it calls us itself (it has no session with us either): so the calls we make while it is away are a cost (to the switchboard, which sees each, and to our own battery)
+ * and not a way of healing the line. A change of road (road_kick) puts every wait back to nothing. */
+static double mesh_wait(int tries)
+{
+	double w;
+	int k;
+
+	if (tries <= 3)
+		return 8.0 * (double)(1 << (tries - 1));
+	w = 60.0;
+	for (k = 4; k < tries && w < 900.0; k++)
+		w *= 2;
+	return w > 900.0 ? 900.0 : w;
+}
+
 void line_timers(lw_node *n)
 {
 	int i, up = 0, need = 0;
@@ -1200,7 +1216,7 @@ void line_timers(lw_node *n)
 			continue;
 		if (!call_dial(n, m->number, 1, err, sizeof err)) {	/* dial everyone we lack a session with: it is how the mesh heals */
 			m->tries++;
-			m->next_try = n->now + (m->tries > 3 ? 60.0 : 8.0 * (double)(1 << (m->tries - 1)));
+			m->next_try = n->now + mesh_wait(m->tries);
 		}
 	}
 	if (need == up) {
