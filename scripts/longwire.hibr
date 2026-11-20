@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.66
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.67
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.66}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.67}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -34,7 +34,8 @@ usage: longwire <command>
      [--splice NIC [--site-key FILE] | --jack TAP | --sock-port LOCAL:PEER] [--listen [ADDR:]PORT]
      [--group NAME|GID]                      let that group use the control socket (the services use: longwire)
      [--peer BUNDLEFILE[@HOST:PORT]]...      run this node (foreground: a service or hold runs this)
-  dial NUMBER|lw1...                          call a number, or a full address (needs the switchboard's directory)
+  dial NUMBER|lw1...|NAME                     call a number, a full address (needs the switchboard's directory), or a name in your address book (hibr 0.99.553 or later)
+  contact find NAME | add NAME NUMBER|lw1...   the longwire numbers in your address book: who has one, or give someone one
   pickup [ID] | reject [ID]                   answer the ringing call (ID, from the ring, if several ring)
   hangup [NUMBER]                             end every call and leave the line; or just the call with NUMBER
   peers                                       the line: its members and which of them are connected
@@ -121,8 +122,16 @@ sb_quiet_why() {
 	esac
 }
 
+# The name the address book gives a number (the first person with that phone), or nothing. A name in the caller's own claim is a claim; one in your book is yours.
+book_name() {
+	local out tab
+	tab=$(printf '\t')
+	out=$(book_find "$1" 2> /dev/null | head -1)
+	printf '%s' "${out%%"$tab"*}"
+}
+
 announce() {
-	local ev=$1
+	local ev=$1 bn
 	case $ev in
 	registered)       say "☎  your number ${e[number]} — dial tone" ;;
 	register-refused) say "✗  the switchboard refused to register you: ${e[reason]}" ;;
@@ -130,6 +139,8 @@ announce() {
 	                  else
 	                       if [ -n "${e[name]}" ]; then say "☎  ${e[from]} is calling, and says it is \"${e[name]}\" (a claim: only the safety phrase proves anything)"
 	                       else say "☎  ${e[from]} is calling"; fi
+	                       bn=$(book_name "${e[from]}")
+	                       [ -z "$bn" ] || say "   in your address book: $bn"
 	                       say "   the safety phrase comes once you are connected: compare it with theirs"
 	                       say "   picking up adds ${e[from]} to your network (your line): it stays a member, and reconnects by itself, until you evict it"
 	                       [ "${e[known]}" = true ] || say "   first call from this number"; fi ;;
@@ -1131,6 +1142,88 @@ cmd_up() {
 
 # Ask the switchboard's directory for a name or a full address, and print its answer (JSON). The answer arrives as an
 # event, so listen first and ask second.
+# ---- the address book: who is called what (docs/adr/0082). hibr's `contacts` command, 0.99.553 or later; it answers from the copy kept on this machine and never waits on the network.
+# A person has a longwire number or address if their card has a phone like 312-884-076, or a note line like `longwire lw1...` (the full address wins: it names the key, not a number a switchboard hands out).
+# book_find TEXT prints "NAME<TAB>TARGET" for each card with one; the status is contacts' own (1: refused or never synced, 2: no address book), and 3 when there is no contacts command.
+book_find() {
+	local out rc line rest name f num addr tab
+	local fields=()
+	tab=$(printf '\t')
+	command -v contacts > /dev/null || { echo "longwire: names come from your address book, which needs hibr 0.99.553 or later (the contacts command)" >&2; return 3; }
+	out=$(contacts find "$1")
+	rc=$?
+	[ $rc -eq 0 ] || return $rc
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		fields=()
+		rest=$line
+		while :; do
+			case $rest in
+			*"$tab"*) fields+=("${rest%%"$tab"*}"); rest=${rest#*"$tab"} ;;
+			*) fields+=("$rest"); break ;;
+			esac
+		done
+		name=${fields[1]:-}
+		num=
+		addr=
+		for f in "${fields[@]:2}"; do
+			case $f in
+			phone:[0-9][0-9][0-9]-[0-9][0-9][0-9]-[0-9][0-9][0-9]) [ -n "$num" ] || num=${f#phone:} ;;
+			"note:longwire lw1"*) f=${f#note:longwire }; f=${f%% *}; [ ${#f} -eq 55 ] && [ -z "${f//[a-z0-9]/}" ] && { [ -n "$addr" ] || addr=$f; } ;;
+			esac
+		done
+		[ -n "$addr" ] && { printf '%s\t%s\n' "$name" "$addr"; continue; }
+		[ -n "$num" ] && printf '%s\t%s\n' "$name" "$num"
+	done <<< "$out"
+	return 0
+}
+
+# dial NUMBER|lw1...|NAME: a number or a full address is dialled as it is; anything else is a name in the address book, and is dialled if it is one person.
+cmd_dial() {
+	local out rc n tab target who
+	tab=$(printf '\t')
+	case $1 in
+	[0-9][0-9][0-9]-[0-9][0-9][0-9]-[0-9][0-9][0-9]|[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]|+[0-9]*|lw1*) run lw dial "$1"; return ;;
+	esac
+	out=$(book_find "$1")
+	rc=$?
+	[ $rc -eq 0 ] || exit $rc
+	n=0
+	[ -n "$out" ] && n=$(printf '%s\n' "$out" | grep -c .)
+	if [ "$n" = 0 ]; then
+		echo "longwire: nobody called '$1' in your address book has a longwire number or address (a phone like 312-884-076, or a note line: longwire lw1...). Add one: longwire contact add NAME NUMBER|lw1..." >&2
+		exit 1
+	fi
+	if [ "$n" -gt 1 ]; then
+		echo "longwire: '$1' is more than one person: say which, by its number or address:" >&2
+		printf '%s\n' "$out" | while IFS= read -r line; do echo "  ${line%%"$tab"*}   ${line#*"$tab"}" >&2; done
+		exit 2
+	fi
+	who=${out%%"$tab"*}
+	target=${out#*"$tab"}
+	say "·  calling $who ($target)"
+	run lw dial "$target"
+}
+
+# contact find NAME | add NAME NUMBER|lw1...: the longwire numbers in the address book. add keeps a number as a phone and an address as a note line, as dial reads them.
+cmd_contact() {
+	local rc
+	case ${1:-} in
+	find) [ $# -eq 2 ] || { usage >&2; exit 2; }
+	      book_find "$2"; rc=$?; exit $rc ;;
+	add)  [ $# -eq 3 ] || { usage >&2; exit 2; }
+	      command -v contacts > /dev/null || { echo "longwire: names come from your address book, which needs hibr 0.99.553 or later (the contacts command)" >&2; exit 3; }
+	      case $3 in
+	      [0-9][0-9][0-9]-[0-9][0-9][0-9]-[0-9][0-9][0-9]) contacts put --name "$2" --phone "$3" ;;
+	      lw1*) [ ${#3} -eq 55 ] && [ -z "${3//[a-z0-9]/}" ] || { echo "longwire: that is not a full address (lw1 and 52 more characters)" >&2; exit 2; }
+	            contacts put --name "$2" --note "longwire $3" ;;
+	      *) echo "longwire: contact add wants a number like 312-884-076, or a full address lw1..." >&2; exit 2 ;;
+	      esac
+	      exit $? ;;
+	*) usage >&2; exit 2 ;;
+	esac
+}
+
 cmd_find() {
 	local i rc line
 	exec 5</dev/longwire/events || exit 1
@@ -1276,7 +1369,8 @@ cmd=${1:-}
 
 case $cmd in
 up)      cmd_up "$@" ;;
-dial)    [ $# -eq 1 ] || { usage >&2; exit 2; }; run lw dial "$1" ;;
+dial)    [ $# -eq 1 ] || { usage >&2; exit 2; }; cmd_dial "$1" ;;
+contact) cmd_contact "$@" ;;
 pickup)  run lw pickup "$@" ;;
 reject)  run lw reject "$@" ;;
 hangup)  run lw hangup "$@" ;;

@@ -24,7 +24,7 @@
 #include "../engine/lw.h"
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.66"
+#define LW_VERSION "0.5.67"
 #endif
 
 static void default_sock(char *out, size_t n)

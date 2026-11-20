@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.67
+
+**Dial by name** ([ADR 0082](docs/adr/0082-a-name-is-dialled-from-the-address-book.md)), the owner's option A: `longwire dial NAME` calls a person by the name in your address book (hibr's Contacts, 0.99.553 or later; it answers
+from the local copy and never waits on the network). A card has a longwire number if it has a phone like `312-884-076`, or a note line `longwire lw1…` (the address wins). One person is dialled and named; nobody, or more than one, is said and listed.
+`longwire contact find NAME` and `contact add NAME NUMBER|lw1…` read and write the cards, and a ring shows the name your book gives the caller beside the caller's own claim. Without `contacts` or a synced book it says so.
+
 ## 0.5.66
 
 **The phone tries again when the network comes back** ([ADR 0081](docs/adr/0081-the-phone-tries-again-when-the-network-comes-back.md)), the owner's question about the back-off: the app listens for the system's word that the network changed or came back,

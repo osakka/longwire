@@ -9,7 +9,7 @@
 
 strict
 
-app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.66
+app lwstrip "A Control Strip module for longwire: on or off at a glance" 0.5.67
 # needs: control-panel/longwire
 # One cell wide, two where the glyph set draws the classic telephone in two (Blit's): the module is the width of the widest picture it draws.
 lwstrip_w=1

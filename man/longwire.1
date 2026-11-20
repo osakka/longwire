@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "November 2026" "longwire 0.5.66" "longwire manual"
+.TH LONGWIRE 1 "November 2026" "longwire 0.5.67" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -95,13 +95,21 @@ It only listens: Ctrl-C leaves and the node goes on.
 Stop the node.
 .SS Calls
 .TP
+.B contact find \fIname\fR | add \fIname number\fR|\fIlw1...\fR
+The longwire numbers in your address book (hibr's, 0.99.553 or later).
+.B find
+prints who has one, a name and a number or full address a tab apart;
+.B add
+gives someone a number (kept as a phone) or a full address (kept as a note line, \fBlongwire lw1...\fR).
+.TP
 .BI dial " number"
 Call a number such as
 .BR 447-120-933 ,
 a full number such as
 .BR "'+0731042 447-120-933'" ,
-(quoted: it is one argument), or a full address
-.RB ( lw1... ).
+(quoted: it is one argument), a full address
+.RB ( lw1... ),
+or a name in your address book (one person: it is dialled; none or several: it says so and lists them).
 A full address is looked up in the switchboard's directory, so it works only when the switchboard has one and the node is listed in it.
 A name cannot be dialled: find its number with
 .BI who " name" .

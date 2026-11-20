@@ -15,6 +15,7 @@ def main():
     srv.listen(8)
     ev1 = b'{"event":"member-joined","number":"111-222-333","note":"a fairly long field so that the line is cut well inside it"}\n'
     ev2 = b'{"event":"member-left","number":"444-555-666"}\n'
+    ev3 = b'{"event":"ring","call":"abc","from":"312-884-076","name":"someone else","key_id":"00","known":false,"admit":false}\n'
     stop = threading.Event()
 
     def serve(c):
@@ -38,6 +39,8 @@ def main():
                 c.sendall(ev1[cut:])              # the rest
                 time.sleep(0.5)
                 c.sendall(ev2)                    # and a whole one after it
+                time.sleep(0.3)
+                c.sendall(ev3)                    # and a ring
                 time.sleep(1.5)
         except OSError:
             pass
@@ -54,12 +57,16 @@ def main():
             threading.Thread(target=serve, args=(c,), daemon=True).start()
     threading.Thread(target=accept, daemon=True).start()
 
-    env = dict(os.environ, HOME=d, LW_SOCK=sock, LW_DIR=d, LONGWIRE_MOD=MOD, XDG_CONFIG_HOME=d + "/cfg")
+    os.makedirs(d + "/book", exist_ok=True)           # a stand-in for hibr's contacts: it knows who has 312-884-076
+    open(d + "/book/contacts", "w").write("#!/bin/sh\n[ \"$1\" = find ] && [ \"$2\" = 312-884-076 ] && printf 'bo-1\\tBo Berg\\tphone:312-884-076\\n'\nexit 0\n")
+    os.chmod(d + "/book/contacts", 0o755)
+    env = dict(os.environ, HOME=d, LW_SOCK=sock, LW_DIR=d, LONGWIRE_MOD=MOD, XDG_CONFIG_HOME=d + "/cfg", PATH=d + "/book:" + os.environ.get("PATH", ""))
     r = subprocess.run([HIBR, ROOT + "/scripts/longwire.hibr", "watch"], env=env, capture_output=True, text=True, timeout=30)
     out = r.stdout + r.stderr
     check("111-222-333 joined the line" in out, f"an event torn by the deadline is joined, not thrown away: {out!r}")
     check("444-555-666 left the line" in out, f"and the one after it is read whole: {out!r}")
     check("malformed" not in out and "could not be read" not in out, f"with no parse error: {out!r}")
+    check("312-884-076 is calling, and says it is \"someone else\"" in out and "in your address book: Bo Berg" in out, f"a ring says the name your address book gives the number, beside the caller's own claim: {out!r}")
     r2 = subprocess.run([HIBR, ROOT + "/scripts/longwire.hibr", "doctor"], env=env, capture_output=True, text=True, timeout=30)
     out2 = r2.stdout + r2.stderr
     check(r2.returncode == 1 and "running node has engine older than 0.5.10" in out2, f"doctor names a running node that does not say its version (an older engine): {out2!r}")
