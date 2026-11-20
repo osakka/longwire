@@ -19,6 +19,9 @@ def until(fn, timeout=20, step=0.5):
     return None
 
 
+SBROOT = os.environ.get("SBROOT") or None		# another tree for the switchboard: SBROOT=../my-vpn-0569 runs the release srv-uk-01 runs under nodes of today
+
+
 def main():
     ka = int(os.environ.get("KA", "25"))
     print(f"-- the switchboard is restarted under two nodes (keepalive {ka})  (workdir {T})", flush=True)
@@ -28,7 +31,7 @@ def main():
     tokens = f"{T}/tokens"
     open(tokens, "w").write("tok-one\ntok-two\n")
     sbargs = ["--registry", "none", "--listen", "127.0.0.1:1877", "--tokens", tokens]
-    S = Node("S", ns, "longwire-switchboard.hibr", sbargs)
+    S = Node("S", ns, "longwire-switchboard.hibr", sbargs, root=SBROOT)
     until(lambda: os.path.exists(S.home + "/sb/seed") and os.path.exists(S.sock), 15)
     addr = subprocess.run([HIBR, "-c", f"mod load {MOD}; lw key address {S.home}/sb/seed"], capture_output=True, text=True).stdout.strip()
 
@@ -46,7 +49,7 @@ def main():
     S.stop()
     until(lambda: S.proc.poll() is not None, 20)
     time.sleep(float(os.environ.get("DOWN", "3")))
-    S2 = Node("S", ns, "longwire-switchboard.hibr", sbargs)
+    S2 = Node("S", ns, "longwire-switchboard.hibr", sbargs, root=SBROOT)
     until(lambda: os.path.exists(S2.sock), 15)
     t0 = time.time()
     ok = until(lambda: S2.status().get("registrations", 0) >= 2 and A.status()["number"] == na and B.status()["number"] == nb, 240, 1.0)

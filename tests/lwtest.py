@@ -148,15 +148,18 @@ class Watcher(threading.Thread):
 
 class Node:
     """A node (or the switchboard) run as its real hibr script inside a namespace."""
-    def __init__(self, name, ns, script, args):
+    def __init__(self, name, ns, script, args, root=None):
+        """root: another tree to run this one from (its scripts and its module), e.g. an older release: a switchboard at 0.5.69 under nodes of today."""
         self.name, self.script, self.ns, self.args = name, script, ns, args
+        root = root or ROOT
+        mod = root + "/build/longwire.so"
         self.home = f"{T}/{name}"
         os.makedirs(self.home + "/lw", exist_ok=True)
-        self.env = dict(os.environ, HOME=self.home, LONGWIRE_MOD=MOD, LW_DIR=self.home + "/lw", SB_DIR=self.home + "/sb")
+        self.env = dict(os.environ, HOME=self.home, LONGWIRE_MOD=mod, LW_DIR=self.home + "/lw", SB_DIR=self.home + "/sb")
         self.sock = self.env["SB_DIR" if "switchboard" in script else "LW_DIR"] + "/ctl"
         self.env["LW_SOCK"] = self.sock
         self.log = open(f"{T}/{name}.log", "w")
-        self.proc = subprocess.Popen(["nsenter", "-t", str(ns.pid), "-n", HIBR, ROOT + "/scripts/" + script] + args,
+        self.proc = subprocess.Popen(["nsenter", "-t", str(ns.pid), "-n", HIBR, root + "/scripts/" + script] + args,
                                      env=self.env, stdout=self.log, stderr=subprocess.STDOUT)
         procs.append(self.proc)
         self.w = Watcher(self.sock)
