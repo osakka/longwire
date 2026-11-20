@@ -589,8 +589,7 @@ fn sw_tokdeldo() {
 }
 
 fn swb_settokens(text, int? id = "") {
-	DT_SW_TOKENS=$text
-	command -v dt_save > /dev/null && dt_save
+	dt_set DT_SW_TOKENS "$text"			# the one way an app changes a kept setting (hibr ADR 0050): the desktop sets it and saves it
 	return 0
 }
 
@@ -936,7 +935,7 @@ fn switchboard_key(int id, key) {
 	T) dt_ask "Tokens file" "File" "$DT_SW_TOKENS" swb_settokens "its --tokens file; empty to find it"; return 0 ;;
 	x | delete) if [ "${SW[$id]["view"]}" = tokens ]; then sw_tokdelask "$id"; else sw_liftask "$id"; fi; return 0 ;;
 	c) command -v dt_editdo > /dev/null && dt_editdo copy; return 0 ;;	# the desktop's own Copy, which asks switchboard_copy
-	m) [ "${DT_SWCOMPACT-0}" = 1 ] && DT_SWCOMPACT=0 || DT_SWCOMPACT=1; command -v dt_save > /dev/null && dt_save; return 0 ;;
+	m) if [ "${DT_SWCOMPACT-0}" = 1 ]; then dt_set DT_SWCOMPACT 0; else dt_set DT_SWCOMPACT 1; fi; return 0 ;;
 	a) [ -n "${SW[$id]["address"]}" ] || return 1
 	   command -v dt_clipset > /dev/null && dt_clipset "${SW[$id]["address"]}"
 	   dt_notep low "Copied this switchboard's address: a node reaches it as --switchboard HOST:PORT/ADDRESS"; return 0 ;;
@@ -1027,8 +1026,7 @@ switchboard_menus() {
 }
 
 fn swb_setsock(text, int? id = "") {
-	DT_SW_SOCK=$text
-	command -v dt_save > /dev/null && dt_save
+	dt_set DT_SW_SOCK "$text"
 	return 0
 }
 

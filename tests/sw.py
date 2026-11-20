@@ -37,6 +37,7 @@ fn dt_dim(...a) { echo "DIM $1"; }
 fn dt_sep() { return 0; }
 fn dt_clipset(text, ...rest) { echo "CLIP $text"; }
 fn dt_save() { return 0; }
+fn dt_set(n, v) { declare -g "$n=$v"; echo "SET $n=$v"; }
 fn dt_editmenu() { echo "MENU Edit"; }
 fn dt_jobdir() { DTJ_DIR=%(t)s/jobs; mkdir -p "$DTJ_DIR"; }
 declare -gA DTJ
