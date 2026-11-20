@@ -15,7 +15,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 | **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | built, apart from PCP and relay candidates *(planned: M7)*; the independent doc review is done |
 | **M4** | Desktop and distribution | planned |
 | **M5** | No privilege, more Unix | planned |
-| **M6** | Pocket: member mode, Android | built in part: the adapter and the app, run on the owner's phone; IPv6 and a kill switch remain |
+| **M6** | Pocket: member mode, Android | built in part: the adapter and the app, run on the owner's phone; IPv6 remains |
 | **M7** | Speed | planned |
 | **M8** | 1.0: verification | planned |
 | **M9** | Operator grade: replicas, federation, a switchboard that can run a service for others | proposed |
@@ -98,7 +98,7 @@ and then dial and pick up entirely from the hibr desktop.
 **M6: Pocket.** Done when a phone on mobile data gets a lease from the home router and prints to the home printer.
 - *Built:* the member-mode adapter (a virtual MAC, a DHCPv4 client, an ARP responder, IPv4 wrapped and unwrapped, `engine/member.c`) and the Android app (a `VpnService` around `engine/` through JNI, the one piece outside hibr),
   [ADR 0076](adr/0076-the-phone-is-a-member-with-an-adapter-and-an-app.md); TCC builds the engine as an Android library and its arm64 code is correct under emulation ([ADR 0074](adr/0074-tcc-builds-the-engine-for-android.md)). *Run on the owner's phone* (connected through the line); its battery saving and a change from wifi to mobile data have not been tried or measured. Since 0.5.61: invitation links ([ADR 0077](adr/0077-a-phone-is-enrolled-by-a-link.md)), a new screen and a logo ([0078](adr/0078-a-phone-with-a-face-a-logo-and-a-battery.md)), a retry that follows the network ([0081](adr/0081-the-phone-tries-again-when-the-network-comes-back.md)), backup numbers and give-up limits ([0084](adr/0084-the-phone-has-backup-numbers-and-gives-up-by-its-own-limits.md)), and the version on the screen.
-- Built: the leaf role (one session, [ADR 0087](adr/0087-a-leaf-keeps-only-the-sessions-it-asked-for.md)); the seed kept in the Android Keystore and a recovery phrase shown in the app ([ADR 0091](adr/0091-the-phones-seed-lives-in-the-keystore.md)). Open: IPv6 for members (SLAAC, NDP); a kill switch (the system's "block connections without VPN" does it today)
+- Built: the leaf role (one session, [ADR 0087](adr/0087-a-leaf-keeps-only-the-sessions-it-asked-for.md)); the seed kept in the Android Keystore and a recovery phrase shown in the app ([ADR 0091](adr/0091-the-phones-seed-lives-in-the-keystore.md)). The kill switch is the system's, and the app opens its settings ([ADR 0095](adr/0095-the-kill-switch-is-the-systems-and-the-app-opens-it.md)). Open: IPv6 for members (SLAAC, NDP)
 
 **M7: Speed.** Done when the TCC build reaches 600 Mbit/s on x86-64.
 - PCP as a further address, and public members of a line offered as relay candidates to callers outside it

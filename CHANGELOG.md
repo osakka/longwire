@@ -3,6 +3,10 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.75 (unreleased)
+
+**The app opens the system's kill switch** (LW-11, [ADR 0095](docs/adr/0095-the-kill-switch-is-the-systems-and-the-app-opens-it.md)): a *Kill switch* card says what Android's Always-on VPN with *Block connections without VPN* does and opens the system's VPN settings, where the person turns it on for Longwire.
+
 ## 0.5.74
 
 **The Switchboard window brackets a site's boxes** (LW-17, [ADR 0093](docs/adr/0093-a-site-is-one-bracket-in-the-switchboard-window.md)): the boxes of one site are one bracket down the left edge, so a pair is seen at a glance. The pair test now pins ADR 0092: the phone's lease in under 15 s and sessions with both boxes. A vouch resets the mesh's wait toward that box, so a leaf calls the other box of its pair at once (LW-19).

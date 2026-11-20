@@ -103,6 +103,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0092](0092-a-leaf-keeps-the-other-box-of-a-pair-too.md) | A leaf keeps the other box of a pair too | accepted |
 | [0093](0093-a-site-is-one-bracket-in-the-switchboard-window.md) | A site is one bracket in the Switchboard window | accepted |
 | [0094](0094-a-phone-learns-the-other-box-of-a-pair.md) | A phone learns the other box of a pair | accepted |
+| [0095](0095-the-kill-switch-is-the-systems-and-the-app-opens-it.md) | The kill switch is the system's, and the app opens it | accepted |
 
 ---
 

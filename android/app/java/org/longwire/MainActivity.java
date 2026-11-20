@@ -172,6 +172,22 @@ public class MainActivity extends Activity {
         giveMin = pick(na, "Turn off after time without a line", new String[] {"never", "5 min", "30 min", "2 h"}, minVals, p.getInt("giveMin", 0), 0);
         na.addView(text("Whichever comes first: the VPN turns itself off and says so. Never keeps trying for as long as it is on.", 12, dim, false));
 
+        // the system's kill switch: Android blocks all traffic that is not through the VPN when "Block connections without VPN" is on (docs/adr/0095)
+        LinearLayout ks = box(col, 16);
+        ks.addView(text("Kill switch", 16, ink, true));
+        ks.addView(text("If the line drops, Android can block everything until it is back, so nothing leaves the phone in the clear. It is the system's setting: Longwire opens it, you turn on Always-on VPN and Block connections without VPN for Longwire.", 12, dim, false));
+        Button vpnset = new Button(this);
+        vpnset.setAllCaps(false);
+        vpnset.setText("Open the system's VPN settings");
+        vpnset.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_VPN_SETTINGS));
+            } catch (Exception e) {
+                Toast.makeText(this, "This phone has no VPN settings page to open", Toast.LENGTH_LONG).show();
+            }
+        });
+        ks.addView(vpnset);
+
         // the identity: kept in the system's keystore; its words let a new phone be this one (docs/adr/0091)
         LinearLayout idn = box(col, 16);
         idn.addView(text("Identity", 16, ink, true));
