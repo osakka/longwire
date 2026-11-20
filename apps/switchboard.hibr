@@ -520,7 +520,7 @@ fn sw_tokmade(int n, int st, out = "") {
 	SW_TOKJOB=
 	f := sw_tokout "$n" "$out"
 	if [ "$st" != 0 ]; then
-		[ -n "${DTJ[$n]["cancelled"]-}" ] && dt_notep low "Cancelled" || dt_notep high "Could not make a token"
+		if [ -n "${DTJ[$n]["cancelled"]-}" ]; then dt_notep low "Cancelled"; else dt_notep high "Could not make a token"; fi
 		return 0
 	fi
 	if [ -r "$f" ]; then
@@ -536,7 +536,7 @@ fn sw_tokgone(int n, int st, out = "") {
 
 	SW_TOKJOB=
 	if [ "$st" != 0 ]; then
-		[ -n "${DTJ[$n]["cancelled"]-}" ] && dt_notep low "Cancelled" || dt_notep high "Could not remove the token"
+		if [ -n "${DTJ[$n]["cancelled"]-}" ]; then dt_notep low "Cancelled"; else dt_notep high "Could not remove the token"; fi
 		return 0
 	fi
 	dt_notep low "Token removed"
