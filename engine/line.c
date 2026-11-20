@@ -1162,6 +1162,17 @@ static double mesh_wait(int tries)
 	return w > 900.0 ? 900.0 : w;
 }
 
+/* A leaf keeps a session with a member that a member it asked for has vouched for as on its own segment (the other box of a pair): only the active box of a pair carries a phone's frames. */
+static int leaf_keeps(const lw_node *n, const uint8_t *kid)
+{
+	int i;
+
+	for (i = 0; i < 16; i++)
+		if (!crypto_verify32(n->vouched[i], kid))
+			return 1;
+	return 0;
+}
+
 void line_timers(lw_node *n)
 {
 	int i, up = 0, need = 0;
@@ -1193,7 +1204,7 @@ void line_timers(lw_node *n)
 	if (!n->line.have || !n->registered || n->now - n->line.tick < 1.0)
 		return;
 	n->line.tick = n->now;
-	if (n->cfg.leaf)			/* a leaf holds the sessions it was asked for and no others: it neither dials the line nor reports on it */
+	if (n->cfg.leaf && !n->vouched_i)	/* a leaf holds the sessions it was asked for and no others: it neither dials the line nor reports on it */
 		return;
 	for (i = 0; i < n->line.nm; i++) {
 		lw_member *m = &n->line.m[i];
@@ -1201,6 +1212,8 @@ void line_timers(lw_node *n)
 		char err[80];
 
 		if (!memcmp(m->key_id, n->id.key_id, 32))
+			continue;
+		if (n->cfg.leaf && !leaf_keeps(n, m->key_id))	/* a leaf calls only the boxes that one it asked for says share its segment: the other box of a pair (ADR 0092) */
 			continue;
 		need++;
 		q = peer_by_key(n, m->key_id);

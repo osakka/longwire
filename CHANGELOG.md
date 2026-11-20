@@ -3,6 +3,10 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.73
+
+**A phone that dials one box of a pair gets its address again** ([ADR 0092](docs/adr/0092-a-leaf-keeps-the-other-box-of-a-pair-too.md)): the 0.5.71 leaf role kept a session with the box the phone dialled only, and when that was the standby box of a pair (which forwards nothing) the phone stayed at "asking its network for an address". The leaf now also keeps the other box of the pair, which the box it dialled vouches for. The pair test's phone is a leaf, as the app's is, so the test covers it.
+
 ## 0.5.72
 
 **The phone's identity is kept in the Android Keystore, and its 33 words are shown** (LW-10, [ADR 0091](docs/adr/0091-the-phones-seed-lives-in-the-keystore.md)): the seed is encrypted by a key that cannot leave the keystore and goes to the engine in memory; no plaintext seed file is made (an install from before has its seed taken in once, keeping its number). An **Identity** card shows the 33 words and restores a phone from them. The retry and give-up settings are three dropdowns. Test `seedmem`. The keystore code has not been run on a phone.

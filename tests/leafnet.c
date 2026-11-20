@@ -96,6 +96,7 @@ int main(int argc, char **argv)
 	}
 	c.embedded = 1;
 	c.answer = 1;
+	c.leaf = 1;				/* as the app does (android/jni.c): the phone keeps the sessions it asked for and the boxes they vouch for */
 	snprintf(c.name, sizeof c.name, "Test Phone");
 	c.no_nat_pmp = 1;
 	c.cand_loopback = 1;

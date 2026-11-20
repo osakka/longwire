@@ -1,6 +1,6 @@
 # 0087 — A leaf keeps only the sessions it asked for
 
-Status: accepted; built in 0.5.71. A phone in a line of five called every member it had no session with, and answered every member that called: a radio and a battery spent on peers the phone never wanted, and a switchboard told who is in the line. (Ticket LW-3.)
+Status: accepted; built in 0.5.71; amended by [ADR 0092](0092-a-leaf-keeps-the-other-box-of-a-pair-too.md) (a leaf keeps the other box of a pair too). A phone in a line of five called every member it had no session with, and answered every member that called: a radio and a battery spent on peers the phone never wanted, and a switchboard told who is in the line. (Ticket LW-3.)
 
 ## Context
 

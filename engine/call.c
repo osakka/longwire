@@ -1531,6 +1531,9 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				for (k = 0; k < 8; k++)
 					if (!strcmp(n->asked[k], num))
 						ok = 1;
+				for (k = 0; k < 16 && !ok; k++)		/* or the other box of a pair that one it asked for has vouched for (ADR 0092) */
+					if (!crypto_verify32(n->vouched[k], kid))
+						ok = 1;
 				if (!ok) {
 					send_answer(n, c, V_REJECT);
 					call_end(c);
