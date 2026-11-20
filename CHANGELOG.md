@@ -3,6 +3,10 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.72
+
+**The phone's identity is kept in the Android Keystore, and its 33 words are shown** (LW-10, [ADR 0091](docs/adr/0091-the-phones-seed-lives-in-the-keystore.md)): the seed is encrypted by a key that cannot leave the keystore and goes to the engine in memory; no plaintext seed file is made (an install from before has its seed taken in once, keeping its number). An **Identity** card shows the 33 words and restores a phone from them. The retry and give-up settings are three dropdowns. Test `seedmem`. The keystore code has not been run on a phone.
+
 ## 0.5.71
 
 **The phone keeps only the sessions it asked for** (LW-3, [ADR 0087](docs/adr/0087-a-leaf-keeps-only-the-sessions-it-asked-for.md)): the phone's engine is a *leaf*: it does not dial the other members of its line, and it refuses a ring from any it did not ask for, so in a line of five it holds the sessions of the numbers in its list and no more. `longwire up --leaf on` does the same on a machine; test `leafline`.

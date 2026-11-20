@@ -164,6 +164,21 @@ public class MainActivity extends Activity {
         giveMin = pick(na, "Turn off after time without a line", new String[] {"never", "5 min", "30 min", "2 h"}, minVals, p.getInt("giveMin", 0), 0);
         na.addView(text("Whichever comes first: the VPN turns itself off and says so. Never keeps trying for as long as it is on.", 12, dim, false));
 
+        // the identity: kept in the system's keystore; its words let a new phone be this one (docs/adr/0091)
+        LinearLayout idn = box(col, 16);
+        idn.addView(text("Identity", 16, ink, true));
+        idn.addView(text("The key that makes this phone the number it is is kept in the system's keystore, where it cannot be copied out. Write down its 33 words: with them a new phone can be this one.", 12, dim, false));
+        Button words = new Button(this);
+        words.setAllCaps(false);
+        words.setText("Show the 33 words");
+        words.setOnClickListener(v -> showWords());
+        idn.addView(words);
+        Button restore = new Button(this);
+        restore.setAllCaps(false);
+        restore.setText("Restore from 33 words");
+        restore.setOnClickListener(v -> restoreWords());
+        idn.addView(restore);
+
         // Android pauses background apps unless it is told not to
         batt = box(col, 16);
         ((LinearLayout) batt).addView(text("Always on", 16, ink, true));
@@ -288,6 +303,53 @@ public class MainActivity extends Activity {
         row.setPadding(0, dp(14), 0, dp(4));
         into.addView(row);
         return sp;
+    }
+
+    /** The 33 words of this phone's identity, to write down. */
+    private void showWords() {
+        byte[] seed = null;
+        try {
+            seed = SeedStore.load(getFilesDir().getPath());
+            TextView t = text(Engine.words(seed), 16, ink, true);
+            t.setTextIsSelectable(true);
+            t.setPadding(dp(20), dp(12), dp(20), dp(4));
+            new android.app.AlertDialog.Builder(this).setTitle("Your 33 words").setView(t)
+                .setMessage("Anyone who has these words can be this phone: write them down, keep them private, and never type them into anything but Longwire.").setPositiveButton("Done", null).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Cannot read the identity: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        } finally {
+            if (seed != null) {
+                java.util.Arrays.fill(seed, (byte) 0);
+            }
+        }
+    }
+
+    /** Become the identity those 33 words give: with the line off, since the number changes. */
+    private void restoreWords() {
+        if (LongwireVpnService.running) {
+            Toast.makeText(this, "Turn the line off first", Toast.LENGTH_LONG).show();
+            return;
+        }
+        EditText in = new EditText(this);
+        in.setMinLines(4);
+        in.setHint("the 33 words, in order");
+        in.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        new android.app.AlertDialog.Builder(this).setTitle("Restore an identity").setMessage("This phone becomes that number, and the one it has now is gone.").setView(in)
+            .setNegativeButton("Cancel", null).setPositiveButton("Restore", (d, w) -> {
+                byte[] seed = Engine.parse(in.getText().toString().trim().toLowerCase());
+                if (seed == null) {
+                    Toast.makeText(this, "Those words are not a Longwire identity: check each word and the order", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                try {
+                    SeedStore.store(getFilesDir().getPath(), seed);
+                    Toast.makeText(this, "Restored: turn the line on", Toast.LENGTH_LONG).show();
+                } catch (Exception e) {
+                    Toast.makeText(this, "Cannot keep the identity: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                } finally {
+                    java.util.Arrays.fill(seed, (byte) 0);
+                }
+            }).show();
     }
 
     /** A rounded card in the column. */

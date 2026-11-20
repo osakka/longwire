@@ -17,7 +17,7 @@ static void *serve(void *a)
 }
 
 /* "" when it is running, or what stopped it */
-JNIEXPORT jstring JNICALL Java_org_longwire_Engine_start(JNIEnv *env, jclass cls, jstring jdir, jstring jsb, jstring jtoken, jstring jname, jboolean listed, jint keepalive)
+JNIEXPORT jstring JNICALL Java_org_longwire_Engine_start(JNIEnv *env, jclass cls, jstring jdir, jstring jsb, jstring jtoken, jstring jname, jboolean listed, jint keepalive, jbyteArray jseed)
 {
 	const char *dir = (*env)->GetStringUTFChars(env, jdir, 0), *sb = (*env)->GetStringUTFChars(env, jsb, 0);
 	const char *tok = (*env)->GetStringUTFChars(env, jtoken, 0), *nm = (*env)->GetStringUTFChars(env, jname, 0);
@@ -31,6 +31,12 @@ JNIEXPORT jstring JNICALL Java_org_longwire_Engine_start(JNIEnv *env, jclass cls
 		goto done;
 	}
 	memset(&c, 0, sizeof c);
+	if (!jseed || (*env)->GetArrayLength(env, jseed) != 32) {
+		r = (*env)->NewStringUTF(env, "the app gave no identity");
+		goto done;
+	}
+	(*env)->GetByteArrayRegion(env, jseed, 0, 32, (jbyte *)c.seed_mem);
+	c.has_seed_mem = 1;
 	snprintf(c.seed_path, sizeof c.seed_path, "%s/seed", dir);
 	snprintf(c.ctl_path, sizeof c.ctl_path, "%s/ctl", dir);
 	snprintf(c.state_dir, sizeof c.state_dir, "%s", dir);
@@ -58,6 +64,7 @@ JNIEXPORT jstring JNICALL Java_org_longwire_Engine_start(JNIEnv *env, jclass cls
 	}
 	r = (*env)->NewStringUTF(env, "");
 done:
+	crypto_wipe(c.seed_mem, sizeof c.seed_mem);		/* the node has its own copy, or none was made */
 	(*env)->ReleaseStringUTFChars(env, jdir, dir);
 	(*env)->ReleaseStringUTFChars(env, jsb, sb);
 	(*env)->ReleaseStringUTFChars(env, jtoken, tok);
@@ -83,4 +90,42 @@ JNIEXPORT void JNICALL Java_org_longwire_Engine_stop(JNIEnv *env, jclass cls)
 	pthread_join(g_thr, 0);
 	lw_node_release(g_node);
 	g_node = 0;
+}
+
+/* The seed as its 33 words, for the person to write down (docs/CLI.md `key export`): "" if the seed is not 32 bytes. */
+JNIEXPORT jstring JNICALL Java_org_longwire_Engine_words(JNIEnv *env, jclass cls, jbyteArray jseed)
+{
+	uint8_t seed[32];
+	char words[600];
+	jstring r;
+
+	(void)cls;
+	if (!jseed || (*env)->GetArrayLength(env, jseed) != 32)
+		return (*env)->NewStringUTF(env, "");
+	(*env)->GetByteArrayRegion(env, jseed, 0, 32, (jbyte *)seed);
+	lw_seed_words(words, sizeof words, seed);
+	r = (*env)->NewStringUTF(env, words);
+	crypto_wipe(words, sizeof words);
+	crypto_wipe(seed, sizeof seed);
+	return r;
+}
+
+/* The seed a person's 33 words give, or null if the words are not from the list or the checksum is wrong. */
+JNIEXPORT jbyteArray JNICALL Java_org_longwire_Engine_parse(JNIEnv *env, jclass cls, jstring jwords)
+{
+	const char *w;
+	uint8_t seed[32];
+	jbyteArray r = 0;
+
+	(void)cls;
+	if (!jwords || !(w = (*env)->GetStringUTFChars(env, jwords, 0)))
+		return 0;
+	if (!lw_seed_parse(w, seed)) {
+		r = (*env)->NewByteArray(env, 32);
+		if (r)
+			(*env)->SetByteArrayRegion(env, r, 0, 32, (jbyte *)seed);
+	}
+	crypto_wipe(seed, sizeof seed);
+	(*env)->ReleaseStringUTFChars(env, jwords, w);
+	return r;
 }

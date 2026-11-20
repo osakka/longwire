@@ -10,7 +10,13 @@ final class Engine {
     private Engine() {}
 
     /** "" when it is running, or what stopped it. */
-    static native String start(String dir, String switchboard, String token, String name, boolean listed, int keepalive);
+    static native String start(String dir, String switchboard, String token, String name, boolean listed, int keepalive, byte[] seed);
+
+    /** The seed as its 33 words, for the person to write down; "" if it is not a seed. */
+    static native String words(byte[] seed);
+
+    /** The seed those 33 words give, or null if they are not from the list or the checksum is wrong. */
+    static native byte[] parse(String words);
 
     /** The tunnel's descriptor, or -1 for none. True when the engine has taken it, after which the old one may be closed; false, and the old one must stay open. */
     static native boolean attach(int fd);

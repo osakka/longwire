@@ -84,9 +84,7 @@ A phone that is connected all day should cost little, and what costs is waking u
 ## What it does not do yet
 
 - **IPv6** is not carried *(planned: M6)*. With "send everything through the line" it is dropped, not let past the line; without it, the phone's IPv6 goes out the normal way.
-- **The identity** is a file in the app's private storage. If the phone is lost, or the app's data is cleared, the phone is a new member and the home node must be told its new number. A recovery phrase and the Android
-  Keystore are planned (M6).
-- **The leaf role** *(planned: M6)* would let the phone ask home to keep quiet, which is where the rest of the saving is.
+- **The identity** is kept in the Android Keystore ([ADR 0091](adr/0091-the-phones-seed-lives-in-the-keystore.md)): the app's storage holds only the encrypted seed. The **Identity** card shows its 33 words, to write down, and restores a phone from them, with the line off. If the phone is lost and the words were not written down, the new phone is a new member and the home node must be told its new number. The keystore code has not been run on a phone.
 - **The phone is a leaf** ([ADR 0087](adr/0087-a-leaf-keeps-only-the-sessions-it-asked-for.md)): it dials only the numbers in its list and refuses a ring from any other member. The other members still ring it, with the backoff of ADR 0085, and it refuses them; telling them to stop is the keep-quiet message *(planned: M6)*, ticket LW-13.
 - **No dialling by name** on the phone: Android's contacts are not used (ticket LW-12).
 - **No system call filter** on the engine in the phone (the process is the app's, under Android's own sandbox).

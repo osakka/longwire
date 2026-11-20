@@ -38,6 +38,8 @@ typedef struct lw_never {
 
 typedef struct lw_cfg {
 	char seed_path[256];
+	uint8_t seed_mem[32];		/* the seed handed in by the program that embeds the engine (a phone keeps it in the system's keystore): used when has_seed_mem, and no seed file is read or made (ADR 0091) */
+	int  has_seed_mem;
 	char ctl_path[256];
 	int  ctl_group;			/* 1: the control socket belongs to group ctl_gid and is mode 0660 (docs/adr/0032) */
 	unsigned ctl_gid;

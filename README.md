@@ -106,7 +106,7 @@ The releases are 0.5.x; the [CHANGELOG](CHANGELOG.md) says what each carried and
   (hibr 0.99.553 or later); and the Switchboard window, which shows traffic, bans and the pairs.
 - **The phone** (Android, [ANDROID](docs/ANDROID.md)): the engine as a library built by TCC, an adapter that gives the phone a real DHCP lease from the far LAN, and a Java app around it with invitation links, backup numbers and give-up limits. The adapter and the embedded engine are tested on Linux, on a real line; the app has been **run on the
   owner's phone** (connected through the line, the screens and the notification as built up to 0.5.68), and its backup numbers and give-up limits, its battery saving, its behaviour across a change from wifi to mobile data, and its look on other phones have **not been tried or measured**.
-- **Not built or not verified**: IPv6 on the phone; the leaf role (one session); the seed in the Android Keystore; macOS and Windows members; the formal analysis of the handshake and an outside review *(planned: M8)*; a real exit on the internet and routes on a real tap end to end; wide-area links beyond those tried; the IANA registration of the port
+- **Not built or not verified**: IPv6 on the phone; the keystore code on a real phone; macOS and Windows members; the formal analysis of the handshake and an outside review *(planned: M8)*; a real exit on the internet and routes on a real tap end to end; wide-area links beyond those tried; the IANA registration of the port
   ([IANA](docs/IANA.md), drafted). See the [roadmap](docs/ROADMAP.md) and the [backlog](docs/BACKLOG.md).
 
 ```

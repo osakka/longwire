@@ -200,7 +200,11 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 		else
 			snprintf(n->cfg.state_dir, sizeof n->cfg.state_dir, ".");
 	}
-	if (lw_id_load(&n->id, cfg->seed_path, 1)) {
+	if (cfg->has_seed_mem) {
+		memcpy(n->id.seed, cfg->seed_mem, 32);
+		lw_id_derive(&n->id);
+		crypto_wipe(n->cfg.seed_mem, sizeof n->cfg.seed_mem);	/* the identity holds it now; nothing else needs a second copy */
+	} else if (lw_id_load(&n->id, cfg->seed_path, 1)) {
 		snprintf(err, errn, "seed %s: %s", cfg->seed_path, strerror(errno));
 		goto fail;
 	}

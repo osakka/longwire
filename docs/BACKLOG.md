@@ -14,7 +14,7 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-7 | The profile and the pane set `--dhcp-guard` and `--dhcp-server` | built in 0.5.71 |
 | LW-8 | The Switchboard window shows which nodes are one site | built, ships with LW-1 and LW-2 in 0.5.70 |
 | LW-9 | The phone carries IPv6 | open |
-| LW-10 | The phone's seed is kept in the Android Keystore, and a recovery phrase is shown | open |
+| LW-10 | The phone's seed is kept in the Android Keystore, and a recovery phrase is shown | built in 0.5.72 ([ADR 0091](adr/0091-the-phones-seed-lives-in-the-keystore.md)) |
 | LW-11 | The phone offers the system's kill switch | open |
 | LW-12 | The phone dials by name from Android's contacts | open |
 | LW-13 | The phone asks its home to keep quiet (the leaf role's keep-alive) | open |
