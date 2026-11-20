@@ -87,7 +87,17 @@ public class LongwireVpnService extends VpnService {
     private void supervise() {
         SharedPreferences p = getSharedPreferences("longwire", MODE_PRIVATE);
         String dir = getFilesDir().getPath();
-        String dial = p.getString("dial", "").trim();
+        java.util.List<String> targets = new java.util.ArrayList<>();
+        for (String t : p.getString("dial", "").trim().split("[,\\s]+")) {
+            if (!t.isEmpty()) {
+                targets.add(t);
+            }
+        }
+        int idx = 0, failsHere = 0, tries = 0;
+        int maxTries = p.getInt("giveTries", 0), maxMin = p.getInt("giveMin", 0);
+        long downSince = System.currentTimeMillis();
+        String gaveUp = null;
+        String dial = targets.isEmpty() ? "" : targets.get(0);
         String sbHost = p.getString("switchboard", "").trim();
         if (sbHost.contains("/")) {
             sbHost = sbHost.substring(0, sbHost.indexOf('/'));
@@ -101,6 +111,9 @@ public class LongwireVpnService extends VpnService {
         level = 1;
         String shown = "";
         Ctl ctl = new Ctl(new File(dir, "ctl").getPath());
+        for (String t : targets) {
+            ctl.ask("asked " + t);		// every number the person chose may answer for us, dialled or not (a pair of boxes: whichever is active carries the lease)
+        }
         long lastDial = 0, wait = 5000;
         long longest = p.getInt("longest", 120) * 1000L;
         android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
@@ -163,6 +176,22 @@ public class LongwireVpnService extends VpnService {
                 }
             }
             level = 1;
+            if (lineUp) {				// the line is up: the clock and the count of failed tries start again, and the number that answered is the first next time
+                tries = 0;
+                failsHere = 0;
+                downSince = System.currentTimeMillis();
+                String digits = peerNum.replace("-", "");
+                for (int i = 0; i < targets.size(); i++) {
+                    if (targets.get(i).replace("-", "").equals(digits)) {
+                        idx = i;
+                    }
+                }
+                dial = targets.isEmpty() ? "" : targets.get(idx);
+            }
+            if (!lineUp && ((maxTries > 0 && tries >= maxTries) || (maxMin > 0 && System.currentTimeMillis() - downSince > maxMin * 60000L))) {
+                gaveUp = maxTries > 0 && tries >= maxTries ? "no answer after " + tries + " tries" : "no answer for " + maxMin + " minutes";
+                break;
+            }
             if (st == null) {
                 level = 3;
                 status = "The engine does not answer";
@@ -174,11 +203,21 @@ public class LongwireVpnService extends VpnService {
                 note = "Connected to " + who + " · " + sbHost;
             } else if (!lineUp && "dial tone".equals(sbs)) {
                 // no session with the number: call it. This holds with an address too: the other end restarted, or the road changed, and the address is kept while the line is made again.
-                status = bound ? "Lost " + dial + ": calling it again (the address is kept)" : "On the line, calling " + dial;
+                String which = targets.size() > 1 ? " (" + (idx + 1) + " of " + targets.size() + ")" : "";
+                status = bound ? "Lost " + dial + which + ": calling again (the address is kept)" : "On the line, calling " + dial + which;
+                if (tries > 0 && (maxTries > 0 || maxMin > 0)) {
+                    status += "\nfailed tries: " + tries + (maxTries > 0 ? " of " + maxTries : "");
+                }
                 long now = System.currentTimeMillis();
                 if (!dial.isEmpty() && "idle".equals(call) && now - lastDial > wait) {
                     lastDial = now;
                     wait = Math.min(wait * 2, longest);	// the other end is down: a phone that is on all day does not knock every five seconds
+                    tries++;
+                    if (++failsHere > 2 && targets.size() > 1) {	// two tries without an answer: the next number in the list
+                        idx = (idx + 1) % targets.size();
+                        failsHere = 1;
+                        dial = targets.get(idx);
+                    }
                     JSONObject r = ctl.ask("dial " + dial);
                     if (r != null && r.has("error") && !r.optString("error").startsWith("already")) {	// "already calling": the engine is on it
                         level = 3;
@@ -210,6 +249,11 @@ public class LongwireVpnService extends VpnService {
         }
         Engine.stop();				// the engine's thread is joined first: nothing reads the tunnel when it is closed
         close();
+        if (gaveUp != null) {
+            giveUpNotice(gaveUp);
+            finish("Turned off: " + gaveUp);
+            return;
+        }
         finish("Off");
     }
 
@@ -268,6 +312,18 @@ public class LongwireVpnService extends VpnService {
             // nothing to do about a descriptor that will not close
         }
         tun = null;
+    }
+
+    /** The line did not come back within the limits the person set: it is off, and they are told, because a VPN that stops itself must not do it silently. */
+    private void giveUpNotice(String why) {
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (Build.VERSION.SDK_INT >= 26) {
+            nm.createNotificationChannel(new NotificationChannel("line", "Line", NotificationManager.IMPORTANCE_LOW));
+        }
+        int icon = getResources().getIdentifier("ic_stat", "drawable", getPackageName());
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "line") : new Notification.Builder(this);
+        b.setSmallIcon(icon != 0 ? icon : android.R.drawable.ic_lock_idle_lock).setContentTitle("Longwire turned itself off").setContentText(why.substring(0, 1).toUpperCase() + why.substring(1) + ". Open it to turn it on again.");
+        nm.notify(2, b.build());
     }
 
     private void finish(String last) {

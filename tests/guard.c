@@ -228,6 +228,28 @@ int main(int argc, char **argv)
 		check(n->local_tx == tx + 1, "when the member we asked for is gone, the box it named still answers: the lease is renewed through the survivor");
 		n->peers[1].used = 1;
 		(void)d;
+		{						/* the numbers a person has chosen (the phone's list) may answer DHCP whether or not they have been dialled */
+			char out[200];
+			uint64_t t2;
+
+			memset(n->peers[3].number, 0, sizeof n->peers[3].number);
+			snprintf(n->peers[3].number, sizeof n->peers[3].number, "312884076");
+			n->now += 1;
+			f[100] = 4;
+			t2 = n->local_tx;
+			sw_from_peer(n, 3, f, l);
+			check(n->local_tx == t2, "a box whose number was never dialled or named is refused");
+			node_cmd(n, "asked 312-884-076", out, sizeof out);
+			check(strstr(out, "\"asked\":\"312-884-076\"") != 0, "the `asked` word takes a number and says it back");
+			node_cmd(n, "asked 312-884-076", out, sizeof out);
+			node_cmd(n, "asked bogus", out, sizeof out);
+			check(strstr(out, "error") != 0, "and refuses what is not a number");
+			n->now += 1;
+			f[100] = 5;
+			t2 = n->local_tx;
+			sw_from_peer(n, 3, f, l);
+			check(n->local_tx == t2 + 1, "a member with a number the person chose may answer DHCP");
+		}
 	}
 
 	/* what a bridge never carries (docs/adr/0083): spanning tree and the rest of the link-local control frames, in both directions */

@@ -2052,6 +2052,20 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 			return LW_SN(out, cap, "{\"error\":\"%s was not pinned\"}\n", f);
 		return LW_SN(out, cap, "{\"unpinned\":\"%s\"}\n", f);
 	}
+	if (!strncmp(line, "asked ", 6)) {	/* a number the person has chosen to be joined to (the phone's list): it may answer DHCP for us whether or not we have dialled it yet */
+		char num[NUMLEN + 1], f[16], perr[160];
+		int i, have = 0;
+
+		if (parse_full(n, line + 6, num, perr, sizeof perr))
+			return LW_SN(out, cap, "{\"error\":\"%s\"}\n", perr);
+		for (i = 0; i < 8; i++)
+			if (!strcmp(n->asked[i], num))
+				have = 1;
+		if (!have)
+			memcpy(n->asked[n->asked_i++ & 7], num, NUMLEN + 1);
+		fmt_number(f, num);
+		return LW_SN(out, cap, "{\"asked\":\"%s\"}\n", f);
+	}
 	if (!strcmp(line, "road")) {		/* a phone is told by its system that the network changed, and the engine cannot always see it for itself */
 		road_kick(n);
 		return LW_SN(out, cap, "{\"road\":\"kicked\"}\n");

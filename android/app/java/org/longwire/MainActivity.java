@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
     private int bg, card, ink, dim, field;
     private EditText sb, dial, token, name;
     private Switch all, saver;
-    private android.widget.RadioGroup retry;
+    private android.widget.RadioGroup retry, giveTries, giveMin;
     private Button go, edit, allow;
     private TextView title, detail, phrase, summary;
     private View dot, form, batt;
@@ -133,7 +133,7 @@ public class MainActivity extends Activity {
         form = new LinearLayout(this);
         ((LinearLayout) form).setOrientation(LinearLayout.VERTICAL);
         sb = field((LinearLayout) form, "Switchboard", "host:port/lw1…", p.getString("switchboard", ""));
-        dial = field((LinearLayout) form, "Number to dial", "312-884-076", p.getString("dial", ""));
+        dial = field((LinearLayout) form, "Numbers to dial, in order (a second is the backup)", "312-884-076, 447-120-933", p.getString("dial", ""));
         token = field((LinearLayout) form, "Token (only if the switchboard asks)", "", p.getString("token", ""));
         name = field((LinearLayout) form, "Name this phone gives", "", p.getString("name", ""));
         cn.addView(form);
@@ -177,6 +177,46 @@ public class MainActivity extends Activity {
         }
         op.addView(retry);
         op.addView(text("It tries again after 5 s, then waits longer each time, up to this. It tries at once when the network comes back.", 12, dim, false));
+
+        op.addView(text("Turn off by itself after", 14, ink, false));
+        op.getChildAt(op.getChildCount() - 1).setPadding(0, dp(14), 0, 0);
+        giveTries = new android.widget.RadioGroup(this);
+        giveTries.setOrientation(LinearLayout.HORIZONTAL);
+        int[] tv = {0, 5, 10, 20};
+        String[] tl = {"never", "5 tries", "10 tries", "20 tries"};
+        for (int i = 0; i < 4; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(this);
+            rb.setId(2000 + tv[i]);
+            rb.setText(tl[i]);
+            rb.setTextColor(ink);
+            rb.setTypeface(Typeface.MONOSPACE);
+            rb.setTextSize(12);
+            giveTries.addView(rb);
+        }
+        giveTries.check(2000 + p.getInt("giveTries", 0));
+        if (giveTries.getCheckedRadioButtonId() < 0) {
+            giveTries.check(2000);
+        }
+        op.addView(giveTries);
+        giveMin = new android.widget.RadioGroup(this);
+        giveMin.setOrientation(LinearLayout.HORIZONTAL);
+        int[] mv = {0, 5, 30, 120};
+        String[] ml = {"never", "5 min", "30 min", "2 h"};
+        for (int i = 0; i < 4; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(this);
+            rb.setId(3000 + mv[i]);
+            rb.setText(ml[i]);
+            rb.setTextColor(ink);
+            rb.setTypeface(Typeface.MONOSPACE);
+            rb.setTextSize(12);
+            giveMin.addView(rb);
+        }
+        giveMin.check(3000 + p.getInt("giveMin", 0));
+        if (giveMin.getCheckedRadioButtonId() < 0) {
+            giveMin.check(3000);
+        }
+        op.addView(giveMin);
+        op.addView(text("Failed tries in a row, or time without a line, whichever comes first: the VPN turns itself off and says so. Never keeps trying for as long as it is on.", 12, dim, false));
 
         // Android pauses background apps unless it is told not to
         batt = box(col, 16);
@@ -294,7 +334,7 @@ public class MainActivity extends Activity {
         edit.setVisibility(running ? View.GONE : View.VISIBLE);
         edit.setText(editing ? "Done" : "Edit");
         String s = sb.getText().toString().trim(), h = dial.getText().toString().trim();
-        summary.setText(s.isEmpty() && h.isEmpty() ? "Nothing set yet: press Edit, or open an invitation link." : "switchboard  " + (s.contains("/") ? s.substring(0, s.indexOf('/')) : s) + "\ndials        " + h);
+        summary.setText(s.isEmpty() && h.isEmpty() ? "Nothing set yet: press Edit, or open an invitation link." : "switchboard  " + (s.contains("/") ? s.substring(0, s.indexOf('/')) : s) + "\ndials        " + h.replaceAll("\\s*,\\s*|\\s+", ", "));
         batt.setVisibility(ignoringBattery() ? View.GONE : View.VISIBLE);
     }
 
@@ -341,7 +381,7 @@ public class MainActivity extends Activity {
         String s = u.getQueryParameter("sb"), t = u.getQueryParameter("token"), h = u.getQueryParameter("dial"), n = u.getQueryParameter("name");
         boolean ok = s != null && s.matches("[A-Za-z0-9._-]{1,200}:[0-9]{1,5}/lw1[a-z2-7]{52}")
             && (t == null || t.matches("[0-9a-f]{32}"))
-            && (h == null || h.matches("[0-9]{3}-[0-9]{3}-[0-9]{3}|lw1[a-z2-7]{52}"))
+            && (h == null || h.matches("([0-9]{3}-[0-9]{3}-[0-9]{3}|lw1[a-z2-7]{52})(,([0-9]{3}-[0-9]{3}-[0-9]{3}|lw1[a-z2-7]{52})){0,3}"))
             && (n == null || (n.length() <= 40 && n.matches("[\\p{L}\\p{N} ._'-]*")));
         if (!ok) {
             Toast.makeText(this, "That link is not a Longwire invitation", Toast.LENGTH_LONG).show();
@@ -380,6 +420,14 @@ public class MainActivity extends Activity {
             startService(new Intent(this, LongwireVpnService.class).setAction(LongwireVpnService.STOP));
             return;
         }
+        for (String t : dial.getText().toString().trim().split("[,\\s]+")) {
+            if (!t.isEmpty() && !t.matches("[0-9]{3}-[0-9]{3}-[0-9]{3}|[0-9]{9}|lw1[a-z2-7]{52}")) {
+                editing = true;
+                Toast.makeText(this, "'" + t + "' is not a number (like 312-884-076) or a full address", Toast.LENGTH_LONG).show();
+                refresh();
+                return;
+            }
+        }
         if (sb.getText().toString().trim().isEmpty() || dial.getText().toString().trim().isEmpty()) {
             editing = true;
             Toast.makeText(this, "Set the switchboard and the number to dial first", Toast.LENGTH_LONG).show();
@@ -390,7 +438,8 @@ public class MainActivity extends Activity {
             .putString("switchboard", sb.getText().toString()).putString("dial", dial.getText().toString())
             .putString("token", token.getText().toString()).putString("name", name.getText().toString())
             .putBoolean("all", all.isChecked()).putBoolean("saver", saver.isChecked())
-            .putInt("longest", Math.max(30, retry.getCheckedRadioButtonId() - 1000)).apply();
+            .putInt("longest", Math.max(30, retry.getCheckedRadioButtonId() - 1000))
+            .putInt("giveTries", Math.max(0, giveTries.getCheckedRadioButtonId() - 2000)).putInt("giveMin", Math.max(0, giveMin.getCheckedRadioButtonId() - 3000)).apply();
         Intent consent = VpnService.prepare(this);
         if (consent != null) {
             startActivityForResult(consent, CONSENT);

@@ -45,9 +45,12 @@ u = urllib.parse.urlparse(sys.argv[1]); q = urllib.parse.parse_qs(u.query)
 assert u.scheme == "longwire" and u.netloc == "enroll"
 assert re.fullmatch(r"[A-Za-z0-9._-]{1,200}:[0-9]{1,5}/lw1[a-z2-7]{52}", q["sb"][0])
 assert re.fullmatch(r"[0-9a-f]{32}", q["token"][0])
-assert re.fullmatch(r"[0-9]{3}-[0-9]{3}-[0-9]{3}|lw1[a-z2-7]{52}", q["dial"][0])
+assert re.fullmatch(r"([0-9]{3}-[0-9]{3}-[0-9]{3}|lw1[a-z2-7]{52})(,([0-9]{3}-[0-9]{3}-[0-9]{3}|lw1[a-z2-7]{52})){0,3}", q["dial"][0])
 assert len(q["name"][0]) <= 40 and re.fullmatch(r"[\w .'-]*", q["name"][0]) and q["name"][0] == "Omar's phone"
 PY
+link3=$(LONGWIRE_MOD=$MOD sb token invite --host sb.example.org:6741 --dial 312-884-076,447-120-933 2> /dev/null)
+printf '%s' "$link3" | grep -qE '&dial=312-884-076,447-120-933(&|$)' && ok "invite takes several numbers, a comma apart, the first tried first" || bad "invite several: $link3"
+LONGWIRE_MOD=$MOD sb token invite --host sb.example.org:6741 --dial 312-884-076,abc > /dev/null 2>&1; [ $? = 2 ] && ok "and refuses a list with something that is not a number" || bad "invite junk list"
 sb token invite > /dev/null 2>&1; [ $? = 2 ] && ok "invite without --host is refused" || bad "invite without host"
 sb token invite --host 'a b:1' > /dev/null 2>&1; [ $? = 2 ] && ok "so is a host that is not a name and a port" || bad "invite odd host"
 SB_DIR="$T/none" "$HIBR" "$SB" token invite --host h:1 > /dev/null 2>&1; [ $? = 1 ] && ok "and an invitation from a place no switchboard has run" || bad "invite without seed"

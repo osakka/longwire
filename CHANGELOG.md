@@ -3,6 +3,11 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.69
+
+**The phone has backup numbers, and gives up by its own limits** ([ADR 0084](docs/adr/0084-the-phone-has-backup-numbers-and-gives-up-by-its-own-limits.md)), for using a second server: *Numbers to dial, in order* takes several (the first, then the next after two tries, the one that answers first next time; the screen says which),
+every number in the list may answer the phone's DHCP (the new control word `asked`), an invitation can carry the list (`token invite --dial A,B`), and **Turn off by itself after** limits a line that does not come back by a number of failed tries or a time, with a notification when it does. Not run on a phone.
+
 ## 0.5.68
 
 **Two boxes on one segment are one site, and a bridge carries no control frames** ([ADR 0083](docs/adr/0083-a-pair-of-boxes-is-one-site-and-a-bridge-carries-no-control-frames.md)), from the owner's question about a second server beside vpn-1, checked against a real bridge.

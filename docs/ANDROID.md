@@ -35,7 +35,7 @@ Typing a switchboard's 55-character address on a phone is the manual way, and no
 please longwire-switchboard token invite --host sb.example.org:6741 --dial 312-884-076 --name "Omar's phone"
 ```
 
-(`--host` is where the phone reaches the switchboard; `--dial` is the number of the node the phone is to call; `--name` is optional.) It makes **one token**, good once, and prints a `longwire://enroll?...` link and, if
+(`--host` is where the phone reaches the switchboard; `--dial` is the number of the node the phone is to call, or several, a comma apart (`312-884-076,447-120-933`: the first is tried first, the others are its backups); `--name` is optional.) It makes **one token**, good once, and prints a `longwire://enroll?...` link and, if
 `qrencode` is installed, the same as a QR code in the terminal. Send the link to the phone in a message or an email, or point the phone's camera at the QR code: the phone offers to open it in **Longwire**, which fills in
 the form and says so. Nothing is turned on until you press **Turn on**. The link is a secret between you and that phone: anyone who opens it first uses the token. The app refuses anything that is not exactly what
 such a link carries.
@@ -58,6 +58,16 @@ the internet to work ([ADR 0056](adr/0056-a-member-can-share-its-internet.md)).
 The app calls the number, and if there is no answer it tries again after 5 s, then waits longer each time, up to a **longest wait** you choose (30 s, 2 min, 10 min; **When the other end is not answering** in the app, taking effect
 the next time you turn it on). When the phone's network changes or comes back (wifi to mobile data, out of a tunnel) it forgets that wait, tells the line the road changed, and tries at once
 ([ADR 0081](adr/0081-the-phone-tries-again-when-the-network-comes-back.md)). The address and the tunnel are kept meanwhile.
+
+## Backup numbers, and turning itself off
+
+**Numbers to dial, in order** takes more than one: `312-884-076, 447-120-933`. The phone calls the first; after two tries without an answer it moves to the next, and so on round the list, showing which (`calling 312-884-076 (2 of 3)`).
+The one that answers is the first next time. This is how a second server is used: two boxes are two numbers, and the list is on the phone ([ADR 0084](adr/0084-the-phone-has-backup-numbers-and-gives-up-by-its-own-limits.md)). Every number in the list may answer
+the phone's DHCP, dialled or not, so the box that is active carries its lease whichever it is.
+
+**Turn off by itself after** puts a limit on a line that does not come back: a number of failed tries in a row (never, 5, 10 or 20) and a time without a line (never, 5 minutes, 30 minutes, 2 hours), whichever comes first. When it
+is reached the VPN is turned off, and a notification says so (`Longwire turned itself off: no answer after 10 tries`): a VPN that stops itself must not do it silently. The default is never. The count is of calls made, which the
+longest-wait setting spaces out, so the time limit is the one that also covers a switchboard that cannot be reached.
 
 ## Always on, and the battery
 
