@@ -5,7 +5,7 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.74 (unreleased)
 
-**The Switchboard window brackets a site's boxes** (LW-17, [ADR 0093](docs/adr/0093-a-site-is-one-bracket-in-the-switchboard-window.md)): the boxes of one site are one bracket down the left edge, so a pair is seen at a glance. The pair test now pins ADR 0092: the phone's lease in under 15 s and sessions with both boxes.
+**The Switchboard window brackets a site's boxes** (LW-17, [ADR 0093](docs/adr/0093-a-site-is-one-bracket-in-the-switchboard-window.md)): the boxes of one site are one bracket down the left edge, so a pair is seen at a glance. The pair test now pins ADR 0092: the phone's lease in under 15 s and sessions with both boxes. A vouch resets the mesh's wait toward that box, so a leaf calls the other box of its pair at once (LW-19).
 
 ## 0.5.73
 

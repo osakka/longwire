@@ -8,7 +8,7 @@ The phone dialled vpn-1 only. vpn-1 was the standby box of its pair, and a stand
 
 ## Decision
 
-1. **A leaf keeps a session with a member that a member it asked for has vouched for** as on its own segment ([ADR 0080](0080-only-a-member-we-asked-for-may-speak-for-the-network.md), `M_SITE`: the other box of a pair). It dials such a member from the line's roster, with the mesh's backoff, and lets it in when it rings. Nobody else is dialled or let in.
+1. **A leaf keeps a session with a member that a member it asked for has vouched for** as on its own segment ([ADR 0080](0080-only-a-member-we-asked-for-may-speak-for-the-network.md), `M_SITE`: the other box of a pair). It dials such a member from the line's roster, and lets it in when it rings. A vouch proves the box is alive on the segment now, so a new one resets the wait the mesh had grown to toward that box (up to a quarter of an hour, [ADR 0085](0085-the-mesh-calls-an-absent-member-less-and-less-often.md)): the leaf calls it at once. Nobody else is dialled or let in.
 2. **The vouch is the same one that lets that box answer DHCP for the leaf:** it comes only from a member the leaf asked for, so the leaf keeps what it is told of by the boxes it chose and nothing more.
 3. **The test's phone is a leaf, as the app's is** (`tests/leafnet.c` sets `leaf`), so `tests/m2d.sh` covers a phone that dials one box of a pair: without this change it fails (the renewed lease through the surviving box), with it it passes.
 

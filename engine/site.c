@@ -241,8 +241,14 @@ void site_vouch(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 		for (j = 0; j < 16; j++)
 			if (!memcmp(n->vouched[j], k, 32))
 				have = 1;
-		if (!have)
+		if (!have) {
 			memcpy(n->vouched[n->vouched_i++ & 15], k, 32);
+			for (j = 0; j < n->line.nm; j++)		/* a vouch says the box is alive on the segment now: a leaf calls it at once, not after the wait the mesh has grown to (ADR 0092) */
+				if (!memcmp(n->line.m[j].key_id, k, 32)) {
+					n->line.m[j].tries = 0;
+					n->line.m[j].next_try = 0;
+				}
+		}
 	}
 }
 
