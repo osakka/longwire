@@ -2110,6 +2110,26 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		fmt_number(f, num);
 		return LW_SN(out, cap, "{\"asked\":\"%s\"}\n", f);
 	}
+	if (!strcmp(line, "partners")) {	/* the boxes a member we asked for has vouched for as on its own segment (the other box of a pair), as numbers: what a phone's app keeps, to reach the pair when the box it dials is dead (ADR 0094) */
+		int i, j, len, any = 0;
+		static const uint8_t none[32] = {0};
+
+		len = lw_app(out, cap, 0, "{\"partners\":[");
+		for (i = 0; i < 16; i++) {
+			if (!memcmp(n->vouched[i], none, 32))
+				continue;
+			for (j = 0; j < n->line.nm; j++)
+				if (!memcmp(n->line.m[j].key_id, n->vouched[i], 32) && n->line.m[j].number[0]) {
+					char f[16];
+
+					fmt_number(f, n->line.m[j].number);
+					len = lw_app(out, cap, len, "%s\"%s\"", any ? "," : "", f);
+					any = 1;
+				}
+		}
+		len = lw_app(out, cap, len, "]}\n");
+		return len;
+	}
 	if (!strcmp(line, "road")) {		/* a phone is told by its system that the network changed, and the engine cannot always see it for itself */
 		road_kick(n);
 		return LW_SN(out, cap, "{\"road\":\"kicked\"}\n");

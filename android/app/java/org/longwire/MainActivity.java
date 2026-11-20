@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private Switch all, saver;
     private android.widget.Spinner retry, giveTries, giveMin;
     private static final int[] secs = {30, 120, 600}, tryVals = {0, 5, 10, 20}, minVals = {0, 5, 30, 120};
-    private Button go, edit, allow;
+    private Button go, edit, allow, forget;
     private TextView title, detail, phrase, summary;
     private View dot, form, batt;
     private boolean editing;
@@ -138,6 +138,14 @@ public class MainActivity extends Activity {
         token = field((LinearLayout) form, "Token (only if the switchboard asks)", "", p.getString("token", ""));
         name = field((LinearLayout) form, "Name this phone gives", "", p.getString("name", ""));
         cn.addView(form);
+        forget = new Button(this);
+        forget.setAllCaps(false);
+        forget.setText("Forget learned numbers");
+        forget.setOnClickListener(v -> {
+            Partners.forget(getSharedPreferences("longwire", MODE_PRIVATE));
+            refresh();
+        });
+        cn.addView(forget);
 
         // two switches
         LinearLayout op = box(col, 16);
@@ -352,6 +360,12 @@ public class MainActivity extends Activity {
             }).show();
     }
 
+    /** The other boxes of a pair this phone has learned (ADR 0094), as a line under the numbers it dials; empty if there are none. */
+    private String learned() {
+        java.util.List<String> l = Partners.numbers(getSharedPreferences("longwire", MODE_PRIVATE));
+        return l.isEmpty() ? "" : "\nlearned      " + android.text.TextUtils.join(", ", l) + "  (the other box of a pair; Forget below drops it)";
+    }
+
     /** A rounded card in the column. */
     private LinearLayout box(LinearLayout col, int pad) {
         LinearLayout b = new LinearLayout(this);
@@ -426,10 +440,11 @@ public class MainActivity extends Activity {
         boolean show = editing && !running;
         form.setVisibility(show ? View.VISIBLE : View.GONE);
         summary.setVisibility(show ? View.GONE : View.VISIBLE);
+        forget.setVisibility(!running && !Partners.numbers(getSharedPreferences("longwire", MODE_PRIVATE)).isEmpty() ? View.VISIBLE : View.GONE);
         edit.setVisibility(running ? View.GONE : View.VISIBLE);
         edit.setText(editing ? "Done" : "Edit");
         String s = sb.getText().toString().trim(), h = dial.getText().toString().trim();
-        summary.setText(s.isEmpty() && h.isEmpty() ? "Nothing set yet: press Edit, or open an invitation link." : "switchboard  " + (s.contains("/") ? s.substring(0, s.indexOf('/')) : s) + "\ndials        " + h.replaceAll("\\s*,\\s*|\\s+", ", "));
+        summary.setText(s.isEmpty() && h.isEmpty() ? "Nothing set yet: press Edit, or open an invitation link." : "switchboard  " + (s.contains("/") ? s.substring(0, s.indexOf('/')) : s) + "\ndials        " + h.replaceAll("\\s*,\\s*|\\s+", ", ") + learned());
         batt.setVisibility(ignoringBattery() ? View.GONE : View.VISIBLE);
     }
 

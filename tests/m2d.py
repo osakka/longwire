@@ -160,6 +160,8 @@ def main():
     pe = until(lambda: [q for q in ctl(psock, "status")["peers"] if q["state"] == "up"], 20)
     check(bool(until(lambda: len([q for q in ctl(psock, "status")["peers"] if q["state"] == "up"]) == 2, 20)),
           "the phone, which dialled one box, keeps a session with both boxes of the pair (ADR 0092): a standby box forwards nothing")
+    pj = until(lambda: ctl(psock, "partners").get("partners"), 20)
+    check(pj == [n2], f"the phone can say which box the one it dialled vouched for (partners, ADR 0094): {pj} (wanted [{n2}])")
     if got:
         check(got["ip"] == "192.168.1.50" and got["gateway"] == "192.168.1.1", f"the lease is the LAN's: {got['ip']} via {got['gateway']}")
         sent0 = got["dhcp_sent"]; gen = got["gen"]

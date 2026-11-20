@@ -93,7 +93,17 @@ public class LongwireVpnService extends VpnService {
                 targets.add(t);
             }
         }
+        for (String t : Partners.numbers(p)) {			// the other boxes of a pair that a box it dialled once vouched for (ADR 0094): the way to the pair when the box it dials is dead
+            boolean have = false;
+            for (String x : targets) {
+                have |= x.replace("-", "").equals(t.replace("-", ""));
+            }
+            if (!have) {
+                targets.add(t);
+            }
+        }
         int idx = 0, failsHere = 0, tries = 0;
+        long partnersAt = 0;
         int maxTries = p.getInt("giveTries", 0), maxMin = p.getInt("giveMin", 0);
         long downSince = System.currentTimeMillis();
         String gaveUp = null;
@@ -180,6 +190,18 @@ public class LongwireVpnService extends VpnService {
                         if (!q.optString("phrase").isEmpty()) {
                             phrase = q.optString("phrase");
                         }
+                    }
+                }
+            }
+            if (lineUp && System.currentTimeMillis() - partnersAt > 10000) {		// what the box it is joined to says is its mate: kept, and tried when the others are dead
+                partnersAt = System.currentTimeMillis();
+                JSONObject pj = ctl.ask("partners");
+                JSONArray pa = pj == null ? null : pj.optJSONArray("partners");
+                for (int i = 0; pa != null && i < pa.length(); i++) {
+                    String num = pa.optString(i);
+                    if (!num.isEmpty() && Partners.learn(p, num)) {
+                        targets.add(num);
+                        ctl.ask("asked " + num);
                     }
                 }
             }

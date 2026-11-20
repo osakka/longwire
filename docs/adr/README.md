@@ -102,6 +102,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0091](0091-the-phones-seed-lives-in-the-keystore.md) | The phone's seed lives in the keystore | accepted |
 | [0092](0092-a-leaf-keeps-the-other-box-of-a-pair-too.md) | A leaf keeps the other box of a pair too | accepted |
 | [0093](0093-a-site-is-one-bracket-in-the-switchboard-window.md) | A site is one bracket in the Switchboard window | accepted |
+| [0094](0094-a-phone-learns-the-other-box-of-a-pair.md) | A phone learns the other box of a pair | accepted |
 
 ---
 
