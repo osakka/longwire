@@ -21,6 +21,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 **A phone learns the other box of a pair** (LW-16, [ADR 0094](docs/adr/0094-a-phone-learns-the-other-box-of-a-pair.md)): the engine's `partners` word lists the boxes a dialled box vouched for, the app keeps them (shown as *learned* on the Line card, with **Forget learned numbers**, and dropped after thirty days unseen) and tries them when the box it dials is dead, so a restart with one box down still reaches the pair.
 
+Published: hibr-apps c48d893, hibr-apt a4dc2f0, hibr-rpm 3542efd, hibr-arch 45e8846.
+
 ## 0.5.73
 
 **A phone that dials one box of a pair gets its address again** ([ADR 0092](docs/adr/0092-a-leaf-keeps-the-other-box-of-a-pair-too.md)): the 0.5.71 leaf role kept a session with the box the phone dialled only, and when that was the standby box of a pair (which forwards nothing) the phone stayed at "asking its network for an address". The leaf now also keeps the other box of the pair, which the box it dialled vouches for. The pair test's phone is a leaf, as the app's is, so the test covers it.
