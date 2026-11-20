@@ -99,6 +99,8 @@ typedef struct lw_peer {
 	double   last_tx, last_rx, last_hs_try, hello_next, touched;
 	int      hello_tries;
 	int      dialer;		/* we made the call that created this peer */
+	int      asked;			/* we asked for this member, by number or by name or by naming it in the configuration: not a mesh call, not one that rang us. It may answer DHCP for us (guard_ok) */
+	double   guard_t;		/* when a frame of its was last refused, for the event */
 	int      relayed;		/* every datagram for this peer goes through a relay: peers[via_peer], on route via_route */
 	int      via_peer;
 	uint32_t via_route;
@@ -347,7 +349,9 @@ struct lw_node {
 	/* M2: the switch's extras and the site group */
 	double   dhcp_say;		/* when a dhcp-conflict was last announced */
 	struct { uint32_t ip; double t, said; } dhcp[4];	/* servers whose offers were seen lately (ARCHITECTURE section 3) */
-	uint64_t dhcp_conflicts;
+	uint64_t dhcp_conflicts, dhcp_guarded;
+	char     asked[8][NUMLEN + 1];		/* the numbers a person dialled lately: a member of these may answer DHCP for us even when the other end made the last call (the guard) */
+	unsigned asked_i;
 	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize, cand_skipped;
 	double cand_skip_said;		/* when a skipped address was last announced */
 	uint16_t frag_id;
@@ -560,7 +564,7 @@ void node_timers(lw_node *n);
 int  node_cmd(lw_node *n, const char *line, char *out, size_t cap);
 int  call_dial(lw_node *n, const char *num9, int auto_, char *err, size_t errn);
 void sas_timers(lw_node *n);
-void call_peer_up(lw_node *n, lw_peer *p, int dialer);	/* a call came up: the line handshake starts */
+void call_peer_up(lw_node *n, lw_peer *p, int dialer, int asked);	/* a call came up: the line handshake starts */
 int  call_for_number(lw_node *n, const char *num9);	/* is there a call (any state) with this number */
 const uint8_t *peer_ed_pub(const lw_peer *p);
 int  line_number_is(lw_node *n, const char *number, const uint8_t kid[32]);

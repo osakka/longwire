@@ -41,7 +41,7 @@ optimisation flags either. `make lint` (`tcc -Wall -Werror -Wunsupported`) is pa
 `names`, `registry`, `key`, `dhcp`, `release`, `pmp`, `operator`, `ipv6`, `panel`, `pane`, `sw` (the Switchboard window), `group`, `profile`, `jack` (the jack helper against a stand-in `ip`, as `jack` and as `jack-everything`),
 `sas` (the safety phrase, bounds-checked), `ban` (ban tables, bounds-checked), `ban2` (bans and a silent switchboard on a real switchboard), `jacknet` (the underlay, tying and roaming), `tunnel`
 (everything through the line on the real kernel, a veth standing in for the tap), `exit` (a member sharing its internet: real nodes on sock ports), `exitnet` (the exit's and its users' side on the
-real kernel in namespaces, a veth standing in for the tap), `events`, `doctor`, `site` (the site helper), `leaf` (the phone's adapter against a scripted LAN, bounds-checked), `leafnet` (the phone's engine embedded as the app embeds it, on a real line to a home node and a scripted LAN: the lease, packets both ways, turned off and on, killed), `tokens`, `policy` (a token spent only once its node has a number, and a late verdict earning no strike), `bar` (the menu bar and the strip, with the safety
+real kernel in namespaces, a veth standing in for the tap), `events`, `doctor`, `site` (the site helper), `leaf` (the phone's adapter against a scripted LAN, bounds-checked), `guard` (what the line may say to a node's own side: DHCP, DHCPv6 and router advertisements, through tags and extension headers; bounds-checked), `guardnet` (the same on a real line: a member dialled and a rogue that rang), `leafnet` (the phone's engine embedded as the app embeds it, on a real line to a home node and a scripted LAN: the lease, packets both ways, turned off and on, killed), `tokens`, `policy` (a token spent only once its node has a number, and a late verdict earning no strike), `bar` (the menu bar and the strip, with the safety
 phrase), `man`, `fuzz`, `kat`, `start`, `pkg`, then `python3 -I tests/docs.py`. Each is `tests/NAME.sh`. Some skip rather than fail when a tool is missing: `pkg` without `dpkg-deb`, `rpmbuild` or
 `makepkg`; `kat` without Python's `cryptography`; `man` without `groff`; `tunnel` without user and network namespaces; and the exit side of `exitnet` without `nft`.
 
@@ -94,7 +94,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.64
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.65
 # modules: longwire
 ```
 

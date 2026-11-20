@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.64
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.65
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.64}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.65}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -165,6 +165,7 @@ announce() {
 	call-lost)        say "✗  lost the call to ${e[number]}: ${e[reason]}" ;;
 	site)             say "·  this box is now ${e[role]} for its LAN segment (${e[members]} on it)" ;;
 	hangup)           say "·  ${e[number]} hung up (${e[by]})" ;;
+	dhcp-blocked)     say "⚠  ${e[number]:-a member} answered as ${e[what]} for this machine's network and was refused: it is on the line, but you did not ask for it. To let it: longwire up --dhcp-server ITS-FULL-ADDRESS" ;;
 	dhcp-conflict)    say "⚠  two DHCP servers answer on this line (${e[servers]}): clients may get clashing leases" ;;
 	key-changed)      say "⚠  KEY CHANGED for ${e[number]}: ${e[action]}" ;;
 	member-mismatch)  say "⚠  the line lists ${e[number]}, but another key answered it: the call was dropped" ;;

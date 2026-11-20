@@ -224,6 +224,7 @@ lw_node *lw_node_open(const lw_cfg *cfg, char *err, size_t errn)
 				goto fail;
 			}
 			p->dial = 1;
+			p->asked = 1;			/* named in the configuration with an address: we asked for it (a key named without one is only let in) */
 		}
 	}
 	if (under_tie(n, err, errn) || bind_listen(n, cfg->listen, err, errn))

@@ -883,6 +883,8 @@ int call_dial(lw_node *n, const char *num, int auto_, char *err, size_t errn)
 	}
 	c->state = CALL_OUT;
 	c->we_caller = 1;
+	if (!auto_)				/* a person asked for this number: the guard lets it speak for the network, whoever places the next call */
+		memcpy(n->asked[n->asked_i++ & 7], num, NUMLEN + 1);
 	c->auto_ = auto_;
 	memcpy(c->number, num, NUMLEN + 1);
 	c->deadline = n->now + (auto_ ? MESH_RING : 65.0);	/* outlast the callee's 60 s of ringing; a mesh call is answered by the node itself, at once, or not at all */
@@ -1294,9 +1296,10 @@ void sas_timers(lw_node *n)
 	}
 }
 
-void call_peer_up(lw_node *n, lw_peer *p, int dialer)
+void call_peer_up(lw_node *n, lw_peer *p, int dialer, int asked)
 {
 	p->dialer = dialer;
+	p->asked = asked;
 	line_call_up(n, p);
 }
 
@@ -1821,7 +1824,7 @@ void node_timers(lw_node *n)
 				pin_add(n, c->number, pk);		/* the session is proven; the number now belongs to this key */
 				c->state = CALL_UP;
 				ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"direct\",\"ep\":\"%s\"}", f, ep);
-				call_peer_up(n, pe, c->we_caller);
+				call_peer_up(n, pe, c->we_caller, c->we_caller && !c->auto_);
 				break;
 			}
 			if (c->state == CALL_PUNCH && n->now >= c->start_at && n->now >= c->next_punch) {
@@ -1866,7 +1869,7 @@ void node_timers(lw_node *n)
 			p->announced = 1;
 			fmt_number(fv, v->number);
 			ev_emit(n, "{\"event\":\"connected\",\"number\":\"%s\",\"path\":\"relay\",\"via\":\"%s\"}", f, fv);
-			call_peer_up(n, p, p->dial);
+			call_peer_up(n, p, p->dial, p->dial);
 		}
 		if (p->announced && !p->cur.valid) {
 			if (!p->lost_t)
@@ -2138,12 +2141,12 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 	len = LW_SN(o, cap,
 		"{\"node\":\"up\",\"key_id\":\"%s\",\"number\":\"%s\",\"full\":\"%s\",\"name\":\"%s\",\"listed\":%s,\"switchboard\":\"%s\",\"reflexive\":\"%s\",\"nat\":\"%s\",\"mapped\":\"%s\",\"call\":\"%s\","
 		"\"uptime\":%d,\"port\":\"%s:%s\",\"macs\":%d,"
-		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"ctl_split\":%llu,\"hs_replay\":%llu,\"hs_crossed\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"cand_skipped\":%llu,\"version\":\"%s\",\"underlay\":\"%s\",\"underlay_state\":\"%s\",\"tied\":\"%s\",\"sb_quiet\":%d,\"sb_host\":\"%s\",\"jack_nets\":%d,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
+		"\"local_rx\":%llu,\"local_tx\":%llu,\"flood\":%llu,\"drop_garbage\":%llu,\"drop_noroute\":%llu,\"frames_split\":%llu,\"frames_joined\":%llu,\"ctl_split\":%llu,\"hs_replay\":%llu,\"hs_crossed\":%llu,\"drop_flood\":%llu,\"arp_answered\":%llu,\"dhcp_conflicts\":%llu,\"dhcp_guarded\":%llu,\"drop_standby\":%llu,\"resegmented\":%llu,\"drop_oversize\":%llu,\"cand_skipped\":%llu,\"version\":\"%s\",\"underlay\":\"%s\",\"underlay_state\":\"%s\",\"tied\":\"%s\",\"sb_quiet\":%d,\"sb_host\":\"%s\",\"jack_nets\":%d,\"site\":\"%s\",\"site_members\":%d,\"site_synced\":%d,\"hs_shed\":%llu,\"cookies_sent\":%llu,\"hs_nocookie\":%llu,\"hs_badmac2\":%llu,\"cookies_got\":%llu,\"registrations\":%llu,\"sb_rekeys\":%llu,\"switchboard_offers\":[%s],\"switchboard_codes\":[%s],\"relay\":{\"routes\":%d,\"forwarded\":%llu,\"dropped\":%llu,\"offer\":%s},\"peers\":[",
 		kid, num, fullnum, nm, n->cfg.listed ? "true" : "false", sbs, refl, n->nat == 1 ? "easy" : n->nat == 2 ? "strict" : "unknown", mapped, cs, (int)(n->now - n->started), n->cfg.port_kind, n->cfg.port_arg, sw_count(n),
 		(unsigned long long)n->local_rx, (unsigned long long)n->local_tx, (unsigned long long)n->flood,
 		(unsigned long long)n->drop_garbage, (unsigned long long)n->drop_noroute,
 		(unsigned long long)n->frames_split, (unsigned long long)n->frames_joined, (unsigned long long)n->ctl_split, (unsigned long long)n->hs_replay, (unsigned long long)n->hs_crossed, (unsigned long long)n->drop_flood,
-		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, (unsigned long long)n->cand_skipped, LW_VERSION, n->uudp >= 0 ? n->uudev : "", n->uudp >= 0 ? "open" : n->uudp == -2 ? "failed" : "unused", n->tie, n->sb_quiet ? (int)(n->now - n->sb_quiet) : 0, n->sb_quiet_host == 3 ? "large-lost" : n->sb_quiet_host == 2 ? "answers" : n->sb_quiet_host == 1 ? "silent" : "", n->njnet, site_role(n), site_members(n), n->site_sync_n,
+		(unsigned long long)n->arp_answered, (unsigned long long)n->dhcp_conflicts, (unsigned long long)n->dhcp_guarded, (unsigned long long)n->drop_standby, (unsigned long long)n->resegmented, (unsigned long long)n->drop_oversize, (unsigned long long)n->cand_skipped, LW_VERSION, n->uudp >= 0 ? n->uudev : "", n->uudp >= 0 ? "open" : n->uudp == -2 ? "failed" : "unused", n->tie, n->sb_quiet ? (int)(n->now - n->sb_quiet) : 0, n->sb_quiet_host == 3 ? "large-lost" : n->sb_quiet_host == 2 ? "answers" : n->sb_quiet_host == 1 ? "silent" : "", n->njnet, site_role(n), site_members(n), n->site_sync_n,
 		(unsigned long long)n->hs_shed, (unsigned long long)n->cookies_sent, (unsigned long long)n->hs_nocookie, (unsigned long long)n->hs_badmac2, (unsigned long long)n->cookies_got, (unsigned long long)n->reg_count,
 		(unsigned long long)(n->sb >= 0 ? n->peers[n->sb].rekeys : 0),
 		(n->sb_caps & CAPS_CALLERID) && (n->sb_caps & CAPS_DIRECTORY) ? "\"caller-id\",\"directory\"" : (n->sb_caps & CAPS_CALLERID) ? "\"caller-id\"" : (n->sb_caps & CAPS_DIRECTORY) ? "\"directory\"" : "",

@@ -150,8 +150,10 @@ and [THREAT-MODEL](THREAT-MODEL.md):
   timing. longwire does not hide *that* you talk, add padding or cover traffic, or give anonymity.
 - **A compromised machine.** If an attacker controls an endpoint, they have your seed and your traffic. No VPN helps.
 - **A line member you should not trust.** A call is a cable into your LAN. A member of your line can do what any host on your LAN
-  can do: ARP spoofing, scanning, running a rogue DHCP server. longwire authenticates *who* joined; it does not make them
-  well-behaved. Only vouch for machines you would plug into your switch.
+  can do: ARP spoofing, scanning. longwire authenticates *who* joined; it does not make them
+  well-behaved. Only vouch for machines you would plug into your switch. One thing a member **cannot** do is be the network's server by
+  surprise: a DHCP reply, a DHCPv6 reply or a router advertisement from a member you did not ask for is refused, as a managed switch's DHCP snooping does with an untrusted port
+  ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)). A member you *did* dial, or name, can still lie in what it says.
 - **What a switchboard learns.** Whoever runs it sees that you are online, your public address, who rings whom and when, and any
   name you chose to give it; its owner also sees each ban as it happens, with the key and address, and counts of traffic, registrations and rings (its log keeps a banned key's first 16 hex digits and no address). If that matters, run your own ([SWITCHBOARD](SWITCHBOARD.md)).
 - **Everything through the line fails open.** When the node stops, crashes, or lets go of the jack because the machine changed networks, the machine's traffic goes its own way again at once, including traffic for the

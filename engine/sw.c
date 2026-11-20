@@ -693,6 +693,102 @@ void sw_from_local(lw_node *n, const uint8_t *in, size_t len)
 			to_peer(n, i, f, len);
 }
 
+/* ---- the guard: who may speak for the network ---------------------------------------------------------------------------------------------------------------------------------- */
+
+/* What a frame is, if it is something only the network's own servers say: 1 a DHCPv4 reply (UDP 67 to 68), 2 a DHCPv6 reply (547 to 546), 3 a router advertisement or a redirect (ICMPv6 134, 137), 4 an IPv6 frame
+ * whose upper layer cannot be found (a chain of extension headers that runs off the frame), which is refused rather than guessed. Priority tags (VLAN 0, and a second one) are looked through; a fragment that is
+ * not the first has no header to read and is let go (without its first it cannot be put together). 0: nothing of the kind. */
+static int guard_kind(const uint8_t *f, size_t len)
+{
+	size_t o = 12, l4;
+	unsigned et, nh;
+	int i;
+
+	for (i = 0; i < 2; i++) {
+		if (o + 2 > len)
+			return 0;
+		et = get16(f + o);
+		if (et != 0x8100 && et != 0x88a8)
+			break;
+		o += 4;
+	}
+	if (o + 2 > len)
+		return 0;
+	et = get16(f + o);
+	o += 2;
+	if (et == 0x0800) {
+		if (o + 20 > len || (f[o] >> 4) != 4 || f[o + 9] != 17 || (get16(f + o + 6) & 0x1fff))
+			return 0;
+		l4 = o + (size_t)(f[o] & 15) * 4;
+		if (l4 + 8 > len)
+			return 0;
+		return get16(f + l4) == 67 && get16(f + l4 + 2) == 68 ? 1 : 0;
+	}
+	if (et != 0x86dd)
+		return 0;
+	if (o + 40 > len || (f[o] >> 4) != 6)
+		return 0;
+	nh = f[o + 6];
+	l4 = o + 40;
+	for (i = 0; i < 8; i++) {
+		if (nh == 0 || nh == 43 || nh == 60) {			/* hop-by-hop, routing, destination options */
+			if (l4 + 8 > len)
+				return 4;
+			nh = f[l4];
+			l4 += ((size_t)f[l4 + 1] + 1) * 8;
+		} else if (nh == 44) {					/* fragment */
+			if (l4 + 8 > len)
+				return 4;
+			if (get16(f + l4 + 2) & 0xfff8)
+				return 0;
+			nh = f[l4];
+			l4 += 8;
+		} else if (nh == 51) {					/* authentication header: length in 4-byte units less two */
+			if (l4 + 8 > len)
+				return 4;
+			nh = f[l4];
+			l4 += ((size_t)f[l4 + 1] + 2) * 4;
+		} else
+			break;
+	}
+	if (nh == 0 || nh == 43 || nh == 60 || nh == 44 || nh == 51)
+		return 4;
+	if (nh == 17)
+		return l4 + 8 <= len && get16(f + l4) == 547 && get16(f + l4 + 2) == 546 ? 2 : 0;
+	if (nh == 58)
+		return l4 + 1 <= len && (f[l4] == 134 || f[l4] == 137) ? 3 : 0;
+	return 0;
+}
+
+/* May this member's frame go to our own side? A frame of those kinds is the network telling us how to be on it: a lease, a router. Only a member we asked for, or one the configuration names, may say it. Without
+ * this a member who rang us, or one the mesh joined to us, could answer a machine's DHCP and be its gateway: the switch's own protections (a member cannot take a local host's address) do not stop a *server*. */
+static int guard_ok(lw_node *n, int pi, const uint8_t *f, size_t len)
+{
+	const char *kind = n->cfg.port_kind;
+	int k, i, on = n->cfg.dhcp_guard == 1 || (n->cfg.dhcp_guard == 0 && (!strcmp(kind, "splice") || !strcmp(kind, "jack") || !strcmp(kind, "member")));
+	lw_peer *p = &n->peers[pi];
+	static const char *const what[] = { "", "DHCP", "DHCPv6", "a router advertisement", "an IPv6 frame that cannot be read" };
+
+	if (!on || !(k = guard_kind(f, len)) || p->asked)
+		return 1;
+	for (i = 0; p->number[0] && i < 8; i++)
+		if (!strcmp(n->asked[i], p->number))
+			return 1;
+	for (i = 0; i < n->cfg.n_dhcp; i++)
+		if (!crypto_verify32(n->cfg.dhcp_servers[i], p->key_id))
+			return 1;
+	n->dhcp_guarded++;
+	if (n->now - p->guard_t >= 60.0 || p->guard_t == 0) {		/* said at most once a minute per member: frames are free to forge */
+		char num[16] = "";
+
+		p->guard_t = n->now ? n->now : 1.0;
+		if (p->number[0])
+			fmt_number(num, p->number);
+		ev_emit(n, "{\"event\":\"dhcp-blocked\",\"number\":\"%s\",\"what\":\"%s\"}", num, what[k]);
+	}
+	return 0;
+}
+
 void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len)
 {
 	mac_ent *e;
@@ -706,6 +802,8 @@ void sw_from_peer(lw_node *n, int pi, const uint8_t *f, size_t len)
 		n->drop_garbage++;
 		return;
 	}
+	if (!guard_ok(n, pi, f, len))		/* before anything is learned from it */
+		return;
 	learn(n, f + 6, pi);
 	arp_learn(n, f, len);
 	nd_learn(n, f, len);

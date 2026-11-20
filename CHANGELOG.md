@@ -3,6 +3,12 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.65
+
+**DHCP snooping for the line** ([ADR 0080](docs/adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)), the owner's question: a DHCP reply, a DHCPv6 reply or a router advertisement from a member this node did not ask for is refused, before anything
+is learned from it, through priority tags and extension headers; counted (`dhcp_guarded`) and said (`dhcp-blocked`). On for a splice, a jack and a phone; `--dhcp-guard auto|on|off`, and `--dhcp-server KEY` to name a member that may. **The phone**: the tunnel hand-over now
+waits long enough for the engine's idle sleep and says whether it was taken (the app keeps the old tunnel if not, and closes it only after the engine has let go); an invitation link asks before replacing what is set and is refused while the line is up; redials back off. Not run on a phone.
+
 ## 0.5.64
 
 **The phone says who it is joined to** ([ADR 0079](docs/adr/0079-the-phone-says-who-it-is-joined-to.md)), the owner's remarks on 0.5.63: a prettier logo (the rotary telephone with its handset on the cradle and the dial's finger holes); no more

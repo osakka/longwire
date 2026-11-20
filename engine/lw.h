@@ -59,6 +59,9 @@ typedef struct lw_cfg {
 	int  has_authority;
 	uint8_t admit[145];		/* an operator-signed admit to present before this node is on any line */
 	int  has_admit;
+	int  dhcp_guard;		/* what the line may say to this node's own side (docs/adr/0080): 0 by the port (a splice, a jack, a phone: on; a socket port: off), 1 on, 2 off */
+	int  n_dhcp;
+	uint8_t dhcp_servers[8][32];	/* members that may answer DHCP, and advertise routers, besides the ones this node asked for */
 	int  answer;			/* 0: rings are left to the script. 1: no script is there (a phone): a ring from a member of our line is answered at once, and any other refused (docs/adr/0076) */
 	int  embedded;			/* the engine runs inside another program (a phone's app): it closes none of that program's descriptors, takes no signals and puts no system call filter on a process that is not its own (docs/adr/0076) */
 	int  no_nat_pmp;		/* do not ask the router for a port mapping */

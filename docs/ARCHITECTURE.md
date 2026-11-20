@@ -112,9 +112,12 @@ Bridging L2 over the internet carries the LAN's chatter. longwire trims it witho
   (the cache is learned from solicitations and advertisements, and duplicate-address detection always crosses).
 - **Flood budget.** Frames flooded to a peer are limited to 1000 a second after a burst of 200, per peer. A
   broadcast storm costs the WAN almost nothing; a unicast frame to a known address is never limited.
-- **DHCP stays honest.** DHCP is not filtered: a line has one subnet and normally one DHCP server. The switch watches the DHCP offers
+- **DHCP stays honest, and only a member you asked for may be the network's server.** A line has one subnet and normally one DHCP server. The switch watches the DHCP offers
   that pass through it, and when two different servers have offered within ten minutes it says so once (the
-  `dhcp-conflict` event, and the `dhcp_conflicts` count in status). It warns and changes nothing.
+  `dhcp-conflict` event, and the `dhcp_conflicts` count in status). And it **guards the node's own side**
+  ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)): a DHCP reply, a DHCPv6 reply or a router advertisement from a member this node did not ask for (a number a person dialled, or a peer
+  the configuration names with an address) or is not told to trust (`--dhcp-server`) is refused before anything is learned from it, through priority tags and extension headers, and counted (`dhcp_guarded`, the `dhcp-blocked` event). It is on for a
+  splice, a jack and a phone.
 
 ## 4. Two boxes on one segment: site groups
 

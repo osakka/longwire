@@ -24,7 +24,7 @@
 #include "../engine/lw.h"
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.64"
+#define LW_VERSION "0.5.65"
 #endif
 
 static void default_sock(char *out, size_t n)
@@ -423,6 +423,27 @@ static int do_start(sh *s, int ac, char **av, int role)
 				goto out;
 			}
 			c->n_never++;
+		}
+		else if (!strcmp(a, "--dhcp-guard") && !role) {
+			if (!strcmp(v, "auto"))
+				c->dhcp_guard = 0;
+			else if (!strcmp(v, "on"))
+				c->dhcp_guard = 1;
+			else if (!strcmp(v, "off"))
+				c->dhcp_guard = 2;
+			else {
+				hibr_fail(s, "lw start: --dhcp-guard wants auto, on or off");
+				goto out;
+			}
+		}
+		else if (!strcmp(a, "--dhcp-server") && !role) {
+			uint8_t kid[32];
+
+			if (c->n_dhcp >= 8 || lw_address_parse(v, kid)) {
+				hibr_fail(s, "lw start: --dhcp-server wants a member's full address (lw1...) or key id (64 hex digits); at most 8");
+				goto out;
+			}
+			memcpy(c->dhcp_servers[c->n_dhcp++], kid, 32);
 		}
 		else if (!strcmp(a, "--authority") && !role) {
 			if (strlen(v) != 64 || unhex(v, c->authority, 32)) {

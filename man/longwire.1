@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "November 2026" "longwire 0.5.64" "longwire manual"
+.TH LONGWIRE 1 "November 2026" "longwire 0.5.65" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -451,6 +451,16 @@ or
 On a spliced LAN: the way out is the machine with this MAC (its router), not a jack.
 Implies
 .BR \-\-exit .
+.TP
+.BI \-\-dhcp\-guard " auto|on|off"
+Who may speak for the network to this machine's side.
+A DHCP reply, a DHCPv6 reply or a router advertisement from a member you did not ask for is refused (tags and extension headers are looked through).
+.B auto
+(the default) is on for a splice, a jack and a phone, and off for a socket port.
+.TP
+.BI \-\-dhcp\-server " KEY"
+A member that may answer DHCP and advertise routers for this machine's side though you did not dial it: its full address or key id.
+Up to eight; repeat the option.
 .TP
 .BI \-\-keepalive " S" "\fR, \fP" \-\-rekey " S"
 Keepalive (25) and rekey (120) intervals, in seconds.

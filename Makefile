@@ -62,6 +62,8 @@ check: all lint
 	sh tests/switch.sh
 	sh tests/leaf.sh
 	sh tests/leafnet.sh
+	sh tests/guard.sh
+	sh tests/guardnet.sh
 	sh tests/sandbox.sh
 	sh tests/events.sh
 	sh tests/doctor.sh
