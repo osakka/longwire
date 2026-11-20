@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 from the local copy and never waits on the network). A card has a longwire number if it has a phone like `312-884-076`, or a note line `longwire lw1…` (the address wins). One person is dialled and named; nobody, or more than one, is said and listed.
 `longwire contact find NAME` and `contact add NAME NUMBER|lw1…` read and write the cards, and a ring shows the name your book gives the caller beside the caller's own claim. Without `contacts` or a synced book it says so.
 
+Published: hibr-apps 64004e8, hibr-apt 23aa897, hibr-rpm 25f6a73, hibr-arch e44e3df.
+
 ## 0.5.66
 
 **The phone tries again when the network comes back** ([ADR 0081](docs/adr/0081-the-phone-tries-again-when-the-network-comes-back.md)), the owner's question about the back-off: the app listens for the system's word that the network changed or came back,
