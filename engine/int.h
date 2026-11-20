@@ -191,6 +191,7 @@ typedef struct lw_member {
 	uint8_t  role;
 	double   next_try;		/* the mesh maintainer's back-off */
 	int      tries;
+	int      declined;		/* mesh calls to it that it refused: a member that refuses is a leaf (a phone), and is called far less often (ADR 0097) */
 	double   next_relay;		/* when to ask for a relay again */
 } lw_member;
 

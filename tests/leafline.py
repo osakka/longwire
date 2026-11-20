@@ -56,6 +56,8 @@ def main():
     time.sleep(40)                       # the others' mesh rings the leaf at 8 s, 16 s, 32 s
     check(up(Lf) == [fnum], f"the leaf holds one session, the founder's: {up(Lf)}")
     check(nums["L"] not in up(A) and nums["L"] not in up(B), "and A and B hold none with it")
+    refused = [mm["declined"] for x in (A, B) for mm in x.status()["line"]["members"] if mm["number"] == nums["L"]]
+    check(all(d >= 1 for d in refused), f"the members that called it (A and B, not the founder it dialled) were refused and know it is a leaf (declined {refused}); three refusals make the mesh call it every six hours (ADR 0097)")
     st = Lf.status()
     check(st["line"] is not None and len(st["line"]["members"]) == 4, "it still knows the line")
     L.finish("leafline")

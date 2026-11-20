@@ -165,10 +165,10 @@ def main():
     check(any(l.startswith("COPY ") and l[5:] in num.values() for l in out), f"Copy takes the chosen node's number: {[l for l in out if l.startswith('COPY')]}")
 
     # a pair of boxes on one segment, as they say of themselves (ADR 0086): grouped, with the role and the partner
-    out, r = drive(S.sock, 'switchboard_open 1; sw_scan 1 0; SWN[1][0]["site"]=active; SWN[1][0]["with"]="%s"; SWN[1][1]["site"]=standby; SWN[1][1]["with"]="%s"; sw_filter 1; echo "IDX ${SW[1][idx]}"; SW[1][scant]=99999999999999; switchboard_draw 1 22 100 1 1' % (num["B"], num["A"]))
+    out, r = drive(S.sock, 'switchboard_open 1; sw_scan 1 0; SWN[1][0]["site"]=active; SWN[1][0]["with"]="${SWN[1][1][number]}"; SWN[1][1]["site"]=standby; SWN[1][1]["with"]="${SWN[1][0][number]}"; sw_filter 1; echo "IDX ${SW[1][idx]}"; SW[1][scant]=99999999999999; switchboard_draw 1 22 100 1 1')
     ptext = "\n".join(l for l in out if l.startswith("PUT "))
     idxl = next((l for l in out if l.startswith("IDX ")), "")
-    check(f"active with {num['B']}" in ptext and f"standby with {num['A']}" in ptext, f"a pair: each row says its role and the other's number: {[l for l in out if 'active' in l or 'standby' in l][:2]}")
+    check((f"active with {num['B']}" in ptext and f"standby with {num['A']}" in ptext) or (f"active with {num['A']}" in ptext and f"standby with {num['B']}" in ptext), f"a pair: each row says its role and the other's number: {[l for l in out if 'active' in l or 'standby' in l][:2]}")
     rows = [l for l in out if l.startswith("PUT ") and (num["A"] in l or num["B"] in l)]
     check(len(rows) == 2 and "\u250c" in rows[0] and "\u2514" in rows[1], f"the two boxes of the site are one bracket down the left edge, opening and closing (ADR 0093): {[l[:40] for l in rows]}")
     check("1 site with a standby" in ptext, f"...and the heading counts the sites: {[l for l in out if 'Nodes' in l][:1]}")

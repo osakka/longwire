@@ -3,15 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
-## 0.5.75 (unreleased)
+## 0.5.74
+
+**A member that refuses the mesh is called every six hours** (LW-13, [ADR 0097](docs/adr/0097-a-member-that-refuses-the-mesh-is-called-every-six-hours.md)): a member that has refused three of the mesh's calls (a phone) is called less and less often, up to every six hours; the line's members show `declined`.
 
 **A number is picked from the contacts** (LW-12, [ADR 0096](docs/adr/0096-a-number-is-picked-from-the-contacts.md)): *Add a number from your contacts* opens the system's picker and adds a contact's Longwire number (nine digits) to the numbers to dial, with no permission to read the contacts.
 
 **The phone's failover decisions are tested** (LW-18): which number to call, how long to wait, when to give up, and that a dead first number with a survivor carrying the line is not a failure now live in `Failover` and are driven on a JVM (`tests/failover.sh`, 18 checks).
 
 **The app opens the system's kill switch** (LW-11, [ADR 0095](docs/adr/0095-the-kill-switch-is-the-systems-and-the-app-opens-it.md)): a *Kill switch* card says what Android's Always-on VPN with *Block connections without VPN* does and opens the system's VPN settings, where the person turns it on for Longwire.
-
-## 0.5.74
 
 **The Switchboard window brackets a site's boxes** (LW-17, [ADR 0093](docs/adr/0093-a-site-is-one-bracket-in-the-switchboard-window.md)): the boxes of one site are one bracket down the left edge, so a pair is seen at a glance. The pair test now pins ADR 0092: the phone's lease in under 15 s and sessions with both boxes. A vouch resets the mesh's wait toward that box, so a leaf calls the other box of its pair at once (LW-19).
 

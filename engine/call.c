@@ -1622,6 +1622,13 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 					fmt_number(f, c->number);
 					if (!c->auto_)	/* a mesh call that fails is retried quietly */
 						ev_emit(n, "{\"event\":\"call-failed\",\"number\":\"%s\",\"reason\":\"%s\"}", f, reason_str(pl[8]));
+					else if (pl[8] == R_DECLINED) {		/* a member that refuses the mesh's call is a leaf: it is called less and less often (ADR 0097) */
+						int j;
+
+						for (j = 0; j < n->line.nm; j++)
+							if (!strcmp(n->line.m[j].number, c->number) && n->line.m[j].declined < 100)
+								n->line.m[j].declined++;
+					}
 					call_end(c);
 				}
 			}

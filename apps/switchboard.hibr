@@ -885,9 +885,9 @@ fn switchboard_draw(int id, int h, int w, int row, int col) {
 		# the boxes of one site are one bracket down the left edge: a pair is seen at a glance (ADR 0093)
 		br=" "
 		if [ "$i" -gt 0 ] && sw_mates "$id" "${idx[$((i - 1))]}" "$k"; then
-			br=$([ "$((i + 1))" -lt "$n" ] && sw_mates "$id" "$k" "${idx[$((i + 1))]}" && echo "${GL[tree_mid]:-├}" || echo "${GL[tree_end]:-└}")
+			br=$([ "$((i + 1))" -lt "$n" ] && sw_mates "$id" "$k" "${idx[$((i + 1))]}" && echo "├" || echo "└")
 		elif [ "$((i + 1))" -lt "$n" ] && sw_mates "$id" "$k" "${idx[$((i + 1))]}"; then
-			br=${GL[tree_top]:-┌}
+			br="┌"
 		fi
 		sw_put "$id" "$r" 1 "$br$lamp $line"
 	done

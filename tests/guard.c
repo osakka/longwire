@@ -188,9 +188,15 @@ int main(int argc, char **argv)
 		int t, okw = 1;
 
 		for (t = 1; t <= 10; t++)
-			if (mesh_wait(t) != want[t])
+			if (mesh_wait(t, 0) != want[t] || mesh_wait(t, 2) != want[t])
 				okw = 0;
 		check(okw, "the wait before calling an absent member again is 8, 16, 32, 60, 120, 240, 480 s and then a quarter of an hour, not a minute for ever");
+		okw = 1;
+		for (t = 1; t <= 4; t++)
+			if (mesh_wait(t, 3) != want[t])
+				okw = 0;
+		check(okw && mesh_wait(9, 3) == 1920.0 && mesh_wait(20, 3) == 21600.0 && mesh_wait(20, 100) == 21600.0,
+		      "a member that has refused three of the mesh's calls (a leaf) is called less and less often, up to six hours (ADR 0097)");
 	}
 
 	/* a pair of boxes is one site: the member we asked for says who is on its own segment, and they may answer DHCP for us too */

@@ -1149,17 +1149,17 @@ static void admit_sweep(lw_node *n)
 /* How long to wait before calling a member we have no session with again: 8, 16, 32 s, then a minute, then doubling to a quarter of an hour. A member that is away (a laptop closed, a phone off) is not at the other end of a
  * call that will be answered, and when it comes back it calls us itself (it has no session with us either): so the calls we make while it is away are a cost (to the switchboard, which sees each, and to our own battery)
  * and not a way of healing the line. A change of road (road_kick) puts every wait back to nothing. */
-static double mesh_wait(int tries)
+static double mesh_wait(int tries, int declined)
 {
-	double w;
+	double w, cap = declined >= 3 ? 21600.0 : 900.0;	/* a member that has refused three of the mesh's calls is a leaf (a phone): six hours between calls, not a quarter of one */
 	int k;
 
 	if (tries <= 3)
 		return 8.0 * (double)(1 << (tries - 1));
 	w = 60.0;
-	for (k = 4; k < tries && w < 900.0; k++)
+	for (k = 4; k < tries && w < cap; k++)
 		w *= 2;
-	return w > 900.0 ? 900.0 : w;
+	return w > cap ? cap : w;
 }
 
 /* A leaf keeps a session with a member that a member it asked for has vouched for as on its own segment (the other box of a pair): only the active box of a pair carries a phone's frames. */
@@ -1220,6 +1220,7 @@ void line_timers(lw_node *n)
 		if (q && q->cur.valid) {
 			m->tries = 0;
 			m->next_try = 0;
+			m->declined = 0;
 			up++;
 			continue;
 		}
@@ -1231,7 +1232,7 @@ void line_timers(lw_node *n)
 			continue;
 		if (!call_dial(n, m->number, 1, err, sizeof err)) {	/* dial everyone we lack a session with: it is how the mesh heals */
 			m->tries++;
-			m->next_try = n->now + mesh_wait(m->tries);
+			m->next_try = n->now + mesh_wait(m->tries, m->declined);
 		}
 	}
 	if (need == up) {
@@ -1272,8 +1273,8 @@ int line_value(lw_node *n, char *o, size_t cap)
 		up += ok;
 		fmt_number(f, m->number);
 		lw_hex(kh, m->key_id, 32);
-		len = lw_app(o, cap, len, "%s{\"number\":\"%s\",\"key_id\":\"%s\",\"state\":\"%s\"}",
-				i ? "," : "", f, kh, me ? "you" : ok ? "up" : "down");
+		len = lw_app(o, cap, len, "%s{\"number\":\"%s\",\"key_id\":\"%s\",\"state\":\"%s\",\"declined\":%d}",
+				i ? "," : "", f, kh, me ? "you" : ok ? "up" : "down", m->declined);
 	}
 	len = lw_app(o, cap, len, "],\"up\":%d,\"partial\":%s,\"admit_expires\":%llu,\"admit_days\":%lld,\"admit_ended\":%s,\"revocations\":%d,\"revocations_full\":%s,\"rolled\":%llu}", up, up < n->line.nm ? "true" : "false",
 			(unsigned long long)(n->line.managed && !admit_founders(n, n->line.admit) ? get64(n->line.admit + ADM_EXPIRES) : 0),
