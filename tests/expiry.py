@@ -97,6 +97,7 @@ def main():
 
     # --- the roll: nothing made before it is good ----------------------------------------------
     roll = helper.cmd("operator", "roll", op, lid)[1]
+    t_roll = time.time()
     check(len(roll) == 112 * 2, "the operator signs a roll")
     mka, mkb, mkf0 = A.w.mark(), B.w.mark(), F.w.mark()
     time.sleep(1.2)
@@ -104,12 +105,13 @@ def main():
     check(rc == 0, f"the founder carries it: {out}")
     check(A.w.wait("admit-ended", 20, after=mka) is not None and B.w.wait("admit-ended", 20, after=mkb) is not None,
           "A and B, whose admits were made before the roll, are told theirs ended")
-    if until(lambda: len(F.status()["line"]["members"]) == 1, 20) is None:
+    # A member that has only just rejoined may not have shown its admit yet: the founder judges it when it does, or at its 20 s deadline (it might be about to show one made after the roll), so the wait is longer than that
+    if until(lambda: len(F.status()["line"]["members"]) == 1, 35) is None:
         print("DEBUG founder events since the roll:", [(e["event"], e.get("number", "")[-3:]) for e in F.w.events[mkf0:]], flush=True)
         print("DEBUG founder peers:", [(q["number"][-3:], q["state"], q["path"]) for q in F.status()["peers"]], flush=True)
     check(until(lambda: len(F.status()["line"]["members"]) == 1, 1) is not None,
           f"the founder (whose own admit is the root) holds the line alone: {[(m['number'][-3:], m['state']) for m in F.status()['line']['members']]}")
-    rc, out = A.cmd("renew", admit(ka, "-5", "+" + str(3 * 86400)))
+    rc, out = A.cmd("renew", admit(ka, "-" + str(int(time.time() - t_roll) + 10), "+" + str(3 * 86400)))	# made ten seconds before the roll, however long the founder took to judge the others
     check(rc != 0, "an admit made before the roll is not taken")
     rc, out = A.cmd("renew", admit(ka, "+0", "+" + str(3 * 86400)))
     check(rc == 0, f"one made after it is: {out}")
