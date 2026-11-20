@@ -68,6 +68,7 @@ check: all lint
 	sh tests/guardnet.sh
 	sh tests/claim.sh
 	sh tests/seedmem.sh
+	sh tests/failover.sh
 	sh tests/book.sh
 	sh tests/m2b.sh
 	sh tests/m2c.sh

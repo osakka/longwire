@@ -94,20 +94,11 @@ public class LongwireVpnService extends VpnService {
             }
         }
         for (String t : Partners.numbers(p)) {			// the other boxes of a pair that a box it dialled once vouched for (ADR 0094): the way to the pair when the box it dials is dead
-            boolean have = false;
-            for (String x : targets) {
-                have |= x.replace("-", "").equals(t.replace("-", ""));
-            }
-            if (!have) {
-                targets.add(t);
-            }
+            targets.add(t);
         }
-        int idx = 0, failsHere = 0, tries = 0;
+        Failover fo = new Failover(targets, p.getInt("giveTries", 0), p.getInt("giveMin", 0), p.getInt("longest", 120) * 1000L, System.currentTimeMillis());
         long partnersAt = 0;
-        int maxTries = p.getInt("giveTries", 0), maxMin = p.getInt("giveMin", 0);
-        long downSince = System.currentTimeMillis();
         String gaveUp = null;
-        String dial = targets.isEmpty() ? "" : targets.get(0);
         String sbHost = p.getString("switchboard", "").trim();
         if (sbHost.contains("/")) {
             sbHost = sbHost.substring(0, sbHost.indexOf('/'));
@@ -132,8 +123,6 @@ public class LongwireVpnService extends VpnService {
         for (String t : targets) {
             ctl.ask("asked " + t);		// every number the person chose may answer for us, dialled or not (a pair of boxes: whichever is active carries the lease)
         }
-        long lastDial = 0, wait = 5000;
-        long longest = p.getInt("longest", 120) * 1000L;
         android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
         android.net.ConnectivityManager.NetworkCallback watch = new android.net.ConnectivityManager.NetworkCallback() {
             @Override
@@ -155,8 +144,7 @@ public class LongwireVpnService extends VpnService {
         while (run) {
             if (kick) {				// a network came back or changed: no waiting out a back-off that was earned on the old one
                 kick = false;
-                wait = 5000;
-                lastDial = 0;
+                fo.networkBack();
                 ctl.ask("road");
             }
             JSONObject m = ctl.ask("member"), st = ctl.ask("status");
@@ -200,62 +188,47 @@ public class LongwireVpnService extends VpnService {
                 for (int i = 0; pa != null && i < pa.length(); i++) {
                     String num = pa.optString(i);
                     if (!num.isEmpty() && Partners.learn(p, num)) {
-                        targets.add(num);
+                        fo.add(num);
                         ctl.ask("asked " + num);
                     }
                 }
             }
             level = 1;
             if (lineUp) {				// the line is up: the clock and the count of failed tries start again, and the number that answered is the first next time
-                tries = 0;
-                failsHere = 0;
-                downSince = System.currentTimeMillis();
-                String digits = peerNum.replace("-", "");
-                for (int i = 0; i < targets.size(); i++) {
-                    if (targets.get(i).replace("-", "").equals(digits)) {
-                        idx = i;
-                    }
-                }
-                dial = targets.isEmpty() ? "" : targets.get(idx);
+                fo.lineUp(peerNum, System.currentTimeMillis());
             }
-            if (!lineUp && ((maxTries > 0 && tries >= maxTries) || (maxMin > 0 && System.currentTimeMillis() - downSince > maxMin * 60000L))) {
-                gaveUp = maxTries > 0 && tries >= maxTries ? "no answer after " + tries + " tries" : "no answer for " + maxMin + " minutes";
+            String why = fo.gaveUp(lineUp, System.currentTimeMillis());
+            if (why != null) {
+                gaveUp = why;
                 break;
             }
             if (st == null) {
                 level = 3;
                 status = "The engine does not answer";
             } else if (bound && lineUp) {
-                wait = 5000;
+                fo.connected();
                 level = 2;
-                String who = peerNum.isEmpty() ? dial : peerNum;
+                String who = peerNum.isEmpty() ? fo.dial() : peerNum;
                 status = "Connected to " + who + "\nthrough " + sbHost + "\nyour address " + m.optString("ip") + ", gateway " + m.optString("gateway");
                 note = "Connected to " + who + " · " + sbHost;
             } else if (!lineUp && "dial tone".equals(sbs)) {
                 // no session with the number: call it. This holds with an address too: the other end restarted, or the road changed, and the address is kept while the line is made again.
-                String which = targets.size() > 1 ? " (" + (idx + 1) + " of " + targets.size() + ")" : "";
-                status = bound ? "Lost " + dial + which + ": calling again (the address is kept)" : "On the line, calling " + dial + which;
-                if (tries > 0 && (maxTries > 0 || maxMin > 0)) {
-                    status += "\nfailed tries: " + tries + (maxTries > 0 ? " of " + maxTries : "");
+                String which = fo.count() > 1 ? " (" + (fo.position() + 1) + " of " + fo.count() + ")" : "";
+                status = bound ? "Lost " + fo.dial() + which + ": calling again (the address is kept)" : "On the line, calling " + fo.dial() + which;
+                if (fo.tries() > 0 && fo.limited()) {
+                    status += "\nfailed tries: " + fo.tries() + (fo.maxTries() > 0 ? " of " + fo.maxTries() : "");
                 }
                 long now = System.currentTimeMillis();
-                if (!dial.isEmpty() && "idle".equals(call) && now - lastDial > wait) {
-                    lastDial = now;
-                    wait = Math.min(wait * 2, longest);	// the other end is down: a phone that is on all day does not knock every five seconds
-                    tries++;
-                    if (++failsHere > 2 && targets.size() > 1) {	// two tries without an answer: the next number in the list
-                        idx = (idx + 1) % targets.size();
-                        failsHere = 1;
-                        dial = targets.get(idx);
-                    }
-                    JSONObject r = ctl.ask("dial " + dial);
+                if (fo.due(call, now)) {
+                    String num = fo.place(now);
+                    JSONObject r = ctl.ask("dial " + num);
                     if (r != null && r.has("error") && !r.optString("error").startsWith("already")) {	// "already calling": the engine is on it
                         level = 3;
                         status = "Cannot dial: " + r.optString("error");
                     }
                 }
             } else if (m != null && "asking".equals(m.optString("member")) && lineUp) {
-                status = "Connected to " + (peerNum.isEmpty() ? dial : peerNum) + ", asking its network for an address";
+                status = "Connected to " + (peerNum.isEmpty() ? fo.dial() : peerNum) + ", asking its network for an address";
             } else {
                 status = "Reaching the switchboard (" + (sbs.isEmpty() ? "?" : sbs) + ")";
             }
