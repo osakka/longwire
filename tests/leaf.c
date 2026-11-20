@@ -16,9 +16,15 @@ static void check(int ok, const char *what)
 		bad = 1;
 }
 
+static int nv6;
+
 static void tx(void *ctx, const uint8_t *f, size_t len)
 {
 	(void)ctx;
+	if (len >= 14 && f[12] == 0x86 && f[13] == 0xdd) {	/* IPv6 (router solicitations): tests/leafnet.sh is the test of that; here it is not one of the frames under test */
+		nv6++;
+		return;
+	}
 	if (nsent < 32 && len <= 1600) {
 		memcpy(sent[nsent], f, len);
 		sentlen[nsent++] = len;
