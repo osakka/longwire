@@ -10,6 +10,8 @@ Found and fixed: **spanning tree, LLDP, LACP and Cisco's CDP/PVST+ were tunnelle
 is a segment-mate that carries nothing to or from the LAN for a minute; the `loop-guard` event); and **the DHCP guard would have broken a client's lease through the other box of a pair** (a box now tells its members which boxes share its segment, `SITE`, and a member
 that asked for it lets them answer). New counters `drop_ctrl` and `drop_echo`. New tests on a real kernel: `m2b` (both boxes forwarding), `m2c` (a second box joins through a switchboard while a host broadcasts, both key orders), `m2d` (a phone-style client gets and renews its lease through the pair, and after one box is stopped).
 
+Published: hibr-apps 10368ab, hibr-apt c399f77, hibr-rpm 6db8140, hibr-arch d1f53b3.
+
 ## 0.5.67
 
 **Dial by name** ([ADR 0082](docs/adr/0082-a-name-is-dialled-from-the-address-book.md)), the owner's option A: `longwire dial NAME` calls a person by the name in your address book (hibr's Contacts, 0.99.553 or later; it answers
