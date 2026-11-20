@@ -26,7 +26,7 @@ its milestone (`*(planned: M6)*`) until it is built. Each closed ticket names th
 | LW-20 | **The release roll of a pair**: the boxes restart within about 40 s of each release; roll the standby first, verify the pair and a client's lease, then the active (with cix) | open |
 | LW-21 | **BUG-9 reproduced production-shaped**: a 0.5.69 switchboard, 0.5.70 nodes as a splice site pair behind one NAT address, restarted; and the switchboard peer's state on a stuck node (`handshaking` or `idle`) recorded before any restart | partly done: `SBROOT=../my-vpn-0569 sh tests/sbrestart.sh` runs a 0.5.69 switchboard under nodes of today and they register again in 73 s, so the version mismatch is not the cause; still to try: a splice pair sending `SITEINFO`, NAT between nodes and switchboard, a real registry, and the switchboard's counters from srv-uk-01 |
 | LW-22 | **hibr 0.99.555: `dt_set` forces no redraw for a catalogue entry's own setting.** The bar item's change key already includes `DT_LWSTYLE`; the window's Compact toggle is a key action (it redraws after it). Run the window, the bar item and the pane against hibr main before 0.99.555 ships, as hibr asked | closed: the window, bar item, pane and panel tests pass on hibr 0.99.554 and on the 0.99.555 release candidate bb7dfbb0; the one failure seen was my pair test assuming the order the switchboard lists nodes in (fixed) |
-| LW-9 | The phone carries IPv6 | open, last: the owner moved it to the end (2026-11-20) |
+| LW-9 | The phone carries IPv6 | built after 0.5.74 ([ADR 0098](adr/0098-the-phone-carries-ipv6.md)) |
 
 ## Bugs and gaps found
 

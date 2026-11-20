@@ -12,6 +12,7 @@
 #define BOOTP_LEN 236
 
 #include <pthread.h>
+#include <arpa/inet.h>
 #include <fcntl.h>
 static pthread_mutex_t leaf_mx = PTHREAD_MUTEX_INITIALIZER;
 static const uint8_t MB_BCAST[6] = { 255, 255, 255, 255, 255, 255 };
@@ -48,6 +49,14 @@ void leaf_init(lw_leaf *m, const uint8_t key_id[32], double now)
 	m->mac[0] = 0x02;			/* locally administered, unicast */
 	memcpy(m->mac + 1, h, 5);
 	lw_rand(&m->xid, sizeof m->xid);
+	m->ll6[0] = 0xfe;			/* link-local: fe80::/64 and the interface id made from the MAC (EUI-64, the universal/local bit turned) */
+	m->ll6[1] = 0x80;
+	m->ll6[8] = m->mac[0] ^ 2;
+	m->ll6[9] = m->mac[1];
+	m->ll6[10] = m->mac[2];
+	m->ll6[11] = 0xff;
+	m->ll6[12] = 0xfe;
+	memcpy(m->ll6 + 13, m->mac + 3, 3);
 	m->state = MB_INIT;
 	m->t_next = now;
 	snprintf(m->host, sizeof m->host, "longwire");
@@ -327,10 +336,363 @@ static void frame_out(lw_leaf *m, const uint8_t *dmac, const uint8_t *pkt, size_
 	m->os_in++;
 }
 
+
+/* ---- IPv6: an address from the router's advertisement, and neighbour discovery (docs/adr/0098) -------------------------------------------------------------------- */
+
+static const uint8_t MB6_ALLROUTERS[16] = { 0xff, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2 };
+
+/* The ICMPv6 checksum: the pseudo header (both addresses, the length, the next header 58) and the message with its own checksum field zero. */
+static unsigned icmp6_sum(const uint8_t *src, const uint8_t *dst, const uint8_t *msg, size_t len)
+{
+	uint32_t s = 0;
+	size_t i;
+
+	for (i = 0; i < 16; i += 2)
+		s += (unsigned)(src[i] << 8 | src[i + 1]) + (unsigned)(dst[i] << 8 | dst[i + 1]);
+	s += (uint32_t)(len >> 16) + (uint32_t)(len & 0xffff) + 58;
+	for (i = 0; i + 1 < len; i += 2)
+		s += (unsigned)(msg[i] << 8 | msg[i + 1]);
+	if (len & 1)
+		s += (unsigned)(msg[len - 1] << 8);
+	while (s >> 16)
+		s = (s & 0xffff) + (s >> 16);
+	return (~s) & 0xffff;
+}
+
+static int icmp6_ok(const uint8_t *src, const uint8_t *dst, const uint8_t *msg, size_t len)
+{
+	uint8_t c[1500];
+
+	if (len < 8 || len > sizeof c)
+		return 0;
+	memcpy(c, msg, len);
+	c[2] = c[3] = 0;
+	return icmp6_sum(src, dst, c, len) == get16(msg + 2);
+}
+
+static int is_ll6(const uint8_t *a) { return a[0] == 0xfe && (a[1] & 0xc0) == 0x80; }
+static int is_zero6(const uint8_t *a)
+{
+	static const uint8_t z[16] = {0};
+
+	return !memcmp(a, z, 16);
+}
+
+/* One ICMPv6 message in a frame: hop limit 255 (a neighbour discovery message from beyond the link would not have it), the checksum made here. */
+static void f6_out(lw_leaf *m, const uint8_t *dmac, const uint8_t *src, const uint8_t *dst, uint8_t *msg, size_t il, lw_mtx tx, void *ctx)
+{
+	uint8_t f[14 + 40 + 96];
+
+	if (il > 96)
+		return;
+	memcpy(f, dmac, 6);
+	memcpy(f + 6, m->mac, 6);
+	put16(f + 12, 0x86dd);
+	f[14] = 0x60;
+	f[15] = f[16] = f[17] = 0;
+	put16(f + 18, (unsigned)il);
+	f[20] = 58;
+	f[21] = 255;
+	memcpy(f + 22, src, 16);
+	memcpy(f + 38, dst, 16);
+	msg[2] = msg[3] = 0;
+	memcpy(f + 54, msg, il);
+	put16(f + 56, icmp6_sum(src, dst, f + 54, il));
+	tx(ctx, f, 54 + il);
+}
+
+static void mc6_mac(uint8_t mac[6], const uint8_t *a)	/* the Ethernet address of an IPv6 multicast address: 33:33 and its last four bytes */
+{
+	mac[0] = mac[1] = 0x33;
+	memcpy(mac + 2, a + 12, 4);
+}
+
+static void nd6_put(lw_leaf *m, double now, const uint8_t *ip, const uint8_t *mac)
+{
+	int i, old = 0;
+
+	for (i = 0; i < MB_ARP; i++) {
+		if (!memcmp(m->nd[i].ip, ip, 16)) {
+			old = i;
+			break;
+		}
+		if (m->nd[i].t < m->nd[old].t)
+			old = i;
+	}
+	memcpy(m->nd[old].ip, ip, 16);
+	memcpy(m->nd[old].mac, mac, 6);
+	m->nd[old].t = now;
+}
+
+static const uint8_t *nd6_get(lw_leaf *m, double now, const uint8_t *ip)
+{
+	int i;
+
+	for (i = 0; i < MB_ARP; i++)
+		if (!memcmp(m->nd[i].ip, ip, 16) && now - m->nd[i].t < MB_ARP_AGE)
+			return m->nd[i].mac;
+	return 0;
+}
+
+static void rs_send(lw_leaf *m, lw_mtx tx, void *ctx)		/* router solicitation, from the link-local address, with the MAC as the option */
+{
+	uint8_t msg[16], mac[6];
+
+	memset(msg, 0, sizeof msg);
+	msg[0] = 133;
+	msg[8] = 1;
+	msg[9] = 1;
+	memcpy(msg + 10, m->mac, 6);
+	mc6_mac(mac, MB6_ALLROUTERS);
+	f6_out(m, mac, m->ll6, MB6_ALLROUTERS, msg, sizeof msg, tx, ctx);
+}
+
+static void ns_send(lw_leaf *m, const uint8_t *target, lw_mtx tx, void *ctx)
+{
+	uint8_t msg[32], dst[16] = { 0xff, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0xff, 0, 0, 0 }, mac[6];
+
+	memset(msg, 0, sizeof msg);
+	msg[0] = 135;
+	memcpy(msg + 8, target, 16);
+	msg[24] = 1;
+	msg[25] = 1;
+	memcpy(msg + 26, m->mac, 6);
+	memcpy(dst + 13, target + 13, 3);			/* the solicited-node multicast address of the target */
+	mc6_mac(mac, dst);
+	f6_out(m, mac, m->has6 ? m->a6 : m->ll6, dst, msg, sizeof msg, tx, ctx);
+}
+
+static void na_send(lw_leaf *m, const uint8_t *dmac, const uint8_t *dst, const uint8_t *target, lw_mtx tx, void *ctx)
+{
+	uint8_t msg[32];
+
+	memset(msg, 0, sizeof msg);
+	msg[0] = 136;
+	msg[4] = 0x60;						/* solicited, override */
+	memcpy(msg + 8, target, 16);
+	msg[24] = 2;
+	msg[25] = 1;
+	memcpy(msg + 26, m->mac, 6);
+	f6_out(m, dmac, target, dst, msg, sizeof msg, tx, ctx);
+}
+
+static int mine6(const lw_leaf *m, const uint8_t *a)
+{
+	return !memcmp(a, m->ll6, 16) || (m->has6 && !memcmp(a, m->a6, 16));
+}
+
+static void frame6_out(lw_leaf *m, const uint8_t *dmac, const uint8_t *pkt, size_t len, lw_mtx tx, void *ctx)
+{
+	uint8_t f[14 + 1500];
+
+	memcpy(f, dmac, 6);
+	memcpy(f + 6, m->mac, 6);
+	put16(f + 12, 0x86dd);
+	memcpy(f + 14, pkt, len);
+	tx(ctx, f, 14 + len);
+	m->os_in++;
+}
+
+/* A router advertisement (docs/adr/0098): what the node let through is from a member this node asked for (the guard), and is checked again here: from a link-local address, hop limit 255,
+ * a good checksum. The address is the first prefix that says it may be made from (the A flag) at 64 bits, with this phone's interface id; the router is the sender, for as long as it says. */
+static void ra_input(lw_leaf *m, double now, const uint8_t *f, size_t len)
+{
+	const uint8_t *ip = f + 14, *msg = f + 54, *rmac = f + 6;
+	size_t il = get16(ip + 4), o;
+	unsigned life;
+	int got = 0;
+	uint8_t a[16];
+
+	if (14 + 40 + il > len || il < 16 || ip[6] != 58 || ip[7] != 255 || !is_ll6(ip + 8) || msg[0] != 134 || msg[1] != 0 || !icmp6_ok(ip + 8, ip + 24, msg, il))
+		return;
+	life = get16(msg + 6);
+	m->ra_seen++;
+	for (o = 16; o + 2 <= il;) {
+		size_t ol = (size_t)msg[o + 1] * 8;
+
+		if (!ol || o + ol > il)
+			return;
+		if (msg[o] == 1 && ol == 8)				/* the router's own link-layer address */
+			rmac = msg + o + 2;
+		else if (msg[o] == 3 && ol == 32 && !got && msg[o + 2] == 64 && (msg[o + 3] & 0x40) && get32(msg + o + 4) && get32(msg + o + 8) <= get32(msg + o + 4)) {
+			const uint8_t *pre = msg + o + 16;
+
+			if (pre[0] != 0xff && !is_ll6(pre) && !is_zero6(pre) && !(pre[0] == 0 && pre[1] == 0)) {	/* not multicast, link-local or the unspecified: a prefix that is a network */
+				memcpy(a, pre, 8);
+				a[8] = m->mac[0] ^ 2;
+				a[9] = m->mac[1];
+				a[10] = m->mac[2];
+				a[11] = 0xff;
+				a[12] = 0xfe;
+				memcpy(a + 13, m->mac + 3, 3);
+				got = 1;
+				m->addr_until = now + (double)get32(msg + o + 4);
+			}
+		}
+		o += ol;
+	}
+	if (life) {
+		memcpy(m->gw6, ip + 8, 16);
+		memcpy(m->gwmac, rmac, 6);
+		m->has_gw6 = 1;
+		m->router_until = now + (double)life;
+		nd6_put(m, now, m->gw6, m->gwmac);
+	} else if (!memcmp(ip + 8, m->gw6, 16))			/* a router that says it is going */
+		m->has_gw6 = 0;
+	if (got) {
+		if (!m->has6 || memcmp(m->a6, a, 16)) {
+			memcpy(m->a6, a, 16);
+			m->has6 = 1;
+			m->pfx6 = 64;
+			m->gen++;				/* the app builds its tunnel again, with the address */
+		}
+		m->ra_t = now;
+	}
+}
+
+/* Neighbour discovery for this phone: a solicitation for its address is answered, an advertisement is kept, and a packet that waits for a neighbour goes when it is known. Returns 1 if the frame
+ * was one of these. */
+static int nd6_input(lw_leaf *m, double now, const uint8_t *f, size_t len, lw_mtx tx, void *ctx)
+{
+	const uint8_t *ip = f + 14, *msg = f + 54;
+	size_t il = get16(ip + 4), o;
+	const uint8_t *lla = 0, *sa;
+
+	if (14 + 40 + il > len || il < 24 || ip[7] != 255 || !icmp6_ok(ip + 8, ip + 24, msg, il) || msg[1] != 0)
+		return 1;
+	sa = ip + 8;
+	for (o = 24; o + 2 <= il;) {
+		size_t ol = (size_t)msg[o + 1] * 8;
+
+		if (!ol || o + ol > il)
+			return 1;
+		if (msg[o] == (msg[0] == 135 ? 1 : 2) && ol == 8)
+			lla = msg + o + 2;
+		o += ol;
+	}
+	if (msg[0] == 135) {					/* who has this address */
+		if (is_zero6(sa) || !mine6(m, msg + 8) || !lla)	/* an address check (unspecified source) is not answered: nobody here takes the phone's address */
+			return 1;
+		nd6_put(m, now, sa, lla);
+		na_send(m, lla, sa, msg + 8, tx, ctx);
+		m->nd_answered++;
+		return 1;
+	}
+	if (!lla && (!(msg[4] & 0x20) || is_zero6(msg + 8)))
+		lla = f + 6;						/* an advertisement with no option is the sender's frame */
+	if (!lla || msg[8] == 0xff || is_zero6(msg + 8))
+		return 1;
+	if (m->pend6len && !memcmp(msg + 8, m->pend6_hop, 16)) {
+		nd6_put(m, now, msg + 8, lla);
+		frame6_out(m, lla, m->pend6, m->pend6len, tx, ctx);
+		m->pend6len = 0;
+	} else if (m->has_gw6 && !memcmp(msg + 8, m->gw6, 16)) {
+		nd6_put(m, now, msg + 8, lla);
+		memcpy(m->gwmac, lla, 6);
+	}
+	return 1;
+}
+
+static void v6_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx)
+{
+	if (m->pend6len && now - m->pend6_t > 5.0)
+		m->pend6len = 0;
+	if (m->pend6len && now - m->ask6_t >= 1.0 && m->pend6_asks < 4) {
+		m->ask6_t = now;
+		m->pend6_asks++;
+		ns_send(m, m->pend6_hop, tx, ctx);
+	}
+	if (m->has6 && m->addr_until && now > m->addr_until) {	/* the prefix's lifetime ran out unrenewed: no address, and ask again */
+		m->has6 = 0;
+		m->has_gw6 = 0;
+		m->gen++;
+		m->rs_tries = 0;
+		m->rs_t = 0;
+	}
+	if (now < m->rs_t)
+		return;
+	if (!m->has6 || now - m->ra_t > 600.0) {		/* ask the routers on the link: three times at once-ish, then once a minute; a router that is there says so by itself every few minutes besides */
+		rs_send(m, tx, ctx);
+		m->rs_t = now + (m->rs_tries < 3 ? 4.0 : 60.0);
+		m->rs_tries++;
+	} else
+		m->rs_t = now + 30.0;
+}
+
+static void v6_from_os(lw_leaf *m, double now, const uint8_t *pkt, size_t len, lw_mtx tx, void *ctx)
+{
+	const uint8_t *dst = pkt + 24, *mac, *hop;
+	uint8_t mc[6];
+
+	if (len < 40 || len > 1500 || !m->has6 || get16(pkt + 4) + 40u != len || !mine6(m, pkt + 8) || mine6(m, dst) || is_zero6(dst) || dst[0] == 0xff) {
+		if (len >= 40 && dst[0] == 0xff && m->has6 && mine6(m, pkt + 8) && (dst[1] & 0x0f) >= 2) {	/* link-local and wider multicast: the LAN's, on its multicast address */
+			mc6_mac(mc, dst);
+			frame6_out(m, mc, pkt, len, tx, ctx);
+			return;
+		}
+		m->drop_v6++;
+		return;
+	}
+	hop = (!memcmp(dst, m->a6, 8) || is_ll6(dst)) ? dst : m->has_gw6 ? m->gw6 : 0;	/* on the link, or through the router */
+	if (!hop) {
+		m->drop_v6++;
+		return;
+	}
+	if ((mac = nd6_get(m, now, hop))) {
+		frame6_out(m, mac, pkt, len, tx, ctx);
+		return;
+	}
+	memcpy(m->pend6, pkt, len);
+	m->pend6len = len;
+	memcpy(m->pend6_hop, hop, 16);
+	m->pend6_t = now;
+	m->pend6_asks = 1;
+	m->ask6_t = now;
+	ns_send(m, hop, tx, ctx);
+}
+
+/* An IPv6 frame from the line: neighbour discovery and router advertisements are this adapter's; a packet to this phone's address goes to the tunnel; the rest is not delivered. */
+static void v6_from_line(lw_leaf *m, double now, const uint8_t *f, size_t len, lw_mtx tx, void *ctx, lw_mup up, void *uctx)
+{
+	const uint8_t *ip = f + 14;
+	size_t pl;
+
+	if (len < 14 + 40 || (ip[0] >> 4) != 6) {
+		m->drop_line++;
+		return;
+	}
+	pl = get16(ip + 4);
+	if (14 + 40 + pl > len || (is_zero6(ip + 8) && ip[6] != 58) || ip[8] == 0xff) {
+		m->drop_line++;
+		return;
+	}
+	if (ip[6] == 58 && pl >= 8) {
+		if (f[54] == 134) {
+			ra_input(m, now, f, len);
+			return;
+		}
+		if (f[54] == 135 || f[54] == 136) {
+			nd6_input(m, now, f, len, tx, ctx);
+			return;
+		}
+	}
+	if (!m->has6 && !mine6(m, ip + 24)) {
+		m->drop_line++;
+		return;
+	}
+	if ((f[0] & 1) || !mine6(m, ip + 24) || mine6(m, ip + 8) || is_zero6(ip + 8)) {	/* chatter, or not to this phone */
+		m->drop_line++;
+		return;
+	}
+	up(uctx, ip, 40 + pl);
+	m->os_out++;
+}
+
 /* ---- the clock -------------------------------------------------------------------- */
 
 void leaf_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx)
 {
+	v6_tick(m, now, tx, ctx);
 	if (m->pendlen && now - m->pend_t > 5.0)	/* nobody answered for the next hop */
 		m->pendlen = 0;
 	if (m->pendlen && now - m->ask_t >= 1.0 && m->pend_asks < 4) {
@@ -392,8 +754,8 @@ void leaf_from_os(lw_leaf *m, double now, const uint8_t *pkt, size_t len, lw_mtx
 
 	if (len < 1)
 		return;
-	if ((pkt[0] >> 4) == 6) {		/* IPv6 is not carried (docs/adr/0076): the tunnel has no route for it, this is what slips through */
-		m->drop_v6++;
+	if ((pkt[0] >> 4) == 6) {		/* IPv6 (docs/adr/0098): with an address from the router it goes out; without one the tunnel has no route for it, and this is what slips through */
+		v6_from_os(m, now, pkt, len, tx, ctx);
 		return;
 	}
 	if ((pkt[0] >> 4) != 4 || len < 20 || len > 1500 || !leaf_bound(m)) {
@@ -481,6 +843,10 @@ void leaf_from_line(lw_leaf *m, double now, const uint8_t *f, size_t len, lw_mtx
 		}
 		return;
 	}
+	if (et == 0x86dd) {
+		v6_from_line(m, now, f, len, tx, ctx, up, uctx);
+		return;
+	}
 	if (et != 0x0800 || len < 14 + 20 || (f[14] >> 4) != 4) {
 		m->drop_line++;
 		return;
@@ -536,7 +902,7 @@ int leaf_owns(const lw_node *n, int fam, const uint8_t *ip)
 	if (!n->leaf)
 		return 0;
 	if (fam == 6)
-		return !memcmp(ip, ula, 6);
+		return !memcmp(ip, ula, 6) || (n->leaf->has6 && !memcmp(ip, n->leaf->a6, 16));
 	return leaf_bound(n->leaf) && get32(ip) == n->leaf->ip;
 }
 
@@ -633,12 +999,16 @@ static void mb_addr(char *o, size_t cap, uint32_t a)
 int leaf_json(lw_node *n, char *out, size_t cap)
 {
 	lw_leaf *m = n->leaf;
-	char ip[20], mask[20], gw[20], d[3][20];
+	char ip[20], mask[20], gw[20], d[3][20], ip6[48] = "", gw6[48] = "";
 	static const char *const st[] = { "asking", "asking", "asking", "bound", "renewing" };
 	int i, prefix = 0;
 
 	if (!m)
 		return snprintf(out, cap, "{\"error\":\"this node is not a member\"}\n");
+	if (m->has6)
+		inet_ntop(AF_INET6, m->a6, ip6, sizeof ip6);
+	if (m->has6 && m->has_gw6)
+		inet_ntop(AF_INET6, m->gw6, gw6, sizeof gw6);
 	mb_addr(ip, sizeof ip, m->ip);
 	mb_addr(mask, sizeof mask, m->mask);
 	mb_addr(gw, sizeof gw, m->gw);
@@ -647,9 +1017,9 @@ int leaf_json(lw_node *n, char *out, size_t cap)
 	for (i = 31; i >= 0 && (m->mask >> i & 1); i--)
 		prefix++;
 	return snprintf(out, cap,
-		"{\"member\":\"%s\",\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\",\"gen\":%u,\"ip\":\"%s\",\"mask\":\"%s\",\"prefix\":%d,\"gateway\":\"%s\",\"dns\":[%s%s%s%s%s],\"domain\":\"%s\",\"mtu\":%d,\"lease\":%u,"
+		"{\"member\":\"%s\",\"ip6\":\"%s\",\"prefix6\":%d,\"gateway6\":\"%s\",\"ra_seen\":%llu,\"nd_answered\":%llu,\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\",\"gen\":%u,\"ip\":\"%s\",\"mask\":\"%s\",\"prefix\":%d,\"gateway\":\"%s\",\"dns\":[%s%s%s%s%s],\"domain\":\"%s\",\"mtu\":%d,\"lease\":%u,"
 		"\"tun\":%s,\"os_in\":%llu,\"os_out\":%llu,\"drop_v6\":%llu,\"drop_os\":%llu,\"drop_line\":%llu,\"arp_answered\":%llu,\"dhcp_sent\":%llu}\n",
-		st[m->state], m->mac[0], m->mac[1], m->mac[2], m->mac[3], m->mac[4], m->mac[5], m->gen,
+		st[m->state], ip6, m->has6 ? m->pfx6 : 0, gw6, (unsigned long long)m->ra_seen, (unsigned long long)m->nd_answered, m->mac[0], m->mac[1], m->mac[2], m->mac[3], m->mac[4], m->mac[5], m->gen,
 		leaf_bound(m) ? ip : "", leaf_bound(m) ? mask : "", prefix, leaf_bound(m) ? gw : "",
 		m->ndns > 0 ? "\"" : "", m->ndns > 0 ? d[0] : "", m->ndns > 1 ? "\",\"" : "", m->ndns > 1 ? d[1] : "", m->ndns > 0 ? "\"" : "",
 		m->domain, m->mtu, m->lease, n->port_fd >= 0 ? "true" : "false",

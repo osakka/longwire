@@ -265,12 +265,24 @@ public class LongwireVpnService extends VpnService {
             int prefix = m.getInt("prefix"), mtu = m.optInt("mtu", 1400);
             Builder b = new Builder().setSession("Longwire").setMtu(Math.min(mtu > 0 ? mtu : 1400, 1400));
             b.addAddress(m.getString("ip"), prefix);
+            String ip6 = m.optString("ip6");
+            int prefix6 = m.optInt("prefix6", 64);
+            if (!ip6.isEmpty()) {			// the router on the far LAN advertised a prefix: IPv6 goes through the line, the phone's address made from it (docs/adr/0098)
+                b.addAddress(ip6, prefix6);
+            }
             if (all) {
                 b.addRoute("0.0.0.0", 0);
-                b.addAddress("fd6c:7700::2", 128);	// IPv6 is not carried: this, and a route for all of it, sends it nowhere instead of past the line
-                b.addRoute("::", 0);
+                if (!ip6.isEmpty()) {
+                    b.addRoute("::", 0);
+                } else {
+                    b.addAddress("fd6c:7700::2", 128);	// no IPv6 on the far LAN: this, and a route for all of it, sends it nowhere instead of past the line
+                    b.addRoute("::", 0);
+                }
             } else {
                 b.addRoute(network(m.getString("ip"), prefix), prefix);
+                if (!ip6.isEmpty()) {
+                    b.addRoute(network6(ip6, prefix6), prefix6);
+                }
             }
             JSONArray dns = m.optJSONArray("dns");
             for (int i = 0; dns != null && i < dns.length(); i++) {
@@ -304,6 +316,16 @@ public class LongwireVpnService extends VpnService {
         int mask = prefix == 0 ? 0 : -1 << (32 - prefix);
         int v = ((a[0] & 255) << 24 | (a[1] & 255) << 16 | (a[2] & 255) << 8 | (a[3] & 255)) & mask;
         return (v >>> 24) + "." + (v >> 16 & 255) + "." + (v >> 8 & 255) + "." + (v & 255);
+    }
+
+    /** The network of an IPv6 address: its first `prefix` bits, the rest zero. */
+    private static String network6(String ip, int prefix) throws Exception {
+        byte[] a = java.net.InetAddress.getByName(ip).getAddress();
+        for (int i = 0; i < a.length; i++) {
+            int keep = Math.max(0, Math.min(8, prefix - 8 * i));
+            a[i] = (byte) (a[i] & (0xFF00 >> keep));
+        }
+        return java.net.InetAddress.getByAddress(a).getHostAddress();
     }
 
     private void close() {

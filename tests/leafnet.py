@@ -64,6 +64,35 @@ def dhcp_reply(frame, mtype):
     return eth(b"\xff" * 6, GWMAC, 0x0800, ip4(GW, b"\xff" * 4, 17, udp(67, 68, bootp)))
 
 
+GW6 = bytes.fromhex("fe800000000000000000000000000001")		# the router's link-local address
+GW6G = bytes.fromhex("20010db8000100000000000000000001")	# and one of its global ones, on the advertised prefix
+
+
+def icmp6_sum(src, dst, msg):
+    return csum(src + dst + struct.pack(">IBBBB", len(msg), 0, 0, 0, 58) + msg)
+
+
+def ip6(src, dst, nh, payload, hop=64):
+    return struct.pack(">IHBB", 0x60000000, len(payload), nh, hop) + src + dst + payload
+
+
+def icmp6(src, dst, typ, body, hop=255, bad=False):
+    msg = bytes([typ, 0, 0, 0]) + body
+    c = icmp6_sum(src, dst, msg) ^ (0xFFFF if bad else 0)
+    return ip6(src, dst, 58, msg[:2] + struct.pack(">H", c) + msg[4:], hop)
+
+
+def ra_body(prefix, flags=0xC0, life=1800, valid=2592000, plen=64):
+    return (bytes([64, 0]) + struct.pack(">H", life) + b"\0" * 8 + bytes([1, 1]) + GWMAC +
+            bytes([3, 4, plen, flags]) + struct.pack(">II", valid, 604800) + b"\0" * 4 + prefix + b"\0" * (16 - len(prefix)))
+
+
+def udp6(src, dst, sp, dp, data):
+    u = struct.pack(">HHHH", sp, dp, 8 + len(data), 0) + data
+    c = csum(src + dst + struct.pack(">IBBBB", len(u), 0, 0, 0, 17) + u) or 0xFFFF
+    return u[:6] + struct.pack(">H", c) + u[8:]
+
+
 def main():
     hibr = os.environ.get("HIBR", "../hibr/build/hibr")
     mod = os.path.abspath("build/longwire.so")
@@ -90,8 +119,8 @@ def main():
     def start_phone(rounds, via=None):
         return subprocess.Popen([os.path.abspath("build/leafnet"), f"{T}/phone", via or f"{T}/bundlehome@127.0.0.1:41701", str(eng_end.fileno()), str(rounds)], pass_fds=(eng_end.fileno(),), stdout=subprocess.PIPE, text=True)
 
-    seen = {"discover": 0, "request": 0, "arp": 0, "echo": 0, "inet": 0}
-    state = {"bound": None}
+    seen = {"discover": 0, "request": 0, "arp": 0, "echo": 0, "inet": 0, "rs": 0, "ns6": 0, "na6": 0, "echo6": 0}
+    state = {"bound": None, "ra": bytes.fromhex("20010db800010000"), "tlla": None}
 
     def pump(until):
         while time.time() < until:
@@ -119,6 +148,21 @@ def main():
                 elif et == 0x0806 and f[38:42] == GW and struct.unpack(">H", f[20:22])[0] == 1:
                     seen["arp"] += 1
                     lan.sendto(eth(f[6:12], GWMAC, 0x0806, struct.pack(">HHBBH", 1, 0x0800, 6, 4, 2) + GWMAC + GW + f[22:28] + f[28:32]), f"{T}/Hport")
+                elif et == 0x86dd and len(f) >= 54:
+                    src6, dst6 = f[22:38], f[38:54]
+                    if f[20] == 58 and f[54] == 133:			# a router solicitation: the router advertises its prefix
+                        seen["rs"] += 1
+                        lan.sendto(eth(f[6:12], GWMAC, 0x86dd, icmp6(GW6, src6, 134, ra_body(state["ra"])[0:])), f"{T}/Hport")
+                    elif f[20] == 58 and f[54] == 135 and f[62:78] in (GW6, GW6G):	# who has the router: it does
+                        seen["ns6"] += 1
+                        lan.sendto(eth(f[6:12], GWMAC, 0x86dd, icmp6(f[62:78], src6, 136, bytes([0x60, 0, 0, 0]) + f[62:78] + bytes([2, 1]) + GWMAC)), f"{T}/Hport")
+                    elif f[20] == 58 and f[54] == 136:
+                        seen["na6"] += 1
+                        state["tlla"] = f[78 + 2:78 + 8] if len(f) >= 86 and f[78] == 2 else None
+                    elif f[20] == 17 and f[:6] == GWMAC:			# UDP for the router's MAC: echoed back from where it was sent to
+                        sp, dp = struct.unpack(">HH", f[54:58])
+                        seen["echo6"] += 1
+                        lan.sendto(eth(f[6:12], GWMAC, 0x86dd, ip6(dst6, src6, 17, udp6(dst6, src6, dp, sp, f[62:]))), f"{T}/Hport")
                 elif et == 0x0800 and f[:6] == GWMAC and f[14 + 9] == 17:    # a UDP packet for the gateway's MAC: echo it back from where it was sent to
                     ihl = (f[14] & 15) * 4
                     src, dst = f[14 + 12:14 + 16], f[14 + 16:14 + 20]
@@ -174,6 +218,63 @@ def main():
     check(seen == before, "a packet from the OS with another source address is not put on the line")
     st = ctl(f"{T}/phone/ctl", "member")
     check(st["os_in"] >= 2 and st["os_out"] >= 2 and st["drop_os"] >= 1, f"the adapter counts what it did: {st['os_in']} in, {st['os_out']} out, {st['drop_os']} refused")
+
+    # IPv6 (docs/adr/0098): an address from the router's advertisement, neighbour discovery, and packets both ways
+    import ipaddress
+    m6 = {}
+    t0 = time.time()
+    while time.time() < t0 + 25 and not m6.get("ip6"):
+        pump(time.time() + 0.5)
+        m6 = ctl(f"{T}/phone/ctl", "member")
+    mac = bytes.fromhex(m6["mac"].replace(":", ""))
+    want6 = ipaddress.IPv6Address(bytes.fromhex("20010db800010000") + bytes([mac[0] ^ 2]) + mac[1:3] + b"\xff\xfe" + mac[3:6])
+    check(m6.get("ip6") == str(want6) and m6["prefix6"] == 64 and m6["gateway6"] == "fe80::1", f"the router advertised 2001:db8:1::/64: the phone made its address from the prefix and its MAC (SLAAC): {m6.get('ip6')}/{m6.get('prefix6')} via {m6.get('gateway6')}")
+    check(seen["rs"] >= 1, f"...after asking for it (router solicitation): {seen['rs']}")
+    me6 = want6.packed
+
+    def exchange6(payload, dst, what, expect=True):
+        os_end.send(ip6(me6, dst, 17, udp6(me6, dst, 5100, 7, payload)))
+        got = None
+        for _ in range(40):
+            pump(time.time() + 0.2)
+            try:
+                got = os_end.recv(2048)
+                break
+            except socket.timeout:
+                pass
+        ok = got is not None and got[0] >> 4 == 6 and got[8:24] == dst and got[24:40] == me6 and got[6] == 17 and got[48:] == payload
+        if ok:
+            u = got[40:]
+            ok = csum(got[8:40] + struct.pack(">IBBBB", len(u), 0, 0, 0, 17) + u) == 0
+        check(ok == expect, f"{what}: {got[48:] if got else None}")
+
+    n0 = seen["echo6"]
+    exchange6(b"six hello", bytes.fromhex("20010db8ffff00000000000000000007"), "a packet for another network goes through the router (its MAC came with the advertisement) and the echo reaches the OS")
+    check(seen["echo6"] == n0 + 1 and seen["ns6"] == 0, f"...once, with no neighbour solicitation needed for the router: {seen['echo6'] - n0} and {seen['ns6']}")
+    exchange6(b"on link", GW6G, "a packet for a host on the prefix asks who has it (neighbour solicitation), and its answer lets the packet go")
+    check(seen["ns6"] >= 1, f"...the phone asked: {seen['ns6']}")
+    # the router asks who has the phone's address
+    nbefore = seen["na6"]
+    sol = bytes([0, 0, 0, 0]) + me6 + bytes([1, 1]) + GWMAC
+    lan.sendto(eth(m6["mac"] and mac, GWMAC, 0x86dd, icmp6(GW6, me6, 135, sol)), f"{T}/Hport")
+    pump(time.time() + 1.5)
+    check(seen["na6"] == nbefore + 1 and state["tlla"] == mac, f"the phone answers a neighbour solicitation for its address with its MAC: {seen['na6'] - nbefore} answer, {state['tlla'].hex() if state['tlla'] else None}")
+    # what must not change the address
+    for what, frame in (
+            ("an advertisement with a bad checksum", icmp6(GW6, me6, 134, ra_body(bytes.fromhex("20010db800bad000")), bad=True)),
+            ("one with a hop limit that says it came from beyond the link", icmp6(GW6, me6, 134, ra_body(bytes.fromhex("20010db800bad000")), hop=64)),
+            ("one that does not come from a link-local address", icmp6(GW6G, me6, 134, ra_body(bytes.fromhex("20010db800bad000")))),
+            ("a prefix that says it may not be made into an address (no A flag)", icmp6(GW6, me6, 134, ra_body(bytes.fromhex("20010db800bad000"), flags=0x80))),
+            ("a prefix longer than 64 bits", icmp6(GW6, me6, 134, ra_body(bytes.fromhex("20010db800bad000"), plen=96)))):
+        lan.sendto(eth(mac, GWMAC, 0x86dd, frame), f"{T}/Hport")
+        pump(time.time() + 0.8)
+        check(ctl(f"{T}/phone/ctl", "member")["ip6"] == str(want6), f"{what} does not change the address")
+    gen0 = ctl(f"{T}/phone/ctl", "member")["gen"]
+    lan.sendto(eth(mac, GWMAC, 0x86dd, icmp6(GW6, me6, 134, ra_body(bytes.fromhex("20010db800030000")))), f"{T}/Hport")
+    pump(time.time() + 1.0)
+    m7 = ctl(f"{T}/phone/ctl", "member")
+    check(m7["ip6"].startswith("2001:db8:3:") and m7["gen"] == gen0 + 1, f"a good advertisement of another prefix makes a new address, and `gen` moves so that the app builds its tunnel again: {m7['ip6']} gen {gen0} -> {m7['gen']}")
+    me6 = ipaddress.IPv6Address(m7["ip6"]).packed
 
     # the phone's system says the network changed: the engine tells its peers at once, and the line carries on
     check(ctl(f"{T}/phone/ctl", "road") == {"road": "kicked"}, "the `road` word makes the engine tell its peers the road changed")

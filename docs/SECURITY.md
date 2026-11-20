@@ -165,7 +165,7 @@ and [THREAT-MODEL](THREAT-MODEL.md):
   and its address is what the internet sees. Share only from a machine the line trusts that much. The way out is a member's key, not an address: frames for it go only to the member that said, inside its
   session, that it shares, so another member cannot become the gateway by claiming its address or answering ARP for it. While a node that sends everything has no exit, its internet traffic stops (it
   does not leak to the local network); when the node stops, it fails open as above. An exit whose own firewall drops forwarded traffic (Docker's does) may still drop the line's.
-- **IPv6 with everything through the line** is sent into the line and is lost there unless the far side routes it: it does not leak, and it does not work.
+- **IPv6 with everything through the line**, on a phone whose far LAN has none, is sent nowhere: it does not leak, and it does not work. With a prefix advertised there it goes through the line ([ADR 0098](adr/0098-the-phone-carries-ipv6.md)).
 - **A jack that stays.** By default the jack outlives the node (`keep_jack`), with its address and any DHCP client of ours. `keep_jack = no` or `longwire jack --remove` takes it away.
 - **Floods of plain traffic.** A switchboard or node behind a thin link can be filled with garbage by someone with enough
   bandwidth. That is a network problem.

@@ -255,6 +255,17 @@ typedef struct lw_leaf {
 	uint32_t pend_hop;
 	int      pend_asks;
 	uint64_t os_in, os_out, drop_v6, drop_os, drop_line, arp_answered, dhcp_sent;
+	/* IPv6 (docs/adr/0098): an address from the router's advertisement (SLAAC), and neighbour discovery, beside the DHCP lease */
+	uint8_t  ll6[16], a6[16], gw6[16], gwmac[6];	/* link-local, the SLAAC address, the router's link-local address and its MAC */
+	int      has6, has_gw6, pfx6, rs_tries;
+	double   rs_t, ra_t, router_until, addr_until;
+	struct { uint8_t ip[16]; uint8_t mac[6]; double t; } nd[MB_ARP];
+	uint8_t  pend6[1500];
+	size_t   pend6len;
+	uint8_t  pend6_hop[16];
+	double   pend6_t, ask6_t;
+	int      pend6_asks;
+	uint64_t ra_seen, nd_answered;
 } lw_leaf;
 void leaf_init(lw_leaf *m, const uint8_t key_id[32], double now);
 void leaf_hostname(lw_leaf *m, const char *name);

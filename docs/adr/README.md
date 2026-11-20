@@ -106,6 +106,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0095](0095-the-kill-switch-is-the-systems-and-the-app-opens-it.md) | The kill switch is the system's, and the app opens it | accepted |
 | [0096](0096-a-number-is-picked-from-the-contacts.md) | A number is picked from the contacts | accepted |
 | [0097](0097-a-member-that-refuses-the-mesh-is-called-every-six-hours.md) | A member that refuses the mesh is called every six hours | accepted |
+| [0098](0098-the-phone-carries-ipv6.md) | The phone carries IPv6 | accepted |
 
 ---
 

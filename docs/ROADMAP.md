@@ -15,7 +15,7 @@ Each milestone ends with something you can *use*, and with tests that prove it.
 | **M3** | Party line: lines of more than two nodes, relay, hard NATs, IPv6 | built, apart from PCP and relay candidates *(planned: M7)*; the independent doc review is done |
 | **M4** | Desktop and distribution | planned |
 | **M5** | No privilege, more Unix | planned |
-| **M6** | Pocket: member mode, Android | built in part: the adapter and the app, run on the owner's phone; IPv6 remains |
+| **M6** | Pocket: member mode, Android | built in part: the adapter and the app, run on the owner's phone; IPv6 is built and untried on a phone |
 | **M7** | Speed | planned |
 | **M8** | 1.0: verification | planned |
 | **M9** | Operator grade: replicas, federation, a switchboard that can run a service for others | proposed |
