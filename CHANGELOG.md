@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 forgets the wait it had earned and tells the engine (the new control word `road`: tell every peer, redo handshakes that were backing off, register again); and the **longest wait** between redials is a setting (30 s, 2 min, 10 min). The Switchboard window's two token
 notices are if/else (no `dt_notep` status is tested). Not run on a phone.
 
+Published: hibr-apps 766e3a9, hibr-apt c7d3fa6, hibr-rpm dcf8565, hibr-arch 2eb54b5.
+
 ## 0.5.65
 
 **DHCP snooping for the line** ([ADR 0080](docs/adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)), the owner's question: a DHCP reply, a DHCPv6 reply or a router advertisement from a member this node did not ask for is refused, before anything
