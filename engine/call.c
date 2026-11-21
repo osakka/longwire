@@ -884,7 +884,7 @@ int call_dial(lw_node *n, const char *num, int auto_, char *err, size_t errn)
 	c->state = CALL_OUT;
 	c->we_caller = 1;
 	if (!auto_)				/* a person asked for this number: the guard lets it speak for the network, whoever places the next call */
-		memcpy(n->asked[n->asked_i++ & 7], num, NUMLEN + 1);
+		asked_add(n, num);
 	c->auto_ = auto_;
 	memcpy(c->number, num, NUMLEN + 1);
 	c->deadline = n->now + (auto_ ? MESH_RING : 65.0);	/* outlast the callee's 60 s of ringing; a mesh call is answered by the node itself, at once, or not at all */
@@ -2105,15 +2105,10 @@ int node_cmd(lw_node *n, const char *line, char *out, size_t cap)
 	}
 	if (!strncmp(line, "asked ", 6)) {	/* a number the person has chosen to be joined to (the phone's list): it may answer DHCP for us whether or not we have dialled it yet */
 		char num[NUMLEN + 1], f[16], perr[160];
-		int i, have = 0;
 
 		if (parse_full(n, line + 6, num, perr, sizeof perr))
 			return LW_SN(out, cap, "{\"error\":\"%s\"}\n", perr);
-		for (i = 0; i < 8; i++)
-			if (!strcmp(n->asked[i], num))
-				have = 1;
-		if (!have)
-			memcpy(n->asked[n->asked_i++ & 7], num, NUMLEN + 1);
+		asked_add(n, num);
 		fmt_number(f, num);
 		return LW_SN(out, cap, "{\"asked\":\"%s\"}\n", f);
 	}

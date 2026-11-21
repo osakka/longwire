@@ -71,6 +71,7 @@ check: all lint
 	sh tests/guardnet.sh
 	sh tests/claim.sh
 	sh tests/seedmem.sh
+	sh tests/trust.sh
 	sh tests/admitwhy.sh
 	sh tests/failover.sh
 	sh tests/book.sh

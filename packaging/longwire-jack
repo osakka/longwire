@@ -125,7 +125,7 @@ if [ -n "$remove" ]; then
 	pidf=$rundir/dhcp-$tap.pid
 	if [ -r "$pidf" ]; then			# a DHCP client of ours on it: stop it first
 		old=
-		read -r old < "$pidf"
+		read -r old < "$pidf" 2> /dev/null
 		if [[ $old =~ ^[0-9]+$ ]]; then
 			comm=
 			read -r comm < "/proc/$old/comm" 2> /dev/null
@@ -356,7 +356,7 @@ if [ -n "$dhcp" ]; then
 	hook=$rundir/dhcp-hook-$tap
 	if [ -r "$pidf" ]; then			# a client of ours from before: stop it, so there is one
 		old=
-		read -r old < "$pidf"
+		read -r old < "$pidf" 2> /dev/null
 		if [[ $old =~ ^[0-9]+$ ]]; then
 			comm=
 			read -r comm < "/proc/$old/comm" 2> /dev/null

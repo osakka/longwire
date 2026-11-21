@@ -291,6 +291,8 @@ The service runs as a transient user; lift it as root: `please longwire-switchbo
 
 ## The jack has a 169.254 address and the line is up
 
+If `longwire watch` says *answered as DHCP for this machine's network and was refused: it is on the line, but you did not ask for it*, the DHCP guard did it ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)). Since 0.5.77 the node keeps for thirty days the members you dialled, the boxes they vouch for and the founder of your line ([ADR 0101](adr/0101-who-may-speak-for-the-network-is-kept-for-thirty-days.md)), so a restarted desktop trusts the pair it was on; the first start after the update still has to meet the founder (or you can name a box: `longwire profile set home dhcp_server=lw1...`). To forget what is kept, stop the node and delete `trust` in its state directory.
+
 A 169.254.x.x address is what the system makes up when DHCP got no answer. If the line was not carrying frames when the jack came up (the boxes of a pair were restarting, or only the standby box was up), `dhclient` gave up for the time being. Since 0.5.76 it asks again within about half a minute ([ADR 0088](adr/0088-the-jack-tells-the-dhcp-server-the-machines-name.md)); before, it waited five minutes. Turn the line off and on (`longwire off`, `longwire on`) to ask at once. A fixed address (`address=10.77.0.2/24` in the profile) does not depend on the exchange.
 
 ## A member is refused as the network's server, or a loop is reported

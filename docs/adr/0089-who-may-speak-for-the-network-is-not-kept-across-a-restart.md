@@ -1,6 +1,6 @@
 # 0089 — Who may speak for the network is not kept across a restart
 
-Status: accepted (a decision not to build). Ticket LW-14 proposed writing the dialled numbers (`asked`) and the vouched boxes (`vouched`) to the state directory so that a restart need not ask again. It is closed without that.
+Status: accepted (a decision not to build); superseded for a desktop by [ADR 0101](0101-who-may-speak-for-the-network-is-kept-for-thirty-days.md), which keeps it for thirty days. Ticket LW-14 proposed writing the dialled numbers (`asked`) and the vouched boxes (`vouched`) to the state directory so that a restart need not ask again. It is closed without that.
 
 ## Context
 

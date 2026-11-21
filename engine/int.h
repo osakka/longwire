@@ -369,12 +369,14 @@ struct lw_node {
 	struct seen_ent { uint64_t h; double t; uint8_t dir; int16_t peer; } *seen;	/* the frames carried in the last second (sw.c: seen_before) */
 	uint8_t  vouched[16][32];		/* keys an asked member has said are on its own LAN segment: they may answer DHCP for us, for as long as this node runs (M_SITE) */
 	unsigned vouched_i;
+	time_t   vouched_t[16];		/* when each was last vouched for (wall clock): they are kept 30 days (ADR 0101) */
 	double   site_vouch_t;
 	double   siteinfo_t;			/* when the switchboard was last told which site role this box has (call.c: site_info_timer) */
 	uint8_t  siteinfo_last[2 + 8 * 32];
 	size_t   siteinfo_len;
 	char     asked[8][NUMLEN + 1];		/* the numbers a person dialled lately: a member of these may answer DHCP for us even when the other end made the last call (the guard) */
 	unsigned asked_i;
+	time_t   asked_t[8];
 	uint64_t frames_split, frames_joined, drop_flood, arp_answered, drop_standby, resegmented, drop_oversize, cand_skipped;
 	double cand_skip_said;		/* when a skipped address was last announced */
 	uint16_t frag_id;
@@ -616,6 +618,9 @@ void line_init(lw_node *n);
 int  line_have(const lw_node *n);
 int  line_admit_for(lw_node *n, uint8_t out[ADMIT_LEN]);	/* our own admit, to present when dialing; 0 if none */
 int  line_revs_full(lw_node *n);			/* as many revocations held as there is room for: no admit is taken */
+void asked_add(lw_node *n, const char *num9);
+void vouched_add(lw_node *n, const uint8_t *key);
+void trust_save(lw_node *n);
 const char *line_why(lw_node *n, const uint8_t *a, const uint8_t kid[32]);
 const char *admit_why(lw_node *n, const uint8_t *a, const uint8_t kid[32]);
 int  line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32]);

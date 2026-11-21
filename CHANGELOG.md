@@ -3,6 +3,10 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.77
+
+**A desktop keeps who may speak for the network** (BUG-12, [ADR 0101](docs/adr/0101-who-may-speak-for-the-network-is-kept-for-thirty-days.md)): after a restart a desktop refused every DHCP answer (it had asked for nobody) and stayed on a 169.254 address while static worked. The numbers dialled and the boxes vouched for, that are members of the line, are now kept in the state directory for thirty days, and the line's founder counts as chosen, so the other box of a pair is trusted at once. Also: the jack's helper no longer prints a pid-file error when a client of ours has just gone. Test `trust`.
+
 ## 0.5.76
 
 **A ring says why a member was not let in** ([ADR 0100](docs/adr/0100-a-ring-says-why-a-member-was-not-let-in.md)): a call from a member of the line that the node cannot let in by itself now says why (`why` in the ring event, and in `longwire watch`), where it only asked for `longwire pickup`; tests `admitwhy` and `meshask`.

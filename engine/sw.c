@@ -993,7 +993,11 @@ int peer_asked(const lw_node *n, const lw_peer *p)
 {
 	int i;
 
+	static const uint8_t none[32] = {0};
+
 	if (p->asked)
+		return 1;
+	if (n->line.have && memcmp(n->line.founder, none, 32) && !memcmp(p->key_id, n->line.founder, 32))	/* the founder of the line the person joined: joining it was the choice (ADR 0101) */
 		return 1;
 	for (i = 0; p->number[0] && i < 8; i++)
 		if (!strcmp(n->asked[i], p->number))

@@ -472,9 +472,128 @@ static void line_load(lw_node *n)
 		memset(&n->line, 0, sizeof n->line);
 }
 
+
+/* ---- who may speak for the network, kept (docs/adr/0101) ---------------------------------------------------------------------------------------------------------------
+ * The numbers a person dialled and the boxes they vouch for were in memory only, so a restart left a desktop with nobody it trusted: every DHCP answer refused until the person dialled again.
+ * They are kept in the state directory for 30 days, and only those that are members of this node's line (a number dialled and never joined is a stranger's). */
+#define TRUST_FOR (30LL * 86400)
+
+static void trust_path(lw_node *n, char *out, size_t cap)
+{
+	snprintf(out, cap, "%s/trust", n->cfg.state_dir);
+}
+
+void trust_save(lw_node *n)
+{
+	char path[320], tmp[330], hx[65];
+	FILE *f;
+	time_t w = time(0);
+	int i, j, any = 0;
+
+	if (n->role || n->cfg.embedded || !n->cfg.state_dir[0] || !n->line.have)	/* a switchboard has none; a phone's app keeps its own list (ADR 0094) */
+		return;
+	trust_path(n, path, sizeof path);
+	snprintf(tmp, sizeof tmp, "%s.tmp", path);
+	if (!(f = fopen(tmp, "w")))
+		return;
+	for (i = 0; i < 8; i++) {
+		if (!n->asked[i][0] || w - n->asked_t[i] > TRUST_FOR)
+			continue;
+		for (j = 0; j < n->line.nm; j++)
+			if (!strcmp(n->line.m[j].number, n->asked[i])) {
+				fprintf(f, "asked %s %lld\n", n->asked[i], (long long)n->asked_t[i]);
+				any = 1;
+			}
+	}
+	for (i = 0; i < 16; i++) {
+		static const uint8_t none[32] = {0};
+
+		if (!memcmp(n->vouched[i], none, 32) || w - n->vouched_t[i] > TRUST_FOR || !mem_find(n, n->vouched[i]))
+			continue;
+		lw_hex(hx, n->vouched[i], 32);
+		fprintf(f, "partner %s %lld\n", hx, (long long)n->vouched_t[i]);
+		any = 1;
+	}
+	if (fclose(f) || !any) {
+		unlink(tmp);
+		if (!any)
+			unlink(path);
+		return;
+	}
+	chmod(tmp, 0600);
+	if (rename(tmp, path))
+		unlink(tmp);
+}
+
+static void trust_load(lw_node *n)
+{
+	char path[320], l[200], a[80];
+	FILE *f;
+	long long t;
+	time_t w = time(0);
+	uint8_t k[32];
+
+	if (n->role || n->cfg.embedded || !n->cfg.state_dir[0])
+		return;
+	trust_path(n, path, sizeof path);
+	if (!(f = fopen(path, "r")))
+		return;
+	while (fgets(l, sizeof l, f)) {
+		if (sscanf(l, "asked %79s %lld", a, &t) == 2 && strlen(a) == NUMLEN && w - t <= TRUST_FOR && t <= w + 86400 && num_wire_ok((const uint8_t *)a) && n->asked_i < 8) {
+			memcpy(n->asked[n->asked_i & 7], a, NUMLEN + 1);
+			n->asked_t[n->asked_i++ & 7] = (time_t)t;
+		} else if (sscanf(l, "partner %79s %lld", a, &t) == 2 && strlen(a) == 64 && !unhexn(a, k, 32) && w - t <= TRUST_FOR && t <= w + 86400 && n->vouched_i < 16) {
+			memcpy(n->vouched[n->vouched_i & 15], k, 32);
+			n->vouched_t[n->vouched_i++ & 15] = (time_t)t;
+		}
+	}
+	fclose(f);
+}
+
+/* A person dialled this number, or named it to be joined to (the phone's list): remembered, and kept if it is a member of the line. */
+void asked_add(lw_node *n, const char *num9)
+{
+	int i, hit = -1;
+	time_t w = time(0);
+
+	for (i = 0; i < 8; i++)
+		if (!strcmp(n->asked[i], num9))
+			hit = i;
+	if (hit < 0) {
+		hit = (int)(n->asked_i++ & 7);
+		memcpy(n->asked[hit], num9, NUMLEN + 1);
+		n->asked_t[hit] = w;
+		trust_save(n);
+	} else if (w - n->asked_t[hit] > 86400) {
+		n->asked_t[hit] = w;
+		trust_save(n);
+	}
+}
+
+/* A member we asked for says this one is on its own segment (docs/adr/0083): remembered, and refreshed at most once a day on disk. */
+void vouched_add(lw_node *n, const uint8_t *key)
+{
+	int i, hit = -1;
+	time_t w = time(0);
+
+	for (i = 0; i < 16; i++)
+		if (!memcmp(n->vouched[i], key, 32))
+			hit = i;
+	if (hit < 0) {
+		hit = (int)(n->vouched_i++ & 15);
+		memcpy(n->vouched[hit], key, 32);
+		n->vouched_t[hit] = w;
+		trust_save(n);
+	} else if (w - n->vouched_t[hit] > 86400) {
+		n->vouched_t[hit] = w;
+		trust_save(n);
+	}
+}
+
 void line_init(lw_node *n)
 {
 	line_load(n);
+	trust_load(n);
 	site_derive(n);
 }
 
@@ -657,8 +776,10 @@ void line_call_up(lw_node *n, lw_peer *p)
 	uint8_t b[9];
 	lw_member *rec = n->line.have && p->have_bundle ? mem_find(n, p->key_id) : 0;
 
-	if (rec)
+	if (rec) {
 		memcpy(rec->ed_pub, peer_ed_pub(p), 32);	/* the record of a member we are in touch with takes the key from its own bundle: a record made by another member cannot lock it out later (docs/adr/0064) */
+		trust_save(n);			/* a member is on the record now: what a person chose of the line is kept (ADR 0101) */
+	}
 
 	p->rev_next = n->now + 2.0;		/* a new session: tell it what the operator revoked, once it is listening */
 	if (n->line.have && n->line.managed && rec) {	/* and show it our admit, and wait for its: a member we cannot see the end of is not one we hold (docs/adr/0065) */
