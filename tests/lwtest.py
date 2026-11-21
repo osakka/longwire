@@ -107,10 +107,11 @@ class Watcher(threading.Thread):
     def __init__(self, sockpath):
         super().__init__(daemon=True)
         self.events, self.cv, self.path = [], threading.Condition(), sockpath
+        self.up = threading.Event()		# set once it is reading the node's events: before that, an event the node says is not seen
         self.start()
 
     def run(self):
-        for _ in range(100):
+        for _ in range(900):			# a node on a loaded machine can take a good while to make its control socket
             try:
                 s = socket.socket(socket.AF_UNIX); s.connect(self.path); break
             except OSError:
@@ -118,6 +119,7 @@ class Watcher(threading.Thread):
         else:
             return
         s.sendall(b"watch\n")
+        self.up.set()
         buf = b""
         while True:
             try: d = s.recv(4096)

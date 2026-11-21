@@ -112,10 +112,12 @@ def main():
     # F has only just started: until it has a dial tone the switchboard does not know it is online, a ring to it is turned back there, and nothing reaches F to be refused (the check below failed
     # now and then in a full run, on a loaded machine, for that reason)
     check(until(lambda: F.status().get("switchboard") == "dial tone", 60) is not None, "the founder is back on the switchboard before the evicted node rings it")
+    check(F.w.up.wait(60), "and the test is reading the founder's events")
     mk = F.w.mark()
     A2 = A.cmd("dial", nums["F"])
     e = F.w.wait("call-failed", 20, after=mk)
-    check(e is not None and "evicted" in e["reason"], f"the evicted node is refused if it rings back: {e and e['reason']}")
+    check(e is not None and "evicted" in e["reason"], f"the evicted node is refused if it rings back: {e and e['reason']}"
+          + ("" if e is not None else f" (A's dial said {A2[1][:120]!r}; A's calls {[(c['number'], c['state']) for c in A.status().get('calls', [])]}; F is {F.status().get('switchboard')}, revocations {F.status()['line'].get('revocations')}, F's events since: {[x.get('event') for x in F.w.events[mk:]][:8]})"))
     L.finish("operator")
 
 
