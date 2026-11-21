@@ -374,7 +374,10 @@ if [ -n "$dhcp" ]; then
 
 	# The one DHCP client there is (ADR 0102): the phone's, in a program of its own. It asks until a server answers, keeps the lease, and puts on the jack the address and nothing else.
 	rm -f "$rundir/dhcp-$tap.state"
-	"$bin" ${hn:+--hostname "$hn"} --pidfile "$pidf" --state "$rundir/dhcp-$tap.state" "$tap" || exit 1
+	# With everything through the line and no gateway named, the lease's router is the way out (ADR 0108): the client puts the default route of the jack's table through it.
+	tbl=()
+	[ -n "$everything" ] && [ -z "$via" ] && tbl=(--table "$table")
+	"$bin" ${hn:+--hostname "$hn"} --pidfile "$pidf" --state "$rundir/dhcp-$tap.state" "${tbl[@]}" "$tap" || exit 1
 	client=lw-dhcp
 	# It says it is up and searching once it has given up its privilege and closed its system calls; if it ends before that, it says so here, not in a log nobody reads.
 	st=

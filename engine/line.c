@@ -319,9 +319,20 @@ static int admit_verify(lw_node *n, const uint8_t *a, const uint8_t kid[32])
 	return !*admit_why(n, a, kid);
 }
 
+/* A caller is let in by itself when its admit verifies, or, on a line without an operator, when this node's own record of the line has its key and it is not evicted
+ * (ADR 0107): the record is the line's word that it is a member, and an admit is the proof for a node that has no record of it. A member whose admit was lost or
+ * went wrong is then not locked out by the members that know it, and gets a new admit from the first of them it reaches (handle_admit). */
 int line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32])
 {
-	return admit && admit_verify(n, admit, caller_kid);
+	if (admit && admit_verify(n, admit, caller_kid))
+		return 1;
+	return n->line.have && !n->line.managed && mem_find(n, caller_kid) && !line_evicted(n, caller_kid);
+}
+
+/* This node's own admit does not verify for it (ADR 0107)? */
+static int own_admit_bad(lw_node *n)
+{
+	return n->line.have && *admit_why(n, n->line.admit, n->id.key_id);
 }
 
 int line_admit_for(lw_node *n, uint8_t out[ADMIT_LEN])
@@ -775,6 +786,27 @@ static int line_would_yield(lw_node *n, lw_peer *p)
 	return 1;
 }
 
+/* On a line without an operator an eviction is told to the members in touch at the time; a member that was away has the evicted one on its record still. So each time two
+ * members link, each tells the other the evictions it holds, signed in its own name (ADR 0110): the one that lacks one applies it, and the line's record converges. */
+static void evict_tell(lw_node *n, lw_peer *p)
+{
+	uint8_t b[EVICT_LEN], sigmsg[8 + 32 + 8 + 5];
+	int i;
+
+	if (n->line.managed)
+		return;
+	for (i = 0; i < n->line.nev; i++) {
+		memcpy(b, n->line.id, 8);
+		memcpy(b + 8, n->line.ev[i].key_id, 32);
+		put64(b + 40, n->line.ev[i].time);
+		memcpy(b + 48, n->id.key_id, 32);
+		memcpy(sigmsg, b, 48);
+		memcpy(sigmsg + 48, "evict", 5);
+		lw_sign(&n->id, sigmsg, sizeof sigmsg, b + 80);
+		ctl_msg_send(n, p, M_EVICT, b, EVICT_LEN);
+	}
+}
+
 static void decide(lw_node *n, lw_peer *p)
 {
 	int mine = n->line.have, theirs = p->lh_has;
@@ -792,6 +824,7 @@ static void decide(lw_node *n, lw_peer *p)
 		if (mem_find(n, p->key_id)) {
 			p->linked = 1;			/* a mesh edge between two members */
 			n->line.joined = n->line.joined ? n->line.joined : n->now;
+			evict_tell(n, p);
 		} else if (!line_evicted(n, p->key_id))
 			admit_peer(n, p);		/* it claims our line but we have no record of it: treat it as new */
 		else
@@ -839,6 +872,8 @@ void line_call_up(lw_node *n, lw_peer *p)
 		p->admit_by = n->now + 20.0;
 		p->admit_tx = n->now;
 	}
+	if (rec && !n->line.managed && own_admit_bad(n))	/* our own admit is not good: show it to a member that knows us, and it makes us a new one (ADR 0107) */
+		ctl_msg_send(n, p, M_ADMIT, n->line.admit, ADMIT_LEN);
 	if (!n->registered || p->lh_sent)
 		return;
 	p->lh_yield = line_would_yield(n, p);
@@ -1053,8 +1088,29 @@ static void member_expire(lw_node *n, lw_peer *p)
 /* A member shows its admit: it is held to it. One that is not good (ended, rolled, made for another key) is a member no longer. */
 static void handle_admit(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 {
-	if (len != ADMIT_LEN || !n->line.have || !n->line.managed || !mem_find(n, p->key_id))
+	if (len != ADMIT_LEN || !n->line.have || !mem_find(n, p->key_id))
 		return;
+	if (!n->line.managed) {			/* a line without an operator: admits are repaired between members (ADR 0107) */
+		if (!memcmp(pl, n->id.key_id, 32)) {	/* a member made us a new admit: ours did not verify, this one does */
+			if (own_admit_bad(n) && admit_verify(n, pl, n->id.key_id)) {
+				const char *why = admit_why(n, n->line.admit, n->id.key_id);
+				char w[160];
+
+				snprintf(w, sizeof w, "%s", why);
+				memcpy(n->line.admit, pl, ADMIT_LEN);
+				line_save(n);
+				ev_emit(n, "{\"event\":\"admit-repaired\",\"why\":\"%s\",\"by\":\"%s\"}", w, p->number);
+			}
+			return;
+		}
+		if (!line_evicted(n, p->key_id) && !admit_verify(n, pl, p->key_id)) {	/* a member on our record shows an admit that is not good for it: make it a new one */
+			uint8_t a[ADMIT_LEN];
+
+			admit_make(n, p->key_id, 0, a);
+			ctl_msg_send(n, p, M_ADMIT, a, ADMIT_LEN);
+		}
+		return;
+	}
 	if (!admit_verify(n, pl, p->key_id)) {
 		member_expire(n, p);
 		return;

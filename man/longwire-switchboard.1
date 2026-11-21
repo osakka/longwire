@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE-SWITCHBOARD 1 "November 2026" "longwire 0.5.79" "longwire manual"
+.TH LONGWIRE-SWITCHBOARD 1 "November 2026" "longwire 0.5.80" "longwire manual"
 .SH NAME
 longwire-switchboard \- the longwire rendezvous server: gives nodes their numbers, introduces two nodes, then steps aside
 .SH SYNOPSIS
@@ -13,6 +13,10 @@ longwire-switchboard \- the longwire rendezvous server: gives nodes their number
 .B longwire-switchboard token
 .BR new " [" \fIN\fR "] | " list " | " remove " " \fITOKEN\fR
 .RB [ \-\-tokens " " \fIFILE\fR "] [" \-\-state " " \fIDIR\fR ]
+.br
+.B longwire-switchboard release
+.IR NUMBER
+.RB [ \-\-state " " \fIDIR\fR ]
 .br
 .B longwire-switchboard token invite \-\-host
 .IR HOST:PORT
@@ -197,6 +201,15 @@ please longwire\-switchboard token new 3 \-\-tokens /var/lib/longwire\-switchboa
 .PP
 Run as root, it leaves the file owned by the owner of the folder it is in, so a service's file stays the service's.
 The Switchboard window does the same from the desktop.
+.SH RELEASE
+.B release
+.I NUMBER
+gives a number up now, as a year unheard would: the registry forgets it and it is held back for as long again
+.RB ( \-\-release\-after ),
+so a pinned key never meets a stranger under it.
+A number that is online is not released.
+Only the user the switchboard runs as, or root, may release.
+Use it for a box that is gone for good, after evicting it from its line.
 .SH BANS
 .B bans list
 prints, as JSON, the running switchboard's ban settings, its counters, each banned key with the seconds left and which ban in a row it is, and each banned network.

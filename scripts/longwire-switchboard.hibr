@@ -37,7 +37,7 @@
 #                 (--public-switchboard KEY names the one that gets +1; --codes-per-ip-day limits askers, default 2).
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.79
+app longwire-switchboard "The longwire switchboard: introduces two nodes, then steps aside" 0.5.80
 # modules: longwire
 
 SB_DIR=${SB_DIR:-$HOME/.longwire/switchboard}
@@ -226,6 +226,30 @@ bans_cmd() {
 }
 
 [ "${1:-}" = bans ] && { bans_cmd "$@"; exit 0; }
+
+# longwire-switchboard release NUMBER: give a number up now, as a year unheard would (ADR 0106), e.g. for a box that is gone for good. It is held back
+# for as long again, so a stale pin never meets a stranger; a number that is online is not released.
+release_cmd() {
+	local num= a
+	shift
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--state) need_value "$@"; SB_DIR=$2; shift 2 ;;
+		*) num=$1; shift ;;
+		esac
+	done
+	a=${num//-/}
+	[[ $a =~ ^[0-9]{9}$ ]] || { echo "usage: longwire-switchboard release NUMBER   [--state DIR]" >&2; exit 2; }
+	mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
+	if [ -z "${LW_SOCK:-}" ]; then
+		LW_SOCK=$SB_DIR/ctl
+		[ ! -S "$LW_SOCK" ] && [ -S "${LW_RUN:-/run}/longwire-switchboard/ctl" ] && LW_SOCK=${LW_RUN:-/run}/longwire-switchboard/ctl
+	fi
+	export LW_SOCK
+	lw sb release "$a" > /dev/null || { echo "longwire-switchboard: ${ERRMSG:-failed}" >&2; exit 1; }
+	echo "longwire-switchboard: ${a:0:3}-${a:3:3}-${a:6:3} is released (held back for as long as numbers go unheard before release)"
+}
+[ "${1:-}" = release ] && { release_cmd "$@"; exit 0; }
 
 mod load "${LONGWIRE_MOD:-longwire}" || { echo "longwire-switchboard: the longwire module is not installed" >&2; exit 1; }
 

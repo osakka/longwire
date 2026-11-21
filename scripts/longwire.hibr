@@ -7,10 +7,10 @@
 # events. See docs/CLI.md.
 
 # What the catalogue reads before it fetches this (docs/BUILD.md): the name, a description, the version, and the module it needs.
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.79
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.80
 # modules: longwire
 
-SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.79}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
+SELF_VERSION=${LONGWIRE_SELF_VERSION:-0.5.80}		# this script's version: the catalogue's. The engine is the package's, and a running node has its own.
 
 LW_DIR=${LW_DIR:-$HOME/.longwire}
 LW_SEED=${LW_SEED:-$LW_DIR/seed}
@@ -1103,7 +1103,7 @@ up_again() {
 }
 
 cmd_up() {
-	local answer= line profile= given=0 a
+	local answer= line profile= given=0 a pair= pair_at=0
 	local args=()
 	local orig=("$@")
 	while [ $# -gt 0 ]; do
@@ -1112,6 +1112,11 @@ cmd_up() {
 		--switchboard|--jack|--splice|--sock-port|--peer) given=1 ;;&
 		--answer|--admit) [ $# -ge 2 ] || { echo "longwire: $1 needs a value" >&2; exit 2; } ;;&
 		--answer) answer=$2; shift 2 ;;
+		--pair) [ $# -ge 2 ] || { echo "longwire: --pair needs the other box's number" >&2; exit 2; }	# the other box of a pair (ADR 0109): dialled until the two are in touch, and answered by itself
+			pair=${2//-/}
+			[[ $pair =~ ^[0-9]{9}$ ]] || { echo "longwire: --pair wants a number like 259-619-514" >&2; exit 2; }
+			pair=${pair:0:3}-${pair:3:3}-${pair:6:3}
+			shift 2 ;;
 		--admit) local ad=$2; [ -r "$ad" ] && read -r ad < "$2"; args+=(--admit "$ad"); shift 2 ;;	# a file, or the hex itself
 		*) args+=("$1"); shift ;;
 		esac
@@ -1155,12 +1160,17 @@ cmd_up() {
 	while :; do
 		next_event
 		rc=$?
+		if [ -n "$pair" ] && [ $(( SECONDS - pair_at )) -ge 30 ]; then	# the other box of the pair: in touch, or being called, or dialled now (ADR 0109)
+			pair_at=$SECONDS
+			a=$(lw status 2> /dev/null)
+			[[ $a == *"\"number\":\"$pair\",\"state\":"* ]] || lw dial "$pair" > /dev/null 2>&1	# without a dial tone it fails, and is tried again
+		fi
 		[ $rc -eq 142 ] && continue
 		[ $rc -ne 0 ] && break
 		line=$EVLINE
 		json parse e "$line"
 		case ${e[event]} in
-		ring) announce ring; on_ring "$answer" ;;
+		ring) announce ring; if [ -n "$pair" ] && [ "${e[from]}" = "$pair" ] && [ "$answer" != never ]; then lw pickup "${e[call]}" > /dev/null; else on_ring "$answer"; fi ;;
 		roamed) announce roamed; exec 5<&-; up_again "${orig[@]}" ;;
 		watching) ;;
 		*) announce "${e[event]}" ;;

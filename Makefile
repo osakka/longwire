@@ -51,6 +51,10 @@ check: all lint
 	sh tests/pairrestart.sh
 	sh tests/meshask.sh
 	sh tests/moveline.sh
+	sh tests/sbrelease.sh
+	sh tests/admitheal.sh
+	sh tests/evictsync.sh
+	sh tests/pairauto.sh
 	sh tests/presence.sh
 	sh tests/ipv6.sh
 	sh tests/panel.sh

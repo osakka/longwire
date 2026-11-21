@@ -24,7 +24,7 @@
 #include "../engine/lw.h"
 
 #ifndef LW_VERSION
-#define LW_VERSION "0.5.79"
+#define LW_VERSION "0.5.80"
 #endif
 
 static void default_sock(char *out, size_t n)
@@ -651,6 +651,10 @@ int m_lw(sh *s, int ac, char **av)
 		}
 		if (!strcmp(av[2], "bans"))
 			return ask(s, sock, "bans\n", 1);
+		if (!strcmp(av[2], "release") && ac >= 4) {	/* lw sb release NUMBER: the operator releases a number now (ADR 0106) */
+			snprintf(req, sizeof req, "release %s\n", av[3]);
+			return ask(s, sock, req, 1);
+		}
 		if (!strcmp(av[2], "unban") && ac >= 4) {
 			snprintf(req, sizeof req, "unban %s\n", av[3]);
 			return ask(s, sock, req, 1);

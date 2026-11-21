@@ -114,6 +114,11 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0103](0103-a-founder-makes-its-own-admit-again.md) | A founder makes its own admit again | accepted |
 | [0104](0104-the-battery-saver-keeps-one-lost-keep-alive-in-hand.md) | The battery saver keeps one lost keep-alive in hand | accepted |
 | [0105](0105-a-node-follows-its-boxes-to-a-new-line.md) | A node follows its boxes to a new line | accepted |
+| [0106](0106-the-operator-releases-a-number.md) | The operator releases a number | accepted |
+| [0107](0107-a-member-on-the-record-is-let-in-and-its-admit-repaired.md) | A member on the record is let in, and its admit is repaired | accepted |
+| [0108](0108-everything-through-the-line-goes-out-by-the-lease-router.md) | Everything through the line goes out by the lease's router | accepted |
+| [0109](0109-two-boxes-named-to-each-other-pair-by-themselves.md) | Two boxes named to each other pair by themselves | accepted |
+| [0110](0110-an-eviction-reaches-the-members-that-were-away.md) | An eviction reaches the members that were away | accepted |
 
 ---
 

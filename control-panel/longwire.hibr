@@ -11,7 +11,7 @@
 
 strict
 
-app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.79
+app longwire "The Control Panel pane for longwire: dial, answer, see your line" 0.5.80
 # modules: longwire
 # needs: cli/longwire
 command -v cp_pane > /dev/null && cp_pane longwire "Longwire" "☎" app
@@ -36,7 +36,7 @@ LWP_ADDRMODES=(dhcp fixed)
 declare -g LWP_S LWP_T=-100 LWP_UP=0 LWP_SVC LWP_SVCT=-100 LWP_PHRASE_SHOWN= LWP_SOCK= LWP_NODES= LWP_NODEST=-100
 LWP_NODEA=()
 LWP_SITE=
-LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.79}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
+LWP_SELF="${LONGWIRE_SELF_VERSION:-0.5.80}"	# this file's version: the catalogue's. The engine is the package's, and a running node has its own.
 LWP_NOTEA=()
 LWP_NOTEST=-100
 
@@ -462,6 +462,11 @@ fn longwire_rows(int w) {
 		xn := lwp_get .exit.using
 		xo := lwp_get .exit.offers
 		if [ -z "$xn" ] && [ "${xo:-0}" -gt 1 ] 2> /dev/null; then xn="none: $xo members share, name one in Through (any member can offer itself)"; fi
+		local df ds=
+		for df in "${LONGWIRE_RUN:-/run/longwire}"/dhcp-lw*.state; do	# the lease's router is the way out when it names one (docs/adr/0108)
+			[ -r "$df" ] && read -r ds < "$df" 2> /dev/null
+			[[ $ds == bound*" via "* ]] && { xn="the LAN's router ${ds##* via } (from the lease)"; break; }
+		done
 		lwp_row "$w" "$n" action "Way out" "${xn:-none: no member shares its internet now, so nothing goes out}" none; n=$((n + 1))
 	fi
 	[ "$xs" = true ] && { lwp_row "$w" "$n" action "Sharing" "this machine's internet, with the line" none; n=$((n + 1)); }

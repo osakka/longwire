@@ -5,9 +5,11 @@
  *
  * Two processes, as the BSDs' dhclient does it. The one that reads what the network sends is nobody: it has given up every privilege and is closed to the few system calls it needs (the engine's
  * sandbox). The one that holds the privilege is as small as can be: it reads one fixed message from the first, makes it pass the same check the phone's client does (a real unicast address of a
- * LAN, a mask of 8 to 30 bits), and puts the address on the jack, nothing else: no default route, no name servers, no routes at all but the one the kernel makes for the address.
+ * LAN, a mask of 8 to 30 bits), and puts the address on the jack. With --table (everything through the line, no gateway named) it also points the default route of the jack's own
+ * table at the lease's router, a router on the lease's own network (ADR 0108), and back at the member that shares its internet when the lease is gone; never the machine's own default
+ * route, no name servers, nothing else.
  *
- *   lw-dhcp [--hostname NAME] [--pidfile FILE] [--state FILE] [--foreground] [--no-drop] JACK
+ *   lw-dhcp [--hostname NAME] [--pidfile FILE] [--state FILE] [--table N] [--foreground] [--no-drop] JACK
  *
  * --no-drop leaves the reading process as it is: for a test inside a namespace in which nobody has no number. The helper that starts this never passes it.
  */
@@ -25,7 +27,8 @@ struct ll { unsigned short family, proto; int ifindex; unsigned short hatype; un
 struct nlh { uint32_t len; uint16_t type, flags; uint32_t seq, pid; };
 struct ifa { uint8_t family, prefixlen, flags, scope; uint32_t index; };
 struct rta4 { uint16_t len, type; uint32_t v; };
-struct note { uint32_t ip, mask; uint8_t bound, pad[3]; };
+struct note { uint32_t ip, mask, gw; uint8_t bound, pad[3]; };
+struct rtm { uint8_t family, dst_len, src_len, tos, table, protocol, scope, type; uint32_t flags; };
 
 #define AF_PACKET_ 17
 #define PACKET_OUTGOING_ 4
@@ -35,6 +38,7 @@ struct note { uint32_t ip, mask; uint8_t bound, pad[3]; };
 #define NLM_F_CREATE_ 0x400
 #define RTM_NEWADDR_ 20
 #define RTM_DELADDR_ 21
+#define RTM_NEWROUTE_ 24
 
 static volatile sig_atomic_t term;
 static int pfd_;
@@ -102,6 +106,36 @@ static int nl_addr(int nl, int index, int add, uint32_t ip, uint32_t mask)
 	if ((n = recv(nl, ack, sizeof ack, 0)) < (ssize_t)(sizeof(struct nlh) + 4) || ((struct nlh *)ack)->type != 2)
 		return -1;
 	return *(int *)(ack + sizeof(struct nlh)) == 0 ? 0 : -1;	/* NLMSG_ERROR with error 0 is the acknowledgement */
+}
+
+/* The default route of the jack's own table (ADR 0108): through the lease's router when the line's network has one, and back to the way out through the member that
+ * shares its internet (169.254.77.1, which the helper set) when the lease is gone. Replaced, never added beside: one default route in the table. 0 if it was done. */
+static int nl_default(int nl, int index, int table, uint32_t gw, int onlink)
+{
+	struct { struct nlh h; struct rtm r; struct rta4 a[3]; } m;
+	uint8_t ack[256];
+	ssize_t n;
+	static uint32_t seq = 1000;
+
+	memset(&m, 0, sizeof m);
+	m.h.len = sizeof m;
+	m.h.type = RTM_NEWROUTE_;
+	m.h.flags = NLM_F_REQUEST_ | NLM_F_ACK_ | NLM_F_CREATE_ | NLM_F_REPLACE_;
+	m.h.seq = seq++;
+	m.r.family = 2;
+	m.r.table = table < 256 ? (uint8_t)table : 252;	/* RT_TABLE_COMPAT: the real number goes in RTA_TABLE */
+	m.r.protocol = 3;					/* RTPROT_BOOT, as `ip route` makes it */
+	m.r.scope = 0;						/* RT_SCOPE_UNIVERSE */
+	m.r.type = 1;						/* RTN_UNICAST */
+	m.r.flags = onlink ? 4 : 0;				/* RTNH_F_ONLINK */
+	m.a[0].len = 8; m.a[0].type = 5; m.a[0].v = htonl(gw);	/* RTA_GATEWAY */
+	m.a[1].len = 8; m.a[1].type = 4; m.a[1].v = (uint32_t)index;	/* RTA_OIF */
+	m.a[2].len = 8; m.a[2].type = 15; m.a[2].v = (uint32_t)table;	/* RTA_TABLE */
+	if (send(nl, &m, sizeof m, 0) != (ssize_t)sizeof m)
+		return -1;
+	if ((n = recv(nl, ack, sizeof ack, 0)) < (ssize_t)(sizeof(struct nlh) + 4) || ((struct nlh *)ack)->type != 2)
+		return -1;
+	return *(int *)(ack + sizeof(struct nlh)) == 0 ? 0 : -1;
 }
 
 static void say_state(const char *path, const char *text)
@@ -176,6 +210,7 @@ static int client(int sp, const uint8_t mac[6], const char *host, int drop)
 		now_n.bound = leaf_bound(&m) ? 1 : 0;
 		now_n.ip = now_n.bound ? m.ip : 0;
 		now_n.mask = now_n.bound ? m.mask : 0;
+		now_n.gw = now_n.bound ? m.gw : 0;
 		if (memcmp(&now_n, &last, sizeof now_n)) {
 			last = now_n;
 			if (write(sp, &now_n, sizeof now_n) != (ssize_t)sizeof now_n)
@@ -188,7 +223,7 @@ static int client(int sp, const uint8_t mac[6], const char *host, int drop)
 int main(int argc, char **argv)
 {
 	const char *jack = 0, *host = 0, *pidfile = 0, *state = 0;
-	int i, fg = 0, drop = 1, nl, sp[2], index, ready[2];
+	int i, fg = 0, drop = 1, nl, sp[2], index, ready[2], table = 0;
 	uint8_t mac[6];
 	struct ll ll;
 	pid_t kid = 0;
@@ -202,12 +237,14 @@ int main(int argc, char **argv)
 			state = argv[++i];
 		else if (!strcmp(argv[i], "--foreground"))
 			fg = 1;
+		else if (!strcmp(argv[i], "--table") && i + 1 < argc)		/* everything through the line: the jack's own table, whose default route follows the lease's router */
+			table = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "--no-drop"))
 			drop = 0;
 		else if (argv[i][0] != '-' && !jack)
 			jack = argv[i];
 		else {
-			fprintf(stderr, "usage: lw-dhcp [--hostname NAME] [--pidfile FILE] [--state FILE] [--foreground] JACK\n");
+			fprintf(stderr, "usage: lw-dhcp [--hostname NAME] [--pidfile FILE] [--state FILE] [--table N] [--foreground] JACK\n");
 			return 2;
 		}
 	}
@@ -274,7 +311,7 @@ int main(int argc, char **argv)
 	/* the privileged side: one message at a time from the child, checked, then applied */
 	{
 		struct pollfd pf;
-		uint32_t have_ip = 0, have_mask = 0;
+		uint32_t have_ip = 0, have_mask = 0, have_gw = 0;
 		int status;
 
 		pf.fd = sp[0];
@@ -297,21 +334,32 @@ int main(int argc, char **argv)
 				if (have_ip && (have_ip != nt.ip || have_mask != nt.mask))
 					nl_addr(nl, index, 0, have_ip, have_mask);
 				if (!nl_addr(nl, index, 1, nt.ip, nt.mask)) {
-					char t[80];
+					char t[120];
+					uint32_t g = nt.gw && lease_sane(nt.ip, nt.mask, nt.gw) ? nt.gw : 0;
 
 					have_ip = nt.ip;
 					have_mask = nt.mask;
+					if (table > 0 && g != have_gw) {	/* the way out is the lease's router, or the member that shares when the lease names none */
+						if (!(g ? nl_default(nl, index, table, g, 0) : nl_default(nl, index, table, 0xa9fe4d01, 1)))
+							have_gw = g;
+					}
 					snprintf(t, sizeof t, "bound %u.%u.%u.%u", nt.ip >> 24, (nt.ip >> 16) & 255, (nt.ip >> 8) & 255, nt.ip & 255);
+					if (table > 0 && have_gw)
+						snprintf(t + strlen(t), sizeof t - strlen(t), " via %u.%u.%u.%u", have_gw >> 24, (have_gw >> 16) & 255, (have_gw >> 8) & 255, have_gw & 255);
 					say_state(state, t);
 				}
-			} else if (!nt.bound && have_ip) {			/* the lease is lost: the address is not ours */
-				nl_addr(nl, index, 0, have_ip, have_mask);
+			} else if (!nt.bound && have_ip) {			/* the lease is lost: the address is not ours, nor the way out through its router */
+				nl_addr(nl, index, 0, have_ip, have_mask);	/* first: the kernel takes every IPv4 route of a device off with its last address */
 				have_ip = have_mask = 0;
+				if (have_gw && !nl_default(nl, index, table, 0xa9fe4d01, 1))
+					have_gw = 0;
 				say_state(state, "searching");
 			}
 		}
 		if (have_ip)
 			nl_addr(nl, index, 0, have_ip, have_mask);
+		if (have_gw || (table > 0 && have_ip))			/* after the address: its removal takes the device's routes with it */
+			nl_default(nl, index, table, 0xa9fe4d01, 1);
 		say_state(state, term ? "stopped" : "failed: the client ended");		/* an end that nobody asked for is said, not hidden */
 	}
 	kill(kid, SIGTERM);

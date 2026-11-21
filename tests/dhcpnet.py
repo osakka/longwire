@@ -38,7 +38,7 @@ class Lan(threading.Thread):
         self.s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x0800))
         self.s.bind((ifname, 0x0800))
         self.s.settimeout(0.3)
-        self.lease, self.mask, self.on, self.seen, self.host, self.stop = lease, mask, False, [], None, False
+        self.lease, self.mask, self.on, self.seen, self.host, self.stop, self.router = lease, mask, False, [], None, False, None
 
     def run(self):
         while not self.stop:
@@ -67,7 +67,7 @@ class Lan(threading.Thread):
                 continue
             mt = 2 if t == 1 else 5
             xid, chaddr = b[4:8], b[28:34]
-            o = b"\x35\x01" + bytes([mt]) + b"\x36\x04" + GW + b"\x01\x04" + self.mask + b"\x33\x04" + struct.pack(">I", 3600) + b"\xff"
+            o = b"\x35\x01" + bytes([mt]) + b"\x36\x04" + GW + b"\x01\x04" + self.mask + b"\x33\x04" + struct.pack(">I", 3600) + (b"\x03\x04" + self.router if self.router else b"") + b"\xff"
             bootp = struct.pack(">BBBB4sHH4s4s4s4s", 2, 1, 6, 0, xid, 0, 0x8000, b"\0" * 4, self.lease, b"\0" * 4, b"\0" * 4) + chaddr + b"\0" * 10 + b"\0" * 192 + b"\x63\x82\x53\x63" + o
             u = struct.pack(">HHHH", 67, 68, 8 + len(bootp), 0) + bootp
             self.s.send(b"\xff" * 6 + GWMAC + b"\x08\x00" + ip4(GW, b"\xff" * 4, u))
@@ -86,9 +86,9 @@ def until(fn, timeout):
     return False
 
 
-def start(d, host="test-box"):
+def start(d, host="test-box", extra=()):
     pf, st = f"{d}/pid", f"{d}/state"
-    r = subprocess.run([LWD] + ([] if os.environ.get("DROP") else ["--no-drop"]) + ["--hostname", host, "--pidfile", pf, "--state", st, "lw7"], capture_output=True, text=True)
+    r = subprocess.run([LWD] + ([] if os.environ.get("DROP") else ["--no-drop"]) + ["--hostname", host, "--pidfile", pf, "--state", st, *extra, "lw7"], capture_output=True, text=True)
     return r, pf, st
 
 
@@ -132,6 +132,23 @@ def main():
     lan.lease = bytes([192, 168, 77, 60])
     r, pf, st = start(d)
     check(until(lambda: "192.168.77.60/24" in addrs(), 30), "a lease for another address is taken")
+    os.kill(int(open(pf).read()), 15)
+    until(lambda: not os.path.exists(pf), 10)
+
+    # everything through the line, no gateway named (ADR 0108): the jack's table goes through the lease's router, and back to the member that shares when it is gone
+    sh("ip neigh replace 169.254.77.1 lladdr 02:6c:77:65:78:74 dev lw7 nud permanent && ip route replace default via 169.254.77.1 dev lw7 onlink table 7707")
+    lan.router = bytes([192, 168, 77, 254])
+    r, pf, st = start(d, extra=("--table", "7707"))
+    check(until(lambda: "default via 192.168.77.254 dev lw7" in sh("ip -4 route show table 7707").stdout, 30), f"with --table, the table's default route is the lease's router: {sh('ip -4 route show table 7707').stdout.strip()}")
+    check(until(lambda: open(st).read().strip() == "bound 192.168.77.60 via 192.168.77.254", 5), f"and the state file says so: {open(st).read().strip()}")
+    check("default" not in sh("ip -4 route show table main").stdout, "and the machine's own table has no default route of ours")
+    os.kill(int(open(pf).read()), 15)
+    check(until(lambda: "default via 169.254.77.1 dev lw7" in sh("ip -4 route show table 7707").stdout, 10), f"stopped, the table goes back to the member that shares: {sh('ip -4 route show table 7707').stdout.strip()}")
+    until(lambda: not os.path.exists(pf), 10)
+    lan.router = bytes([10, 0, 0, 1])
+    r, pf, st = start(d, extra=("--table", "7707"))
+    time.sleep(10)
+    check("192.168.77.60" not in addrs() and "169.254.77.1" in sh("ip -4 route show table 7707").stdout, f"a lease whose router is not on its own network is refused, and the table keeps the member that shares: {sh('ip -4 route show table 7707').stdout.strip()}")
     os.kill(int(open(pf).read()), 15)
     until(lambda: not os.path.exists(pf), 10)
     lan.stop = True

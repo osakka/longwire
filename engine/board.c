@@ -1309,6 +1309,29 @@ int board_cmd(lw_node *n, const char *line, char *out, size_t cap)
 		lifted = ban_clear(n, a);
 		return LW_SN(out, cap, "{\"lifted\":%d}\n", lifted);
 	}
+	if (!strncmp(line, "release ", 8)) {	/* the operator releases a number now, as a year unheard would (ADR 0106): held back as long again, never given to a stranger in that time */
+		char num[16];
+
+		if (sscanf(line + 8, "%15s", num) != 1 || strlen(num) != NUMLEN)
+			return LW_SN(out, cap, "{\"error\":\"release wants a number of nine digits\"}\n");
+		for (i = 0; i < b->n; i++) {
+			reg *r = &b->regs[i];
+			char kh[65];
+
+			if (strcmp(r->number, num))
+				continue;
+			if (online(n, r))
+				return LW_SN(out, cap, "{\"error\":\"%s is online: a number in use is not released\"}\n", num);
+			lw_hex(kh, r->key_id, 32);
+			log_line(b, "released %s %ld %s\n", r->number, (long)time(0), kh);
+			held_add(b, r, (long)time(0));
+			ev_emit(n, "{\"event\":\"number-released\",\"number\":\"%s\"}", r->number);
+			*r = b->regs[--b->n];
+			b->hvalid = 0;
+			return LW_SN(out, cap, "{\"released\":\"%s\"}\n", num);
+		}
+		return LW_SN(out, cap, "{\"error\":\"%s is not registered here\"}\n", num);
+	}
 	if (sscanf(line, "reply %d %15s %79[^\n]", &id, verdict, arg) < 2)
 		return LW_SN(out, cap, "{\"error\":\"unknown request\"}\n");
 	for (i = 0; i < MAXPEND; i++) {

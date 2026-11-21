@@ -1,5 +1,5 @@
 .\" SPDX-License-Identifier: GPL-3.0-or-later
-.TH LONGWIRE 1 "November 2026" "longwire 0.5.79" "longwire manual"
+.TH LONGWIRE 1 "November 2026" "longwire 0.5.80" "longwire manual"
 .SH NAME
 longwire \- one long wire between your sites: a layer-2 VPN you operate by dialing a number
 .SH SYNOPSIS
@@ -356,6 +356,11 @@ The registration token, for a switchboard that requires one.
 .BI \-\-name " TEXT"
 Announce this name to the nodes you call, through a switchboard that carries names.
 It is a claim, never proof.
+.TP
+.BI \-\-pair " NUMBER"
+The other box of a pair on the same LAN segment: dialled every 30 s until a call with it is up, and answered by itself under any policy but
+.BR never .
+Given on both boxes, each with the other's number, a headless pair becomes one site with nobody acting.
 .TP
 .B \-\-listed
 List the name and number in the switchboard's directory.

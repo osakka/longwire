@@ -160,11 +160,15 @@ Two splice boxes on **one LAN segment** make one site: they elect one to forward
 
 1. **Give it its own identity**: its own state directory, so it makes its own seed and gets its own number. Never copy the first box's seed: one key on two machines is one number registered from two places, and the boxes could not elect.
 2. **Run it the same way** (`--splice NIC`, the same switchboard; a token of its own if the switchboard asks for one: it is spent once, and a restart with the same seed does not need it again).
-3. **Have it dial the first box once**: `longwire dial NUMBER` on the new box. The first box answers by its own policy; with `--answer known` it does not know a stranger, so one `longwire pickup` there (within 60 s), once. They become members of one line, and the site secret comes from the line key.
+3. **Name them to each other**: start each with `--pair` and the other's number (`longwire up ... --pair 259-619-514` on the first, `--pair 402-339-003` on the second). Each dials the other until they are in touch and answers the other by itself, so a headless pair needs nobody ([ADR 0109](adr/0109-two-boxes-named-to-each-other-pair-by-themselves.md)). They become members of one line, and the site secret comes from the line key. (Without `--pair`, dial the first from the new box once, `longwire dial NUMBER`, and pick up there if its policy asks.)
 4. **Check both**: `longwire status` shows `"site":"active"` on one (the lower key id) and `"standby"` on the other, `"site_members":1` on each. The Switchboard window lists the two together. `drop_echo` and `drop_ctrl` stay near 0; a `loop-guard` event means the election was not working.
 5. **Clients**: use 0.5.68 or later everywhere (a client takes its DHCP lease from whichever box is active, which it learns from the box it dialled), and give a phone **both numbers** (*Numbers to dial, in order*, [ANDROID](ANDROID.md)).
 
 The two boxes are two numbers; nothing makes them one number. A member of the line (a phone, a laptop) holds a session with both, so it needs no action when the active box fails.
+
+## Retiring a box
+
+A box that is gone for good: on any member of its line, `longwire evict NUMBER` (the members not in touch at that moment take it when they next are: [ADR 0110](adr/0110-an-eviction-reaches-the-members-that-were-away.md)); then, on the switchboard, `please longwire-switchboard release NUMBER` gives the number up now instead of after a year unheard ([ADR 0106](adr/0106-the-operator-releases-a-number.md)). A number that is online is not released.
 
 ## Updating a pair of boxes
 

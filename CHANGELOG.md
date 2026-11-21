@@ -3,6 +3,15 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.80
+
+Cleaning up after the owner's boxes moved to a new host:
+- **A member on the line's own record is let in by itself, and its admit is repaired** ([ADR 0107](docs/adr/0107-a-member-on-the-record-is-let-in-and-its-admit-repaired.md)): the desktop's calls were refused with "the admit is for another node"; a member that has it on record now lets it in and makes it a new admit (`admit-repaired`, `by`). Test `admitheal` (it fails on 0.5.79 with the owner's message).
+- **Everything through the line goes out by the lease's router** ([ADR 0108](docs/adr/0108-everything-through-the-line-goes-out-by-the-lease-router.md)): with `--everything --dhcp` and no `--via`, `lw-dhcp --table` points the jack's table at the lease's router (state `bound ADDR via ROUTER`; the Control Panel's Way out names it), and back to the member that shares when the lease is gone. Test `dhcpnet` extended.
+- **`--pair NUMBER`: two headless boxes pair by themselves** ([ADR 0109](docs/adr/0109-two-boxes-named-to-each-other-pair-by-themselves.md)). Test `pairauto`.
+- **An eviction reaches the members that were away** ([ADR 0110](docs/adr/0110-an-eviction-reaches-the-members-that-were-away.md)). Test `evictsync`.
+- **`longwire-switchboard release NUMBER`** ([ADR 0106](docs/adr/0106-the-operator-releases-a-number.md)). Test `sbrelease`.
+
 ## 0.5.79
 
 Published: hibr-apps 2441fa4, hibr-apt f5fda67, hibr-rpm 61d2edc, hibr-arch 5a5a72a.
