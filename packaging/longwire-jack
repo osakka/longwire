@@ -408,9 +408,9 @@ HK
 			done
 		fi
 		mkhook "$real"
-		cf=$rundir/dhcp-$tap.conf		# its own configuration: the system's would add what it likes; this names the host and nothing else
-		: > "$cf" || exit 1
-		[ -z "$hn" ] || printf 'send host-name "%s";\n' "$hn" > "$cf" || exit 1
+		cf=$rundir/dhcp-$tap.conf		# its own configuration: the system's would add what it likes. It names the host, and asks again soon: dhclient's own wait after an attempt with no answer is five minutes, and a line that was not carrying frames when the jack came up (a box restarting) would leave the machine on a 169.254 address long after it was
+		printf 'timeout 20;\nretry 10;\n' > "$cf" || exit 1
+		[ -z "$hn" ] || printf 'send host-name "%s";\n' "$hn" >> "$cf" || exit 1
 		dhclient -nw -pf "$pidf" -lf "$rundir/dhcp-$tap.leases" -cf "$cf" -sf "$hook" "$tap" || exit 1
 		client=dhclient
 	elif command -v dhcpcd > /dev/null; then

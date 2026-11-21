@@ -72,7 +72,7 @@ cp /bin/sleep "$T/bin/dhclient"	# a client of ours from before: a process called
 mkdir -p "$RUN"; echo $oldpid > "$RUN/dhcp-lw7.pid"
 rm -f "$T/bin/dhclient"; cp /bin/sleep "$T/dhclient"; mkclient dhclient
 run --dhcp lw7 1000
-[ $rc = 0 ] && grep -q "dhclient -nw -pf $RUN/dhcp-lw7.pid -lf $RUN/dhcp-lw7.leases -cf $RUN/dhcp-lw7.conf -sf $RUN/dhcp-hook-lw7 lw7" "$LWJ_LOG" && [ "$(cat "$RUN/dhcp-lw7.conf")" = "send host-name \"$HN\";" ] && ok "--dhcp starts dhclient on the jack, with its own pid file, lease file and hook" || bad "dhclient: rc=$rc $out $(cat "$LWJ_LOG")"
+[ $rc = 0 ] && grep -q "dhclient -nw -pf $RUN/dhcp-lw7.pid -lf $RUN/dhcp-lw7.leases -cf $RUN/dhcp-lw7.conf -sf $RUN/dhcp-hook-lw7 lw7" "$LWJ_LOG" && [ "$(cat "$RUN/dhcp-lw7.conf")" = "$(printf 'timeout 20;\nretry 10;\nsend host-name "%s";' "$HN")" ] && ok "--dhcp starts dhclient on the jack, with its own pid file, lease file and hook" || bad "dhclient: rc=$rc $out $(cat "$LWJ_LOG")"
 sleep 0.2
 kill -0 $oldpid 2> /dev/null && { bad "the client from before is still there"; kill $oldpid; } || ok "and the client of ours from before is stopped, so there is only one"
 : > "$LWJ_LOG"

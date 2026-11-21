@@ -16,4 +16,5 @@ The jack's DHCP client was started with its own configuration and sent whatever 
 
 - The router lists the jack's lease under the machine's name. A machine whose name is odd is listed under what remains of it.
 - `dhclient` no longer reads the system's `dhclient.conf` for the jack. That file's other settings (timeouts, requests) were never what a line wants; the client's built-in defaults apply.
+- The configuration also says `timeout 20; retry 10;`: `dhclient` waits five minutes after an attempt that got no answer, and a jack that came up while the line was carrying nothing (a box restarting) stayed on a 169.254 address long after the line was back. It now asks again within about half a minute.
 - Tested with stand-ins for the three clients (`tests/jack.sh`); not against a real router.

@@ -289,6 +289,10 @@ The service runs as a transient user; lift it as root: `please longwire-switchbo
 
 **It drops on mobile data but not on wifi.** Turn **Battery saver** off (its keep-alive is 55 s, which some mobile networks are too slow for), and allow it to run in the background (the card at the bottom of the screen).
 
+## The jack has a 169.254 address and the line is up
+
+A 169.254.x.x address is what the system makes up when DHCP got no answer. If the line was not carrying frames when the jack came up (the boxes of a pair were restarting, or only the standby box was up), `dhclient` gave up for the time being. Since 0.5.76 it asks again within about half a minute ([ADR 0088](adr/0088-the-jack-tells-the-dhcp-server-the-machines-name.md)); before, it waited five minutes. Turn the line off and on (`longwire off`, `longwire on`) to ask at once. A fixed address (`address=10.77.0.2/24` in the profile) does not depend on the exchange.
+
 ## A member is refused as the network's server, or a loop is reported
 
 **`dhcp-blocked`**: a member answered as DHCP, DHCPv6 or a router for this node's own side and was refused, because this node did not ask for it ([ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)). If it is meant to (the other box of a pair, or a DHCP server at another site), name it: `longwire up --dhcp-server ITS-FULL-ADDRESS`, or dial it. If it is not, someone on the line is posing as the network's server.
