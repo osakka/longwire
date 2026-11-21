@@ -3,7 +3,7 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
-## 0.5.76 (unreleased)
+## 0.5.76
 
 **The jack's DHCP client asks again within half a minute** (ADR 0088): its configuration says `timeout 20; retry 10;`, so a jack that came up while the line carried nothing no longer waits five minutes on a 169.254 address.
 
