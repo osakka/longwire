@@ -88,7 +88,7 @@ def until(fn, timeout):
 
 def start(d, host="test-box"):
     pf, st = f"{d}/pid", f"{d}/state"
-    r = subprocess.run([LWD, "--no-drop", "--hostname", host, "--pidfile", pf, "--state", st, "lw7"], capture_output=True, text=True)
+    r = subprocess.run([LWD] + ([] if os.environ.get("DROP") else ["--no-drop"]) + ["--hostname", host, "--pidfile", pf, "--state", st, "lw7"], capture_output=True, text=True)
     return r, pf, st
 
 
@@ -106,6 +106,7 @@ def main():
     lan.start()
     r, pf, st = start(d)
     check(r.returncode == 0 and os.path.exists(pf), f"it starts as a daemon and writes its pid file: rc={r.returncode} {r.stderr.strip()[:100]}")
+    check(until(lambda: os.path.exists(st) and open(st).read().strip() == "searching", 10), f"and says it is up and searching once it has closed itself in (the privilege given up, the system calls closed): {open(st).read().strip() if os.path.exists(st) else None}")
     time.sleep(6)
     check(1 in lan.seen and "192.168.77.50" not in addrs(), f"with nobody answering it asks (DISCOVERs seen: {lan.seen.count(1)}) and has no address")
     check(lan.host == "test-box", f"and tells the server the machine's name: {lan.host}")

@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.78
 
+**The jack's DHCP client works on a real root start** (ADR 0102): 0.5.77's `lw-dhcp` ended at once and silently on a real machine (it closed its system calls without first setting `no_new_privs`; the test ran only inside a user namespace, where that is not needed). Fixed, tested as real root, and the helper now waits for the client to say it is up and says plainly if it does not (`failed: ...`).
+
 **A founder makes its own admit again** ([ADR 0103](docs/adr/0103-a-founder-makes-its-own-admit-again.md)): the owner's vpn-1, which founded the line, sent an admit made out for another node, so its calls were never let in by themselves (the new reason message said so) and a desktop waited about a minute for its own call to get through. A founder now checks its own admit at start and makes it again if it does not verify (`admit-repaired`); a member that cannot says `admit-bad`.
 
 ## 0.5.77

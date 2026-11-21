@@ -60,6 +60,8 @@ rm -f "$T/bin/lw-dhcp"
 cat > "$T/lw-dhcp" <<'CL'
 #!/bin/sh
 echo "lw-dhcp $*" >> "$LWJ_LOG"
+while [ $# -gt 0 ]; do [ "$1" = --state ] && st=$2; shift; done
+echo searching > "$st"
 CL
 chmod +x "$T/lw-dhcp"
 export LONGWIRE_DHCP=$T/lw-dhcp
@@ -73,6 +75,19 @@ EOF2
 export LONGWIRE_DHCP=$T/not-there
 run --dhcp lw7 1000
 [ $rc = 3 ] && echo "$out" | grep -q "the DHCP client .* is not there" && ok "with the client missing it says so" || bad "no client: rc=$rc $out"
+cat > "$T/lw-dhcp-dies" <<'CL'
+#!/bin/sh
+while [ $# -gt 0 ]; do [ "$1" = --state ] && st=$2; shift; done
+echo "failed: the client ended" > "$st"
+CL
+chmod +x "$T/lw-dhcp-dies"
+export LONGWIRE_DHCP=$T/lw-dhcp-dies
+run --dhcp lw7 1000
+[ $rc = 3 ] && echo "$out" | grep -q "the DHCP client ended as it started (failed: the client ended)" && ok "a client that ends before it is up is said, with how to see why" || bad "dies: rc=$rc $out"
+printf '#!/bin/sh\nexit 0\n' > "$T/lw-dhcp-mute"; chmod +x "$T/lw-dhcp-mute"
+export LONGWIRE_DHCP=$T/lw-dhcp-mute
+run --dhcp lw7 1000
+[ $rc = 3 ] && echo "$out" | grep -q "did not say it was up" && ok "and one that says nothing is said too" || bad "mute: rc=$rc $out"
 export LONGWIRE_DHCP=$T/lw-dhcp
 run --dhcp --address 10.0.0.2/24 lw7 1000
 [ $rc = 2 ] && ok "an address and --dhcp together are refused" || bad "both: rc=$rc $out"

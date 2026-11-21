@@ -17,6 +17,7 @@
 #include <poll.h>
 #include <pwd.h>
 #include <signal.h>
+#include <sys/prctl.h>
 #include <sys/wait.h>
 
 /* what is needed of the kernel's headers, spelled out so TCC need not parse them */
@@ -143,9 +144,19 @@ static int client(int sp, const uint8_t mac[6], const char *host, int drop)
 	memcpy(m.mac, mac, 6);					/* the jack's own address: what the OS would have sent */
 	if (host && *host)
 		leaf_hostname(&m, host);
+	if (prctl(38 /* PR_SET_NO_NEW_PRIVS */, 1, 0, 0, 0))		/* without it a process that is not root may not install a filter */
+		return die("no_new_privs");
 	if (lw_sandbox(&sbx, err, sizeof err) < 0)
 		return die("cannot close the system calls");
 	memset(&last, 0, sizeof last);
+	{
+		struct note ready;
+
+		memset(&ready, 0, sizeof ready);
+		ready.bound = 2;					/* "I am up and closed in": the parent says it is searching only now */
+		if (write(sp, &ready, sizeof ready) != (ssize_t)sizeof ready)
+			return 1;
+	}
 	pf.fd = pfd_;
 	pf.events = POLLIN;
 	while (!term) {
@@ -268,7 +279,7 @@ int main(int argc, char **argv)
 
 		pf.fd = sp[0];
 		pf.events = POLLIN;
-		say_state(state, "searching");
+		say_state(state, "starting");
 		while (!term) {
 			struct note nt;
 			ssize_t r;
@@ -280,7 +291,9 @@ int main(int argc, char **argv)
 			}
 			if ((r = read(sp[0], &nt, sizeof nt)) != (ssize_t)sizeof nt)
 				break;			/* the child is gone */
-			if (nt.bound && lease_sane(nt.ip, nt.mask, 0)) {
+			if (nt.bound == 2) {
+				say_state(state, "searching");
+			} else if (nt.bound && lease_sane(nt.ip, nt.mask, 0)) {
 				if (have_ip && (have_ip != nt.ip || have_mask != nt.mask))
 					nl_addr(nl, index, 0, have_ip, have_mask);
 				if (!nl_addr(nl, index, 1, nt.ip, nt.mask)) {
@@ -299,7 +312,7 @@ int main(int argc, char **argv)
 		}
 		if (have_ip)
 			nl_addr(nl, index, 0, have_ip, have_mask);
-		say_state(state, "stopped");
+		say_state(state, term ? "stopped" : "failed: the client ended");		/* an end that nobody asked for is said, not hidden */
 	}
 	kill(kid, SIGTERM);
 	waitpid(kid, 0, 0);

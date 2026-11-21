@@ -373,7 +373,17 @@ if [ -n "$dhcp" ]; then
 	hn=${hn:0:63}
 
 	# The one DHCP client there is (ADR 0102): the phone's, in a program of its own. It asks until a server answers, keeps the lease, and puts on the jack the address and nothing else.
+	rm -f "$rundir/dhcp-$tap.state"
 	"$bin" ${hn:+--hostname "$hn"} --pidfile "$pidf" --state "$rundir/dhcp-$tap.state" "$tap" || exit 1
 	client=lw-dhcp
+	# It says it is up and searching once it has given up its privilege and closed its system calls; if it ends before that, it says so here, not in a log nobody reads.
+	st=
+	for ((i = 0; i < 24; i++)); do
+		st=
+		read -r st < "$rundir/dhcp-$tap.state" 2> /dev/null
+		case $st in searching* | bound*) break ;; failed* | stopped*) fail "the DHCP client ended as it started ($st); run $bin --foreground $tap as root to see why" 3 ;; esac
+		sleep 0.25
+	done
+	case $st in searching* | bound*) ;; *) fail "the DHCP client did not say it was up; run $bin --foreground $tap as root to see why" 3 ;; esac
 fi
 echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}${routes:+, routes to $routes via $via}${everything:+, everything through ${via:-the member that shares its internet}}${share:+, sharing this machine's internet through $odev}$names"
