@@ -113,6 +113,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0102](0102-one-dhcp-client-for-the-phone-and-the-desktop.md) | One DHCP client for the phone and the desktop | accepted |
 | [0103](0103-a-founder-makes-its-own-admit-again.md) | A founder makes its own admit again | accepted |
 | [0104](0104-the-battery-saver-keeps-one-lost-keep-alive-in-hand.md) | The battery saver keeps one lost keep-alive in hand | accepted |
+| [0105](0105-a-node-follows-its-boxes-to-a-new-line.md) | A node follows its boxes to a new line | accepted |
 
 ---
 

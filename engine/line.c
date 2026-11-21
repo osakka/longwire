@@ -757,6 +757,24 @@ int line_presented(lw_node *n, const char *number, uint8_t out[ADMIT_LEN])
 	return 0;
 }
 
+/* Does this node leave its line for the line of the node at the other end of `p` (ADR 0105)? Only when a person dialled it (not the mesh, not a ring), the line is not an operator's, and
+ * nobody else of our line is in touch: a line whose members have all gone (boxes moved to a new host, with new keys and a new line) is no line to stay on, and a person dialling a box of
+ * another line has said where they want to be. With a member of our line up, it stays, and says so. */
+static int line_would_yield(lw_node *n, lw_peer *p)
+{
+	int i;
+
+	if (!n->line.have || n->line.managed || !p->asked)
+		return 0;
+	for (i = 0; i < n->maxpeers; i++) {
+		lw_peer *q = &n->peers[i];
+
+		if (q != p && q->used && !q->is_sb && q->cur.valid && mem_find(n, q->key_id))
+			return 0;
+	}
+	return 1;
+}
+
 static void decide(lw_node *n, lw_peer *p)
 {
 	int mine = n->line.have, theirs = p->lh_has;
@@ -778,6 +796,14 @@ static void decide(lw_node *n, lw_peer *p)
 			admit_peer(n, p);		/* it claims our line but we have no record of it: treat it as new */
 		else
 			send_bye(n, p, 0);
+	} else if (p->lh_yield) {		/* we said we would leave ours for theirs: forget ours, and their LINE makes us a member of theirs */
+		char hx[17];
+
+		lw_hex(hx, n->line.id, 8);
+		line_leave(n);
+		ev_emit(n, "{\"event\":\"line-left\",\"line\":\"%s\",\"reason\":\"nobody of it was in touch, and a number of another line was dialled\"}", hx);
+	} else if (theirs == 2) {		/* it leaves its line for ours: it is a newcomer */
+		admit_peer(n, p);
 	} else {
 		send_bye(n, p, 0);
 		ev_emit(n, "{\"event\":\"call-failed\",\"reason\":\"that node is on another line\"}");
@@ -815,7 +841,8 @@ void line_call_up(lw_node *n, lw_peer *p)
 	}
 	if (!n->registered || p->lh_sent)
 		return;
-	b[0] = (uint8_t)n->line.have;
+	p->lh_yield = line_would_yield(n, p);
+	b[0] = (uint8_t)(n->line.have ? (p->lh_yield ? 2 : 1) : 0);	/* 2: on a line, and leaving it for yours (ADR 0105); an older node reads it as 1 and hangs up, as before */
 	memcpy(b + 1, n->line.id, 8);
 	ctl_msg_send(n, p, M_LINEHELLO, b, 9);
 	p->lh_sent = 1;

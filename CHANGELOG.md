@@ -3,7 +3,9 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
-## 0.5.79 (unreleased)
+## 0.5.79
+
+**A node follows its boxes to a new line** ([ADR 0105](docs/adr/0105-a-node-follows-its-boxes-to-a-new-line.md)): when the boxes move to a new host with a new line, a desktop or phone on the old line, with nobody of it in touch, joins the new line the first time a person dials a new box (`line-left`); with a member of its old line up it stays, as before. Test `moveline`; the desktop-that-asks test also runs behind a 0.5.69 switchboard (`SBROOT`).
 
 **The reason for an admit that is for another node names both keys**: *the admit is for another node: it names XXXXXXXX, the caller is YYYYYYYY* (the first eight hex digits of each), so it can be seen whose admit it is.
 

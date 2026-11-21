@@ -50,6 +50,7 @@ check: all lint
 	sh tests/sbrestart.sh
 	sh tests/pairrestart.sh
 	sh tests/meshask.sh
+	sh tests/moveline.sh
 	sh tests/presence.sh
 	sh tests/ipv6.sh
 	sh tests/panel.sh

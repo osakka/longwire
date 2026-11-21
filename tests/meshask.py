@@ -25,7 +25,7 @@ def main():
     sh("ip link set lo up")
     ns = L.mkns()
     subprocess.run(["nsenter", "-t", str(ns.pid), "-n", "ip", "link", "set", "lo", "up"])
-    S = Node("S", ns, "longwire-switchboard.hibr", ["--registry", "none", "--listen", "127.0.0.1:1877"])
+    S = Node("S", ns, "longwire-switchboard.hibr", ["--registry", "none", "--listen", "127.0.0.1:1877"], root=os.environ.get("SBROOT") or None)  # SBROOT=../my-vpn-0569: the release srv-uk-01 runs
     until(lambda: os.path.exists(S.home + "/sb/seed") and os.path.exists(S.sock), 15)
     addr = subprocess.run([HIBR, "-c", f"mod load {MOD}; lw key address {S.home}/sb/seed"], capture_output=True, text=True).stdout.strip()
 
