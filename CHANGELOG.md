@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 **The jack's DHCP client asks again within half a minute** (ADR 0088): its configuration says `timeout 20; retry 10;`, so a jack that came up while the line carried nothing no longer waits five minutes on a 169.254 address.
 
+Published: hibr-apps 3ed4c5b, hibr-apt 5fc7366, hibr-rpm 4703a10, hibr-arch df16355.
+
 ## 0.5.75
 
 **A sleeping phone and a long keep-alive no longer lose the line** (BUG-10, [ADR 0099](docs/adr/0099-a-sleeping-phone-and-a-long-keep-alive-do-not-lose-the-line.md)): a node's heartbeat to its switchboard is at most 30 s apart, so presence there does not lapse with the battery saver (test `presence`); and the app holds a wake lock and a wifi lock while the line is on, with a switch to turn it off, so a phone with the screen off keeps sending its keep-alives; and the engine counts time with the clock that runs through suspend.
