@@ -108,6 +108,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0097](0097-a-member-that-refuses-the-mesh-is-called-every-six-hours.md) | A member that refuses the mesh is called every six hours | accepted |
 | [0098](0098-the-phone-carries-ipv6.md) | The phone carries IPv6 | accepted |
 | [0099](0099-a-sleeping-phone-and-a-long-keep-alive-do-not-lose-the-line.md) | A sleeping phone and a long keep-alive do not lose the line | accepted |
+| [0100](0100-a-ring-says-why-a-member-was-not-let-in.md) | A ring says why a member was not let in | accepted |
 
 ---
 

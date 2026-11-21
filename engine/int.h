@@ -616,6 +616,8 @@ void line_init(lw_node *n);
 int  line_have(const lw_node *n);
 int  line_admit_for(lw_node *n, uint8_t out[ADMIT_LEN]);	/* our own admit, to present when dialing; 0 if none */
 int  line_revs_full(lw_node *n);			/* as many revocations held as there is room for: no admit is taken */
+const char *line_why(lw_node *n, const uint8_t *a, const uint8_t kid[32]);
+const char *admit_why(lw_node *n, const uint8_t *a, const uint8_t kid[32]);
 int  line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32]);
 int  line_evicted(lw_node *n, const uint8_t kid[32]);
 int  line_presented(lw_node *n, const char *number, uint8_t out[ADMIT_LEN]);	/* the admit that number's call carried */

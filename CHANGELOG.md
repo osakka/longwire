@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.76
 
+**A ring says why a member was not let in** ([ADR 0100](docs/adr/0100-a-ring-says-why-a-member-was-not-let-in.md)): a call from a member of the line that the node cannot let in by itself now says why (`why` in the ring event, and in `longwire watch`), where it only asked for `longwire pickup`; tests `admitwhy` and `meshask`.
+
 **The jack's DHCP client asks again within half a minute** (ADR 0088): its configuration says `timeout 20; retry 10;`, so a jack that came up while the line carried nothing no longer waits five minutes on a 169.254 address.
 
 ## 0.5.75

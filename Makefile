@@ -45,6 +45,7 @@ check: all lint
 	sh tests/leafline.sh
 	sh tests/sbrestart.sh
 	sh tests/pairrestart.sh
+	sh tests/meshask.sh
 	sh tests/presence.sh
 	sh tests/ipv6.sh
 	sh tests/panel.sh
@@ -70,6 +71,7 @@ check: all lint
 	sh tests/guardnet.sh
 	sh tests/claim.sh
 	sh tests/seedmem.sh
+	sh tests/admitwhy.sh
 	sh tests/failover.sh
 	sh tests/book.sh
 	sh tests/m2b.sh

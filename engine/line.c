@@ -271,31 +271,48 @@ static int admit_in_time(lw_node *n, const uint8_t *a)
 	return now < e && i <= now + EVICT_SKEW && i >= n->line.roll_t;
 }
 
-/* Is `a` a valid admit, for the node with key id `kid`, to the line this node holds? */
-static int admit_verify(lw_node *n, const uint8_t *a, const uint8_t kid[32])
+/* Why an admit is not good, or "" if it is (docs/adr/0100): the reason a ring that comes from a member of the line is still not let in by itself, said in the ring event so that it is never a mystery. */
+const char *admit_why(lw_node *n, const uint8_t *a, const uint8_t kid[32])
 {
 	const lw_member *by;
 	uint8_t m[8 + ADM_SIGNED];
 
-	if (!n->line.have || memcmp(a, kid, 32) || !admit_in_time(n, a))
-		return 0;
-	admit_msg(n->line.id, a, m);			/* the line is ours: an admit made for another does not verify */
-	if (n->line.managed && !memcmp(a + ADM_BY, n->line.authority, 32)) {	/* the operator's word: no member needed */
-		if (!lw_verify(n->line.authority, m, sizeof m, a + ADM_SIGNED))
-			return 0;
-		return get64(a + ADM_ISSUED) > evicted_at(n, kid);
-	}
-	if (n->line.managed && (memcmp(a + ADM_BY, n->line.founder, 32) || memcmp(a + ADM_BY, a, 32)))	/* a managed line takes the operator's, and its founder's own: no member's word for another */
-		return 0;
-	if (!(by = mem_find(n, a + ADM_BY)))		/* the signer must be a member we have on record, connected or not */
-		return 0;
+	if (!a)
+		return "no admit came with the call";
+	if (!n->line.have)
+		return "this node is not on a line";
+	if (memcmp(a, kid, 32))
+		return "the admit is for another node";
+	if (!admit_in_time(n, a))
+		return "the admit is out of time (its lifetime, or this machine's clock)";
+	admit_msg(n->line.id, a, m);
+	if (n->line.managed && !memcmp(a + ADM_BY, n->line.authority, 32))
+		return lw_verify(n->line.authority, m, sizeof m, a + ADM_SIGNED) ? (get64(a + ADM_ISSUED) > evicted_at(n, kid) ? "" : "the admit is older than the member's eviction") : "the operator's signature on the admit does not verify";
+	if (n->line.managed && (memcmp(a + ADM_BY, n->line.founder, 32) || memcmp(a + ADM_BY, a, 32)))
+		return "a managed line takes only the operator's admit or its founder's own";
+	if (!(by = mem_find(n, a + ADM_BY)))
+		return "the member that signed the admit is not on this node's record of the line";
 	if (!memcmp(a + ADM_BY, a, 32) && memcmp(a + ADM_BY, n->line.founder, 32))
-		return 0;				/* a self-admit is good only for the founder */
+		return "the member signed its own admit and is not this node's recorded founder";
 	if (!lw_verify(by->ed_pub, m, sizeof m, a + ADM_SIGNED))
-		return 0;
-	if (get64(a + ADM_ISSUED) <= evicted_at(n, kid))	/* an admit older than the eviction cannot bring it back */
-		return 0;
-	return 1;
+		return "the signature on the admit does not verify against the signer's key on record";
+	if (get64(a + ADM_ISSUED) <= evicted_at(n, kid))
+		return "the admit is older than the member's eviction";
+	return "";
+}
+
+/* For a ring: why a caller that is on this node's record of the line was still not let in by itself ("" if it was, or if it is no member: a stranger has no admit to explain). */
+const char *line_why(lw_node *n, const uint8_t *a, const uint8_t kid[32])
+{
+	if (!n->line.have || !mem_find(n, kid))
+		return "";
+	return admit_why(n, a, kid);
+}
+
+/* Is `a` a valid admit, for the node with key id `kid`, to the line this node holds? */
+static int admit_verify(lw_node *n, const uint8_t *a, const uint8_t kid[32])
+{
+	return !*admit_why(n, a, kid);
 }
 
 int line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32])

@@ -1522,8 +1522,8 @@ void node_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len
 				char en[2 * LW_NAME_MAX + 8];
 
 				json_esc(en, sizeof en, c->name);
-				ev_emit(n, "{\"event\":\"ring\",\"call\":\"%s\",\"from\":\"%s\",\"name\":\"%s\",\"key_id\":\"%s\",\"known\":%s,\"admit\":%s}",
-					hx, f, en, kh, pc ? "true" : "false", admitted ? "true" : "false");
+				ev_emit(n, "{\"event\":\"ring\",\"call\":\"%s\",\"from\":\"%s\",\"name\":\"%s\",\"key_id\":\"%s\",\"known\":%s,\"admit\":%s,\"why\":\"%s\"}",
+					hx, f, en, kh, pc ? "true" : "false", admitted ? "true" : "false", admitted ? "" : line_why(n, admit, kid));
 			}
 			if (n->cfg.leaf) {		/* a leaf lets in only the numbers it asked for, whatever the script would say: the rest of the line may ring it and is refused, unheard */
 				int k, ok = 0;

@@ -141,6 +141,7 @@ announce() {
 	                       else say "☎  ${e[from]} is calling"; fi
 	                       bn=$(book_name "${e[from]}")
 	                       [ -z "$bn" ] || say "   in your address book: $bn"
+	                       [ -z "${e[why]}" ] || say "   it is on your line, but not let in by itself: ${e[why]}"
 	                       say "   the safety phrase comes once you are connected: compare it with theirs"
 	                       say "   picking up adds ${e[from]} to your network (your line): it stays a member, and reconnects by itself, until you evict it"
 	                       [ "${e[known]}" = true ] || say "   first call from this number"; fi ;;
