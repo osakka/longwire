@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 **A founder makes its own admit again** ([ADR 0103](docs/adr/0103-a-founder-makes-its-own-admit-again.md)): the owner's vpn-1, which founded the line, sent an admit made out for another node, so its calls were never let in by themselves (the new reason message said so) and a desktop waited about a minute for its own call to get through. A founder now checks its own admit at start and makes it again if it does not verify (`admit-repaired`); a member that cannot says `admit-bad`.
 
+Published: hibr-apps fc7ba12, hibr-apt fc10054, hibr-rpm a698a1c, hibr-arch c73810e.
+
 ## 0.5.77
 
 **One DHCP client for the phone and the desktop** ([ADR 0102](docs/adr/0102-one-dhcp-client-for-the-phone-and-the-desktop.md)): a jack no longer starts `dhclient`, `dhcpcd` or `udhcpc`, each with its own flags and retry and a hook; it runs `lw-dhcp`, the phone's client in a program of its own: asks until a server answers, renews, sends the machine's name, refuses a lease that is not a LAN's, and puts on the jack the address and nothing else. Its reading half is nobody under the engine's system-call filter; the half that has the privilege applies one checked message. Tests `dhcpnet` (a real interface), `jack`, `leaf`.
