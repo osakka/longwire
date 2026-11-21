@@ -624,6 +624,7 @@ int  line_revs_full(lw_node *n);			/* as many revocations held as there is room 
 void asked_add(lw_node *n, const char *num9);
 void vouched_add(lw_node *n, const uint8_t *key);
 void trust_save(lw_node *n);
+int  line_heal(lw_node *n);
 const char *line_why(lw_node *n, const uint8_t *a, const uint8_t kid[32]);
 const char *admit_why(lw_node *n, const uint8_t *a, const uint8_t kid[32]);
 int  line_admit_ok(lw_node *n, const uint8_t *admit, const uint8_t caller_kid[32]);

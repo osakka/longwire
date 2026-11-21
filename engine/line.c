@@ -590,9 +590,30 @@ void vouched_add(lw_node *n, const uint8_t *key)
 	}
 }
 
+/* The founder's own admit is the one it makes for itself, and there is nothing else it can be: if the one on disk does not verify (it is for another node, as one owner's founder was found to
+ * hold, ADR 0103), it is made again. A member that is not the founder cannot make its own, and says why in an event instead. */
+int line_heal(lw_node *n)
+{
+	const char *why;
+
+	if (!n->line.have || n->line.managed)
+		return 0;
+	if (!*(why = admit_why(n, n->line.admit, n->id.key_id)))
+		return 0;
+	if (!memcmp(n->line.founder, n->id.key_id, 32)) {
+		admit_make(n, n->id.key_id, 0, n->line.admit);
+		line_save(n);
+		ev_emit(n, "{\"event\":\"admit-repaired\",\"why\":\"%s\"}", why);
+		return 1;
+	}
+	ev_emit(n, "{\"event\":\"admit-bad\",\"why\":\"%s\"}", why);
+	return -1;
+}
+
 void line_init(lw_node *n)
 {
 	line_load(n);
+	line_heal(n);
 	trust_load(n);
 	site_derive(n);
 }

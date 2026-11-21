@@ -64,6 +64,18 @@ int main(int argc, char **argv)
 	memcpy(a + ADM_BY, signer, 32);
 	check(!strcmp(admit_why(n, a, kid), "the signature on the admit does not verify against the signer's key on record"), "signed by a member on the record, with a signature that does not verify");
 	check(line_why(n, a, kid)[0] != 0, "and a member that is on the line has it said in the ring event");
+	/* the founder whose own admit is for another node (one owner's founder held one): it makes its own again, and says so; a member that is not the founder cannot, and says so */
+	memcpy(n->line.founder, n->id.key_id, 32);
+	memcpy(n->line.m[0].key_id, n->id.key_id, 32);		/* the founder is on its own record */
+	memcpy(n->line.m[0].ed_pub, n->id.bundle + 1 + 32 + LW_MLKEM_PK, 32);	/* with its own signing key */
+	memset(n->line.admit, 0, ADMIT_LEN);
+	memcpy(n->line.admit, other, 32);			/* an admit for another node */
+	check(!*admit_why(n, n->line.admit, n->id.key_id) == 0, "(the founder's stored admit is for another node: it does not verify)");
+	check(line_heal(n) == 1 && !*admit_why(n, n->line.admit, n->id.key_id), "a founder whose own admit does not verify makes it again, and it verifies");
+	check(line_heal(n) == 0, "and a good one is left alone");
+	memset(n->line.founder, 0x55, 32);
+	memset(n->line.admit, 0, ADMIT_LEN);
+	check(line_heal(n) == -1 && n->line.admit[0] == 0, "a member that is not the founder cannot make its own, and leaves it");
 	printf(bad ? "\nFAILED\n" : "\nall admitwhy checks passed\n");
 	return bad;
 }

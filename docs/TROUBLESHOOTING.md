@@ -291,6 +291,8 @@ The service runs as a transient user; lift it as root: `please longwire-switchbo
 
 ## The jack has no address and the line is up
 
+A jack that was made before 0.5.77 is kept (*Keep the jack when turned off*) and still has the old DHCP client on it, and the 169.254 address that client made: the helper starts the new client only when it makes a jack. Stop the old one once (`sudo dhcpcd -k lw0`, or `sudo dhclient -r lw0`), then let the jack be made again: `longwire profile set home keep_jack=no`, `longwire off`, `longwire on` (the password step), and set `keep_jack=yes` again if you like.
+
 The jack's DHCP client is `lw-dhcp`, the same client the phone runs ([ADR 0102](adr/0102-one-dhcp-client-for-the-phone-and-the-desktop.md)). It has no address until a server answers, and asks again every few seconds (`/run/longwire/dhcp-lw0.state` says `searching` or `bound ADDRESS`). If the line is up and it still does not get one, look at `longwire watch`: a DHCP answer that the node refused says so, with what to do (*answered as DHCP for this machine's network and was refused: it is on the line, but you did not ask for it*, [ADR 0080](adr/0080-only-a-member-we-asked-for-may-speak-for-the-network.md)). Since 0.5.77 the node keeps for thirty days the members you dialled, the boxes they vouch for and the founder of your line ([ADR 0101](adr/0101-who-may-speak-for-the-network-is-kept-for-thirty-days.md)), so a restarted desktop trusts the pair it was on. To forget what is kept, stop the node and delete `trust` in its state directory. A fixed address (`address=10.77.0.2/24` in the profile) does not depend on the exchange.
 
 ## A member is refused as the network's server, or a loop is reported
