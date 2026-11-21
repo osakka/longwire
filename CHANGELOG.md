@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 **The phone carries IPv6** (LW-9, [ADR 0098](docs/adr/0098-the-phone-carries-ipv6.md)): the adapter makes an address from the far LAN's router advertisement (SLAAC), answers neighbour solicitations, resolves neighbours, and carries IPv6 both ways; the app puts the address and its route in the tunnel. Checked against a stand-in IPv6 router, including what must not change the address; not tried on a phone.
 
+Published: hibr-apps 95b7432, hibr-apt be57aae, hibr-rpm 07e4a9a, hibr-arch 2600bc6.
+
 ## 0.5.74
 
 **A member that refuses the mesh is called every six hours** (LW-13, [ADR 0097](docs/adr/0097-a-member-that-refuses-the-mesh-is-called-every-six-hours.md)): a member that has refused three of the mesh's calls (a phone) is called less and less often, up to every six hours; the line's members show `declined`.
