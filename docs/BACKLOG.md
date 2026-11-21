@@ -37,7 +37,7 @@ Found while auditing the documents against the code and the tests (2026-11-20), 
 | # | Finding | Severity | Status |
 |---|---|---|---|
 | BUG-1 | `tests/m1.sh` (a NAT test: "the strict end dials", 80 s) failed once in a full check under load and passed alone, twice; the cause is not found | medium: a flaky test hides a real regression | open |
-| BUG-2 | `tests/operator.sh` ("the evicted node is refused if it rings back") failed once in a full check and passed alone; the cause is not found | medium | open |
+| BUG-2 | `tests/operator.sh` ("the evicted node is refused if it rings back") failed once in a full check and passed alone; the cause is not found | medium | closed in 0.5.77: the test rang the founder before it was back on the switchboard (a ring to a node that is not online is turned back there): it now waits for the dial tone |
 | BUG-3 | `tests/expiry.sh` failed intermittently in full checks: a rejoined member is judged at its 20 s deadline and the test waited exactly 20 s; and a "pre-roll" admit was made five seconds before *now*, not before the roll. Fixed in the test (0.5.67) and run six times under load | low | closed in 0.5.67 |
 | BUG-4 | The phone's count of failed tries only counts calls made, so with a switchboard that cannot be reached only the time limit gives up; the screen does not say so | low | open |
 | BUG-5 | A box's claim of its site role is kept by the switchboard for two minutes: after a box stops, the window can show a pair, and "active", for up to two minutes | low | documented ([ADR 0086](adr/0086-the-switchboard-window-shows-a-pair-as-a-pair.md)); a refinement would clear it when the node goes offline |

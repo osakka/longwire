@@ -109,6 +109,9 @@ def main():
                all(m["number"] != nums["A"] for m in F.status()["line"]["members"]) , 40)
     fm = F.status()["line"]
     check(ok is not None, f"the founder, back from being offline, hears of the eviction from B: {fm and [m['number'] for m in fm['members']]}")
+    # F has only just started: until it has a dial tone the switchboard does not know it is online, a ring to it is turned back there, and nothing reaches F to be refused (the check below failed
+    # now and then in a full run, on a loaded machine, for that reason)
+    check(until(lambda: F.status().get("switchboard") == "dial tone", 60) is not None, "the founder is back on the switchboard before the evicted node rings it")
     mk = F.w.mark()
     A2 = A.cmd("dial", nums["F"])
     e = F.w.wait("call-failed", 20, after=mk)
