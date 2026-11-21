@@ -20,4 +20,4 @@ Status: accepted; built in the release after 0.5.74. The owner's phone (pixon) s
 - The line stays up while the phone sleeps. The cost is battery: the processor is not allowed to sleep. A phone that is on charge all day does not care; the switch is for one that is not.
 - Android may still stop an app that has not been let off the battery optimisation (the *Always on* card); a wake lock does not survive Doze for such an app.
 - Not tried on a phone: the wake lock, the wifi lock and the clock are compiled, and the owner's phone is the test. A wake lock does not survive Doze for an app that is not let off the battery optimisation; whether the owner's phone has done so is not known (BUG-10).
-- **What this does not settle** is the battery saver: a phone that sends every 55 s may be erased by a box that waits 76 s (BUG-11, LW-24).
+- **What this does not settle** is the battery saver: a phone that sent every 55 s could be erased by a box that waits 76 s: its keep-alive is 35 s now ([ADR 0104](0104-the-battery-saver-keeps-one-lost-keep-alive-in-hand.md), BUG-11), and a receiver that follows the sender's announced interval is LW-24.

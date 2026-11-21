@@ -173,7 +173,7 @@ public class MainActivity extends Activity {
         awake.setPadding(0, dp(14), 0, 0);
         op.addView(awake);
         op.addView(text("Keeps the processor and the wifi awake while the line is on, so the line does not go quiet when the screen is off. It costs battery; with it off, a sleeping phone may stop sending its keep-alives and the line is dead until something wakes it. Takes effect the next time you turn it on.", 12, dim, false));
-        op.addView(text("Checks in every 55 s instead of 25 s. Turn it off if the line drops while you are on mobile data. Takes effect the next time you turn it on.", 12, dim, false));
+        op.addView(text("Checks in every 35 s instead of 25 s. Turn it off if the line drops while you are on mobile data. Takes effect the next time you turn it on.", 12, dim, false));
 
         // when the other end stops answering: three dropdowns on a card of their own, each a label and what it is set to
         LinearLayout na = box(col, 16);

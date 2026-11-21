@@ -3,6 +3,10 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.79 (unreleased)
+
+**The battery saver keeps one lost keep-alive in hand** (BUG-11, [ADR 0104](docs/adr/0104-the-battery-saver-keeps-one-lost-keep-alive-in-hand.md)): its keep-alive is 35 s, not 55 s, so one lost packet no longer lets a box erase the session (a box waits 76 s).
+
 ## 0.5.78
 
 **The jack's DHCP client works on a real root start** (ADR 0102): 0.5.77's `lw-dhcp` ended at once and silently on a real machine (it closed its system calls without first setting `no_new_privs`; the test ran only inside a user namespace, where that is not needed). Fixed, tested as real root, and the helper now waits for the client to say it is up and says plainly if it does not (`failed: ...`).

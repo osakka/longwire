@@ -148,7 +148,7 @@ public class LongwireVpnService extends VpnService {
             finish("Cannot start: the identity could not be read (" + e.getMessage() + ")");
             return;
         }
-        String err = Engine.start(dir, p.getString("switchboard", "").trim(), p.getString("token", "").trim(), (p.getString("name", "").trim().isEmpty() ? Build.MODEL : p.getString("name", "").trim()), false, p.getBoolean("saver", false) ? 55 : 25, seed);
+        String err = Engine.start(dir, p.getString("switchboard", "").trim(), p.getString("token", "").trim(), (p.getString("name", "").trim().isEmpty() ? Build.MODEL : p.getString("name", "").trim()), false, p.getBoolean("saver", false) ? 35 : 25, seed);
         java.util.Arrays.fill(seed, (byte) 0);
         if (!err.isEmpty()) {
             finish("Cannot start: " + err);
