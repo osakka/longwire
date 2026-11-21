@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.77
 
+**One DHCP client for the phone and the desktop** ([ADR 0102](docs/adr/0102-one-dhcp-client-for-the-phone-and-the-desktop.md)): a jack no longer starts `dhclient`, `dhcpcd` or `udhcpc`, each with its own flags and retry and a hook; it runs `lw-dhcp`, the phone's client in a program of its own: asks until a server answers, renews, sends the machine's name, refuses a lease that is not a LAN's, and puts on the jack the address and nothing else. Its reading half is nobody under the engine's system-call filter; the half that has the privilege applies one checked message. Tests `dhcpnet` (a real interface), `jack`, `leaf`.
+
 **A desktop keeps who may speak for the network** (BUG-12, [ADR 0101](docs/adr/0101-who-may-speak-for-the-network-is-kept-for-thirty-days.md)): after a restart a desktop refused every DHCP answer (it had asked for nobody) and stayed on a 169.254 address while static worked. The numbers dialled and the boxes vouched for, that are members of the line, are now kept in the state directory for thirty days, and the line's founder counts as chosen, so the other box of a pair is trusted at once. Also: the jack's helper no longer prints a pid-file error when a client of ours has just gone. Test `trust`.
 
 ## 0.5.76

@@ -143,11 +143,13 @@ static void dhcp_send(lw_leaf *m, int type, lw_mtx tx, void *ctx)
 }
 
 /* A lease is refused unless it is one a host could use: a real unicast address, a contiguous mask, a gateway on the link. A hostile member answering our DISCOVER can say anything. */
-static int lease_sane(uint32_t ip, uint32_t mask, uint32_t gw)
+int lease_sane(uint32_t ip, uint32_t mask, uint32_t gw)
 {
 	uint32_t a = ip >> 24;
 
 	if (!ip || a == 0 || a == 127 || a >= 224 || (ip >> 16) == 0xa9fe)	/* nothing, loopback, multicast and up, link-local */
+		return 0;
+	if (!(a == 10 || (ip >> 20) == 0xac1 || (ip >> 16) == 0xc0a8 || (ip >> 22) == 0x191))	/* a network that is a LAN's: 10/8, 172.16/12, 192.168/16, 100.64/10. A lease for a public one would put a route over it (docs/adr/0066, 0102) */
 		return 0;
 	if (!mb_prefix_ok(mask) || mask < 0xff000000u || mask > 0xfffffffcu)	/* /8 to /30 */
 		return 0;
@@ -690,6 +692,8 @@ static void v6_from_line(lw_leaf *m, double now, const uint8_t *f, size_t len, l
 
 /* ---- the clock -------------------------------------------------------------------- */
 
+void leaf_dhcp_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx);
+
 void leaf_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx)
 {
 	v6_tick(m, now, tx, ctx);
@@ -700,6 +704,12 @@ void leaf_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx)
 		m->pend_asks++;
 		arp_send(m, 1, MB_BCAST, m->ip, m->pend_hop, tx, ctx);
 	}
+	leaf_dhcp_tick(m, now, tx, ctx);
+}
+
+/* The DHCP client alone: what a desktop's jack runs (packaging/lw-dhcp.c, docs/adr/0102) and what the phone's adapter runs inside leaf_tick. One implementation, one retry rule. */
+void leaf_dhcp_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx)
+{
 	if (now < m->t_next)
 		return;
 	switch (m->state) {
@@ -741,6 +751,20 @@ void leaf_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx)
 			m->t_next = m->t_bound + m->lease;
 		break;
 	}
+}
+
+/* A frame from the LAN, looked at only as DHCP: for the jack's client, which has no tunnel to hand IP packets to. */
+void leaf_dhcp_input(lw_leaf *m, double now, const uint8_t *f, size_t len, lw_mtx tx, void *ctx)
+{
+	size_t ihl;
+
+	if (len < 14 + 20 + 8 || get16(f + 12) != 0x0800 || (f[14] >> 4) != 4 || f[14 + 9] != 17)
+		return;
+	if (memcmp(f, m->mac, 6) && !(f[0] & 1))		/* another host's frame */
+		return;
+	ihl = (size_t)(f[14] & 15) * 4;
+	if (ihl >= 20 && 14 + ihl + 4 <= len && get16(f + 14 + ihl + 2) == 68 && get16(f + 14 + ihl) == 67)
+		dhcp_input(m, now, f, len, tx, ctx);
 }
 
 /* ---- from the OS tunnel to the line ----------------------------------------------- */

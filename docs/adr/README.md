@@ -110,6 +110,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0099](0099-a-sleeping-phone-and-a-long-keep-alive-do-not-lose-the-line.md) | A sleeping phone and a long keep-alive do not lose the line | accepted |
 | [0100](0100-a-ring-says-why-a-member-was-not-let-in.md) | A ring says why a member was not let in | accepted |
 | [0101](0101-who-may-speak-for-the-network-is-kept-for-thirty-days.md) | Who may speak for the network is kept for thirty days | accepted |
+| [0102](0102-one-dhcp-client-for-the-phone-and-the-desktop.md) | One DHCP client for the phone and the desktop | accepted |
 
 ---
 

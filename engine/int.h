@@ -271,9 +271,12 @@ typedef struct lw_leaf {
 void leaf_init(lw_leaf *m, const uint8_t key_id[32], double now);
 void leaf_hostname(lw_leaf *m, const char *name);
 void leaf_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx);
+void leaf_dhcp_tick(lw_leaf *m, double now, lw_mtx tx, void *ctx);
+void leaf_dhcp_input(lw_leaf *m, double now, const uint8_t *f, size_t len, lw_mtx tx, void *ctx);
 void leaf_from_os(lw_leaf *m, double now, const uint8_t *pkt, size_t len, lw_mtx tx, void *ctx);
 void leaf_from_line(lw_leaf *m, double now, const uint8_t *f, size_t len, lw_mtx tx, void *ctx, lw_mup up, void *uctx);
 int  leaf_bound(const lw_leaf *m);
+int  lease_sane(uint32_t ip, uint32_t mask, uint32_t gw);
 
 #define LW_JNETS 32
 typedef struct lw_jnet {		/* a network connected to the jack: address and mask, one family */

@@ -13,10 +13,14 @@ DESTDIR ?=
 VENDOR = vendor/monocypher/monocypher.c vendor/monocypher/monocypher-ed25519.c \
 	 $(filter-out vendor/mlkem768/compat.h,$(wildcard vendor/mlkem768/*.c))
 
-all: $(B)/longwire.so
+all: $(B)/longwire.so $(B)/lw-dhcp
 
 $(B)/longwire.so: module/longwire.c engine/*.c engine/*.h $(VENDOR) VERSION | $(B)
 	$(CC) -shared -fPIC -DLW_VERSION='"$(VERSION)"' -I$(HIBR_SRC)/include -Ivendor/mlkem768 -o $@ module/longwire.c engine/all.c $(VENDOR)
+
+# The jack's DHCP client (docs/adr/0102): the phone's client in a program of its own.
+$(B)/lw-dhcp: packaging/lw-dhcp.c engine/*.c engine/*.h $(VENDOR) VERSION | $(B)
+	$(CC) -DLW_VERSION='"$(VERSION)"' -Ivendor/mlkem768 -o $@ packaging/lw-dhcp.c $(VENDOR)
 
 # TCC's own warnings, as errors, on everything we wrote (the vendored code is upstream's).
 lint:
@@ -55,6 +59,7 @@ check: all lint
 	sh tests/profile.sh
 	sh tests/showdns.sh
 	sh tests/jack.sh
+	sh tests/dhcpnet.sh
 	sh tests/sas.sh
 	sh tests/ban.sh
 	sh tests/ban2.sh
@@ -106,6 +111,7 @@ install: all
 			> $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u && chmod 644 $(DESTDIR)$(PREFIX)/lib/systemd/system/$$u; done
 	install -m 644 packaging/longwire.sysusers $(DESTDIR)$(PREFIX)/lib/sysusers.d/longwire.conf
 	install -m 755 packaging/longwire-jack $(DESTDIR)$(PREFIX)/lib/longwire/jack
+	install -m 755 $(B)/lw-dhcp $(DESTDIR)$(PREFIX)/lib/longwire/lw-dhcp
 	install -m 755 packaging/longwire-jack $(DESTDIR)$(PREFIX)/lib/longwire/jack-everything
 	sed -e 's|/usr/lib/longwire/jack|$(PREFIX)/lib/longwire/jack|' packaging/org.longwire.jack.policy \
 		> $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.jack.policy && chmod 644 $(DESTDIR)$(PREFIX)/share/polkit-1/actions/org.longwire.jack.policy

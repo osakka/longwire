@@ -385,6 +385,14 @@ int main(void)
 	}
 	check(1, "four thousand frames of noise and of mangled replies from the line and the OS: it stands (a crash would not get here)");
 
+	/* the lease check, the one place it is made (the phone's adapter and the jack's client, docs/adr/0102): a LAN's address and a mask of 8 to 30 bits */
+	check(lease_sane(0xc0a80709u, 0xffffff00u, 0), "a lease of 192.168.7.9/24 is sane");
+	check(!lease_sane(0x0a000005u, 0x80000000u, 0) && !lease_sane(0x0a000005u, 0, 0) && !lease_sane(0x0a000005u, 0xff00ff00u, 0) && !lease_sane(0x0a000005u, 0xffffffffu, 0),
+	      "a mask of 1 bit, of none, one that is not contiguous, and of 32 bits are refused (a route over half the internet)");
+	check(!lease_sane(0x08080808u, 0xffffff00u, 0), "an address in a public range (8.8.8.8) is refused: a route over it would carry the machine's traffic out on the line");
+	check(lease_sane(0x64400304u, 0xffff0000u, 0) && lease_sane(0xac100002u, 0xffff0000u, 0) && lease_sane(0x0a010105u, 0xffffff00u, 0), "100.64.0.0/10, 172.16.0.0/12 and 10.0.0.0/8 are LANs'");
+	check(!lease_sane(0xac200002u, 0xffff0000u, 0) && !lease_sane(0x64800002u, 0xffff0000u, 0) && !lease_sane(0xa9fe0102u, 0xffff0000u, 0), "and the ranges next to them, and a link-local address, are not");
+
 	printf("%s\n", bad ? "FAILED" : "all leaf checks passed");
 	return bad;
 }

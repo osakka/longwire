@@ -1298,7 +1298,7 @@ EOF
 # once, as root: a tap device you own, then the node runs as you with no privilege at all
 ip tuntap add dev ${2:-lw0} mode tap user $(id -un)
 ip link set ${2:-lw0} mtu 1400 up${3:+$([ "$3" = dhcp ] && echo "
-dhclient -nw ${2:-lw0}      # (or dhcpcd -b -G ${2:-lw0}, or udhcpc -b -i ${2:-lw0}: not the default route or the name servers of a line)" || echo "
+/usr/lib/longwire/lw-dhcp ${2:-lw0}      # (the package's DHCP client: the address and the network route, never the default route or the name servers of a line)" || echo "
 ip addr add $3 dev ${2:-lw0}")}
 # then: longwire up --jack ${2:-lw0} ...
 EOF

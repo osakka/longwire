@@ -79,7 +79,7 @@ For a jack: this machine's address on the line, like 10.77.0.2/24, put on the de
 Every machine on a line needs its own, in one subnet.
 The word
 .B dhcp
-instead asks a DHCP server on the line, through a client (dhclient, dhcpcd or udhcpc) that the same step starts; it takes the address and the network route only, never a default route or name servers.
+instead asks a DHCP server on the line, through the package's own client (lw-dhcp) that the same step starts; it takes the address and the network route only, never a default route or name servers.
 Empty leaves the device alone.
 .TP
 .B gateway

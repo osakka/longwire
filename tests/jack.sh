@@ -48,61 +48,32 @@ run lw7
 PKEXEC_UID=1234 run --address 192.168.152.5/24 lw3
 grep -q "tuntap add dev lw3 mode tap user 1234" "$LWJ_LOG" && ok "under pkexec the user is PKEXEC_UID" || bad "pkexec: $(cat "$LWJ_LOG")"
 
-echo "-- jack --dhcp: a client on the jack, without a default route or name servers"
+echo "-- jack --dhcp: the one DHCP client (lw-dhcp, ADR 0102) on the jack"
 RUN=$T/run
 export LONGWIRE_RUN=$RUN
-mkclient() {			# a stand-in client that writes down what it was asked
-	cat > "$T/bin/$1" <<CL
-#!/bin/sh
-echo "$1 \$*" >> "\$LWJ_LOG"
-CL
-	chmod +x "$T/bin/$1"
-}
-cat > "$T/real-script" <<RS
-#!/bin/sh
-# the hook clears the environment, so the stub writes where it was told when it was made
-echo "REAL ip=\${new_ip_address:-} routers=\${new_routers:-} dns=\${new_domain_name_servers:-} router=\${router:-} dnsu=\${dns:-} rfc=\${new_rfc3442_classless_static_routes:-} host=\${new_host_name:-} mtu=\${new_interface_mtu:-} other=\${evil:-} mask=\${new_subnet_mask:-} reason=\${reason:-} args=\$*" >> "$T/log"
-RS
-chmod +x "$T/real-script"
-export LONGWIRE_DHCP_SCRIPT=$T/real-script
 HN=$(sed 's/\..*//; s/[^A-Za-z0-9-]//g; s/^-*//' /proc/sys/kernel/hostname | cut -c1-63)	# what the helper sends as the machine's name (LW-5)
 [ -n "$HN" ] || { echo "skip: this machine has no usable host name"; exit 0; }
-cp /bin/sleep "$T/bin/dhclient"	# a client of ours from before: a process called dhclient
-"$T/bin/dhclient" 60 & oldpid=$!
+cp /bin/sleep "$T/bin/lw-dhcp"		# a client of ours from before: a process called lw-dhcp
+"$T/bin/lw-dhcp" 60 & oldpid=$!
 mkdir -p "$RUN"; echo $oldpid > "$RUN/dhcp-lw7.pid"
-rm -f "$T/bin/dhclient"; cp /bin/sleep "$T/dhclient"; mkclient dhclient
+rm -f "$T/bin/lw-dhcp"
+cat > "$T/lw-dhcp" <<'CL'
+#!/bin/sh
+echo "lw-dhcp $*" >> "$LWJ_LOG"
+CL
+chmod +x "$T/lw-dhcp"
+export LONGWIRE_DHCP=$T/lw-dhcp
 run --dhcp lw7 1000
-[ $rc = 0 ] && grep -q "dhclient -nw -pf $RUN/dhcp-lw7.pid -lf $RUN/dhcp-lw7.leases -cf $RUN/dhcp-lw7.conf -sf $RUN/dhcp-hook-lw7 lw7" "$LWJ_LOG" && [ "$(cat "$RUN/dhcp-lw7.conf")" = "$(printf 'timeout 20;\nretry 10;\nsend host-name "%s";' "$HN")" ] && ok "--dhcp starts dhclient on the jack, with its own pid file, lease file and hook" || bad "dhclient: rc=$rc $out $(cat "$LWJ_LOG")"
+[ $rc = 0 ] && grep -qx "lw-dhcp --hostname $HN --pidfile $RUN/dhcp-lw7.pid --state $RUN/dhcp-lw7.state lw7" "$LWJ_LOG" && ok "--dhcp starts the client on the jack, with the machine's name, its own pid file and state file" || bad "dhcp: rc=$rc $(cat "$LWJ_LOG")"
 sleep 0.2
 kill -0 $oldpid 2> /dev/null && { bad "the client from before is still there"; kill $oldpid; } || ok "and the client of ours from before is stopped, so there is only one"
-: > "$LWJ_LOG"
-new_routers=9.9.9.9 new_domain_name_servers=8.8.8.8 router=9.9.9.9 dns=8.8.8.8 new_ip_address=10.1.1.5 new_rfc3442_classless_static_routes="0 10 9 9 9" new_host_name=pwned new_interface_mtu=68 evil=1 reason=BOUND "$RUN/dhcp-hook-lw7" BOUND
-[ "$(head -n 1 "$RUN/dhcp-hook-lw7")" = "#!$HIBR" ] && grep -q "REAL ip=10.1.1.5 routers= dns= router= dnsu= rfc= host= mtu= other= mask= reason=BOUND args=BOUND" "$LWJ_LOG" && ok "the hook (a hibr script, run directly through its shebang) runs the system script from an allowlist environment: the address comes through, and the routers, name servers, classless routes (option 121), host name, MTU and anything else a DHCP server can send do not (docs/adr/0063)" || bad "hook: $(cat "$LWJ_LOG")"
-# the lease is the server's word about the line's own network, and no wider than a private network of 8 to 30 bits (docs/adr/0066)
-hook_sees() { : > "$LWJ_LOG"; new_ip_address=$1 new_subnet_mask=$2 reason=BOUND "$RUN/dhcp-hook-lw7" BOUND; sed -n 's/.*REAL ip=\([^ ]*\) .* mask=\([^ ]*\) reason.*/\1 \2/p' "$LWJ_LOG"; }
-[ "$(hook_sees 192.168.7.9 255.255.255.0)" = "192.168.7.9 255.255.255.0" ] && ok "an ordinary lease (192.168.7.9, 255.255.255.0) comes through" || bad "ordinary lease: $(hook_sees 192.168.7.9 255.255.255.0)"
-[ "$(hook_sees 10.0.0.5 128.0.0.0)" = "10.0.0.5 " ] && ok "a mask of 128.0.0.0 (a route over half the internet) is dropped" || bad "mask 128.0.0.0: $(hook_sees 10.0.0.5 128.0.0.0)"
-[ "$(hook_sees 10.0.0.5 0.0.0.0)" = "10.0.0.5 " ] && ok "a mask of 0.0.0.0 is dropped" || bad "mask 0.0.0.0"
-[ "$(hook_sees 10.0.0.5 255.0.255.0)" = "10.0.0.5 " ] && ok "a mask that is not contiguous is dropped" || bad "mask 255.0.255.0"
-[ "$(hook_sees 10.0.0.5 255.255.255.255)" = "10.0.0.5 " ] && ok "a mask of 32 bits is dropped" || bad "mask /32"
-[ "$(hook_sees 8.8.8.8 255.255.255.0)" = " 255.255.255.0" ] && ok "an address in a public range (8.8.8.8) is dropped: the server cannot make the machine's traffic for it go out on the line" || bad "public address: $(hook_sees 8.8.8.8 255.255.255.0)"
-[ "$(hook_sees 100.64.3.4 255.255.0.0)" = "100.64.3.4 255.255.0.0" ] && [ "$(hook_sees 172.16.0.2 255.255.0.0)" = "172.16.0.2 255.255.0.0" ] && [ "$(hook_sees 169.254.1.2 255.255.0.0)" = "169.254.1.2 255.255.0.0" ] && ok "the shared range, 172.16/12 and link-local are private ranges too" || bad "private ranges"
-[ "$(hook_sees 172.32.0.2 255.255.0.0)" = " 255.255.0.0" ] && [ "$(hook_sees 100.128.0.2 255.255.0.0)" = " 255.255.0.0" ] && ok "and the ranges next to them are not" || bad "range edges"
-rm -f "$T/bin/dhclient"
-mkclient dhcpcd
+grep -q "up, owned by user 1000, lw-dhcp started on it" <<EOF2 && ok "and it says so" || bad "message: $out"
+$out
+EOF2
+export LONGWIRE_DHCP=$T/not-there
 run --dhcp lw7 1000
-grep -q "dhcpcd -b -G -C resolv.conf -C ntp.conf -O routers -O classless_static_routes -O ms_classless_static_routes -O static_routes -O domain_name_servers .* -h $HN lw7" "$LWJ_LOG" && ok "without dhclient, dhcpcd: in the background, no gateway, no resolv.conf or ntp.conf, and neither the routers, the classless routes (option 121), the name servers nor anything else that could reach the machine is asked for or believed" || bad "dhcpcd: rc=$rc $(cat "$LWJ_LOG")"
-rm -f "$T/bin/dhcpcd"
-mkclient udhcpc
-run --dhcp lw7 1000
-grep -q "udhcpc -b -i lw7 -p $RUN/dhcp-lw7.pid -s $RUN/dhcp-hook-lw7 -x hostname:$HN" "$LWJ_LOG" && ok "and udhcpc after that, with the hook as its script" || bad "udhcpc: rc=$rc $(cat "$LWJ_LOG")"
-rm -f "$T/bin/udhcpc"
-if command -v dhclient dhcpcd udhcpc > /dev/null 2>&1; then
-	echo "skip: no client at all (this machine has one in the search path)"
-else
-	run --dhcp lw7 1000
-	[ $rc = 3 ] && echo "$out" | grep -q "no DHCP client found" && ok "with no client installed it says which to install" || bad "no client: rc=$rc $out"
-fi
+[ $rc = 3 ] && echo "$out" | grep -q "the DHCP client .* is not there" && ok "with the client missing it says so" || bad "no client: rc=$rc $out"
+export LONGWIRE_DHCP=$T/lw-dhcp
 run --dhcp --address 10.0.0.2/24 lw7 1000
 [ $rc = 2 ] && ok "an address and --dhcp together are refused" || bad "both: rc=$rc $out"
 
@@ -184,11 +155,11 @@ run --remove eth0 1000
 [ $rc = 2 ] && ok "and --remove never touches a real card" || bad "remove eth0: rc=$rc $out"
 run --remove --dhcp lw7 1000
 [ $rc = 2 ] && ok "--remove with --dhcp is refused" || bad "remove+dhcp: rc=$rc $out"
-cp /bin/sleep "$T/dhclient"; "$T/dhclient" 60 & pid2=$!
-mkdir -p "$RUN"; echo $pid2 > "$RUN/dhcp-lw7.pid"; touch "$RUN/dhcp-hook-lw7"
+mkdir -p "$T/bin2"; cp /bin/sleep "$T/bin2/lw-dhcp"; "$T/bin2/lw-dhcp" 60 & pid2=$!
+mkdir -p "$RUN"; echo $pid2 > "$RUN/dhcp-lw7.pid"; touch "$RUN/dhcp-lw7.state"
 mkdir -p "$T/sysnet/lw7"; echo 1000 > "$T/sysnet/lw7/owner"
 run --remove lw7 1000
-[ ! -e "$RUN/dhcp-lw7.pid" ] && [ ! -e "$RUN/dhcp-hook-lw7" ] && ok "its DHCP files go with it, and its client is stopped" || bad "remove files: $(ls "$RUN")"
+[ ! -e "$RUN/dhcp-lw7.pid" ] && [ ! -e "$RUN/dhcp-lw7.state" ] && ok "its DHCP files go with it, and its client is stopped" || bad "remove files: $(ls "$RUN")"
 sleep 0.2; kill -0 $pid2 2> /dev/null && { bad "the DHCP client is still running"; kill $pid2; } || ok "(the client of ours is gone)"
 
 echo "-- jack --routes: networks behind a gateway on the line"

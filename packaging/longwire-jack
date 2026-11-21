@@ -19,7 +19,7 @@
 # masqueraded, lets only the answers back in, and lets nothing from the line reach the machine's other networks. Run without --share, or with --remove, it takes
 # the table away and puts that device's forwarding back as it was.
 # longwire-jack [--address A.B.C.D/N | --dhcp] TAP [UID] -- as root, make the tap device TAP (a "jack") and give it to the user who asked, then
-# bring it up, with the address if one is given, or with a DHCP client started on it (so that nobody runs `ip addr` or `dhclient` by hand). The
+# bring it up, with the address if one is given, or with a DHCP client started on it (so that nobody runs `ip addr` or a DHCP client by hand). The
 # client keeps asking until the line answers, so the tunnel need not be up yet; it sets the address and the network route only, never a
 # default route or a name server, so that a line cannot take over the machine's traffic.
 # This is the one privileged step a node on a single machine needs. A person never runs it by hand: `longwire jack` and the Control
@@ -129,12 +129,10 @@ if [ -n "$remove" ]; then
 		if [[ $old =~ ^[0-9]+$ ]]; then
 			comm=
 			read -r comm < "/proc/$old/comm" 2> /dev/null
-			case $comm in dhclient | dhcpcd | udhcpc) kill "$old" 2> /dev/null ;; esac
+			[ "$comm" = lw-dhcp ] && kill "$old" 2> /dev/null
 		fi
-	elif command -v dhcpcd > /dev/null; then
-		dhcpcd -k "$tap" > /dev/null 2>&1
 	fi
-	rm -f "$pidf" "$rundir/dhcp-hook-$tap" "$rundir/dhcp-$tap.leases" "$rundir/dhcp-$tap.conf"
+	rm -f "$pidf" "$rundir/dhcp-$tap.state"
 	rules_off
 	share_off
 	ip link delete "$tap" || exit 1
@@ -353,45 +351,20 @@ if [ -n "$dhcp" ]; then
 	rundir=${LONGWIRE_RUN:-/run/longwire}
 	mkdir -p "$rundir" && chmod 755 "$rundir" || exit 1
 	pidf=$rundir/dhcp-$tap.pid
-	hook=$rundir/dhcp-hook-$tap
+	bin=${LONGWIRE_DHCP:-${0%/*}/lw-dhcp}
+	[ -x "$bin" ] || fail "the DHCP client $bin is not there (the longwire package installs it)" 3
 	if [ -r "$pidf" ]; then			# a client of ours from before: stop it, so there is one
 		old=
 		read -r old < "$pidf" 2> /dev/null
 		if [[ $old =~ ^[0-9]+$ ]]; then
 			comm=
 			read -r comm < "/proc/$old/comm" 2> /dev/null
-			case $comm in dhclient | dhcpcd | udhcpc) kill "$old" 2> /dev/null ;; esac
+			[ "$comm" = lw-dhcp ] && kill "$old" 2> /dev/null
 		fi
 		rm -f "$pidf"
 	fi
 
-	# The system's own script does the work (address, network route) once this hook has taken out the default route, the name servers and
-	# the rest. The hook is a hibr script too: its interpreter is the one running now.
-	fn mkhook(real) {
-		local me
-		[ -x "$real" ] || fail "the DHCP client's script $real is not there" 3
-		me=$HIBR			# the hibr this was started under, not whichever comes first on PATH
-		# The vendor script runs from an ALLOWLIST environment (docs/adr/0063): everything a DHCP server can send is in the environment of the client's script, and a
-		# list of what to remove is always one name short (option 121, classless routes, reached the vendor's exit hooks and installed a default route). Only what
-		# the client itself says (reason, interface) and the address and network route the lease makes get through, and those only as an address.
-		cat > "$hook" <<'HK' || exit 1
-#!@ME@
-addr() { case $1 in "" | *[!0-9.]*) ;; *) printf '%s' "$1" ;; esac; }
-# The lease is a network the server decides: an address of a private range (RFC 1918, shared 100.64/10, link-local) and a mask of 8 to 30 bits, nothing wider. A mask of 128.0.0.0 would
-# put a route over half the internet on the line, and an address of 8.8.8.0 over a public one: the server could then answer for the machine's traffic (docs/adr/0066).
-priv() { case $1 in 10.* | 192.168.* | 172.1[6-9].* | 172.2[0-9].* | 172.3[01].* | 100.6[4-9].* | 100.[7-9][0-9].* | 100.1[01][0-9].* | 100.12[0-7].* | 169.254.*) addr "$1" ;; esac; }
-mask() { case $1 in 255.0.0.0 | 255.128.0.0 | 255.192.0.0 | 255.224.0.0 | 255.240.0.0 | 255.248.0.0 | 255.252.0.0 | 255.254.0.0 | 255.255.0.0 | 255.255.128.0 | 255.255.192.0 | 255.255.224.0 | 255.255.240.0 | 255.255.248.0 | 255.255.252.0 | 255.255.254.0 | 255.255.255.0 | 255.255.255.128 | 255.255.255.192 | 255.255.255.224 | 255.255.255.240 | 255.255.255.248 | 255.255.255.252) printf '%s' "$1" ;; esac; }
-exec env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin reason="$reason" interface="$interface" medium="$medium" pid="$pid" \
-	new_ip_address="$(priv "$new_ip_address")" new_subnet_mask="$(mask "$new_subnet_mask")" new_broadcast_address="$(priv "$new_broadcast_address")" \
-	old_ip_address="$(priv "$old_ip_address")" ip="$(priv "$ip")" subnet="$(mask "$subnet")" broadcast="$(priv "$broadcast")" \
-	@REAL@ "$@"
-HK
-		sed -i -e "s|@ME@|$me|" -e "s|@REAL@|$real|" "$hook" || exit 1
-		chmod 755 "$hook"
-	}
-
-	# The machine's own host name goes to the server as the name this client asks to be known by (ADR 0079, ticket LW-5): what the client's own configuration says is not
-	# what is wanted on a line, and some send none. Only what a host name may be (letters, digits, hyphens; 63 at most) is sent; no name, or none left, sends none.
+	# The machine's own host name goes to the server as the name this client asks to be known by (ADR 0088): only what a host name may be (letters, digits, hyphens; 63 at most); no name, or none left, sends none.
 	hn=
 	read -r hn < /proc/sys/kernel/hostname 2> /dev/null
 	hn=${hn%%.*}
@@ -399,37 +372,8 @@ HK
 	hn=${hn#"${hn%%[!-]*}"}
 	hn=${hn:0:63}
 
-	real=
-	if command -v dhclient > /dev/null; then
-		real=${LONGWIRE_DHCP_SCRIPT:-}
-		if [ -z "$real" ]; then
-			for f in /sbin/dhclient-script /usr/sbin/dhclient-script; do
-				[ -x "$f" ] && { real=$f; break; }
-			done
-		fi
-		mkhook "$real"
-		cf=$rundir/dhcp-$tap.conf		# its own configuration: the system's would add what it likes. It names the host, and asks again soon: dhclient's own wait after an attempt with no answer is five minutes, and a line that was not carrying frames when the jack came up (a box restarting) would leave the machine on a 169.254 address long after it was
-		printf 'timeout 20;\nretry 10;\n' > "$cf" || exit 1
-		[ -z "$hn" ] || printf 'send host-name "%s";\n' "$hn" >> "$cf" || exit 1
-		dhclient -nw -pf "$pidf" -lf "$rundir/dhcp-$tap.leases" -cf "$cf" -sf "$hook" "$tap" || exit 1
-		client=dhclient
-	elif command -v dhcpcd > /dev/null; then
-		dhcpcd -k "$tap" > /dev/null 2>&1
-		dhcpcd -b -G -C resolv.conf -C ntp.conf -O routers -O classless_static_routes -O ms_classless_static_routes -O static_routes -O domain_name_servers -O domain_name \
-			-O domain_search -O ntp_servers -O host_name -O interface_mtu ${hn:+-h "$hn"} "$tap" || exit 1		# what a server sends that could reach the machine is neither asked for nor believed
-		client=dhcpcd
-	elif command -v udhcpc > /dev/null; then
-		real=${LONGWIRE_DHCP_SCRIPT:-}
-		if [ -z "$real" ]; then
-			for f in /usr/share/udhcpc/default.script /etc/udhcpc/default.script; do
-				[ -x "$f" ] && { real=$f; break; }
-			done
-		fi
-		mkhook "$real"
-		udhcpc -b -i "$tap" -p "$pidf" -s "$hook" ${hn:+-x "hostname:$hn"} || exit 1
-		client=udhcpc
-	else
-		fail "no DHCP client found: install isc-dhcp-client, dhcpcd or udhcpc (busybox)" 3
-	fi
+	# The one DHCP client there is (ADR 0102): the phone's, in a program of its own. It asks until a server answers, keeps the lease, and puts on the jack the address and nothing else.
+	"$bin" ${hn:+--hostname "$hn"} --pidfile "$pidf" --state "$rundir/dhcp-$tap.state" "$tap" || exit 1
+	client=lw-dhcp
 fi
 echo "longwire-jack: $tap is up, owned by user $uid${addr:+, address $addr}${client:+, $client started on it}${routes:+, routes to $routes via $via}${everything:+, everything through ${via:-the member that shares its internet}}${share:+, sharing this machine's internet through $odev}$names"

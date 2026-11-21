@@ -1,6 +1,6 @@
 # 0088 — The jack tells the DHCP server the machine's name
 
-Status: accepted; built in 0.5.71. The owner, with a desktop on a line, saw every connection listed at the router under the same name, not the machine's. ([ADR 0078](0078-a-phone-with-a-face-a-logo-and-a-battery.md) did the phone; this is the jack; ticket LW-5.)
+Status: accepted; built in 0.5.71; the per-client flags are superseded by [ADR 0102](0102-one-dhcp-client-for-the-phone-and-the-desktop.md) (the one client sends the name). The owner, with a desktop on a line, saw every connection listed at the router under the same name, not the machine's. ([ADR 0078](0078-a-phone-with-a-face-a-logo-and-a-battery.md) did the phone; this is the jack; ticket LW-5.)
 
 ## Context
 
