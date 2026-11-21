@@ -281,8 +281,12 @@ const char *admit_why(lw_node *n, const uint8_t *a, const uint8_t kid[32])
 		return "no admit came with the call";
 	if (!n->line.have)
 		return "this node is not on a line";
-	if (memcmp(a, kid, 32))
-		return "the admit is for another node";
+	if (memcmp(a, kid, 32)) {
+		static char buf[120];
+
+		snprintf(buf, sizeof buf, "the admit is for another node: it names %02x%02x%02x%02x, the caller is %02x%02x%02x%02x", a[0], a[1], a[2], a[3], kid[0], kid[1], kid[2], kid[3]);
+		return buf;
+	}
 	if (!admit_in_time(n, a))
 		return "the admit is out of time (its lifetime, or this machine's clock)";
 	admit_msg(n->line.id, a, m);

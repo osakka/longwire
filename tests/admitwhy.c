@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 	check(!strcmp(line_why(n, 0, other), ""), "a caller that is not on the line has nothing explained (a stranger)");
 	memset(a, 0, sizeof a);
 	memcpy(a, other, 32);
-	check(!strcmp(admit_why(n, a, kid), "the admit is for another node"), "an admit made for another node");
+	check(!strncmp(admit_why(n, a, kid), "the admit is for another node: it names 22222222, the caller is 11111111", 72), "an admit made for another node says whose it is and whose call it came with");
 	memcpy(a, kid, 32);
 	memcpy(a + ADM_BY, other, 32);
 	put64(a + ADM_ISSUED, 1000);

@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.79 (unreleased)
 
+**The reason for an admit that is for another node names both keys**: *the admit is for another node: it names XXXXXXXX, the caller is YYYYYYYY* (the first eight hex digits of each), so it can be seen whose admit it is.
+
 **The battery saver keeps one lost keep-alive in hand** (BUG-11, [ADR 0104](docs/adr/0104-the-battery-saver-keeps-one-lost-keep-alive-in-hand.md)): its keep-alive is 35 s, not 55 s, so one lost packet no longer lets a box erase the session (a box waits 76 s).
 
 ## 0.5.78
