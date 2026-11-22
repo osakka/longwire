@@ -38,8 +38,13 @@ mkdir -p "$STAGE/DEBIAN"
 make -s HIBR_SRC="$HIBR_SRC" > /dev/null
 make -s HIBR_SRC="$HIBR_SRC" PREFIX=/usr DESTDIR="$STAGE" install > /dev/null
 
-glibc=$(objdump -T "$STAGE/usr/lib/hibr/longwire.so" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
+glibc=$(objdump -T "$STAGE/usr/lib/hibr/longwire.so" "$STAGE/usr/lib/longwire/lw-dhcp" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
 [ -n "$glibc" ] || { echo "build-deb: cannot read the glibc symbol versions of the module (is objdump installed?)" >&2; exit 1; }
+for b in "$STAGE/usr/lib/hibr/longwire.so" "$STAGE/usr/lib/longwire/lw-dhcp"; do	# nothing newer than Debian 12 has (BUG-14): build with packaging/deb/build-bookworm.sh
+	g=$(objdump -T "$b" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
+	[ "$(printf '%s\n%s\n' "$g" "${LW_GLIBC_MAX:-2.36}" | sort -V | tail -1)" = "${LW_GLIBC_MAX:-2.36}" ] ||
+		{ echo "build-deb: ${b#$STAGE} needs glibc $g, newer than Debian 12's ${LW_GLIBC_MAX:-2.36}: build the packages with packaging/deb/build-bookworm.sh" >&2; exit 1; }
+done
 size=$(du -sk "$STAGE/usr" | cut -f1)
 
 install -d "$STAGE/usr/share/doc/longwire"

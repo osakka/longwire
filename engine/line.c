@@ -383,6 +383,7 @@ static void line_save(lw_node *n)
 
 		lw_hex(bh, blob, sizeof blob);
 		fprintf(f, "key %s\n", bh);
+		fprintf(f, "keygen %llu\n", (unsigned long long)n->line.key_gen);
 	}
 	lw_hex(hex, n->line.admit, ADMIT_LEN);
 	fprintf(f, "admit %s\n", hex);
@@ -457,6 +458,8 @@ static void line_load(lw_node *n)
 			crypto_blake2b_keyed(sk, 32, n->id.seed, 32, (const uint8_t *)"longwire lines v1", 17);
 			have_key = !crypto_aead_unlock(n->line.key, blob + 24 + 32, sk, blob, 0, 0, blob + 24, 32);
 			crypto_wipe(sk, 32);
+		} else if (!strncmp(l, "keygen ", 7)) {
+			n->line.key_gen = strtoull(l + 7, 0, 10);
 		} else if (sscanf(l, "admit %399s", a) == 1 && strlen(a) == ADMIT_LEN * 2) {
 			unhexn(a, n->line.admit, ADMIT_LEN);
 			have_admit = 1;			/* a file from before admits had an end holds one the size of the old layout: not read (no legacy) */
@@ -642,6 +645,26 @@ static void send_bye(lw_node *n, lw_peer *p, int leave)
 	ctl_msg_send(n, p, M_BYE, &b, 1);
 }
 
+/* The time a line key is made, in milliseconds of the wall clock: among members the newest key wins (ADR 0113). */
+static uint64_t key_now(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_REALTIME, &ts);
+	return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+}
+
+/* Tell a linked member our line key and when it was made: it takes it if it is newer than its own (ADR 0113). */
+static void key_tell(lw_node *n, lw_peer *p)
+{
+	uint8_t b[48];
+
+	memcpy(b, n->line.id, 8);
+	memcpy(b + 8, n->line.key, 32);
+	put64(b + 40, n->line.key_gen);
+	ctl_msg_send(n, p, M_LINEKEY, b, 48);
+}
+
 static void found(lw_node *n)
 {
 	lw_member *m;
@@ -650,6 +673,7 @@ static void found(lw_node *n)
 	memset(&n->line, 0, sizeof n->line);
 	lw_rand(n->line.id, 8);
 	lw_rand(n->line.key, 32);
+	n->line.key_gen = key_now();
 	memcpy(n->line.founder, n->id.key_id, 32);
 	if (n->cfg.has_authority) {
 		memcpy(n->line.authority, n->cfg.authority, 32);
@@ -684,7 +708,7 @@ static void peer_note_admit(lw_node *n, lw_peer *p, const uint8_t *a)
 /* Vouch for the node at the other end of `p`: record it, admit it, tell it the line, tell the members. */
 static void admit_peer(lw_node *n, lw_peer *p)
 {
-	uint8_t admit[ADMIT_LEN], b[8 + 32 + 32 + 32 + ADMIT_LEN + 1 + LINE_MAX * MEMBER_LEN];
+	uint8_t admit[ADMIT_LEN], b[8 + 32 + 32 + 32 + ADMIT_LEN + 1 + LINE_MAX * MEMBER_LEN + 8];
 	uint8_t mb[MEMBER_LEN + ADMIT_LEN], hk[32];
 	size_t o = 0;
 	int i;
@@ -735,6 +759,8 @@ static void admit_peer(lw_node *n, lw_peer *p)
 		memcpy(b + o + 74, n->line.m[i].sb, 32);
 		o += MEMBER_LEN;
 	}
+	put64(b + o, n->line.key_gen);		/* when the key was made, after the members (ADR 0113) */
+	o += 8;
 	ctl_msg_send(n, p, M_LINE, b, o);
 	if (n->line.managed)
 		ctl_msg_send(n, p, M_ADMIT, n->line.admit, ADMIT_LEN);	/* the newcomer holds us to our admit as well (docs/adr/0069) */
@@ -825,6 +851,7 @@ static void decide(lw_node *n, lw_peer *p)
 			p->linked = 1;			/* a mesh edge between two members */
 			n->line.joined = n->line.joined ? n->line.joined : n->now;
 			evict_tell(n, p);
+			key_tell(n, p);			/* and the key: the newer one wins on both sides (ADR 0113) */
 		} else if (!line_evicted(n, p->key_id))
 			admit_peer(n, p);		/* it claims our line but we have no record of it: treat it as new */
 		else
@@ -855,9 +882,11 @@ int line_number_is(lw_node *n, const char *number, const uint8_t kid[32])
 	return 0;
 }
 
+static void line_hello(lw_node *n, lw_peer *p);
+static void line_hello_held(lw_node *n);
+
 void line_call_up(lw_node *n, lw_peer *p)
 {
-	uint8_t b[9];
 	lw_member *rec = n->line.have && p->have_bundle ? mem_find(n, p->key_id) : 0;
 
 	if (rec) {
@@ -874,15 +903,54 @@ void line_call_up(lw_node *n, lw_peer *p)
 	}
 	if (rec && !n->line.managed && own_admit_bad(n))	/* our own admit is not good: show it to a member that knows us, and it makes us a new one (ADR 0107) */
 		ctl_msg_send(n, p, M_ADMIT, n->line.admit, ADMIT_LEN);
-	if (!n->registered || p->lh_sent)
+	line_hello(n, p);
+}
+
+/* A node with no line, whose line handshake with another session is under way, may be about to join that one's line: until it has (or 15 s have gone), it says
+ * nothing of its line to anyone else. Said at once, "no line" to a second callee would have that callee found a line of its own, and the node would end on one
+ * of two lines while the other kept it on record (BUG-13, ADR 0113). */
+static int line_pending(lw_node *n, const lw_peer *p)
+{
+	int i;
+
+	if (n->line.have)
+		return 0;
+	for (i = 0; i < n->maxpeers; i++) {
+		const lw_peer *q = &n->peers[i];
+
+		if (q != p && q->used && !q->is_sb && q->cur.valid && q->lh_sent && !q->linked && n->now - q->lh_t < 15.0)
+			return 1;
+	}
+	return 0;
+}
+
+static void line_hello(lw_node *n, lw_peer *p)
+{
+	uint8_t b[9];
+
+	if (!n->registered || p->lh_sent || line_pending(n, p))
 		return;
 	p->lh_yield = line_would_yield(n, p);
-	b[0] = (uint8_t)(n->line.have ? (p->lh_yield ? 2 : 1) : 0);	/* 2: on a line, and leaving it for yours (ADR 0105); an older node reads it as 1 and hangs up, as before */
+	b[0] = (uint8_t)(n->line.have ? (p->lh_yield ? 2 : 1) : 0);	/* 2: on a line, and leaving it for yours (ADR 0105) */
 	memcpy(b + 1, n->line.id, 8);
 	ctl_msg_send(n, p, M_LINEHELLO, b, 9);
 	p->lh_sent = 1;
+	p->lh_t = n->now;
 	if (p->lh_got)
 		decide(n, p);
+}
+
+/* The hellos held back while a line was on its way: sent once it has come, or once the wait is over. */
+static void line_hello_held(lw_node *n)
+{
+	int i;
+
+	for (i = 0; i < n->maxpeers; i++) {
+		lw_peer *p = &n->peers[i];
+
+		if (p->used && !p->is_sb && p->cur.valid && !p->lh_sent)
+			line_hello(n, p);
+	}
 }
 
 static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
@@ -907,6 +975,7 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 	memcpy(n->line.id, pl, 8);
 	memcpy(n->line.founder, pl + 8, 32);
 	memcpy(n->line.key, pl + 40, 32);
+	n->line.key_gen = len >= o + (size_t)nm * MEMBER_LEN + 8 ? get64(pl + o + (size_t)nm * MEMBER_LEN) : 0;
 	memcpy(n->line.authority, pl + 72, 32);
 	n->line.managed = memcmp(none, pl + 72, 32) != 0;
 	memcpy(n->line.admit, pl + 104, ADMIT_LEN);
@@ -943,6 +1012,7 @@ static void handle_line(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 
 		lw_hex(hx, n->line.id, 8);
 		ev_emit(n, "{\"event\":\"line-joined\",\"line\":\"%.6s\",\"members\":%d}", hx, n->line.nm);
+		line_hello_held(n);
 	}
 }
 
@@ -1166,15 +1236,33 @@ static int roll_apply(lw_node *n, const uint8_t *r)
 	return 1;
 }
 
+/* A member's line key: taken if it was made later than ours (the same time: the greater key), and passed on to every other member we are linked to; ours, if newer, is
+ * told back. So every change of the key, an eviction's included, reaches every member through whoever is in touch, and the boxes of a pair, whose site secret comes from
+ * it, end with the same one (ADR 0113). */
 static void handle_linekey(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 {
-	if (len < 40 || !n->line.have || memcmp(pl, n->line.id, 8) || !mem_find(n, p->key_id) || !p->linked)
+	uint64_t g;
+	int i, c;
+
+	if (len < 48 || !n->line.have || memcmp(pl, n->line.id, 8) || !mem_find(n, p->key_id) || !p->linked)
+		return;
+	g = get64(pl + 40);
+	c = g > n->line.key_gen ? 1 : g < n->line.key_gen ? -1 : memcmp(pl + 8, n->line.key, 32);
+	if (c < 0) {
+		key_tell(n, p);			/* ours is newer: it takes ours */
+		return;
+	}
+	if (c == 0)
 		return;
 	memcpy(n->line.prev_key, n->line.key, 32);
 	memcpy(n->line.key, pl + 8, 32);
+	n->line.key_gen = g;
 	n->line.key_t = n->now;
 	line_save(n);
 	site_derive(n);
+	for (i = 0; i < n->maxpeers; i++)
+		if (&n->peers[i] != p && n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid)
+			key_tell(n, &n->peers[i]);
 }
 
 void line_msg(lw_node *n, lw_peer *p, uint8_t msg, const uint8_t *pl, size_t len)
@@ -1229,11 +1317,11 @@ static void evict_now(lw_node *n, const uint8_t kid[32], uint64_t t, const uint8
 	memcpy(n->line.prev_key, n->line.key, 32);
 	memcpy(n->line.key, nk, 32);
 	n->line.key_t = n->now;
-	memcpy(b, n->line.id, 8);
-	memcpy(b + 8, nk, 32);
+	n->line.key_gen = key_now();
+	(void)b;
 	for (i = 0; i < n->maxpeers; i++)
 		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].linked && n->peers[i].cur.valid && &n->peers[i] != ev)
-			ctl_msg_send(n, &n->peers[i], M_LINEKEY, b, 40);
+			key_tell(n, &n->peers[i]);
 	if (ev)
 		call_drop_peer(n, ev, "evicted from the line");
 	line_save(n);
@@ -1425,6 +1513,7 @@ void line_timers(lw_node *n)
 
 	if (!n->line.have && n->cfg.has_authority && n->registered && n->number[0])
 		found(n);			/* a managed line exists from the start: the operator needs its id to sign for */
+	line_hello_held(n);			/* hellos held back while a line was on its way (BUG-13) */
 	if (n->line.have && n->line.managed && n->now - n->line.chk >= 1.0) {
 		n->line.chk = n->now;
 		revs_prune(n);
@@ -1504,12 +1593,15 @@ int line_value(lw_node *n, char *o, size_t cap)
 		return LW_SN(o, cap, "null");
 	lw_hex(hx, n->line.id, 8);
 	{
-		char ah[65] = "";
+		char ah[65] = "", fh[9];
+		uint8_t fp[4];
 
 		if (n->line.managed)
 			lw_hex(ah, n->line.authority, 32);
-		len = LW_SN(o, cap, "{\"id\":\"%.6s\",\"id_full\":\"%s\",\"managed\":%s,\"authority\":\"%s\",\"founder\":%s,\"members\":[",
-			       hx, hx, n->line.managed ? "true" : "false", ah, memcmp(n->line.founder, n->id.key_id, 32) ? "false" : "true");
+		crypto_blake2b_keyed(fp, 4, n->line.key, 32, (const uint8_t *)"longwire key fp", 15);	/* which key this member holds, one way: equal on members that agree (ADR 0113) */
+		lw_hex(fh, fp, 4);
+		len = LW_SN(o, cap, "{\"id\":\"%.6s\",\"id_full\":\"%s\",\"managed\":%s,\"authority\":\"%s\",\"founder\":%s,\"key_fp\":\"%s\",\"members\":[",
+			       hx, hx, n->line.managed ? "true" : "false", ah, memcmp(n->line.founder, n->id.key_id, 32) ? "false" : "true", fh);
 	}
 	for (i = 0; i < n->line.nm && len < (int)cap - 200; i++) {
 		lw_member *m = &n->line.m[i];

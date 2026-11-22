@@ -56,6 +56,7 @@ check: all lint
 	sh tests/evictsync.sh
 	sh tests/pairauto.sh
 	sh tests/portlost.sh
+	sh tests/linerace.sh
 	sh tests/presence.sh
 	sh tests/ipv6.sh
 	sh tests/panel.sh
@@ -130,9 +131,10 @@ install: all
 	for s in 1 5 7; do for p in man/*.$$s; do \
 		gzip -9n < $$p > $(DESTDIR)$(PREFIX)/share/man/man$$s/$$(basename $$p).gz && chmod 644 $(DESTDIR)$(PREFIX)/share/man/man$$s/$$(basename $$p).gz; done; done
 
-# Packages, into build/pkg: the deb first, and the rpm and the pacman package from the deb's own files.
+# Packages, into build/pkg: the deb first, built in Debian 12 so that it needs no newer glibc than that (BUG-14), and the rpm and the pacman
+# package from the deb's own files.
 packages: all
-	sh packaging/deb/build-deb.sh $(B)/pkg
+	sh packaging/deb/build-bookworm.sh $(B)/pkg
 	sh packaging/rpm/build-rpm.sh $(B)/pkg/longwire_$(VERSION)-$(or $(DEB_REVISION),1)_$$(dpkg --print-architecture).deb $(B)/pkg
 	sh packaging/arch/build-pkg.sh $(B)/pkg/longwire_$(VERSION)-$(or $(DEB_REVISION),1)_$$(dpkg --print-architecture).deb $(B)/pkg
 

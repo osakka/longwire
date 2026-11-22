@@ -68,9 +68,10 @@ echo 'ARGS="--switchboard HOST:PORT/KEY --answer known"' | please tee /etc/longw
 please systemctl enable --now longwire@eth0       # the node, splicing eth0
 ```
 
-`make packages` builds all three into `build/pkg`: the deb first (`packaging/deb/build-deb.sh`, from `make install` into a
-staging directory), then the rpm and the pacman package from the deb's own files (`packaging/rpm/build-rpm.sh`,
-`packaging/arch/build-pkg.sh`), so they cannot differ in what they hold. It needs `dpkg-deb`, `fakeroot`, `rpmbuild` and
+`make packages` builds all three into `build/pkg`: the deb first, in Debian 12 (`packaging/deb/build-bookworm.sh` runs
+`packaging/deb/build-deb.sh`, from `make install` into a staging directory, in a rootless podman build of `packaging/deb/Containerfile.bookworm`,
+so that the package needs no newer glibc than Debian 12's 2.36 whatever machine builds it; `build-deb.sh` refuses a binary that needs more), then the rpm and the pacman package from the deb's own files (`packaging/rpm/build-rpm.sh`,
+`packaging/arch/build-pkg.sh`), so they cannot differ in what they hold. It needs `podman`, `dpkg-deb`, `fakeroot`, `rpmbuild` and
 `makepkg`, and no root; the module itself is built with TCC. `tests/pkg.sh` builds them and checks them. A package depends on
 hibr at `HIBR_MIN` (the oldest release the suite has been run against), and its version is `VERSION`. The reasoning is in
 [ADR 0013](adr/0013-packages-for-the-module-the-catalogue-for-the-scripts.md) and
@@ -94,7 +95,7 @@ node: it never reaches a key ([ADR 0032](adr/0032-the-services-share-their-contr
 The scripts declare what they need in their headers, so the catalogue checks before it fetches:
 
 ```sh
-app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.80
+app longwire "One long wire between your sites: dial a number, share a LAN" 0.5.81
 # modules: longwire
 ```
 

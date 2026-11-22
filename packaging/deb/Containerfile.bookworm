@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The environment longwire's packages are built in: Debian 12, so the module and lw-dhcp link against glibc 2.36 and run on every Debian
+# and Ubuntu hibr-apt serves (BUG-14). Built on a newer host, glibc's headers send sscanf and strtoul to their C23 versions
+# (__isoc23_*, GLIBC_2.38), and the package then needs glibc 2.38: 0.5.79 and 0.5.80 shipped so.
+FROM docker.io/library/debian:bookworm
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tcc libc6-dev make dpkg-dev fakeroot binutils file gzip ca-certificates \
+ && rm -rf /var/lib/apt/lists/*

@@ -123,6 +123,7 @@ typedef struct lw_peer {
 	double   rev_next;		/* when to tell this peer again what the operator has revoked (0: not on the line) */
 	int      lh_sent, lh_got, lh_has, linked;	/* the line handshake with this peer */
 	int      lh_yield;			/* we told it we will leave our line for its line (ADR 0105) */
+	double   lh_t;				/* when we sent it our line hello */
 	int      site_role;			/* a box of a pair: 1 active, 2 standby, as it last said (ADR 0111) */
 	double   site_seen;
 	uint8_t  lh_id[8];
@@ -208,6 +209,7 @@ typedef struct lw_line {
 	int      have;
 	uint8_t  id[8], founder[32], key[32], prev_key[32];
 	double   key_t;			/* when the key last changed: the grace window for the old one */
+	uint64_t key_gen;		/* when the key was made (wall clock, ms): the newest key wins among members (ADR 0113) */
 	uint8_t  authority[32];		/* the operator's public key; all zero on a line members run among themselves */
 	int      managed;
 	uint8_t  rev[REV_MAX][EVICT_LEN];	/* the operator's evictions, as signed; each is kept while it can still matter (docs/adr/0065) */

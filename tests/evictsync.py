@@ -37,31 +37,38 @@ def main():
     def up(x):
         return sorted(p["number"] for p in x.status()["peers"] if p["state"] == "up")
 
+    def fp(x):
+        return x.status()["line"]["key_fp"]
+
     A = node("A", 4001, "known")
     na = until(lambda: A.status()["number"], 20)
     B = node("B", 4002, "known")
     nb = until(lambda: B.status()["number"], 20)
+    C = node("C", 4004, "known")
+    nc = until(lambda: C.status()["number"], 20)
     D = node("D", 4003, "ask")
     nd = until(lambda: D.status()["number"], 20)
-    for X, nx in ((A, na), (B, nb)):
+    for X, nx in ((A, na), (B, nb), (C, nc)):
         mk = X.w.mark()
         D.cmd("dial", nx)
         X.w.wait("ring", 20, after=mk)
         X.cmd("pickup")
-        until(lambda: D.status().get("line") and D.status()["line"]["id"] == X.status()["line"]["id"], 30)	# on the line before the next dial: two dials at once make two lines (BUG-13)
-    check(until(lambda: len(up(D)) == 2 and len(up(A)) == 2 and len(up(B)) == 2, 180) is not None, f"three members, all in touch: D {up(D)} A {up(A)} B {up(B)}")
+        until(lambda: D.status().get("line") and D.status()["line"]["id"] == X.status()["line"]["id"], 30)
+    check(until(lambda: all(len(up(X)) == 3 for X in (A, B, C, D)), 180) is not None, f"four members, all in touch")
+    check(until(lambda: len({fp(X) for X in (A, B, C, D)}) == 1, 30) is not None, f"all hold one line key: {[fp(X) for X in (A, B, C, D)]}")
 
-    # the desktop is away while B is evicted
+    # the desktop is away while C is evicted on B: the key changes on those in touch
     D.stop()
     until(lambda: D.proc.poll() is not None, 20)
-    check(until(lambda: nd not in up(A), 90) is not None, "the desktop is away")
-    rc, out = A.cmd("evict", nb)
-    check(rc == 0, f"A evicts B: {out}")
-    check(until(lambda: nb not in A.cmd("peers")[1], 10) is not None, "B is off A's record")
-    check(nb in open(f"{T}/D/lw/lines").read().replace("-", "") or nb.replace("-", "") in open(f"{T}/D/lw/lines").read(), "the desktop, away, still has B on its record")
+    check(until(lambda: nd not in up(A) and nd not in up(B), 90) is not None, "the desktop is away")
+    old = fp(A)
+    rc, out = B.cmd("evict", nc)
+    check(rc == 0 and until(lambda: fp(A) == fp(B) != old, 20) is not None, f"B evicts C: A and B take a new key ({fp(A)} {fp(B)}, was {old})")
     D = node("D", 4003, "ask")
-    check(until(lambda: na in up(D), 90) is not None, f"the desktop comes back and is in touch with A: {up(D)}")
-    check(until(lambda: nb.replace("-", "") not in D.cmd("peers")[1].replace("-", ""), 30) is not None, f"and takes B off its record by itself: {D.cmd('peers')[1][:300]}")
+    check(until(lambda: na in up(D) and nb in up(D), 180) is not None, f"the desktop comes back, in touch with A and B: {up(D)}")
+    check(until(lambda: nc.replace("-", "") not in D.cmd("peers")[1].replace("-", ""), 30) is not None, "it takes C off its record by itself")
+    same = until(lambda: fp(A) == fp(B) == fp(D) and fp(A), 30)
+    check(same is not None, f"and A, B and the desktop end with one key, the newest: {[fp(X) for X in (A, B, D)]}")
     L.finish("evictsync")
 
 
