@@ -11,6 +11,7 @@ Cleaning up after the owner's boxes moved to a new host:
 - **`--pair NUMBER`: two headless boxes pair by themselves** ([ADR 0109](docs/adr/0109-two-boxes-named-to-each-other-pair-by-themselves.md)). Test `pairauto`.
 - **An eviction reaches the members that were away** ([ADR 0110](docs/adr/0110-an-eviction-reaches-the-members-that-were-away.md)). Test `evictsync`.
 - **A member sees a pair as one** ([ADR 0111](docs/adr/0111-a-member-sees-a-pair-as-one.md)): each box says whether it is active or standby; `longwire show` prints the pair in one line, the Control Panel shows each box's role. Dialling either box is enough.
+- **A box whose card is gone ends** instead of spinning at 85% of a core (`port-lost`; its service starts it again: [ADR 0112](docs/adr/0112-a-box-whose-card-is-gone-ends.md)). Test `portlost`.
 - **`longwire-switchboard release NUMBER`** ([ADR 0106](docs/adr/0106-the-operator-releases-a-number.md)). Test `sbrelease`.
 
 ## 0.5.79

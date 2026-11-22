@@ -433,6 +433,12 @@ int lw_node_serve(lw_node *n)
 		if (poll(pf, (nfds_t)nf, poll_ms(n)) < 0 && errno != EINTR)
 			break;
 		n->now = lw_now();
+		if (pf[1].fd >= 0 && (pf[1].revents & (POLLERR | POLLHUP | POLLNVAL)) && !(pf[1].revents & POLLIN)) {
+			/* the LAN card (or the jack) is gone: a socket on a device that no longer exists reports an error at every poll, and a node that only waited for
+			 * input spun on it. The node has given up the privilege to open it again, so it ends, saying why; its service starts it again (ADR 0112). */
+			ev_emit(n, "{\"event\":\"port-lost\",\"port\":\"%s\"}", n->cfg.port_arg);
+			break;
+		}
 		jnets_fresh(n);				/* the jack's networks, once a second (under.c) */
 		/* the LAN first: a frame is on the LAN before its copy has been carried over the line and back, and a box that hears the copy first would put on the LAN what is already there (sw.c: seen_before) */
 		if (pf[1].revents & POLLIN)

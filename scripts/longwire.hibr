@@ -147,6 +147,7 @@ announce() {
 	                       [ "${e[known]}" = true ] || say "   first call from this number"; fi ;;
 	found)            [ "${e[directory]}" = true ] || say "·  this switchboard has no directory" ;;
 	line-joined)      say "·  on line ${e[line]} with ${e[members]} members" ;;
+	port-lost)        say "✗  ${e[port]} is gone: the node ends here, and its service starts it again (a card unplugged, or a container's link removed)" ;;
 	member-joined)    say "·  ${e[number]} joined the line" ;;
 	member-left)      say "·  ${e[number]} left the line" ;;
 	member-expired)   say "·  ${e[number]}'s admit has ended: it is off the line until its operator gives it a new one" ;;

@@ -120,6 +120,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0109](0109-two-boxes-named-to-each-other-pair-by-themselves.md) | Two boxes named to each other pair by themselves | accepted |
 | [0110](0110-an-eviction-reaches-the-members-that-were-away.md) | An eviction reaches the members that were away | accepted |
 | [0111](0111-a-member-sees-a-pair-as-one.md) | A member sees a pair as one | accepted |
+| [0112](0112-a-box-whose-card-is-gone-ends.md) | A box whose card is gone ends | accepted |
 
 ---
 

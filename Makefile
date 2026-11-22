@@ -55,6 +55,7 @@ check: all lint
 	sh tests/admitheal.sh
 	sh tests/evictsync.sh
 	sh tests/pairauto.sh
+	sh tests/portlost.sh
 	sh tests/presence.sh
 	sh tests/ipv6.sh
 	sh tests/panel.sh
