@@ -2252,7 +2252,7 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 		addr_str(&p->ep, ep, sizeof ep);
 		len += snprintf(o + len, cap - (size_t)len,
 			"%s{\"key_id\":\"%s\",\"number\":\"%s\",\"state\":\"%s\",\"path\":\"%s\",\"ep\":\"%s\",\"age\":%d,"
-			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu,\"phrase\":\"%s\",\"sas\":\"%s\",\"mesh\":%s,\"exit\":%s}",
+			"\"rx_frames\":%llu,\"tx_frames\":%llu,\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rekeys\":%llu,\"drop_auth\":%llu,\"drop_replay\":%llu,\"phrase\":\"%s\",\"sas\":\"%s\",\"mesh\":%s,\"exit\":%s,\"site\":\"%s\"}",
 			any ? "," : "", kid, f, sess_state(p), p->relayed ? "relay" : "direct", ep,
 			p->cur.valid ? (int)(n->now - p->cur.born) : -1,
 			(unsigned long long)p->rx_frames, (unsigned long long)p->tx_frames,
@@ -2261,7 +2261,8 @@ int node_status_json(lw_node *n, char *o, size_t cap)
 			(unsigned long long)p->drop_replay, p->sas.mode == 1 && p->sas.state == 1 ? p->sas.words : "",
 			p->sas.mode == 1 ? (p->sas.state == 1 ? "agreed" : "pending") : "none",	/* "none": a peer named by its bundle, with no switchboard call (docs/adr/0057) */
 			peer_mesh(n, p) ? "true" : "false",
-			p->exit_seen > 0 && n->now - p->exit_seen <= EXIT_STALE ? "true" : "false");
+			p->exit_seen > 0 && n->now - p->exit_seen <= EXIT_STALE ? "true" : "false",
+			p->site_role && n->now - p->site_seen <= 15.0 ? (p->site_role == 1 ? "active" : "standby") : "");
 		any = 1;
 	}
 	len = lw_app(o, cap, len, "],\"calls\":[");

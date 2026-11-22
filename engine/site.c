@@ -209,7 +209,7 @@ void site_timers(lw_node *n)
  * client, and whichever of them is active carries the lease (docs/adr/0083). Said every 5 s, and only by a box that has heard another. */
 static void site_vouch_send(lw_node *n)
 {
-	uint8_t b[1 + 8 * 32];
+	uint8_t b[1 + 8 * 32 + 1];
 	int i, c = 0;
 
 	for (i = 0; i < SITE_MEMBERS && c < 8; i++)
@@ -220,9 +220,10 @@ static void site_vouch_send(lw_node *n)
 	if (!c)
 		return;
 	b[0] = (uint8_t)c;
+	b[1 + 32 * c] = n->standby ? 2 : 1;	/* and which of the pair this box is, for the member's display (ADR 0111) */
 	for (i = 0; i < n->maxpeers; i++)
 		if (n->peers[i].used && !n->peers[i].is_sb && n->peers[i].cur.valid)
-			ctl_msg_send(n, &n->peers[i], M_SITE, b, 1 + 32 * (size_t)c);
+			ctl_msg_send(n, &n->peers[i], M_SITE, b, 2 + 32 * (size_t)c);
 }
 
 /* What a member we asked for says is on its own segment: remembered, for as long as this node runs, so that when it goes the other box may still answer. Only a member we asked for is believed. */
@@ -230,7 +231,11 @@ void site_vouch(lw_node *n, lw_peer *p, const uint8_t *pl, size_t len)
 {
 	int c, j;
 
-	if (len < 1 || pl[0] > 8 || len != 1 + 32 * (size_t)pl[0] || !peer_asked(n, p))
+	if (len < 1 || pl[0] > 8 || len != 2 + 32 * (size_t)pl[0] || (pl[len - 1] != 1 && pl[len - 1] != 2))
+		return;
+	p->site_role = pl[len - 1];		/* what the box says it is, shown, never acted on (ADR 0111) */
+	p->site_seen = n->now;
+	if (!peer_asked(n, p))
 		return;
 	for (c = 0; c < pl[0]; c++) {
 		const uint8_t *k = pl + 1 + 32 * c;

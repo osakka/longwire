@@ -164,7 +164,7 @@ Two splice boxes on **one LAN segment** make one site: they elect one to forward
 4. **Check both**: `longwire status` shows `"site":"active"` on one (the lower key id) and `"standby"` on the other, `"site_members":1` on each. The Switchboard window lists the two together. `drop_echo` and `drop_ctrl` stay near 0; a `loop-guard` event means the election was not working.
 5. **Clients**: use 0.5.68 or later everywhere (a client takes its DHCP lease from whichever box is active, which it learns from the box it dialled), and give a phone **both numbers** (*Numbers to dial, in order*, [ANDROID](ANDROID.md)).
 
-The two boxes are two numbers; nothing makes them one number. A member of the line (a phone, a laptop) holds a session with both, so it needs no action when the active box fails.
+The two boxes are two numbers (a number is one key); a member shows them as one pair, with each box's role (`longwire show`: `pair  … active · … standby`, [ADR 0111](adr/0111-a-member-sees-a-pair-as-one.md)), and dialling either is enough. A member of the line (a phone, a laptop) holds a session with both, so it needs no action when the active box fails.
 
 ## Retiring a box
 

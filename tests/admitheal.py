@@ -18,6 +18,7 @@ def until(fn, timeout=20, step=0.5):
     return None
 
 
+# The mesh calls a member it lacks after 8, 16 and 32 s, then 60 more (line.c mesh_wait): two members can take two minutes to meet when calls are missed under load.
 def main():
     print(f"-- a member whose admit went wrong is let in and gets a new one  (workdir {T})", flush=True)
     sh("ip link set lo up")
@@ -53,7 +54,7 @@ def main():
     D.cmd("dial", nb)
     B.w.wait("ring", 20, after=mk)
     B.cmd("pickup")
-    check(until(lambda: len(up(D)) == 2 and len(up(A)) == 2 and len(up(B)) == 2, 90) is not None, f"three members, all in touch: D {up(D)} A {up(A)} B {up(B)}")
+    check(until(lambda: len(up(D)) == 2 and len(up(A)) == 2 and len(up(B)) == 2, 180) is not None, f"three members, all in touch: D {up(D)} A {up(A)} B {up(B)}")
     check(admit_of("D").startswith(kd), "the desktop's admit names its own key")
 
     # the desktop's admit goes wrong: it holds one made for another member
@@ -66,7 +67,7 @@ def main():
     check(not admit_of("D").startswith(kd), "its saved admit now names another member")
     mka, mkb = A.w.mark(), B.w.mark()
     D = node("D", 4003, "ask")
-    check(until(lambda: len(up(D)) == 2, 90) is not None, f"restarted, it is in touch with both members by itself, nobody picking up: {up(D)}")
+    check(until(lambda: len(up(D)) == 2, 180) is not None, f"restarted, it is in touch with both members by itself, nobody picking up: {up(D)}")
     rings = [x for x in A.w.events[mka:] + B.w.events[mkb:] if x.get("event") == "ring"]
     check(all(x.get("admit") for x in rings), f"every ring it made was let in by itself: {[(x.get('from'), x.get('admit'), x.get('why')) for x in rings]}")
     rep = D.w.wait("admit-repaired", 30)

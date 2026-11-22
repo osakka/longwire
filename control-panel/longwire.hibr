@@ -500,7 +500,9 @@ fn longwire_rows(int w) {
 		path := lwp_get ".peers[$i].path"
 		age := lwp_get ".peers[$i].age"
 		[ -n "$num" ] || continue
-		lwp_row "$w" "$n" action "$num" "$state, $path${age:+, ${age}s}" "hang:$num"; n=$((n + 1))
+		local role
+		role := lwp_get ".peers[$i].site"	# a box of a pair says which it is (docs/adr/0111)
+		lwp_row "$w" "$n" action "$num" "$state, $path${age:+, ${age}s}${role:+, $role box of the pair}" "hang:$num"; n=$((n + 1))
 		phr := lwp_get ".peers[$i].phrase"
 		if [ -n "$phr" ]; then			# the eight words to compare with the other end, once they are agreed (docs/adr/0040)
 			k := lwp_get ".peers[$i].key_id"

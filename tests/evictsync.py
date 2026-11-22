@@ -19,6 +19,7 @@ def until(fn, timeout=20, step=0.5):
     return None
 
 
+# The mesh calls a member it lacks after 8, 16 and 32 s, then 60 more (line.c mesh_wait): two members can take two minutes to meet when calls are missed under load.
 def main():
     print(f"-- a member whose admit went wrong is let in and gets a new one  (workdir {T})", flush=True)
     sh("ip link set lo up")
@@ -47,7 +48,7 @@ def main():
         D.cmd("dial", nx)
         X.w.wait("ring", 20, after=mk)
         X.cmd("pickup")
-    check(until(lambda: len(up(D)) == 2 and len(up(A)) == 2 and len(up(B)) == 2, 90) is not None, f"three members, all in touch: D {up(D)} A {up(A)} B {up(B)}")
+    check(until(lambda: len(up(D)) == 2 and len(up(A)) == 2 and len(up(B)) == 2, 180) is not None, f"three members, all in touch: D {up(D)} A {up(A)} B {up(B)}")
 
     # the desktop is away while B is evicted
     D.stop()

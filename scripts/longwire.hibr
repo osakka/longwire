@@ -591,7 +591,14 @@ cmd_show() {
 		if [ "$xu" = true ]; then		# through the member that shares its internet (docs/adr/0056)
 			xn := json get S .exit.using
 			xw := json get S .exit.wanted
-			if [ -n "$xn" ]; then
+			local df ds= xr=
+			for df in "${LONGWIRE_RUN:-/run/longwire}"/dhcp-lw*.state; do	# the lease's router is the way out when it names one (docs/adr/0108)
+				[ -r "$df" ] && read -r ds < "$df" 2> /dev/null
+				[[ $ds == bound*" via "* ]] && { xr=${ds##* via }; break; }
+			done
+			if [ -n "$xr" ]; then
+				echo "   way out       the LAN's router $xr (from the lease)"
+			elif [ -n "$xn" ]; then
 				echo "   way out       $xn, which shares its internet"
 			elif [ -n "$xw" ]; then
 				lw_out "   ⚠  way out: $xw is not sharing its internet now, so nothing goes out through the line"
@@ -607,6 +614,14 @@ cmd_show() {
 		esac
 	fi
 	cnt := json len S .peers
+	local pairl= role
+	for ((i = 0; i < ${cnt:-0}; i++)); do	# the boxes of a pair, as they say they are (docs/adr/0111): one line for the pair
+		role := json get S ".peers[$i].site"
+		[ -n "$role" ] || continue
+		num := json get S ".peers[$i].number"
+		pairl="${pairl:+$pairl · }$num $role"
+	done
+	[ -z "$pairl" ] || echo "   pair          $pairl   (one site: if the active box fails, the standby takes over by itself)"
 	for ((i = 0; i < ${cnt:-0}; i++)); do
 		num := json get S ".peers[$i].number"
 		st := json get S ".peers[$i].state"
@@ -616,7 +631,8 @@ cmd_show() {
 		tx := json get S ".peers[$i].tx_bytes"
 		[ -n "$num" ] || continue
 		if [ "$st" = up ]; then
-			echo "   connected     $num  up${path:+ $path}${age:+, $(human_age "${age%.*}")}  in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
+			role := json get S ".peers[$i].site"
+			echo "   connected     $num  up${path:+ $path}${age:+, $(human_age "${age%.*}")}${role:+, $role box of the pair}  in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
 		else			# a peer known to this node with no session now: not a connection, whatever it carried before
 			echo "   not connected $num  ($st: no session now; it comes back by itself when the other end does)  carried in $(human_bytes "${rx:-0}"), out $(human_bytes "${tx:-0}")"
 		fi

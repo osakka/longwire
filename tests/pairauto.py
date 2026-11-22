@@ -90,7 +90,7 @@ def main():
     for i in range(40):
         name = f"v2_{i}"
         L.identity(name)
-        if (kid(name) < k1) == (WANT == "lower"):
+        if kid(name):                  # any order: the pair does not depend on which key is lower
             break
     else:
         print("no identity of the wanted order in 40 tries"); sys.exit(2)
@@ -155,6 +155,22 @@ def main():
     V1 = node("v1", v1, "10.9.0.1", ("--pair", n2))
     roles = until(lambda: sorted([V1.status()["site"], V2.status()["site"]]) == ["active", "standby"] and sorted([V1.status()["site"], V2.status()["site"]]), 120, 1)
     check(roles == ["active", "standby"], f"and pair again after a restart ({roles})")
+
+    # a desktop on the line sees the pair as one, with each box's role (ADR 0111)
+    D = L.Node("d", c, "longwire.hibr", ["up", "--switchboard", f"10.9.0.9:1877/{addr}", "--sock-port", f"{L.T}/d/p:{L.T}/d/h", "--listen", "10.9.0.5:4000", "--keepalive", "3", "--answer", "ask"])
+    until(lambda: D.status()["number"])
+    mk = V1.w.mark()
+    D.cmd("dial", n1)
+    V1.w.wait("ring", 30, after=mk)
+    V1.cmd("pickup")
+    def sites():
+        return sorted((p["number"], p.get("site", "")) for p in D.status()["peers"] if p["state"] == "up")
+    want = sorted([(n1, V1.status()["site"]), (n2, V2.status()["site"])])
+    got = until(lambda: sites() == want and sites(), 90, 1)
+    check(got == want, f"the desktop has both boxes, each with its role: {sites()} (want {want})")
+    rc, out = D.cmd("show")
+    pl = [l for l in out.splitlines() if l.strip().startswith("pair")]
+    check(len(pl) == 1 and "active" in pl[0] and "standby" in pl[0] and n1 in pl[0] and n2 in pl[0], f"and longwire show says it in one line: {pl}")
     L.finish("pairauto")
 
 

@@ -123,6 +123,8 @@ typedef struct lw_peer {
 	double   rev_next;		/* when to tell this peer again what the operator has revoked (0: not on the line) */
 	int      lh_sent, lh_got, lh_has, linked;	/* the line handshake with this peer */
 	int      lh_yield;			/* we told it we will leave our line for its line (ADR 0105) */
+	int      site_role;			/* a box of a pair: 1 active, 2 standby, as it last said (ADR 0111) */
+	double   site_seen;
 	uint8_t  lh_id[8];
 	int      sfd;			/* a socket of its own, if a path was found by spraying (0: the node's) */
 	uint64_t rx_frames, tx_frames, rx_bytes, tx_bytes;
