@@ -600,16 +600,22 @@ int main(int argc, char **argv)
 
 		/* a line key from a member that has not shown its admit is not taken */
 		{
-			uint8_t lk[40], was[32];
+			uint8_t lk[48], was[32];
 
 			memcpy(was, n->line.key, 32);
 			memcpy(lk, ids, 8);
 			memset(lk + 8, 0x77, 32);
-			node_msg(n, pq, M_LINEKEY, lk, 40);
+			memset(lk + 40, 0, 8);
+			lk[47] = 1;			/* made later than the line's own key (ADR 0113): little-endian, a very large time */
+			node_msg(n, pq, M_LINEKEY, lk, 48);
 			check(!memcmp(n->line.key, was, 32), "a line key from a member that has not shown an admit is not taken");
 			pq->admit_by = 0;
-			node_msg(n, pq, M_LINEKEY, lk, 40);
+			node_msg(n, pq, M_LINEKEY, lk, 48);
 			check(n->line.key[0] == 0x77 && memcmp(n->line.key, was, 32), "...and is, from one that has");
+			memset(lk + 8, 0x66, 32);
+			memset(lk + 40, 0, 8);
+			node_msg(n, pq, M_LINEKEY, lk, 48);
+			check(n->line.key[0] == 0x77, "...but not one made earlier than the key it holds (the newest key wins)");
 		}
 
 		/* the operator revoked the founder, then rolled: the revocation of the founder is kept, any other that old is not */
