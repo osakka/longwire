@@ -9,6 +9,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 - **The newest line key wins**: an eviction's new key reached only the members in touch; the owner's two boxes, on one line, held different keys, so they could not hear each other on their segment and the Switchboard window drew no line between them. Members now tell each other their key (with when it was made) at every link, and pass a newer one on. `longwire peers` shows `key_fp`, a one-way fingerprint, equal on members that agree.
 - **Two dials at once end on one line** (BUG-13): a node holds its other line handshakes until the first line has come. Test `linerace` (the first box behind a slow link; 0.5.80 ends on two lines).
 
+**The Control Strip module's width is written out** (for hibr's ADR 0050: the desktop reads a module's registration as data): one cell, and the drawing asks for two with `cs_modwidth` where the glyph set draws the telephone in two, so a glyph-set change resizes it; needs hibr 0.99.555.
+
 **The packages install on Debian 12 again** (BUG-14): the deb is built in Debian 12 (`packaging/deb/build-bookworm.sh`, rootless podman), so it needs glibc 2.34, not 2.38; the build refuses a binary that needs more than 2.36, and the libc dependency covers lw-dhcp as well as the module.
 
 ## 0.5.80
