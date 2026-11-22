@@ -4,7 +4,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <policyconfig>
   <vendor>longwire</vendor>
-  <vendor_url>https://git.home.arpa/itdlabs/longwire</vendor_url>
+  <vendor_url>https://github.com/osakka/longwire</vendor_url>
   <action id="org.longwire.jack">
     <description>Set up the network device longwire uses on this computer (its address and routes)</description>
     <message>Authentication is required to set up longwire's network device</message>

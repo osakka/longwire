@@ -4,7 +4,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <policyconfig>
   <vendor>longwire</vendor>
-  <vendor_url>https://git.home.arpa/itdlabs/longwire</vendor_url>
+  <vendor_url>https://github.com/osakka/longwire</vendor_url>
   <action id="org.longwire.site">
     <description>Make this computer a longwire site node for a network card</description>
     <message>Authentication is required to start a longwire site node (a service that bridges a network card)</message>

@@ -7,8 +7,9 @@ every statement below is in [PROTOCOL](PROTOCOL.md), [CRYPTO](CRYPTO.md), [SWITC
 ## Before submitting
 
 1. **The assignee and the contact** are the owner's to give (name and e-mail for each): they are left as placeholders below. The assignee is the person or organization responsible for the assignment; the contact may change it afterwards.
-2. **A public document.** IANA reads the *Reference* field; it also expects the protocol described in a document the public can read. The specification is in this repository, which is not public; publish [PROTOCOL](PROTOCOL.md) and [CRYPTO](CRYPTO.md) (and
-   [SWITCHBOARD](SWITCHBOARD.md)) at a stable address, and put it in the Reference field as well as the description below.
+2. **A public document.** IANA reads the *Reference* field; it also expects the protocol described in a document the public can read. This repository is public and mirrored at <https://github.com/osakka/longwire>, so the
+   specification has stable addresses: <https://github.com/osakka/longwire/blob/main/docs/PROTOCOL.md>, [.../CRYPTO.md](https://github.com/osakka/longwire/blob/main/docs/CRYPTO.md) and
+   [.../SWITCHBOARD.md](https://github.com/osakka/longwire/blob/main/docs/SWITCHBOARD.md). Put them in the Reference field as well as the description below.
 3. **The number.** The registry (downloaded 2026-11-20, last modified that day) has **no entry for UDP or TCP 6741, none for 9488, and none named `longwire`**, so the number the switchboard has used as its default all along is free to ask for. IANA decides, and says an unassigned number must not be
    used on the public Internet before assignment: if it assigns a different one, the default changes (ticket LW-15 in the [BACKLOG](BACKLOG.md)). Review is by Expert Review and "may take up to 1-2 months".
 4. **One port.** IANA wants at most one assigned port per service. A switchboard also answers on a second port, its own plus 2747 (9488 for 6741), so that a node can tell how its NAT maps ports ([PROTOCOL §6](PROTOCOL.md)); that port is **derived by a fixed offset and is not asked for**. If IANA's
@@ -28,7 +29,7 @@ every statement below is in [PROTOCOL](PROTOCOL.md), [CRYPTO](CRYPTO.md), [SWITC
 | Service Name | `longwire` (8 characters; letters only; it contains neither "service" nor "protocol") |
 | Desired Port Number | `6741` (IANA's choice if it is unsuitable) |
 | Description | `Rendezvous for longwire nodes: registers a node under a number, keeps its presence, and introduces two nodes to each other before they exchange encrypted Ethernet frames directly.` |
-| Reference | the text under **Reference** below, and the public address of the specification |
+| Reference | the text under **Reference** below, and the public address of the specification: <https://github.com/osakka/longwire/blob/main/docs/PROTOCOL.md> |
 | Defined TXT keys | *none* (the name is not used for DNS-SD) |
 
 ## The usage questions

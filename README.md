@@ -113,6 +113,10 @@ The releases are 0.5.x; the [CHANGELOG](CHANGELOG.md) says what each carried and
 make && make check
 ```
 
+## Source
+
+The repository is public: <https://git.uk.home.arpa/itdlabs/longwire> on the site's own forge, mirrored to <https://github.com/osakka/longwire>.
+
 ## License
 
 GPL-3.0-or-later. See [COPYING](COPYING).
