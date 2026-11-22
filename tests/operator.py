@@ -113,6 +113,9 @@ def main():
     # now and then in a full run, on a loaded machine, for that reason)
     check(until(lambda: F.status().get("switchboard") == "dial tone", 60) is not None, "the founder is back on the switchboard before the evicted node rings it")
     check(F.w.up.wait(60), "and the test is reading the founder's events")
+    # the founder, back before it heard of the eviction, may have called A as a member; that call ends when the eviction reaches it, and until then A's own
+    # dial is turned down at A ("already connected") before F could refuse it (a full run on a loaded machine failed so)
+    check(until(lambda: not any(p["number"] == nums["F"] and p["state"] == "up" for p in A.status()["peers"]), 60) is not None, "A has no session with the founder before it rings")
     mk = F.w.mark()
     A2 = A.cmd("dial", nums["F"])
     e = F.w.wait("call-failed", 20, after=mk)
