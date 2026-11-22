@@ -201,7 +201,7 @@ int main(int argc, char **argv)
 
 	/* a pair of boxes is one site: the member we asked for says who is on its own segment, and they may answer DHCP for us too */
 	{
-		uint8_t mate[32], vouch[1 + 32], stranger[32];
+		uint8_t mate[32], vouch[1 + 32 + 1], stranger[32];
 		int d;
 
 		n->cfg.dhcp_guard = 1;
@@ -216,6 +216,7 @@ int main(int argc, char **argv)
 		n->peers[3].cur.valid = 1;
 		vouch[0] = 1;
 		memcpy(vouch + 1, mate, 32);
+		vouch[33] = 1;					/* and which of the pair it is: active (ADR 0111) */
 		n->peers[1].asked = 0;
 		n->peers[1].number[0] = 0;
 		site_vouch(n, &n->peers[1], vouch, sizeof vouch);			/* from a member we did not ask for: not believed */
