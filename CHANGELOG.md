@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.80
 
+Published: hibr-apps 4eeb55b, hibr-apt 557280d, hibr-rpm 2d3be12, hibr-arch 53fb260.
+
 Cleaning up after the owner's boxes moved to a new host:
 - **A member on the line's own record is let in by itself, and its admit is repaired** ([ADR 0107](docs/adr/0107-a-member-on-the-record-is-let-in-and-its-admit-repaired.md)): the desktop's calls were refused with "the admit is for another node"; a member that has it on record now lets it in and makes it a new admit (`admit-repaired`, `by`). Test `admitheal` (it fails on 0.5.79 with the owner's message).
 - **Everything through the line goes out by the lease's router** ([ADR 0108](docs/adr/0108-everything-through-the-line-goes-out-by-the-lease-router.md)): with `--everything --dhcp` and no `--via`, `lw-dhcp --table` points the jack's table at the lease's router (state `bound ADDR via ROUTER`; the Control Panel's Way out names it), and back to the member that shares when the lease is gone. Test `dhcpnet` extended.
