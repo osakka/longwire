@@ -48,6 +48,7 @@ def main():
         D.cmd("dial", nx)
         X.w.wait("ring", 20, after=mk)
         X.cmd("pickup")
+        until(lambda: D.status().get("line") and D.status()["line"]["id"] == X.status()["line"]["id"], 30)	# on the line before the next dial: two dials at once make two lines (BUG-13)
     check(until(lambda: len(up(D)) == 2 and len(up(A)) == 2 and len(up(B)) == 2, 180) is not None, f"three members, all in touch: D {up(D)} A {up(A)} B {up(B)}")
 
     # the desktop is away while B is evicted

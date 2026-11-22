@@ -50,6 +50,7 @@ def main():
     D.cmd("dial", na)
     A.w.wait("ring", 20, after=mk)
     A.cmd("pickup")
+    until(lambda: D.status().get("line") and A.status().get("line") and D.status()["line"]["id"] == A.status()["line"]["id"], 30)	# on A's line before the next dial: two dials at once make two lines (BUG-13)
     mk = B.w.mark()
     D.cmd("dial", nb)
     B.w.wait("ring", 20, after=mk)
