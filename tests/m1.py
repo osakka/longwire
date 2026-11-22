@@ -87,7 +87,6 @@ def main():
     D = node("D", nsA, "10.0.1.2", 4003, "tokD", "auto")
     E = node("E", nsB, "10.0.2.2", 4005, "tokE", "auto")
     C = node("C", nsA, "10.0.1.2", 4004, "tokA", "auto")        # tokA was spent by A: must be refused
-    F = node("F", nsA, "10.0.1.2", 4006, "tokF", "auto")        # tokF reserves B's number, which B already holds
 
     def registered(n, timeout=45):
         end = time.time() + timeout
@@ -98,6 +97,9 @@ def main():
             except Exception: pass
             time.sleep(0.2)
     ra, rb, rd, re_ = registered(A), registered(B), registered(D), registered(E)
+    # F only now: tokF reserves the number tokB reserves, and the first to register takes it. Started with the others, F won one run in five, and B was
+    # (rightly) refused: the test's order, not the switchboard's
+    F = node("F", nsA, "10.0.1.2", 4006, "tokF", "auto")        # tokF reserves B's number, which B already holds
     check(bool(ra and rb and rd and re_), "A, B, D and E register through the switchboard's script policy")
     check(rb is not None and rb["number"] == fmt(num_b), f"a token can reserve a number: B got {rb and rb['number']} (wanted {fmt(num_b)})")
     rc = C.w.wait("register-refused")
