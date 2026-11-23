@@ -42,6 +42,7 @@ fn panel_goto(...a) { return 0; }
 fn dt_panelpane(p) { printf 'PANE %%s\n' "$p" >> "$LOG"; }
 fn dt_context_open(who, id, int r, int c) { printf 'CTX %%s %%s %%s\n' "$who" "$r" "$c" >> "$LOG"; }
 fn cs_module(...a) { echo "CSMOD ${a[*]}"; return 0; }
+fn cs_modwidth(...a) { echo "CSMODW ${a[*]}"; return 0; }
 fn console(...a) { printf 'CONSOLE %%s\n' "${a[*]}" >> "$LOG"; }
 fn cp_pane(...a) { return 0; }
 . %(pane)s
@@ -147,10 +148,13 @@ def main():
     check("BARITEM lwb|\U00100030" in log, "classic without the two-cell glyphs: the one-cell classic one, as before")
     log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + wide + "lwstrip_draw 1 4")
     check(any(l.startswith("CONSOLE put 1 4 \U001002EC\U001002ED") for l in log), f"the strip draws the two-cell one too: {log}")
+    # the registration is written out, one cell, so the desktop can read it without running the file (hibr ADR 0050); the drawing asks for two
     log, r = drive(dict(nobody), "true", pre=wide)
-    check("CSMOD lwstrip Longwire 2" in r.stdout, f"the strip module is two cells wide where the glyph set has the two-cell telephone: {r.stdout.strip()}")
-    log, r = drive(dict(nobody), "true")
-    check("CSMOD lwstrip Longwire 1" in r.stdout, f"and one cell wide where it has not: {r.stdout.strip()}")
+    check("CSMOD lwstrip Longwire 1" in r.stdout, f"the strip module registers one cell, written out, whatever the glyph set: {r.stdout.strip()}")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + wide + "lwstrip_draw 1 4")
+    check("CSMODW lwstrip 2" in r.stdout, f"where the glyph set has the two-cell telephone, its drawing asks for two cells (cs_modwidth): {r.stdout.strip()}")
+    log, r = drive(dict(nobody, DT_LWSTYLE="classic"), base + classic + "lwstrip_draw 1 4")
+    check("CSMODW lwstrip 2" not in r.stdout, f"and where it has not, it does not ask for two (the stub keeps no CS_MODS, so it may restate one): {r.stdout.strip()}")
 
     # a profile exists: the menu offers Turn On
     envP = dict(nobody, HOME=f"{T}/withprofile", XDG_CONFIG_HOME=f"{T}/withprofile/cfg", LW_SOCK=f"{T}/none2.sock", LW_DIR=f"{T}/withprofile/lw",
