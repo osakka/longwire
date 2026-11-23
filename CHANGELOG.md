@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.81
 
+Published: hibr-apps b117dad, hibr-apt 7b44b60, hibr-rpm 0b01317, hibr-arch 55e4a52.
+
 **One line and one key, whatever the timing** ([ADR 0113](docs/adr/0113-one-line-and-one-key-whatever-the-timing.md)):
 - **The newest line key wins**: an eviction's new key reached only the members in touch; the owner's two boxes, on one line, held different keys, so they could not hear each other on their segment and the Switchboard window drew no line between them. Members now tell each other their key (with when it was made) at every link, and pass a newer one on. `longwire peers` shows `key_fp`, a one-way fingerprint, equal on members that agree.
 - **Two dials at once end on one line** (BUG-13): a node holds its other line handshakes until the first line has come. Test `linerace` (the first box behind a slow link; 0.5.80 ends on two lines).
