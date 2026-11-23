@@ -399,6 +399,7 @@ struct lw_node {
 	int      have_site_key, standby, gratuitous;
 	struct { uint8_t key_id[32]; double seen; int used; } site[SITE_MEMBERS];
 	double   site_probe_t, site_since, site_sync_t, site_sync_sent;
+	int      site_said;		/* the role last said in an event: 0 none yet, 1 active, 2 standby (ADR 0114) */
 	uint8_t  site_sync[64][6];	/* remote hosts the active box knows, so a standby can announce them when it takes over */
 	int      site_sync_n;
 	/* events and control */

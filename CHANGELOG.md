@@ -3,6 +3,10 @@
 What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md). `git log` is the full history.
 
+## 0.5.82 (unreleased)
+
+**A box says its role from the start** ([ADR 0114](docs/adr/0114-a-box-says-its-role-from-the-start.md)): the standby of a pair said nothing until it had once been active (the owner's vpn-1 on 0.5.81); now each box says active or standby once it has listened, and at every change.
+
 ## 0.5.81
 
 Published: hibr-apps b117dad, hibr-apt 7b44b60, hibr-rpm 0b01317, hibr-arch 55e4a52.

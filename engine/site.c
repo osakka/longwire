@@ -200,9 +200,11 @@ void site_timers(lw_node *n)
 			}
 		}
 		sw_gratuitous(n);
-		ev_emit(n, "{\"event\":\"site\",\"role\":\"active\",\"members\":%d}", site_members(n) + 1);
-	} else if (!was && n->standby)
-		ev_emit(n, "{\"event\":\"site\",\"role\":\"standby\",\"members\":%d}", site_members(n) + 1);
+	}
+	if (n->site_said != (n->standby ? 2 : 1)) {	/* the role once the box has listened, and every change after: a box that starts as the standby says so too (ADR 0114) */
+		n->site_said = n->standby ? 2 : 1;
+		ev_emit(n, "{\"event\":\"site\",\"role\":\"%s\",\"members\":%d}", n->standby ? "standby" : "active", site_members(n) + 1);
+	}
 }
 
 /* The boxes on this one's own LAN segment, said to the members it is linked to, so that one that dialled this box lets them answer DHCP for it as well: a pair of boxes on one segment is one site to a

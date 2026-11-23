@@ -122,6 +122,7 @@ yet carries the same `*(planned: M3)*` marker as the rest of the documentation.
 | [0111](0111-a-member-sees-a-pair-as-one.md) | A member sees a pair as one | accepted |
 | [0112](0112-a-box-whose-card-is-gone-ends.md) | A box whose card is gone ends | accepted |
 | [0113](0113-one-line-and-one-key-whatever-the-timing.md) | One line and one key, whatever the timing | accepted |
+| [0114](0114-a-box-says-its-role-from-the-start.md) | A box says its role from the start | accepted |
 
 ---
 

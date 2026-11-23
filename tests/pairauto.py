@@ -150,6 +150,8 @@ def main():
     roles = until(lambda: sorted([V1.status()["site"], V2.status()["site"]]) == ["active", "standby"] and sorted([V1.status()["site"], V2.status()["site"]]), 120, 1)
     check(roles == ["active", "standby"], f"started with each other's number, they pair by themselves, nobody picking up: one active, one standby ({roles}, {time.time() - t0:.0f} s)")
     check(V1.status().get("site_members") == 1 and V2.status().get("site_members") == 1, "each counts the other on its segment")
+    said = {X.name: [e.get("role") for e in X.w.events if e.get("event") == "site"] for X in (V1, V2)}
+    check(all(said[k] and said[k][-1] == (V1 if k == "v1" else V2).status()["site"] for k in said), f"and each says its role, the standby too (ADR 0114): {said}")
     V1.stop()
     until(lambda: V1.proc.poll() is not None, 20)
     V1 = node("v1", v1, "10.9.0.1", ("--pair", n2))
