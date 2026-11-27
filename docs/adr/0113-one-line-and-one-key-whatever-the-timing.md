@@ -8,7 +8,7 @@ Status: accepted; built in 0.5.81. Two faults of the same kind, found while the 
 ## Decision
 
 1. **A node with no line holds its other line handshakes while one is under way** (a session whose hello was sent and whose line has not come, for up to 15 s). When the line comes, or the wait is over, the held hellos go: the second callee then meets a node that is on a line, and is admitted to it.
-2. **The newest line key wins.** Each key carries the time it was made (`key_gen`, wall clock in ms, saved with the line, carried at the end of `M_LINE` and in `M_LINEKEY`). Members tell each other their key each time they link; a member takes a newer one (the same time: the greater key), passes it to every other member it is linked to, and tells an older one back. Every change reaches every member through whoever is in touch.
+2. **The newest line key wins.** Each key carries the time it was made (`key_gen`, wall clock in ms, saved with the line, carried at the end of `M_LINE` and in `M_LINEKEY`). Members tell each other their key each time they link, and again every 20 s while linked (a key told only at the link could be missed by a member that had not yet linked back, and nothing would put it right); a member takes a newer one (the same time: the greater key), passes it to every other member it is linked to, and tells an older one back. Every change reaches every member through whoever is in touch.
 3. `longwire peers` shows `key_fp`, four bytes of a keyed hash of the line key: equal on members that hold the same key, and it reveals nothing of it.
 
 ## Consequences

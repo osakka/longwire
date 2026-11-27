@@ -67,7 +67,7 @@ def main():
     D = node("D", 4003, "ask")
     check(until(lambda: na in up(D) and nb in up(D), 180) is not None, f"the desktop comes back, in touch with A and B: {up(D)}")
     check(until(lambda: nc.replace("-", "") not in D.cmd("peers")[1].replace("-", ""), 30) is not None, "it takes C off its record by itself")
-    same = until(lambda: fp(A) == fp(B) == fp(D) and fp(A), 30)
+    same = until(lambda: fp(A) == fp(B) == fp(D) and fp(A), 60)	# members retell their key every 20 s
     check(same is not None, f"and A, B and the desktop end with one key, the newest: {[fp(X) for X in (A, B, D)]}")
     L.finish("evictsync")
 

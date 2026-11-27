@@ -77,10 +77,10 @@ done
 # --- the launcher finds a script the way the catalogue places it, and says what to do when there is none
 mkdir -p "$T/home/.local/share/hibr/cli" "$T/none"
 printf '#!/usr/bin/env hibr\necho "ran with: $*"\n' > "$T/home/.local/share/hibr/cli/longwire.hibr"
-out=$(HOME="$T/home" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire" up --now 2>&1)
+out=$(HOME="$T/home" XDG_DATA_HOME="$T/home/.local/share" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire" up --now 2>&1)
 [ "$out" = "ran with: up --now" ]; check $? "the launcher runs the script the catalogue put in its cli folder: $out"
 mkdir -p "$T/home3/.local/share/hibr/apps/Network" && cp "$T/home/.local/share/hibr/cli/longwire.hibr" "$T/home3/.local/share/hibr/apps/Network/longwire.hibr"
-out=$(HOME="$T/home3" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire" x 2>&1)
+out=$(HOME="$T/home3" XDG_DATA_HOME="$T/home3/.local/share" XDG_CONFIG_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire" x 2>&1)
 [ "$out" = "ran with: x" ]; check $? "...and one installed as an app, in a submenu folder, is found too"
 out=$(HOME="$T/home" XDG_CONFIG_HOME="$T/none" XDG_DATA_HOME="$T/none" HIBR_SYSDIR="$T/none" PATH="$(dirname "$(readlink -f "$HIBR")"):$PATH" "$HIBR" "$T/deb/usr/bin/longwire-switchboard" 2>&1); rc=$?
 [ $rc -eq 127 ] && echo "$out" | grep -q "catalogue install cli/longwire-switchboard"; check $? "with no script it says how to get it, and exits 127"

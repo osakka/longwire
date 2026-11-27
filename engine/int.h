@@ -209,6 +209,7 @@ typedef struct lw_line {
 	int      have;
 	uint8_t  id[8], founder[32], key[32], prev_key[32];
 	double   key_t;			/* when the key last changed: the grace window for the old one */
+	double   key_told;		/* when this node last told its linked members its key (ADR 0113) */
 	uint64_t key_gen;		/* when the key was made (wall clock, ms): the newest key wins among members (ADR 0113) */
 	uint8_t  authority[32];		/* the operator's public key; all zero on a line members run among themselves */
 	int      managed;

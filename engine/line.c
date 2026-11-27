@@ -1514,6 +1514,14 @@ void line_timers(lw_node *n)
 	if (!n->line.have && n->cfg.has_authority && n->registered && n->number[0])
 		found(n);			/* a managed line exists from the start: the operator needs its id to sign for */
 	line_hello_held(n);			/* hellos held back while a line was on its way (BUG-13) */
+	if (n->line.have && n->now - n->line.key_told >= 20.0) {	/* and the key, again every 20 s: one told only at a link can be missed (a member that had not yet linked us back ignores it), and nothing else would put it right (ADR 0113) */
+		int k;
+
+		n->line.key_told = n->now;
+		for (k = 0; k < n->maxpeers; k++)
+			if (n->peers[k].used && !n->peers[k].is_sb && n->peers[k].linked && n->peers[k].cur.valid && mem_find(n, n->peers[k].key_id))
+				key_tell(n, &n->peers[k]);
+	}
 	if (n->line.have && n->line.managed && n->now - n->line.chk >= 1.0) {
 		n->line.chk = n->now;
 		revs_prune(n);
