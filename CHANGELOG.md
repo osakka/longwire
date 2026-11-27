@@ -5,6 +5,8 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.82 (unreleased)
 
+**The pane, menu bar item and strip module are tested on hibr's real desktop as it runs them from 0.99.560** (each in a process of its own, hibr ADR 0050): `tests/hosted.sh` installs them as the catalogue does and drives a desktop session through hibr's screen harness; the in-process checks it replaces in `tests/pane.sh` and `tests/bar.sh` sourced the files into the desktop, which 0.99.560 refuses. The rate check that used the desktop's own clock went with them; the pane test still checks the rates with a stub clock.
+
 **Members retell their line key every 20 s** ([ADR 0113](docs/adr/0113-one-line-and-one-key-whatever-the-timing.md)): told only at a link, a newer key could be missed by a member still to link back, and the line stayed on two keys (found by `evictsync` in a run against hibr 0.99.560).
 
 **A box says its role from the start** ([ADR 0114](docs/adr/0114-a-box-says-its-role-from-the-start.md)): the standby of a pair said nothing until it had once been active (the owner's vpn-1 on 0.5.81); now each box says active or standby once it has listened, and at every change.

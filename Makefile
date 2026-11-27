@@ -97,6 +97,7 @@ check: all lint
 	sh tests/tokens.sh
 	sh tests/policy.sh
 	sh tests/bar.sh
+	sh tests/hosted.sh
 	sh tests/man.sh
 	sh tests/fuzz.sh
 	sh tests/kat.sh
