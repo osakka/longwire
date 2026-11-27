@@ -5,7 +5,7 @@ What changed, newest first. The reasons are in [docs/adr](docs/adr/README.md); w
 
 ## 0.5.82 (unreleased)
 
-**Members retell their line key every 20 s** ([ADR 0113](docs/adr/0113-one-line-and-one-key-whatever-the-timing.md)): told only at a link, a newer key could be missed by a member that had not yet linked back, and the line stayed on two keys (found by `evictsync` in a run against hibr 0.99.560).
+**Members retell their line key every 20 s** ([ADR 0113](docs/adr/0113-one-line-and-one-key-whatever-the-timing.md)): told only at a link, a newer key could be missed by a member still to link back, and the line stayed on two keys (found by `evictsync` in a run against hibr 0.99.560).
 
 **A box says its role from the start** ([ADR 0114](docs/adr/0114-a-box-says-its-role-from-the-start.md)): the standby of a pair said nothing until it had once been active (the owner's vpn-1 on 0.5.81); now each box says active or standby once it has listened, and at every change.
 
