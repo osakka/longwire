@@ -102,11 +102,13 @@ def main():
         check("phrase" not in ea and "phrase" not in ec, "the connected event carries no phrase: it comes in sas, once agreed")
     pa = {p["number"]: p for p in A.status()["peers"]}
     check(nc in pa and pa[nc]["path"] == "relay" and pa[nc]["state"] == "up", "A's status shows C as a relayed peer that is up")
-    ok_ = until(lambda: {p["number"]: p for p in A.status()["peers"]}.get(nc, {}).get("sas") == "agreed", 20)
+    # both ends: each says "agreed" when it has the other's reveal, and the two need not do so in the same instant (a full run read C a moment early)
+    ok_ = until(lambda: {p["number"]: p for p in A.status()["peers"]}.get(nc, {}).get("sas") == "agreed" and
+                        {p["number"]: p for p in C.status()["peers"]}.get(na, {}).get("sas") == "agreed", 20)
     pa = {p["number"]: p for p in A.status()["peers"]}
     pc = {p["number"]: p for p in C.status()["peers"]}
     check(ok_ is not None and len(pa[nc]["phrase"].split()) == 8 and pa[nc]["phrase"] == pc.get(na, {}).get("phrase"),
-          f"...and the relayed session agrees the same eight words at both ends, through the relay (docs/adr/0057): {pa.get(nc, {}).get('sas')}")
+          f"...and the relayed session agrees the same eight words at both ends, through the relay (docs/adr/0057): A {pa.get(nc, {}).get('sas')}, C {pc.get(na, {}).get('sas')}")
     check(pa[nc]["mesh"] is True, "...marked as a member the line brought, so the desktop does not interrupt for it")
     check(until(lambda: A.status()["line"]["up"] == 3 and not A.status()["line"]["partial"], 15) is not None,
           "the line is a full mesh from A's side, though one edge is relayed")
